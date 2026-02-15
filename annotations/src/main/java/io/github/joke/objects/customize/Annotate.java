@@ -9,11 +9,10 @@ import java.lang.annotation.Annotation;
 import java.lang.annotation.Documented;
 import java.lang.annotation.Repeatable;
 import java.lang.annotation.Retention;
-import java.lang.annotation.Target;
 
 @Documented
 @Retention(SOURCE)
-@Target({TYPE, METHOD})
+@java.lang.annotation.Target({TYPE, METHOD})
 @Repeatable(Annotate.Annotates.class)
 public @interface Annotate {
 

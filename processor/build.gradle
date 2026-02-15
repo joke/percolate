@@ -6,13 +6,14 @@ plugins {
 dependencies {
     annotationProcessor platform(project(':dependencies'))
     annotationProcessor 'com.google.auto.service:auto-service'
-    annotationProcessor 'com.google.dagger:dagger'
     annotationProcessor 'com.google.dagger:dagger-compiler'
 
     compileOnly 'com.google.auto.service:auto-service-annotations'
 
     implementation platform(project(':dependencies'))
+    implementation 'com.google.dagger:dagger'
     implementation 'com.palantir.javapoet:javapoet'
+    implementation project(':annotations')
 
     testImplementation 'org.spockframework:spock-core'
     testImplementation 'com.google.testing.compile:compile-testing'
