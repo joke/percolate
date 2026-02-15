@@ -19,6 +19,9 @@ subprojects { project ->
 
     pluginManager.withPlugin('java') {
         pluginManager.apply 'net.ltgt.errorprone'
+        tasks.withType(Test).configureEach {
+           useJUnitPlatform()
+        }
     }
 
     pluginManager.withPlugin('net.ltgt.errorprone') {
