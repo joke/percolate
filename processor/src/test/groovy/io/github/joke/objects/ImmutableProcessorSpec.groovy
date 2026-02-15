@@ -32,4 +32,46 @@ class ImmutableProcessorSpec extends Specification {
         generated.contains('package test;')
         generated.contains('public class PersonImpl implements Person')
     }
+
+    def 'fails when @Immutable applied to a class'() {
+        given:
+        def source = JavaFileObjects.forSourceString('test.Person', '''\
+            package test;
+            import io.github.joke.objects.Immutable;
+            @Immutable
+            public class Person {}
+        ''')
+
+        when:
+        def compilation = javac()
+            .withProcessors(new ObjectsProcessor())
+            .compile(source)
+
+        then:
+        compilation.status() == Compilation.Status.FAILURE
+        compilation.errors().any {
+            it.getMessage(null).contains('@Immutable can only be applied to interfaces')
+        }
+    }
+
+    def 'fails when @Immutable applied to an enum'() {
+        given:
+        def source = JavaFileObjects.forSourceString('test.Color', '''\
+            package test;
+            import io.github.joke.objects.Immutable;
+            @Immutable
+            public enum Color { RED, GREEN, BLUE }
+        ''')
+
+        when:
+        def compilation = javac()
+            .withProcessors(new ObjectsProcessor())
+            .compile(source)
+
+        then:
+        compilation.status() == Compilation.Status.FAILURE
+        compilation.errors().any {
+            it.getMessage(null).contains('@Immutable can only be applied to interfaces')
+        }
+    }
 }
