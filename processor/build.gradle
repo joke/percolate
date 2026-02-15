@@ -1,0 +1,25 @@
+plugins {
+    id 'java'
+    id 'groovy'
+}
+
+dependencies {
+    annotationProcessor platform(project(':dependencies'))
+    annotationProcessor 'com.google.auto.service:auto-service'
+    annotationProcessor 'com.google.dagger:dagger-compiler'
+
+    compileOnly 'com.google.auto.service:auto-service-annotations'
+    compileOnly 'org.jspecify:jspecify'
+
+    implementation platform(project(':dependencies'))
+    implementation project(':annotations')
+    implementation 'org.jgrapht:jgrapht-core'
+    implementation 'com.google.dagger:dagger'
+    implementation 'com.palantir.javapoet:javapoet'
+
+    testImplementation platform(project(':dependencies'))
+    testImplementation 'org.spockframework:spock-core'
+    testImplementation 'com.google.testing.compile:compile-testing'
+
+    testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+}

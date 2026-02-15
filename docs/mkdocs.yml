@@ -1,0 +1,27 @@
+site_name: Caffeinate
+site_description: An annotation processor for generating Java boilerplate
+site_url: https://joke.github.io/caffeinate/
+
+theme:
+  name: material
+  palette:
+    scheme: default
+    primary: indigo
+    accent: indigo
+  features:
+    - content.code.copy
+
+nav:
+  - Home: index.md
+  - Getting Started: getting-started.md
+  - '@Immutable': immutable.md
+  - '@Mutable': mutable.md
+  - Reference: reference.md
+
+markdown_extensions:
+  - pymdownx.highlight:
+      anchor_linenums: true
+  - pymdownx.superfences
+  - admonition
+  - pymdownx.tabbed:
+      alternate_style: true
