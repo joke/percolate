@@ -1,0 +1,23 @@
+plugins {
+    id 'java-platform'
+}
+
+javaPlatform {
+    allowDependencies()
+}
+
+dependencies {
+
+    api platform('org.apache.groovy:groovy-bom:5.0.4')
+    api platform('org.spockframework:spock-bom:2.4-groovy-5.0')
+
+    constraints {
+        api 'com.google.auto.service:auto-service-annotations:1.1.1'
+        api 'com.google.auto.service:auto-service:1.1.1'
+        api 'com.google.dagger:dagger-compiler:2.59.1'
+        api 'com.google.dagger:dagger:2.59.1'
+        api 'com.palantir.javapoet:javapoet:0.11.0'
+        api 'com.google.testing.compile:compile-testing:0.23.0'
+    }
+
+}

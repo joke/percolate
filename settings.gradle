@@ -1,0 +1,17 @@
+pluginManagement {  
+    repositories {
+        gradlePluginPortal()
+    }
+    plugins {
+        id 'net.ltgt.errorprone' version '5.0.0'
+        id 'net.ltgt.nullaway' version '3.0.0'
+    }
+}
+
+rootProject.name = 'objects'
+
+// include 'annotations'
+// include 'bom'
+include 'dependencies'
+include 'processor'
+// include 'tests'

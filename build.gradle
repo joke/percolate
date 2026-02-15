@@ -1,0 +1,44 @@
+plugins {
+    id 'net.ltgt.nullaway' apply false
+    id 'net.ltgt.errorprone' apply false
+}
+
+subprojects { project ->
+    group 'io.github.joke.objects'
+
+    repositories {
+        mavenCentral()
+    }
+
+    pluginManager.withPlugin('java-base') {
+        tasks.withType(JavaCompile) {
+            options.release = 11
+            options.compilerArgs << '-parameters' << '-Werror'
+        }
+    }
+
+    pluginManager.withPlugin('java') {
+        pluginManager.apply 'net.ltgt.errorprone'
+    }
+
+    pluginManager.withPlugin('net.ltgt.errorprone') {
+        pluginManager.apply 'net.ltgt.nullaway'
+        dependencies {
+            errorprone('com.google.errorprone:error_prone_core:2.47.0')
+        }
+    }
+
+    pluginManager.withPlugin('net.ltgt.nullaway') {
+        dependencies {
+            errorprone('com.uber.nullaway:nullaway:0.13.1')
+        }
+        nullaway {
+            onlyNullMarked = true
+            jspecifyMode = true
+        }
+    }
+}
+
+wrapper {
+    gradleVersion = '9.3.1'
+}
