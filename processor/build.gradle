@@ -3,6 +3,14 @@ plugins {
     id 'groovy'
 }
 
+tasks.withType(JavaCompile).configureEach {
+    options.errorprone.disableWarningsInGeneratedCode = true
+}
+
+tasks.withType(Test).configureEach {
+    useJUnitPlatform()
+}
+
 dependencies {
     annotationProcessor platform(project(':dependencies'))
     annotationProcessor 'com.google.auto.service:auto-service'
@@ -15,7 +23,9 @@ dependencies {
     implementation 'com.palantir.javapoet:javapoet'
     implementation project(':annotations')
 
+    testImplementation platform(project(':dependencies'))
     testImplementation 'org.spockframework:spock-core'
     testImplementation 'com.google.testing.compile:compile-testing'
+    testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
 }
 
