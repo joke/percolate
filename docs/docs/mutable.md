@@ -11,7 +11,7 @@ Annotate an interface with `@Mutable` and the processor generates a concrete imp
 === "Your interface"
 
     ```java
-    import io.github.joke.objects.Mutable;
+    import io.github.joke.caffeinate.Mutable;
 
     @Mutable
     public interface Person {

@@ -1,6 +1,6 @@
-# Objects
+# Caffeinate
 
-Objects is a Java annotation processor that generates implementation classes from annotated interfaces.
+Caffeinate is a Java annotation processor that generates implementation classes from annotated interfaces.
 
 ## Quick Example
 
@@ -11,7 +11,7 @@ Define an interface and annotate it with `@Immutable` -- Objects generates the i
     ```java
     package com.example;
 
-    import io.github.joke.objects.Immutable;
+    import io.github.joke.caffeinate.Immutable;
 
     @Immutable
     public interface Person {

@@ -11,7 +11,7 @@ Annotate an interface with `@Immutable` and the processor generates a concrete i
 === "Your interface"
 
     ```java
-    import io.github.joke.objects.Immutable;
+    import io.github.joke.caffeinate.Immutable;
 
     @Immutable
     public interface Greeting {

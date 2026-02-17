@@ -1,6 +1,6 @@
 # Reference
 
-This page is a comprehensive reference for all annotations, naming conventions, and validation rules in the Objects annotation processor.
+This page is a comprehensive reference for all annotations, naming conventions, and validation rules in the Caffeinate annotation processor.
 
 ## Annotations
 

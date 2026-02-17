@@ -6,10 +6,10 @@
 
 ## Installation
 
-Objects consists of two artifacts:
+Caffeinate consists of two artifacts:
 
-1. **`io.github.joke.objects:annotations`** -- provides the annotations (`@Immutable`, `@Mutable`, etc.). This is a compile-only dependency; it is not needed at runtime.
-2. **`io.github.joke.objects:processor`** -- the annotation processor that generates implementation classes at compile time.
+1. **`io.github.joke.caffeinate:annotations`** -- provides the annotations (`@Immutable`, `@Mutable`, etc.). This is a compile-only dependency; it is not needed at runtime.
+2. **`io.github.joke.caffeinate:processor`** -- the annotation processor that generates implementation classes at compile time.
 
 Add both to your project:
 
@@ -17,8 +17,8 @@ Add both to your project:
 
     ```groovy title="build.gradle"
     dependencies {
-        compileOnly 'io.github.joke.objects:annotations:VERSION'
-        annotationProcessor 'io.github.joke.objects:processor:VERSION'
+        compileOnly 'io.github.joke.caffeinate:annotations:VERSION'
+        annotationProcessor 'io.github.joke.caffeinate:processor:VERSION'
     }
     ```
 
@@ -27,13 +27,13 @@ Add both to your project:
     ```xml title="pom.xml"
     <dependencies>
         <dependency>
-            <groupId>io.github.joke.objects</groupId>
+            <groupId>io.github.joke.caffeinate</groupId>
             <artifactId>annotations</artifactId>
             <version>VERSION</version>
             <scope>provided</scope>
         </dependency>
         <dependency>
-            <groupId>io.github.joke.objects</groupId>
+            <groupId>io.github.joke.caffeinate</groupId>
             <artifactId>processor</artifactId>
             <version>VERSION</version>
             <scope>provided</scope>
@@ -51,7 +51,7 @@ Once the dependencies are in place, annotate an interface with `@Immutable` and 
 ```java
 package com.example;
 
-import io.github.joke.objects.Immutable;
+import io.github.joke.caffeinate.Immutable;
 
 @Immutable
 public interface Person {
