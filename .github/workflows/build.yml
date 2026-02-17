@@ -10,6 +10,6 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: jdkr/setup-mise@v1
-      - uses: gradle/actions/setup-gradle@v4
+      - uses: jdx/mise-action@v3
+      - uses: gradle/actions/setup-gradle@v5
       - run: ./gradlew build
