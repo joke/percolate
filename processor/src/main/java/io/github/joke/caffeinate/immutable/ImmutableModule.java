@@ -4,6 +4,8 @@ import dagger.Binds;
 import dagger.Module;
 import dagger.multibindings.IntoSet;
 import dagger.multibindings.Multibinds;
+import io.github.joke.caffeinate.phase.AnalysisPhase;
+import io.github.joke.caffeinate.phase.GenerationPhase;
 import io.github.joke.caffeinate.strategy.ClassStructureStrategy;
 import io.github.joke.caffeinate.strategy.ConstructorStrategy;
 import io.github.joke.caffeinate.strategy.FieldStrategy;

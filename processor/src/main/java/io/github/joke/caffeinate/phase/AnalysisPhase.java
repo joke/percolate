@@ -1,4 +1,4 @@
-package io.github.joke.caffeinate.immutable;
+package io.github.joke.caffeinate.phase;
 
 import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
@@ -6,4 +6,4 @@ import javax.inject.Qualifier;
 
 @Qualifier
 @Retention(RetentionPolicy.RUNTIME)
-public @interface GenerationPhase {}
+public @interface AnalysisPhase {}

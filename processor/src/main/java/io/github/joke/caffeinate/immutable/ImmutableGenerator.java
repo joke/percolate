@@ -6,6 +6,8 @@ import com.palantir.javapoet.JavaFile;
 import com.palantir.javapoet.MethodSpec;
 import com.palantir.javapoet.TypeName;
 import com.palantir.javapoet.TypeSpec;
+import io.github.joke.caffeinate.phase.AnalysisPhase;
+import io.github.joke.caffeinate.phase.GenerationPhase;
 import io.github.joke.caffeinate.strategy.ClassModel;
 import io.github.joke.caffeinate.strategy.GenerationStrategy;
 import java.io.IOException;
