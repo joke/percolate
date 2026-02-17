@@ -8,6 +8,7 @@ import com.palantir.javapoet.TypeName;
 import com.palantir.javapoet.TypeSpec;
 import io.github.joke.caffeinate.immutable.AnalysisPhase;
 import io.github.joke.caffeinate.immutable.GenerationPhase;
+import io.github.joke.caffeinate.immutable.ValidationPhase;
 import io.github.joke.caffeinate.strategy.ClassModel;
 import io.github.joke.caffeinate.strategy.GenerationStrategy;
 import java.io.IOException;
@@ -20,15 +21,18 @@ import javax.lang.model.element.TypeElement;
 public class MutableGenerator {
 
     private final Set<GenerationStrategy> analysisStrategies;
+    private final Set<GenerationStrategy> validationStrategies;
     private final Set<GenerationStrategy> generationStrategies;
     private final Filer filer;
 
     @Inject
     MutableGenerator(
             @AnalysisPhase Set<GenerationStrategy> analysisStrategies,
+            @ValidationPhase Set<GenerationStrategy> validationStrategies,
             @GenerationPhase Set<GenerationStrategy> generationStrategies,
             Filer filer) {
         this.analysisStrategies = analysisStrategies;
+        this.validationStrategies = validationStrategies;
         this.generationStrategies = generationStrategies;
         this.filer = filer;
     }
@@ -37,6 +41,10 @@ public class MutableGenerator {
         ClassModel model = new ClassModel();
 
         for (GenerationStrategy strategy : analysisStrategies) {
+            strategy.generate(source, model);
+        }
+
+        for (GenerationStrategy strategy : validationStrategies) {
             strategy.generate(source, model);
         }
 

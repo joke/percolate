@@ -6,6 +6,7 @@ import dagger.multibindings.IntoSet;
 import dagger.multibindings.Multibinds;
 import io.github.joke.caffeinate.immutable.AnalysisPhase;
 import io.github.joke.caffeinate.immutable.GenerationPhase;
+import io.github.joke.caffeinate.immutable.ValidationPhase;
 import io.github.joke.caffeinate.strategy.ClassStructureStrategy;
 import io.github.joke.caffeinate.strategy.GenerationStrategy;
 import io.github.joke.caffeinate.strategy.GetterStrategy;
@@ -18,6 +19,10 @@ public interface MutableModule {
     @AnalysisPhase
     Set<GenerationStrategy> analysisStrategies();
 
+    @Multibinds
+    @ValidationPhase
+    Set<GenerationStrategy> validationStrategies();
+
     @Binds
     @IntoSet
     @AnalysisPhase
@@ -25,7 +30,7 @@ public interface MutableModule {
 
     @Binds
     @IntoSet
-    @AnalysisPhase
+    @ValidationPhase
     GenerationStrategy setterValidation(SetterValidationStrategy impl);
 
     @Binds
