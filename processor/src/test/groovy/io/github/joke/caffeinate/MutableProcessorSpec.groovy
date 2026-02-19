@@ -270,6 +270,8 @@ class MutableProcessorSpec extends Specification {
             .get().getCharContent(true).toString()
         generated.contains('private String name')
         generated.contains('private int age')
+        !generated.contains('private final String name')
+        !generated.contains('private final int age')
         generated.contains('public String getName()')
         generated.contains('public void setName(String name)')
         generated.contains('public int getAge()')

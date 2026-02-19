@@ -296,6 +296,9 @@ class ImmutableProcessorSpec extends Specification {
         generated.contains('private final String id')
         generated.contains('private final String name')
         generated.contains('private final int age')
+        generated.contains('public String getId()')
+        generated.contains('public String getName()')
+        generated.contains('public int getAge()')
         generated.contains('PersonImpl(String id, String name, int age)')
     }
 }
