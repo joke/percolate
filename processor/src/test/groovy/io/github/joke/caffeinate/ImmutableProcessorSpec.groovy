@@ -389,4 +389,71 @@ class ImmutableProcessorSpec extends Specification {
             it.getMessage(null).contains('requires a no-args constructor')
         }
     }
+
+    def 'propagates @Nullable to field, getter, and constructor parameter'() {
+        given:
+        def nullable = JavaFileObjects.forSourceString('test.Nullable', '''\
+            package test;
+            public @interface Nullable {}
+        ''')
+        def source = JavaFileObjects.forSourceString('test.Person', '''\
+            package test;
+            import io.github.joke.caffeinate.Immutable;
+            @Immutable
+            public interface Person {
+                @Nullable String getName();
+                int getAge();
+            }
+        ''')
+
+        when:
+        def compilation = javac()
+            .withProcessors(new CaffeinateProcessor())
+            .compile(nullable, source)
+
+        then:
+        compilation.status() == Compilation.Status.SUCCESS
+
+        and:
+        def generated = compilation.generatedSourceFile('test.PersonImpl')
+            .get().getCharContent(true).toString()
+        generated.count('@Nullable') == 3       // field + getter method + constructor param
+        generated.contains('@Nullable String name')   // constructor param
+        !generated.contains('@Nullable int age')      // non-nullable property unaffected
+    }
+
+    def 'propagates @Nullable from inherited getter to field, getter, and constructor parameter'() {
+        given:
+        def nullable = JavaFileObjects.forSourceString('test.Nullable', '''\
+            package test;
+            public @interface Nullable {}
+        ''')
+        def named = JavaFileObjects.forSourceString('test.Named', '''\
+            package test;
+            interface Named { @Nullable String getName(); }
+        ''')
+        def source = JavaFileObjects.forSourceString('test.Person', '''\
+            package test;
+            import io.github.joke.caffeinate.Immutable;
+            @Immutable
+            public interface Person extends Named {
+                int getAge();
+            }
+        ''')
+
+        when:
+        def compilation = javac()
+            .withProcessors(new CaffeinateProcessor())
+            .compile(nullable, named, source)
+
+        then:
+        compilation.status() == Compilation.Status.SUCCESS
+
+        and:
+        def generated = compilation.generatedSourceFile('test.PersonImpl')
+            .get().getCharContent(true).toString()
+        generated.count('@Nullable') == 3       // field + getter method + constructor param
+        generated.contains('@Nullable String name')
+        !generated.contains('@Nullable int age')
+    }
 }
