@@ -18,11 +18,12 @@ public class SetterStrategy implements GenerationStrategy {
     @Override
     public void generate(TypeElement source, ClassModel model) {
         for (Property property : model.getProperties()) {
+            ParameterSpec.Builder param = ParameterSpec.builder(property.getType(), property.getFieldName());
+            property.getAnnotations().forEach(param::addAnnotation);
             MethodSpec setter = MethodSpec.methodBuilder(PropertyUtils.setterNameForField(property.getFieldName()))
                     .addModifiers(Modifier.PUBLIC)
                     .returns(void.class)
-                    .addParameter(ParameterSpec.builder(property.getType(), property.getFieldName())
-                            .build())
+                    .addParameter(param.build())
                     .addStatement("this.$N = $N", property.getFieldName(), property.getFieldName())
                     .build();
             model.getMethods().add(setter);
