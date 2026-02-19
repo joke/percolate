@@ -301,4 +301,92 @@ class ImmutableProcessorSpec extends Specification {
         generated.contains('public int getAge()')
         generated.contains('PersonImpl(String id, String name, int age)')
     }
+
+    def 'generates implementation extending abstract class'() {
+        given:
+        def source = JavaFileObjects.forSourceString('test.AbstractEntity', '''\
+            package test;
+            import io.github.joke.caffeinate.Immutable;
+            @Immutable
+            public abstract class AbstractEntity {
+                public abstract String getId();
+            }
+        ''')
+
+        when:
+        def compilation = javac()
+            .withProcessors(new CaffeinateProcessor())
+            .compile(source)
+
+        then:
+        compilation.status() == Compilation.Status.SUCCESS
+
+        and:
+        def generated = compilation.generatedSourceFile('test.AbstractEntityImpl')
+            .get().getCharContent(true).toString()
+        generated.contains('public class AbstractEntityImpl extends AbstractEntity')
+        generated.contains('private final String id')
+        generated.contains('public String getId()')
+        generated.contains('AbstractEntityImpl(String id)')
+        generated.contains('super()')
+    }
+
+    def 'collects abstract methods from abstract class hierarchy'() {
+        given:
+        def base = JavaFileObjects.forSourceString('test.Base', '''\
+            package test;
+            public abstract class Base {
+                public abstract String getId();
+            }
+        ''')
+        def source = JavaFileObjects.forSourceString('test.Entity', '''\
+            package test;
+            import io.github.joke.caffeinate.Immutable;
+            @Immutable
+            public abstract class Entity extends Base {
+                public abstract String getName();
+            }
+        ''')
+
+        when:
+        def compilation = javac()
+            .withProcessors(new CaffeinateProcessor())
+            .compile(base, source)
+
+        then:
+        compilation.status() == Compilation.Status.SUCCESS
+
+        and:
+        def generated = compilation.generatedSourceFile('test.EntityImpl')
+            .get().getCharContent(true).toString()
+        generated.contains('public class EntityImpl extends Entity')
+        generated.contains('private final String id')
+        generated.contains('private final String name')
+        generated.contains('EntityImpl(String id, String name)')
+        generated.contains('super()')
+    }
+
+    def 'fails when @Immutable applied to abstract class with no no-args constructor'() {
+        given:
+        def source = JavaFileObjects.forSourceString('test.AbstractEntity', '''\
+            package test;
+            import io.github.joke.caffeinate.Immutable;
+            @Immutable
+            public abstract class AbstractEntity {
+                AbstractEntity(String id) {}
+                public abstract String getId();
+            }
+        ''')
+
+        when:
+        def compilation = javac()
+            .withProcessors(new CaffeinateProcessor())
+            .compile(source)
+
+        then:
+        compilation.status() == Compilation.Status.FAILURE
+        compilation.errors().any {
+            it.getMessage(null).contains('requires a no-args constructor')
+        }
+    }
 }

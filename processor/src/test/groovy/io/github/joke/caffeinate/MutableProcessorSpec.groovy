@@ -277,4 +277,59 @@ class MutableProcessorSpec extends Specification {
         generated.contains('public int getAge()')
         generated.contains('public void setAge(int age)')
     }
+
+    def 'generates mutable implementation extending abstract class'() {
+        given:
+        def source = JavaFileObjects.forSourceString('test.AbstractEntity', '''\
+            package test;
+            import io.github.joke.caffeinate.Mutable;
+            @Mutable
+            public abstract class AbstractEntity {
+                public abstract String getName();
+            }
+        ''')
+
+        when:
+        def compilation = javac()
+            .withProcessors(new CaffeinateProcessor())
+            .compile(source)
+
+        then:
+        compilation.status() == Compilation.Status.SUCCESS
+
+        and:
+        def generated = compilation.generatedSourceFile('test.AbstractEntityImpl')
+            .get().getCharContent(true).toString()
+        generated.contains('public class AbstractEntityImpl extends AbstractEntity')
+        generated.contains('private String name')
+        !generated.contains('private final String name')
+        generated.contains('public AbstractEntityImpl()')
+        generated.contains('super()')
+        generated.contains('public AbstractEntityImpl(String name)')
+        generated.contains('public void setName(String name)')
+    }
+
+    def 'fails when @Mutable applied to abstract class with no no-args constructor'() {
+        given:
+        def source = JavaFileObjects.forSourceString('test.AbstractEntity', '''\
+            package test;
+            import io.github.joke.caffeinate.Mutable;
+            @Mutable
+            public abstract class AbstractEntity {
+                AbstractEntity(String id) {}
+                public abstract String getName();
+            }
+        ''')
+
+        when:
+        def compilation = javac()
+            .withProcessors(new CaffeinateProcessor())
+            .compile(source)
+
+        then:
+        compilation.status() == Compilation.Status.FAILURE
+        compilation.errors().any {
+            it.getMessage(null).contains('requires a no-args constructor')
+        }
+    }
 }
