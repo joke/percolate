@@ -6,6 +6,7 @@ import io.github.joke.caffeinate.strategy.ClassModel;
 import io.github.joke.caffeinate.strategy.GenerationStrategy;
 import io.github.joke.caffeinate.strategy.Property;
 import javax.inject.Inject;
+import javax.lang.model.element.ElementKind;
 import javax.lang.model.element.Modifier;
 import javax.lang.model.element.TypeElement;
 
@@ -16,12 +17,17 @@ public class MutableConstructorStrategy implements GenerationStrategy {
 
     @Override
     public void generate(TypeElement source, ClassModel model) {
-        MethodSpec noArgs =
-                MethodSpec.constructorBuilder().addModifiers(Modifier.PUBLIC).build();
-        model.getMethods().add(noArgs);
+        MethodSpec.Builder noArgs = MethodSpec.constructorBuilder().addModifiers(Modifier.PUBLIC);
+        if (source.getKind() != ElementKind.INTERFACE) {
+            noArgs.addStatement("super()");
+        }
+        model.getMethods().add(noArgs.build());
 
         if (!model.getProperties().isEmpty()) {
             MethodSpec.Builder allArgs = MethodSpec.constructorBuilder().addModifiers(Modifier.PUBLIC);
+            if (source.getKind() != ElementKind.INTERFACE) {
+                allArgs.addStatement("super()");
+            }
 
             for (Property property : model.getProperties()) {
                 allArgs.addParameter(ParameterSpec.builder(property.getType(), property.getFieldName())
