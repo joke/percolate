@@ -332,4 +332,37 @@ class MutableProcessorSpec extends Specification {
             it.getMessage(null).contains('requires a no-args constructor')
         }
     }
+
+    def 'propagates @Nullable to field, getter, constructor parameter, and setter parameter'() {
+        given:
+        def nullable = JavaFileObjects.forSourceString('test.Nullable', '''\
+            package test;
+            public @interface Nullable {}
+        ''')
+        def source = JavaFileObjects.forSourceString('test.Person', '''\
+            package test;
+            import io.github.joke.caffeinate.Mutable;
+            @Mutable
+            public interface Person {
+                @Nullable String getName();
+                int getAge();
+            }
+        ''')
+
+        when:
+        def compilation = javac()
+            .withProcessors(new CaffeinateProcessor())
+            .compile(nullable, source)
+
+        then:
+        compilation.status() == Compilation.Status.SUCCESS
+
+        and:
+        def generated = compilation.generatedSourceFile('test.PersonImpl')
+            .get().getCharContent(true).toString()
+        generated.count('@Nullable') == 4       // field + getter + all-args constructor param + setter param
+        generated.contains('@Nullable String name')   // setter and all-args constructor param
+        !generated.contains('@Nullable int age')      // non-nullable property unaffected
+        generated =~ /(?s)@Nullable\s+public String getName\(\)/   // getter method annotation
+    }
 }
