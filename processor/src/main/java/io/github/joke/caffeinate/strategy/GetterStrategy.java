@@ -13,13 +13,13 @@ public class GetterStrategy implements GenerationStrategy {
     @Override
     public void generate(TypeElement source, ClassModel model) {
         for (Property property : model.getProperties()) {
-            MethodSpec getter = MethodSpec.methodBuilder(property.getGetterName())
+            MethodSpec.Builder getter = MethodSpec.methodBuilder(property.getGetterName())
                     .addAnnotation(Override.class)
                     .addModifiers(Modifier.PUBLIC)
                     .returns(property.getType())
-                    .addStatement("return this.$N", property.getFieldName())
-                    .build();
-            model.getMethods().add(getter);
+                    .addStatement("return this.$N", property.getFieldName());
+            property.getAnnotations().forEach(getter::addAnnotation);
+            model.getMethods().add(getter.build());
         }
     }
 }
