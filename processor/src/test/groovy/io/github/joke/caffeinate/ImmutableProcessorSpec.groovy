@@ -50,7 +50,7 @@ class ImmutableProcessorSpec extends Specification {
         then:
         compilation.status() == Compilation.Status.FAILURE
         compilation.errors().any {
-            it.getMessage(null).contains('@Immutable can only be applied to interfaces')
+            it.getMessage(null).contains('@Immutable can only be applied to interfaces or abstract classes')
         }
     }
 
@@ -226,7 +226,7 @@ class ImmutableProcessorSpec extends Specification {
         then:
         compilation.status() == Compilation.Status.FAILURE
         compilation.errors().any {
-            it.getMessage(null).contains('@Immutable can only be applied to interfaces')
+            it.getMessage(null).contains('@Immutable can only be applied to interfaces or abstract classes')
         }
     }
 
