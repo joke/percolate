@@ -16,9 +16,10 @@ public class MutableFieldStrategy implements GenerationStrategy {
     @Override
     public void generate(TypeElement source, ClassModel model) {
         for (Property property : model.getProperties()) {
-            FieldSpec field = FieldSpec.builder(property.getType(), property.getFieldName(), Modifier.PRIVATE)
-                    .build();
-            model.getFields().add(field);
+            FieldSpec.Builder field = FieldSpec.builder(
+                            property.getType(), property.getFieldName(), Modifier.PRIVATE);
+            property.getAnnotations().forEach(field::addAnnotation);
+            model.getFields().add(field.build());
         }
     }
 }
