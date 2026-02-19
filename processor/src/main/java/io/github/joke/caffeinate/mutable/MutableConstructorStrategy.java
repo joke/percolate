@@ -30,8 +30,10 @@ public class MutableConstructorStrategy implements GenerationStrategy {
             }
 
             for (Property property : model.getProperties()) {
-                allArgs.addParameter(ParameterSpec.builder(property.getType(), property.getFieldName())
-                        .build());
+                ParameterSpec.Builder param = ParameterSpec.builder(
+                        property.getType(), property.getFieldName());
+                property.getAnnotations().forEach(param::addAnnotation);
+                allArgs.addParameter(param.build());
                 allArgs.addStatement("this.$N = $N", property.getFieldName(), property.getFieldName());
             }
 
