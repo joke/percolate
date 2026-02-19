@@ -241,4 +241,38 @@ class MutableProcessorSpec extends Specification {
             it.getMessage(null).contains('does not match any getter-derived property')
         }
     }
+
+    def 'generates field and setter for getter inherited from parent interface'() {
+        given:
+        def named = JavaFileObjects.forSourceString('test.Named', '''\
+            package test;
+            interface Named { String getName(); }
+        ''')
+        def source = JavaFileObjects.forSourceString('test.Person', '''\
+            package test;
+            import io.github.joke.caffeinate.Mutable;
+            @Mutable
+            public interface Person extends Named {
+                int getAge();
+            }
+        ''')
+
+        when:
+        def compilation = javac()
+            .withProcessors(new CaffeinateProcessor())
+            .compile(named, source)
+
+        then:
+        compilation.status() == Compilation.Status.SUCCESS
+
+        and:
+        def generated = compilation.generatedSourceFile('test.PersonImpl')
+            .get().getCharContent(true).toString()
+        generated.contains('private String name')
+        generated.contains('private int age')
+        generated.contains('public String getName()')
+        generated.contains('public void setName(String name)')
+        generated.contains('public int getAge()')
+        generated.contains('public void setAge(int age)')
+    }
 }

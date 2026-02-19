@@ -229,4 +229,73 @@ class ImmutableProcessorSpec extends Specification {
             it.getMessage(null).contains('@Immutable can only be applied to interfaces')
         }
     }
+
+    def 'generates field and getter for getter inherited from parent interface'() {
+        given:
+        def named = JavaFileObjects.forSourceString('test.Named', '''\
+            package test;
+            interface Named { String getName(); }
+        ''')
+        def source = JavaFileObjects.forSourceString('test.Person', '''\
+            package test;
+            import io.github.joke.caffeinate.Immutable;
+            @Immutable
+            public interface Person extends Named {
+                int getAge();
+            }
+        ''')
+
+        when:
+        def compilation = javac()
+            .withProcessors(new CaffeinateProcessor())
+            .compile(named, source)
+
+        then:
+        compilation.status() == Compilation.Status.SUCCESS
+
+        and:
+        def generated = compilation.generatedSourceFile('test.PersonImpl')
+            .get().getCharContent(true).toString()
+        generated.contains('private final String name')
+        generated.contains('private final int age')
+        generated.contains('public String getName()')
+        generated.contains('public int getAge()')
+        generated.contains('PersonImpl(String name, int age)')
+    }
+
+    def 'collects abstract methods from multi-level interface hierarchy'() {
+        given:
+        def identifiable = JavaFileObjects.forSourceString('test.Identifiable', '''\
+            package test;
+            interface Identifiable { String getId(); }
+        ''')
+        def named = JavaFileObjects.forSourceString('test.Named', '''\
+            package test;
+            interface Named extends Identifiable { String getName(); }
+        ''')
+        def source = JavaFileObjects.forSourceString('test.Person', '''\
+            package test;
+            import io.github.joke.caffeinate.Immutable;
+            @Immutable
+            public interface Person extends Named {
+                int getAge();
+            }
+        ''')
+
+        when:
+        def compilation = javac()
+            .withProcessors(new CaffeinateProcessor())
+            .compile(identifiable, named, source)
+
+        then:
+        compilation.status() == Compilation.Status.SUCCESS
+
+        and:
+        def generated = compilation.generatedSourceFile('test.PersonImpl')
+            .get().getCharContent(true).toString()
+        generated.contains('private final String id')
+        generated.contains('private final String name')
+        generated.contains('private final int age')
+        generated.contains('PersonImpl(String id, String name, int age)')
+    }
 }
