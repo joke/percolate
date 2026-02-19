@@ -1,6 +1,9 @@
 package io.github.joke.caffeinate.strategy;
 
+import com.palantir.javapoet.AnnotationSpec;
 import com.palantir.javapoet.TypeName;
+import java.util.List;
+import java.util.stream.Collectors;
 import javax.lang.model.element.ExecutableElement;
 import javax.lang.model.type.TypeKind;
 
@@ -40,7 +43,13 @@ public final class PropertyUtils {
         }
 
         TypeName type = TypeName.get(method.getReturnType());
-        return new Property(fieldName, type, methodName);
+
+        List<AnnotationSpec> annotations = method.getAnnotationMirrors().stream()
+                .filter(m -> m.getAnnotationType().asElement().getSimpleName().contentEquals("Nullable"))
+                .map(AnnotationSpec::get)
+                .collect(Collectors.toList());
+
+        return new Property(fieldName, type, methodName, annotations);
     }
 
     public static String setterNameForField(String fieldName) {
