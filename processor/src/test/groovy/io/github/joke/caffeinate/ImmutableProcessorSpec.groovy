@@ -419,6 +419,7 @@ class ImmutableProcessorSpec extends Specification {
             .get().getCharContent(true).toString()
         generated.count('@Nullable') == 3       // field + getter method + constructor param
         generated.contains('@Nullable String name')   // constructor param
+        generated =~ /(?s)@Nullable\s+public String getName\(\)/   // getter method annotation
         !generated.contains('@Nullable int age')      // non-nullable property unaffected
     }
 
@@ -454,6 +455,7 @@ class ImmutableProcessorSpec extends Specification {
             .get().getCharContent(true).toString()
         generated.count('@Nullable') == 3       // field + getter method + constructor param
         generated.contains('@Nullable String name')
+        generated =~ /(?s)@Nullable\s+public String getName\(\)/   // getter method annotation
         !generated.contains('@Nullable int age')
     }
 }
