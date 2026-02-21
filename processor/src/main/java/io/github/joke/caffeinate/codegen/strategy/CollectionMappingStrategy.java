@@ -29,7 +29,9 @@ public class CollectionMappingStrategy implements TypeMappingStrategy {
 
     private boolean isList(TypeMirror type) {
         if (!(type instanceof DeclaredType)) return false;
-        TypeElement element = (TypeElement) ((DeclaredType) type).asElement();
-        return element.getQualifiedName().toString().equals("java.util.List");
+        DeclaredType declared = (DeclaredType) type;
+        TypeElement element = (TypeElement) declared.asElement();
+        return element.getQualifiedName().toString().equals("java.util.List")
+                && !declared.getTypeArguments().isEmpty();
     }
 }

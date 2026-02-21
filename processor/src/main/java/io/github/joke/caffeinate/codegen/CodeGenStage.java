@@ -11,10 +11,10 @@ import io.github.joke.caffeinate.analysis.property.Property;
 import io.github.joke.caffeinate.analysis.property.PropertyDiscoveryStrategy;
 import io.github.joke.caffeinate.analysis.property.PropertyMerger;
 import io.github.joke.caffeinate.codegen.strategy.TypeMappingStrategy;
-import io.github.joke.caffeinate.graph.GraphResult;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
 import java.util.Set;
 import javax.annotation.processing.Filer;
 import javax.annotation.processing.ProcessingEnvironment;
@@ -48,13 +48,13 @@ public class CodeGenStage {
         this.typeMappingStrategies = typeMappingStrategies;
     }
 
-    public void generate(GraphResult graph, List<MapperDescriptor> mappers) {
+    public void generate(List<MapperDescriptor> mappers) {
         for (MapperDescriptor descriptor : mappers) {
-            generateMapper(descriptor, graph);
+            generateMapper(descriptor);
         }
     }
 
-    private void generateMapper(MapperDescriptor descriptor, GraphResult graph) {
+    private void generateMapper(MapperDescriptor descriptor) {
         TypeElement iface = descriptor.getMapperInterface();
         String implName = iface.getSimpleName() + "Impl";
         String packageName =
@@ -65,7 +65,7 @@ public class CodeGenStage {
                 .addSuperinterface(TypeName.get(iface.asType()));
 
         for (MappingMethod method : descriptor.getMethods()) {
-            classBuilder.addMethod(generateMethod(method, graph));
+            classBuilder.addMethod(generateMethod(method));
         }
 
         JavaFile javaFile = JavaFile.builder(packageName, classBuilder.build()).build();
@@ -80,7 +80,7 @@ public class CodeGenStage {
         }
     }
 
-    private MethodSpec generateMethod(MappingMethod method, GraphResult graph) {
+    private MethodSpec generateMethod(MappingMethod method) {
         ExecutableElement elem = method.getMethod();
         MethodSpec.Builder builder = MethodSpec.overriding(elem);
 
@@ -92,12 +92,15 @@ public class CodeGenStage {
             TypeMirror targetType = method.getTargetType().asType();
             for (TypeMappingStrategy strategy : typeMappingStrategies) {
                 if (strategy.supports(sourceType, targetType, env)) {
-                    String converterRef = findConverterRef(sourceType, targetType, method);
-                    String expr = strategy.generate(
-                                    param.getSimpleName().toString(), sourceType, targetType, converterRef, env)
-                            .toString();
-                    builder.addStatement("return $L", expr);
-                    return builder.build();
+                    Optional<String> converterRef = findConverterRef(sourceType, targetType, method);
+                    if (converterRef.isPresent()) {
+                        String expr = strategy.generate(
+                                        param.getSimpleName().toString(), sourceType, targetType, converterRef.get(), env)
+                                .toString();
+                        builder.addStatement("return $L", expr);
+                        return builder.build();
+                    }
+                    // No converter found — fall through to property-level mapping
                 }
             }
         }
@@ -106,7 +109,7 @@ public class CodeGenStage {
 
         List<String> args = new ArrayList<>();
         for (Property targetProp : targetProps) {
-            String expr = resolveExpression(targetProp, method, graph);
+            String expr = resolveExpression(targetProp, method);
             args.add(expr);
         }
 
@@ -121,8 +124,7 @@ public class CodeGenStage {
      * Returns a Java expression for a target property value.
      * Priority: explicit @Map > name-match from source > converter delegate.
      */
-    @SuppressWarnings("UnusedVariable")
-    private String resolveExpression(Property targetProp, MappingMethod method, GraphResult graph) {
+    private String resolveExpression(Property targetProp, MappingMethod method) {
         // 1. Explicit @Map annotation
         for (MapAnnotation ann : method.getMapAnnotations()) {
             if (ann.getTarget().equals(targetProp.getName())) {
@@ -145,14 +147,17 @@ public class CodeGenStage {
                 // 2b. Types differ — try TypeMappingStrategy
                 for (TypeMappingStrategy strategy : typeMappingStrategies) {
                     if (strategy.supports(srcProp.getType(), targetProp.getType(), env)) {
-                        String converterRef = findConverterRef(srcProp.getType(), targetProp.getType(), method);
-                        return strategy.generate(
-                                        accessorExpr(param.getSimpleName().toString(), srcProp),
-                                        srcProp.getType(),
-                                        targetProp.getType(),
-                                        converterRef,
-                                        env)
-                                .toString();
+                        Optional<String> converterRef = findConverterRef(srcProp.getType(), targetProp.getType(), method);
+                        if (converterRef.isPresent()) {
+                            return strategy.generate(
+                                            accessorExpr(param.getSimpleName().toString(), srcProp),
+                                            srcProp.getType(),
+                                            targetProp.getType(),
+                                            converterRef.get(),
+                                            env)
+                                    .toString();
+                        }
+                        // No converter found — skip this strategy and continue
                     }
                 }
                 // 2c. No strategy matched — fall through to converter delegate
@@ -217,7 +222,7 @@ public class CodeGenStage {
      * matches the source element type and whose return element type matches the target element type.
      * For simple types, matches directly on the full type.
      */
-    private String findConverterRef(TypeMirror sourceType, TypeMirror targetType, MappingMethod method) {
+    private Optional<String> findConverterRef(TypeMirror sourceType, TypeMirror targetType, MappingMethod method) {
         TypeMirror srcElem = elementType(sourceType);
         TypeMirror tgtElem = elementType(targetType);
         for (ExecutableElement candidate : method.getConverterCandidates()) {
@@ -226,10 +231,10 @@ public class CodeGenStage {
             TypeMirror retType = candidate.getReturnType();
             if (env.getTypeUtils().isSameType(paramType, srcElem)
                     && env.getTypeUtils().isSameType(retType, tgtElem)) {
-                return candidate.getSimpleName().toString();
+                return Optional.of(candidate.getSimpleName().toString());
             }
         }
-        return "";
+        return Optional.empty();
     }
 
     /** Returns the first type argument of a generic declared type, or the type itself. */

@@ -28,12 +28,12 @@ public class EnumMappingStrategy implements TypeMappingStrategy {
             String converterMethodRef,
             ProcessingEnvironment env) {
         if (!(target instanceof DeclaredType) || !(source instanceof DeclaredType)) {
-            return CodeBlock.of("/* EnumMappingStrategy: unsupported type */");
+            throw new IllegalStateException("EnumMappingStrategy.generate() called on non-DeclaredType");
         }
         Element targetEl = ((DeclaredType) target).asElement();
         Element sourceEl = ((DeclaredType) source).asElement();
         if (!(targetEl instanceof TypeElement) || !(sourceEl instanceof TypeElement)) {
-            return CodeBlock.of("/* EnumMappingStrategy: not a TypeElement */");
+            throw new IllegalStateException("EnumMappingStrategy.generate() called on non-TypeElement");
         }
         TypeElement targetEnum = (TypeElement) targetEl;
         TypeElement sourceEnum = (TypeElement) sourceEl;

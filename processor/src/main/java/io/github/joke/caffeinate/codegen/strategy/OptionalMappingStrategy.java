@@ -27,7 +27,9 @@ public class OptionalMappingStrategy implements TypeMappingStrategy {
 
     private boolean isOptional(TypeMirror type) {
         if (!(type instanceof DeclaredType)) return false;
-        TypeElement element = (TypeElement) ((DeclaredType) type).asElement();
-        return element.getQualifiedName().toString().equals("java.util.Optional");
+        DeclaredType declared = (DeclaredType) type;
+        TypeElement element = (TypeElement) declared.asElement();
+        return element.getQualifiedName().toString().equals("java.util.Optional")
+                && !declared.getTypeArguments().isEmpty();
     }
 }

@@ -3,7 +3,6 @@ package io.github.joke.caffeinate.processor;
 import io.github.joke.caffeinate.analysis.AnalysisResult;
 import io.github.joke.caffeinate.analysis.AnalysisStage;
 import io.github.joke.caffeinate.codegen.CodeGenStage;
-import io.github.joke.caffeinate.graph.GraphResult;
 import io.github.joke.caffeinate.graph.GraphStage;
 import io.github.joke.caffeinate.validation.ValidationResult;
 import io.github.joke.caffeinate.validation.ValidationStage;
@@ -34,7 +33,7 @@ public class Pipeline {
         AnalysisResult analysis = analysisStage.analyze(mapperElements);
         ValidationResult validation = validationStage.validate(analysis);
         if (validation.hasFatalErrors()) return;
-        GraphResult graph = graphStage.build(validation);
-        codeGenStage.generate(graph, validation.getMappers());
+        graphStage.build(validation);
+        codeGenStage.generate(validation.getMappers());
     }
 }
