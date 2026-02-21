@@ -23,6 +23,9 @@ public class OptionalMappingStrategy implements TypeMappingStrategy {
             TypeMirror target,
             @Nullable String converterMethodRef,
             ProcessingEnvironment env) {
+        if (converterMethodRef == null) {
+            throw new IllegalStateException("OptionalMappingStrategy.generate() called without a converter method ref");
+        }
         return CodeBlock.of("$L.map(this::$L)", sourceExpr, converterMethodRef);
     }
 
