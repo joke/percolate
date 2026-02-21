@@ -1,7 +1,8 @@
 package io.github.joke.caffeinate.processor;
 
 import com.google.auto.service.AutoService;
-
+import java.util.HashSet;
+import java.util.Set;
 import javax.annotation.processing.AbstractProcessor;
 import javax.annotation.processing.ProcessingEnvironment;
 import javax.annotation.processing.Processor;
@@ -11,8 +12,6 @@ import javax.annotation.processing.SupportedSourceVersion;
 import javax.lang.model.SourceVersion;
 import javax.lang.model.element.Element;
 import javax.lang.model.element.TypeElement;
-import java.util.HashSet;
-import java.util.Set;
 
 @AutoService(Processor.class)
 @SupportedAnnotationTypes("io.github.joke.caffeinate.Mapper")
@@ -39,10 +38,7 @@ public class PercolateProcessor extends AbstractProcessor {
             mapperElements.addAll(roundEnv.getElementsAnnotatedWith(annotation));
         }
         if (mapperElements.isEmpty()) return false;
-        processorComponent.roundComponentFactory()
-                .create()
-                .pipeline()
-                .run(mapperElements);
+        processorComponent.roundComponentFactory().create().pipeline().run(mapperElements);
         return false;
     }
 }

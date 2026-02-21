@@ -14,7 +14,15 @@ public final class Property {
         this.accessor = accessor;
     }
 
-    public String getName() { return name; }
-    public TypeMirror getType() { return type; }
-    public Element getAccessor() { return accessor; }
+    public String getName() {
+        return name;
+    }
+
+    public TypeMirror getType() {
+        return type;
+    }
+
+    public Element getAccessor() {
+        return accessor;
+    }
 }

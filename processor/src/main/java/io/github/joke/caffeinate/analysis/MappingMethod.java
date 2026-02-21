@@ -1,9 +1,9 @@
 package io.github.joke.caffeinate.analysis;
 
+import java.util.List;
 import javax.lang.model.element.ExecutableElement;
 import javax.lang.model.element.TypeElement;
 import javax.lang.model.element.VariableElement;
-import java.util.List;
 
 public final class MappingMethod {
     private final ExecutableElement method;
@@ -20,14 +20,28 @@ public final class MappingMethod {
             List<ExecutableElement> converterCandidates) {
         this.method = method;
         this.targetType = targetType;
-        this.parameters = parameters;  // safe — javax.lang.model returns unmodifiable list
+        this.parameters = parameters; // safe — javax.lang.model returns unmodifiable list
         this.mapAnnotations = List.copyOf(mapAnnotations);
         this.converterCandidates = List.copyOf(converterCandidates);
     }
 
-    public ExecutableElement getMethod() { return method; }
-    public TypeElement getTargetType() { return targetType; }
-    public List<? extends VariableElement> getParameters() { return parameters; }
-    public List<MapAnnotation> getMapAnnotations() { return mapAnnotations; }
-    public List<ExecutableElement> getConverterCandidates() { return converterCandidates; }
+    public ExecutableElement getMethod() {
+        return method;
+    }
+
+    public TypeElement getTargetType() {
+        return targetType;
+    }
+
+    public List<? extends VariableElement> getParameters() {
+        return parameters;
+    }
+
+    public List<MapAnnotation> getMapAnnotations() {
+        return mapAnnotations;
+    }
+
+    public List<ExecutableElement> getConverterCandidates() {
+        return converterCandidates;
+    }
 }

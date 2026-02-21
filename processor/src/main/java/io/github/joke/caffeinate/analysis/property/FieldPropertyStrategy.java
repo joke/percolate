@@ -1,15 +1,14 @@
 package io.github.joke.caffeinate.analysis.property;
 
 import com.google.auto.service.AutoService;
-
+import java.util.ArrayList;
+import java.util.List;
 import javax.annotation.processing.ProcessingEnvironment;
 import javax.lang.model.element.Element;
 import javax.lang.model.element.ElementKind;
 import javax.lang.model.element.Modifier;
 import javax.lang.model.element.TypeElement;
 import javax.lang.model.element.VariableElement;
-import java.util.ArrayList;
-import java.util.List;
 
 @AutoService(PropertyDiscoveryStrategy.class)
 public class FieldPropertyStrategy implements PropertyDiscoveryStrategy {

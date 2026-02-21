@@ -1,22 +1,20 @@
 package io.github.joke.caffeinate.analysis.property;
 
-import javax.annotation.processing.ProcessingEnvironment;
-import javax.lang.model.element.ElementKind;
-import javax.lang.model.element.TypeElement;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import javax.annotation.processing.ProcessingEnvironment;
+import javax.lang.model.element.ElementKind;
+import javax.lang.model.element.TypeElement;
 
 public final class PropertyMerger {
 
     private PropertyMerger() {}
 
     public static List<Property> merge(
-            Set<PropertyDiscoveryStrategy> strategies,
-            TypeElement type,
-            ProcessingEnvironment env) {
+            Set<PropertyDiscoveryStrategy> strategies, TypeElement type, ProcessingEnvironment env) {
         Map<String, Property> byName = new LinkedHashMap<>();
         // Fields first (lower priority)
         for (PropertyDiscoveryStrategy strategy : strategies) {

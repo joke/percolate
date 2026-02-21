@@ -9,6 +9,85 @@ import static com.google.testing.compile.CompilationSubject.assertThat
 
 class PercolateProcessorSpec extends Specification {
 
+    def "generates impl that maps List<A> to List<B> via converter method"() {
+        given:
+        def actorSrc = JavaFileObjects.forSourceLines("io.example.Actor",
+            "package io.example;",
+            "public final class Actor {",
+            "    private final String name;",
+            "    public Actor(String name) { this.name = name; }",
+            "    public String getName() { return name; }",
+            "}")
+        def actorDtoSrc = JavaFileObjects.forSourceLines("io.example.ActorDto",
+            "package io.example;",
+            "public final class ActorDto {",
+            "    private final String name;",
+            "    public ActorDto(String name) { this.name = name; }",
+            "    public String getName() { return name; }",
+            "}")
+        def showSrc = JavaFileObjects.forSourceLines("io.example.Show",
+            "package io.example;",
+            "import java.util.List;",
+            "public final class Show {",
+            "    private final List<Actor> actors;",
+            "    public Show(List<Actor> actors) { this.actors = actors; }",
+            "    public List<Actor> getActors() { return actors; }",
+            "}")
+        def showDtoSrc = JavaFileObjects.forSourceLines("io.example.ShowDto",
+            "package io.example;",
+            "import java.util.List;",
+            "public final class ShowDto {",
+            "    private final List<ActorDto> actors;",
+            "    public ShowDto(List<ActorDto> actors) { this.actors = actors; }",
+            "    public List<ActorDto> getActors() { return actors; }",
+            "}")
+        def mapperSrc = JavaFileObjects.forSourceLines("io.example.ShowMapper",
+            "package io.example;",
+            "import io.github.joke.caffeinate.Mapper;",
+            "@Mapper",
+            "public interface ShowMapper {",
+            "    ShowDto map(Show show);",
+            "    ActorDto mapActor(Actor actor);",
+            "}")
+
+        when:
+        Compilation compilation = Compiler.javac()
+            .withProcessors(new PercolateProcessor())
+            .compile(actorSrc, actorDtoSrc, showSrc, showDtoSrc, mapperSrc)
+
+        then:
+        assertThat(compilation).succeeded()
+        assertThat(compilation).generatedSourceFile("io.example.ShowMapperImpl")
+            .contentsAsUtf8String()
+            .contains("stream()")
+    }
+
+    def "generates impl that maps same-named enum constants"() {
+        given:
+        def statusSrc = JavaFileObjects.forSourceLines("io.example.Status",
+            "package io.example;",
+            "public enum Status { ACTIVE, INACTIVE }")
+        def statusDtoSrc = JavaFileObjects.forSourceLines("io.example.StatusDto",
+            "package io.example;",
+            "public enum StatusDto { ACTIVE, INACTIVE }")
+        def mapperSrc = JavaFileObjects.forSourceLines("io.example.StatusMapper",
+            "package io.example;",
+            "import io.github.joke.caffeinate.Mapper;",
+            "@Mapper",
+            "public interface StatusMapper {",
+            "    StatusDto map(Status status);",
+            "}")
+
+        when:
+        Compilation compilation = Compiler.javac()
+            .withProcessors(new PercolateProcessor())
+            .compile(statusSrc, statusDtoSrc, mapperSrc)
+
+        then:
+        assertThat(compilation).succeeded()
+        assertThat(compilation).generatedSourceFile("io.example.StatusMapperImpl")
+    }
+
     def "generates impl for mapper with getter-based name-matched properties"() {
         given:
         def personSrc = JavaFileObjects.forSourceLines("io.example.Person",

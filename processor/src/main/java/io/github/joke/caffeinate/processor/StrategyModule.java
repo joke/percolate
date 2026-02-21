@@ -4,7 +4,6 @@ import dagger.Module;
 import dagger.Provides;
 import io.github.joke.caffeinate.analysis.property.PropertyDiscoveryStrategy;
 import io.github.joke.caffeinate.codegen.strategy.TypeMappingStrategy;
-
 import java.util.ServiceLoader;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -17,8 +16,9 @@ public class StrategyModule {
     @ProcessorScoped
     Set<PropertyDiscoveryStrategy> propertyDiscoveryStrategies() {
         return StreamSupport.stream(
-                ServiceLoader.load(PropertyDiscoveryStrategy.class,
-                        StrategyModule.class.getClassLoader()).spliterator(), false)
+                        ServiceLoader.load(PropertyDiscoveryStrategy.class, StrategyModule.class.getClassLoader())
+                                .spliterator(),
+                        false)
                 .collect(Collectors.toSet());
     }
 
@@ -26,8 +26,9 @@ public class StrategyModule {
     @ProcessorScoped
     Set<TypeMappingStrategy> typeMappingStrategies() {
         return StreamSupport.stream(
-                ServiceLoader.load(TypeMappingStrategy.class,
-                        StrategyModule.class.getClassLoader()).spliterator(), false)
+                        ServiceLoader.load(TypeMappingStrategy.class, StrategyModule.class.getClassLoader())
+                                .spliterator(),
+                        false)
                 .collect(Collectors.toSet());
     }
 }

@@ -1,7 +1,7 @@
 package io.github.joke.caffeinate.analysis;
 
-import javax.lang.model.element.TypeElement;
 import java.util.List;
+import javax.lang.model.element.TypeElement;
 
 public final class MapperDescriptor {
     private final TypeElement mapperInterface;
@@ -12,6 +12,11 @@ public final class MapperDescriptor {
         this.methods = List.copyOf(methods);
     }
 
-    public TypeElement getMapperInterface() { return mapperInterface; }
-    public List<MappingMethod> getMethods() { return methods; }
+    public TypeElement getMapperInterface() {
+        return mapperInterface;
+    }
+
+    public List<MappingMethod> getMethods() {
+        return methods;
+    }
 }

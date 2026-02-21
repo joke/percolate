@@ -7,10 +7,9 @@ import io.github.joke.caffeinate.graph.GraphResult;
 import io.github.joke.caffeinate.graph.GraphStage;
 import io.github.joke.caffeinate.validation.ValidationResult;
 import io.github.joke.caffeinate.validation.ValidationStage;
-
+import java.util.Set;
 import javax.inject.Inject;
 import javax.lang.model.element.Element;
-import java.util.Set;
 
 public class Pipeline {
 
@@ -20,8 +19,11 @@ public class Pipeline {
     private final CodeGenStage codeGenStage;
 
     @Inject
-    public Pipeline(AnalysisStage analysisStage, ValidationStage validationStage,
-                    GraphStage graphStage, CodeGenStage codeGenStage) {
+    public Pipeline(
+            AnalysisStage analysisStage,
+            ValidationStage validationStage,
+            GraphStage graphStage,
+            CodeGenStage codeGenStage) {
         this.analysisStage = analysisStage;
         this.validationStage = validationStage;
         this.graphStage = graphStage;

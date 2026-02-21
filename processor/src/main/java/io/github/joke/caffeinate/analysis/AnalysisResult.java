@@ -9,5 +9,7 @@ public final class AnalysisResult {
         this.mappers = List.copyOf(mappers);
     }
 
-    public List<MapperDescriptor> getMappers() { return mappers; }
+    public List<MapperDescriptor> getMappers() {
+        return mappers;
+    }
 }

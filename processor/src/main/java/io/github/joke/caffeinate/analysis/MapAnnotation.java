@@ -9,6 +9,11 @@ public final class MapAnnotation {
         this.source = source;
     }
 
-    public String getTarget() { return target; }
-    public String getSource() { return source; }
+    public String getTarget() {
+        return target;
+    }
+
+    public String getSource() {
+        return source;
+    }
 }

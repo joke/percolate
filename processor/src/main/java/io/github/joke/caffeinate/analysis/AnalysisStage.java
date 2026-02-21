@@ -1,7 +1,9 @@
 package io.github.joke.caffeinate.analysis;
 
-import org.jspecify.annotations.Nullable;
-
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
 import javax.inject.Inject;
 import javax.lang.model.element.AnnotationMirror;
 import javax.lang.model.element.AnnotationValue;
@@ -12,16 +14,12 @@ import javax.lang.model.element.Modifier;
 import javax.lang.model.element.TypeElement;
 import javax.lang.model.type.DeclaredType;
 import javax.lang.model.type.TypeMirror;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
+import org.jspecify.annotations.Nullable;
 
 public class AnalysisStage {
 
     @Inject
-    public AnalysisStage() {
-    }
+    public AnalysisStage() {}
 
     public AnalysisResult analyze(Set<? extends Element> mapperElements) {
         List<MapperDescriptor> descriptors = new ArrayList<>();
@@ -43,8 +41,8 @@ public class AnalysisStage {
             TypeElement targetType = resolveTypeElement(method.getReturnType());
             if (targetType == null) continue;
             List<MapAnnotation> mapAnnotations = extractMapAnnotations(method);
-            mappingMethods.add(new MappingMethod(
-                    method, targetType, method.getParameters(), mapAnnotations, converterCandidates));
+            mappingMethods.add(
+                    new MappingMethod(method, targetType, method.getParameters(), mapAnnotations, converterCandidates));
         }
         return new MapperDescriptor(mapperInterface, mappingMethods);
     }
@@ -73,7 +71,8 @@ public class AnalysisStage {
         List<MapAnnotation> annotations = new ArrayList<>();
         for (AnnotationMirror mirror : method.getAnnotationMirrors()) {
             String annotationName = ((TypeElement) mirror.getAnnotationType().asElement())
-                    .getQualifiedName().toString();
+                    .getQualifiedName()
+                    .toString();
             if (annotationName.equals("io.github.joke.caffeinate.Map")) {
                 annotations.add(parseMapAnnotation(mirror));
             } else if (annotationName.equals("io.github.joke.caffeinate.MapList")) {
@@ -86,8 +85,8 @@ public class AnalysisStage {
     private MapAnnotation parseMapAnnotation(AnnotationMirror mirror) {
         String target = "";
         String source = "";
-        for (Map.Entry<? extends ExecutableElement, ? extends AnnotationValue> entry
-                : mirror.getElementValues().entrySet()) {
+        for (Map.Entry<? extends ExecutableElement, ? extends AnnotationValue> entry :
+                mirror.getElementValues().entrySet()) {
             String name = entry.getKey().getSimpleName().toString();
             if (name.equals("target")) target = (String) entry.getValue().getValue();
             else if (name.equals("source")) source = (String) entry.getValue().getValue();
@@ -97,8 +96,8 @@ public class AnalysisStage {
 
     private List<MapAnnotation> parseMapListAnnotation(AnnotationMirror mirror) {
         List<MapAnnotation> result = new ArrayList<>();
-        for (Map.Entry<? extends ExecutableElement, ? extends AnnotationValue> entry
-                : mirror.getElementValues().entrySet()) {
+        for (Map.Entry<? extends ExecutableElement, ? extends AnnotationValue> entry :
+                mirror.getElementValues().entrySet()) {
             if (entry.getKey().getSimpleName().toString().equals("value")) {
                 @SuppressWarnings("unchecked")
                 List<? extends AnnotationValue> values =

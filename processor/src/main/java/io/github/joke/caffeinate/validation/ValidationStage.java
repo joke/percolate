@@ -7,7 +7,8 @@ import io.github.joke.caffeinate.analysis.MappingMethod;
 import io.github.joke.caffeinate.analysis.property.Property;
 import io.github.joke.caffeinate.analysis.property.PropertyDiscoveryStrategy;
 import io.github.joke.caffeinate.analysis.property.PropertyMerger;
-
+import java.util.List;
+import java.util.Set;
 import javax.annotation.processing.ProcessingEnvironment;
 import javax.inject.Inject;
 import javax.lang.model.element.Element;
@@ -15,8 +16,6 @@ import javax.lang.model.element.ExecutableElement;
 import javax.lang.model.element.TypeElement;
 import javax.lang.model.element.VariableElement;
 import javax.tools.Diagnostic;
-import java.util.List;
-import java.util.Set;
 
 public class ValidationStage {
 
@@ -42,25 +41,25 @@ public class ValidationStage {
     }
 
     private boolean validateMethod(MappingMethod method, MapperDescriptor descriptor) {
-        List<Property> targetProperties = PropertyMerger.merge(
-                strategies, method.getTargetType(), env);
+        List<Property> targetProperties = PropertyMerger.merge(strategies, method.getTargetType(), env);
         boolean valid = true;
 
         for (Property targetProp : targetProperties) {
             if (!isCovered(targetProp, method)) {
-                env.getMessager().printMessage(
-                        Diagnostic.Kind.ERROR,
-                        String.format(
-                            "[Percolate] %s.%s: no mapping found for target property '%s' (%s).\n"
-                            + "  Consider adding a method: %s map%s(%s source)",
-                            descriptor.getMapperInterface().getSimpleName(),
-                            method.getMethod().getSimpleName(),
-                            targetProp.getName(),
-                            targetProp.getType(),
-                            targetProp.getType(),
-                            capitalize(targetProp.getName()),
-                            targetProp.getType()),
-                        method.getMethod());
+                env.getMessager()
+                        .printMessage(
+                                Diagnostic.Kind.ERROR,
+                                String.format(
+                                        "[Percolate] %s.%s: no mapping found for target property '%s' (%s).\n"
+                                                + "  Consider adding a method: %s map%s(%s source)",
+                                        descriptor.getMapperInterface().getSimpleName(),
+                                        method.getMethod().getSimpleName(),
+                                        targetProp.getName(),
+                                        targetProp.getType(),
+                                        targetProp.getType(),
+                                        capitalize(targetProp.getName()),
+                                        targetProp.getType()),
+                                method.getMethod());
                 valid = false;
             }
         }
@@ -84,8 +83,7 @@ public class ValidationStage {
         }
         // 3. A converter method whose return type matches the target property type
         for (ExecutableElement converter : method.getConverterCandidates()) {
-            if (env.getTypeUtils().isSameType(
-                    converter.getReturnType(), targetProp.getType())) return true;
+            if (env.getTypeUtils().isSameType(converter.getReturnType(), targetProp.getType())) return true;
         }
         return false;
     }

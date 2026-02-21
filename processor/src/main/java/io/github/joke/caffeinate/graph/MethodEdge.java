@@ -9,5 +9,7 @@ public final class MethodEdge {
         this.method = method;
     }
 
-    public MappingMethod getMethod() { return method; }
+    public MappingMethod getMethod() {
+        return method;
+    }
 }

@@ -13,6 +13,11 @@ public final class ValidationResult {
         this.hasFatalErrors = hasFatalErrors;
     }
 
-    public List<MapperDescriptor> getMappers() { return analysisResult.getMappers(); }
-    public boolean hasFatalErrors() { return hasFatalErrors; }
+    public List<MapperDescriptor> getMappers() {
+        return analysisResult.getMappers();
+    }
+
+    public boolean hasFatalErrors() {
+        return hasFatalErrors;
+    }
 }

@@ -3,25 +3,21 @@ package io.github.joke.caffeinate.graph;
 import io.github.joke.caffeinate.analysis.MapperDescriptor;
 import io.github.joke.caffeinate.analysis.MappingMethod;
 import io.github.joke.caffeinate.validation.ValidationResult;
+import javax.inject.Inject;
+import javax.lang.model.element.VariableElement;
+import javax.lang.model.type.TypeMirror;
 import org.jgrapht.graph.DefaultDirectedGraph;
 import org.jgrapht.graph.DefaultEdge;
 import org.jgrapht.graph.DirectedAcyclicGraph;
 
-import javax.inject.Inject;
-import javax.lang.model.element.VariableElement;
-import javax.lang.model.type.TypeMirror;
-
 public class GraphStage {
 
     @Inject
-    public GraphStage() {
-    }
+    public GraphStage() {}
 
     public GraphResult build(ValidationResult validation) {
-        DefaultDirectedGraph<TypeMirror, MethodEdge> typeGraph =
-                new DefaultDirectedGraph<>(MethodEdge.class);
-        DirectedAcyclicGraph<MappingMethod, DefaultEdge> methodGraph =
-                new DirectedAcyclicGraph<>(DefaultEdge.class);
+        DefaultDirectedGraph<TypeMirror, MethodEdge> typeGraph = new DefaultDirectedGraph<>(MethodEdge.class);
+        DirectedAcyclicGraph<MappingMethod, DefaultEdge> methodGraph = new DirectedAcyclicGraph<>(DefaultEdge.class);
 
         for (MapperDescriptor descriptor : validation.getMappers()) {
             for (MappingMethod method : descriptor.getMethods()) {

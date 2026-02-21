@@ -10,8 +10,12 @@ import io.github.joke.caffeinate.analysis.MappingMethod;
 import io.github.joke.caffeinate.analysis.property.Property;
 import io.github.joke.caffeinate.analysis.property.PropertyDiscoveryStrategy;
 import io.github.joke.caffeinate.analysis.property.PropertyMerger;
+import io.github.joke.caffeinate.codegen.strategy.TypeMappingStrategy;
 import io.github.joke.caffeinate.graph.GraphResult;
-
+import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Set;
 import javax.annotation.processing.Filer;
 import javax.annotation.processing.ProcessingEnvironment;
 import javax.inject.Inject;
@@ -21,24 +25,27 @@ import javax.lang.model.element.ExecutableElement;
 import javax.lang.model.element.Modifier;
 import javax.lang.model.element.TypeElement;
 import javax.lang.model.element.VariableElement;
+import javax.lang.model.type.DeclaredType;
+import javax.lang.model.type.TypeMirror;
 import javax.tools.Diagnostic;
-import java.io.IOException;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Set;
 
 public class CodeGenStage {
 
     private final ProcessingEnvironment env;
     private final Filer filer;
     private final Set<PropertyDiscoveryStrategy> strategies;
+    private final Set<TypeMappingStrategy> typeMappingStrategies;
 
     @Inject
-    public CodeGenStage(ProcessingEnvironment env, Filer filer,
-                         Set<PropertyDiscoveryStrategy> strategies) {
+    public CodeGenStage(
+            ProcessingEnvironment env,
+            Filer filer,
+            Set<PropertyDiscoveryStrategy> strategies,
+            Set<TypeMappingStrategy> typeMappingStrategies) {
         this.env = env;
         this.filer = filer;
         this.strategies = strategies;
+        this.typeMappingStrategies = typeMappingStrategies;
     }
 
     public void generate(GraphResult graph, List<MapperDescriptor> mappers) {
@@ -50,8 +57,8 @@ public class CodeGenStage {
     private void generateMapper(MapperDescriptor descriptor, GraphResult graph) {
         TypeElement iface = descriptor.getMapperInterface();
         String implName = iface.getSimpleName() + "Impl";
-        String packageName = env.getElementUtils()
-                .getPackageOf(iface).getQualifiedName().toString();
+        String packageName =
+                env.getElementUtils().getPackageOf(iface).getQualifiedName().toString();
 
         TypeSpec.Builder classBuilder = TypeSpec.classBuilder(implName)
                 .addModifiers(Modifier.PUBLIC)
@@ -66,9 +73,10 @@ public class CodeGenStage {
             javaFile.writeTo(filer);
         } catch (IOException e) {
             String msg = e.getMessage();
-            env.getMessager().printMessage(
-                    Diagnostic.Kind.ERROR,
-                    "[Percolate] Failed to write " + implName + ": " + (msg != null ? msg : e.toString()));
+            env.getMessager()
+                    .printMessage(
+                            Diagnostic.Kind.ERROR,
+                            "[Percolate] Failed to write " + implName + ": " + (msg != null ? msg : e.toString()));
         }
     }
 
@@ -76,8 +84,25 @@ public class CodeGenStage {
         ExecutableElement elem = method.getMethod();
         MethodSpec.Builder builder = MethodSpec.overriding(elem);
 
-        List<Property> targetProps = PropertyMerger.merge(
-                strategies, method.getTargetType(), env);
+        // For single-parameter methods: check if a TypeMappingStrategy handles the
+        // whole conversion (e.g., enum-to-enum, list-to-list at top level).
+        if (method.getParameters().size() == 1) {
+            VariableElement param = method.getParameters().get(0);
+            TypeMirror sourceType = param.asType();
+            TypeMirror targetType = method.getTargetType().asType();
+            for (TypeMappingStrategy strategy : typeMappingStrategies) {
+                if (strategy.supports(sourceType, targetType, env)) {
+                    String converterRef = findConverterRef(sourceType, targetType, method);
+                    String expr = strategy.generate(
+                                    param.getSimpleName().toString(), sourceType, targetType, converterRef, env)
+                            .toString();
+                    builder.addStatement("return $L", expr);
+                    return builder.build();
+                }
+            }
+        }
+
+        List<Property> targetProps = PropertyMerger.merge(strategies, method.getTargetType(), env);
 
         List<String> args = new ArrayList<>();
         for (Property targetProp : targetProps) {
@@ -112,9 +137,25 @@ public class CodeGenStage {
             TypeElement paramType = (TypeElement) paramElement;
             List<Property> sourceProps = PropertyMerger.merge(strategies, paramType, env);
             for (Property srcProp : sourceProps) {
-                if (srcProp.getName().equals(targetProp.getName())) {
+                if (!srcProp.getName().equals(targetProp.getName())) continue;
+                // 2a. Types match — direct assignment
+                if (env.getTypeUtils().isSameType(srcProp.getType(), targetProp.getType())) {
                     return accessorExpr(param.getSimpleName().toString(), srcProp);
                 }
+                // 2b. Types differ — try TypeMappingStrategy
+                for (TypeMappingStrategy strategy : typeMappingStrategies) {
+                    if (strategy.supports(srcProp.getType(), targetProp.getType(), env)) {
+                        String converterRef = findConverterRef(srcProp.getType(), targetProp.getType(), method);
+                        return strategy.generate(
+                                        accessorExpr(param.getSimpleName().toString(), srcProp),
+                                        srcProp.getType(),
+                                        targetProp.getType(),
+                                        converterRef,
+                                        env)
+                                .toString();
+                    }
+                }
+                // 2c. No strategy matched — fall through to converter delegate
             }
         }
 
@@ -132,8 +173,7 @@ public class CodeGenStage {
                         TypeElement paramType = (TypeElement) paramElement;
                         List<Property> sourceProps = PropertyMerger.merge(strategies, paramType, env);
                         for (Property srcProp : sourceProps) {
-                            if (env.getTypeUtils().isSameType(
-                                    srcProp.getType(), converterSourceType.asType())) {
+                            if (env.getTypeUtils().isSameType(srcProp.getType(), converterSourceType.asType())) {
                                 return "this." + candidate.getSimpleName() + "("
                                         + accessorExpr(param.getSimpleName().toString(), srcProp) + ")";
                             }
@@ -170,6 +210,37 @@ public class CodeGenStage {
             }
         }
         return "null /* unresolved path: " + sourcePath + " */";
+    }
+
+    /**
+     * Finds the name of a converter method whose source element type (unwrapped from container)
+     * matches the source element type and whose return element type matches the target element type.
+     * For simple types, matches directly on the full type.
+     */
+    private String findConverterRef(TypeMirror sourceType, TypeMirror targetType, MappingMethod method) {
+        TypeMirror srcElem = elementType(sourceType);
+        TypeMirror tgtElem = elementType(targetType);
+        for (ExecutableElement candidate : method.getConverterCandidates()) {
+            if (candidate.getParameters().isEmpty()) continue;
+            TypeMirror paramType = candidate.getParameters().get(0).asType();
+            TypeMirror retType = candidate.getReturnType();
+            if (env.getTypeUtils().isSameType(paramType, srcElem)
+                    && env.getTypeUtils().isSameType(retType, tgtElem)) {
+                return candidate.getSimpleName().toString();
+            }
+        }
+        return "";
+    }
+
+    /** Returns the first type argument of a generic declared type, or the type itself. */
+    private TypeMirror elementType(TypeMirror type) {
+        if (type instanceof DeclaredType) {
+            List<? extends TypeMirror> args = ((DeclaredType) type).getTypeArguments();
+            if (!args.isEmpty()) {
+                return args.get(0);
+            }
+        }
+        return type;
     }
 
     private String accessorExpr(String paramName, Property property) {

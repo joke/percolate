@@ -2,7 +2,6 @@ package io.github.joke.caffeinate.processor;
 
 import dagger.Module;
 import dagger.Provides;
-
 import javax.annotation.processing.Filer;
 import javax.annotation.processing.Messager;
 import javax.annotation.processing.ProcessingEnvironment;

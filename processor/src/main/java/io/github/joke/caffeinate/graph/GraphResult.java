@@ -1,13 +1,12 @@
 package io.github.joke.caffeinate.graph;
 
 import io.github.joke.caffeinate.analysis.MappingMethod;
-import org.jgrapht.graph.DefaultDirectedGraph;
-import org.jgrapht.graph.DirectedAcyclicGraph;
-import org.jgrapht.graph.DefaultEdge;
-
-import javax.lang.model.type.TypeMirror;
 import java.util.Optional;
 import java.util.Set;
+import javax.lang.model.type.TypeMirror;
+import org.jgrapht.graph.DefaultDirectedGraph;
+import org.jgrapht.graph.DefaultEdge;
+import org.jgrapht.graph.DirectedAcyclicGraph;
 
 public final class GraphResult {
     private final DefaultDirectedGraph<TypeMirror, MethodEdge> typeGraph;
@@ -25,11 +24,14 @@ public final class GraphResult {
         if (edges == null) {
             return Optional.empty();
         }
-        return edges.stream()
-                .map(MethodEdge::getMethod)
-                .findFirst();
+        return edges.stream().map(MethodEdge::getMethod).findFirst();
     }
 
-    public DefaultDirectedGraph<TypeMirror, MethodEdge> getTypeGraph() { return typeGraph; }
-    public DirectedAcyclicGraph<MappingMethod, DefaultEdge> getMethodGraph() { return methodGraph; }
+    public DefaultDirectedGraph<TypeMirror, MethodEdge> getTypeGraph() {
+        return typeGraph;
+    }
+
+    public DirectedAcyclicGraph<MappingMethod, DefaultEdge> getMethodGraph() {
+        return methodGraph;
+    }
 }
