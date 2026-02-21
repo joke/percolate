@@ -9,7 +9,7 @@ public final class MapperDescriptor {
 
     public MapperDescriptor(TypeElement mapperInterface, List<MappingMethod> methods) {
         this.mapperInterface = mapperInterface;
-        this.methods = methods;
+        this.methods = List.copyOf(methods);
     }
 
     public TypeElement getMapperInterface() { return mapperInterface; }

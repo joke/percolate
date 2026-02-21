@@ -20,9 +20,9 @@ public final class MappingMethod {
             List<ExecutableElement> converterCandidates) {
         this.method = method;
         this.targetType = targetType;
-        this.parameters = parameters;
-        this.mapAnnotations = mapAnnotations;
-        this.converterCandidates = converterCandidates;
+        this.parameters = parameters;  // safe — javax.lang.model returns unmodifiable list
+        this.mapAnnotations = List.copyOf(mapAnnotations);
+        this.converterCandidates = List.copyOf(converterCandidates);
     }
 
     public ExecutableElement getMethod() { return method; }

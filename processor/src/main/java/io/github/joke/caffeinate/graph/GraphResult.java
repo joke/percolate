@@ -7,6 +7,7 @@ import org.jgrapht.graph.DefaultEdge;
 
 import javax.lang.model.type.TypeMirror;
 import java.util.Optional;
+import java.util.Set;
 
 public final class GraphResult {
     private final DefaultDirectedGraph<TypeMirror, MethodEdge> typeGraph;
@@ -20,7 +21,11 @@ public final class GraphResult {
     }
 
     public Optional<MappingMethod> resolverFor(TypeMirror source, TypeMirror target) {
-        return typeGraph.getAllEdges(source, target).stream()
+        Set<MethodEdge> edges = typeGraph.getAllEdges(source, target);
+        if (edges == null) {
+            return Optional.empty();
+        }
+        return edges.stream()
                 .map(MethodEdge::getMethod)
                 .findFirst();
     }
