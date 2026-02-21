@@ -89,22 +89,23 @@ public class CodeGenStage {
         if (method.getParameters().size() == 1) {
             VariableElement param = method.getParameters().get(0);
             TypeMirror sourceType = param.asType();
-            TypeMirror targetType = method.getTargetType().asType();
+            TypeMirror targetType = elem.getReturnType();
             for (TypeMappingStrategy strategy : typeMappingStrategies) {
                 if (strategy.supports(sourceType, targetType, env)) {
                     Optional<String> converterRef = findConverterRef(sourceType, targetType, method);
-                    if (converterRef.isPresent()) {
+                    // Pass converterRef (possibly null) — strategies handle null for identity cases.
+                    if (converterRef.isPresent() || strategy.supportsIdentity(sourceType, targetType, env)) {
                         String expr = strategy.generate(
                                         param.getSimpleName().toString(),
                                         sourceType,
                                         targetType,
-                                        converterRef.get(),
+                                        converterRef.orElse(null),
                                         env)
                                 .toString();
                         builder.addStatement("return $L", expr);
                         return builder.build();
                     }
-                    // No converter found — fall through to property-level mapping
+                    // No converter found and not identity — fall through to property-level mapping
                 }
             }
         }
@@ -199,10 +200,13 @@ public class CodeGenStage {
     /**
      * Resolves "param.property" dot-notation to a Java expression.
      * E.g., "ticket.ticketId" -> "ticket.getTicketId()"
+     * Also resolves bare property names (no dot) by searching all source parameters.
+     * E.g., "zipCode" -> "venue.getZipCode()" (when venue is the only parameter with zipCode)
      */
     private String resolveSourcePath(String sourcePath, MappingMethod method) {
         int dot = sourcePath.indexOf('.');
         if (dot > 0 && dot < sourcePath.length() - 1 && sourcePath.indexOf('.', dot + 1) < 0) {
+            // "param.property" form
             String paramName = sourcePath.substring(0, dot);
             String propName = sourcePath.substring(dot + 1);
             for (VariableElement param : method.getParameters()) {
@@ -215,6 +219,19 @@ public class CodeGenStage {
                         if (srcProp.getName().equals(propName)) {
                             return accessorExpr(paramName, srcProp);
                         }
+                    }
+                }
+            }
+        } else if (dot < 0) {
+            // Bare property name — search all parameters
+            for (VariableElement param : method.getParameters()) {
+                Element paramElement = env.getTypeUtils().asElement(param.asType());
+                if (!(paramElement instanceof TypeElement)) continue;
+                TypeElement paramType = (TypeElement) paramElement;
+                List<Property> sourceProps = PropertyMerger.merge(strategies, paramType, env);
+                for (Property srcProp : sourceProps) {
+                    if (srcProp.getName().equals(sourcePath)) {
+                        return accessorExpr(param.getSimpleName().toString(), srcProp);
                     }
                 }
             }

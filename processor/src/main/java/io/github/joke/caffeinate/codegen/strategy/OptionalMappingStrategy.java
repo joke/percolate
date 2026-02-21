@@ -6,6 +6,7 @@ import javax.annotation.processing.ProcessingEnvironment;
 import javax.lang.model.element.TypeElement;
 import javax.lang.model.type.DeclaredType;
 import javax.lang.model.type.TypeMirror;
+import org.jspecify.annotations.Nullable;
 
 @AutoService(TypeMappingStrategy.class)
 public class OptionalMappingStrategy implements TypeMappingStrategy {
@@ -20,7 +21,7 @@ public class OptionalMappingStrategy implements TypeMappingStrategy {
             String sourceExpr,
             TypeMirror source,
             TypeMirror target,
-            String converterMethodRef,
+            @Nullable String converterMethodRef,
             ProcessingEnvironment env) {
         return CodeBlock.of("$L.map(this::$L)", sourceExpr, converterMethodRef);
     }

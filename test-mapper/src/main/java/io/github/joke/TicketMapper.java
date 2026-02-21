@@ -4,6 +4,7 @@ import io.github.joke.FlatTicket.TicketActor;
 import io.github.joke.FlatTicket.TicketVenue;
 import io.github.joke.caffeinate.Map;
 import io.github.joke.caffeinate.Mapper;
+import java.util.List;
 
 @Mapper
 public interface TicketMapper {
@@ -18,9 +19,10 @@ public interface TicketMapper {
     @Map(target = "zip", source = "zipCode")
     TicketVenue mapVenue(Venue venue);
 
+    List<TicketActor> mapTicketActors(List<TicketActor> source);
+
     default TicketActor mapActor(Actor actor) {
         final var name = actor.getFirstName() + " " + actor.getLastName();
         return new TicketActor(name);
     }
-
 }

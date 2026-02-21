@@ -6,6 +6,7 @@ plugins {
 dependencies {
     annotationProcessor platform(project(':dependencies'))
     annotationProcessor("org.projectlombok:lombok:1.18.42")
+    annotationProcessor project(':processor')
 
     compileOnly project(':annotations')
 

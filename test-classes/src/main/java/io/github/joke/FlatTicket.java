@@ -1,8 +1,7 @@
 package io.github.joke;
 
-import lombok.Value;
-
 import java.util.List;
+import lombok.Value;
 
 @Value
 public class FlatTicket {
@@ -15,7 +14,7 @@ public class FlatTicket {
 
     @Value
     public static class TicketActor {
-       String name;
+        String name;
     }
 
     @Value

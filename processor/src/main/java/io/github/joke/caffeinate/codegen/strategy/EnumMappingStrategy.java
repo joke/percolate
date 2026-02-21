@@ -11,6 +11,7 @@ import javax.lang.model.element.TypeElement;
 import javax.lang.model.type.DeclaredType;
 import javax.lang.model.type.TypeMirror;
 import javax.tools.Diagnostic;
+import org.jspecify.annotations.Nullable;
 
 @AutoService(TypeMappingStrategy.class)
 public class EnumMappingStrategy implements TypeMappingStrategy {
@@ -20,12 +21,18 @@ public class EnumMappingStrategy implements TypeMappingStrategy {
         return isEnum(source) && isEnum(target);
     }
 
+    /** Enum-to-enum mapping does not require a converter method — always supported. */
+    @Override
+    public boolean supportsIdentity(TypeMirror source, TypeMirror target, ProcessingEnvironment env) {
+        return true;
+    }
+
     @Override
     public CodeBlock generate(
             String sourceExpr,
             TypeMirror source,
             TypeMirror target,
-            String converterMethodRef,
+            @Nullable String converterMethodRef,
             ProcessingEnvironment env) {
         if (!(target instanceof DeclaredType) || !(source instanceof DeclaredType)) {
             throw new IllegalStateException("EnumMappingStrategy.generate() called on non-DeclaredType");
