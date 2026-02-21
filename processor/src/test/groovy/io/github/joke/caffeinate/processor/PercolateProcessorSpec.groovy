@@ -171,4 +171,45 @@ class PercolateProcessorSpec extends Specification {
             .contentsAsUtf8String()
             .contains("getName()")
     }
+
+    def "emits partial resolution graph when mapping is incomplete"() {
+        given:
+        def show2Src = JavaFileObjects.forSourceLines("io.example.Show2",
+            "package io.example;",
+            "import java.util.List;",
+            "public final class Show2 {",
+            "    private final String title;",
+            "    public Show2(String title) { this.title = title; }",
+            "    public String getTitle() { return title; }",
+            "}")
+        def show2DtoSrc = JavaFileObjects.forSourceLines("io.example.Show2Dto",
+            "package io.example;",
+            "import java.util.List;",
+            "public final class Show2Dto {",
+            "    private final String title;",
+            "    private final String description;",
+            "    public Show2Dto(String title, String description) { this.title = title; this.description = description; }",
+            "    public String getTitle() { return title; }",
+            "    public String getDescription() { return description; }",
+            "}")
+        def mapperSrc = JavaFileObjects.forSourceLines("io.example.Show2Mapper",
+            "package io.example;",
+            "import io.github.joke.caffeinate.Mapper;",
+            "@Mapper",
+            "public interface Show2Mapper {",
+            "    Show2Dto map(Show2 show);",
+            "}")
+
+        when:
+        Compilation compilation = Compiler.javac()
+            .withProcessors(new PercolateProcessor())
+            .compile(show2Src, show2DtoSrc, mapperSrc)
+
+        then:
+        assertThat(compilation).failed()
+        assertThat(compilation).hadErrorContaining("Partial resolution graph")
+        assertThat(compilation).hadErrorContaining("description")
+        assertThat(compilation).hadErrorContaining("\u2717")
+        assertThat(compilation).hadErrorContaining("\u2713")
+    }
 }

@@ -7,6 +7,7 @@ import io.github.joke.caffeinate.analysis.MappingMethod;
 import io.github.joke.caffeinate.analysis.property.Property;
 import io.github.joke.caffeinate.analysis.property.PropertyDiscoveryStrategy;
 import io.github.joke.caffeinate.analysis.property.PropertyMerger;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
 import javax.annotation.processing.ProcessingEnvironment;
@@ -42,28 +43,32 @@ public class ValidationStage {
 
     private boolean validateMethod(MappingMethod method, MapperDescriptor descriptor) {
         List<Property> targetProperties = PropertyMerger.merge(strategies, method.getTargetType(), env);
-        boolean valid = true;
 
+        List<Property> uncovered = new ArrayList<>();
         for (Property targetProp : targetProperties) {
             if (!isCovered(targetProp, method)) {
-                env.getMessager()
-                        .printMessage(
-                                Diagnostic.Kind.ERROR,
-                                String.format(
-                                        "[Percolate] %s.%s: no mapping found for target property '%s' (%s).\n"
-                                                + "  Consider adding a method: %s map%s(%s source)",
-                                        descriptor.getMapperInterface().getSimpleName(),
-                                        method.getMethod().getSimpleName(),
-                                        targetProp.getName(),
-                                        targetProp.getType(),
-                                        targetProp.getType(),
-                                        capitalize(targetProp.getName()),
-                                        targetProp.getType()),
-                                method.getMethod());
-                valid = false;
+                uncovered.add(targetProp);
             }
         }
-        return valid;
+
+        if (uncovered.isEmpty()) return true;
+
+        String graph = PartialGraphRenderer.render(method, strategies, env);
+        Property firstUncovered = uncovered.get(0);
+
+        env.getMessager().printMessage(
+                Diagnostic.Kind.ERROR,
+                String.format(
+                        "[Percolate] %s.%s: validation failed.\n%s\nConsider adding: %s map%s(%s source)",
+                        descriptor.getMapperInterface().getSimpleName(),
+                        method.getMethod().getSimpleName(),
+                        graph,
+                        firstUncovered.getType(),
+                        capitalize(firstUncovered.getName()),
+                        firstUncovered.getType()),
+                method.getMethod());
+
+        return false;
     }
 
     private boolean isCovered(Property targetProp, MappingMethod method) {
