@@ -2,7 +2,6 @@ package io.github.joke.caffeinate.analysis;
 
 import org.jspecify.annotations.Nullable;
 
-import javax.annotation.processing.RoundEnvironment;
 import javax.inject.Inject;
 import javax.lang.model.element.AnnotationMirror;
 import javax.lang.model.element.AnnotationValue;
@@ -24,7 +23,7 @@ public class AnalysisStage {
     public AnalysisStage() {
     }
 
-    public AnalysisResult analyze(RoundEnvironment roundEnv, Set<? extends Element> mapperElements) {
+    public AnalysisResult analyze(Set<? extends Element> mapperElements) {
         List<MapperDescriptor> descriptors = new ArrayList<>();
         for (Element element : mapperElements) {
             if (element.getKind() != ElementKind.INTERFACE) continue;

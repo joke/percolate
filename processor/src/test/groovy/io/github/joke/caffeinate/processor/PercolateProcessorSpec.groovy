@@ -34,5 +34,7 @@ class PercolateProcessorSpec extends Specification {
         then:
         assertThat(compilation).succeeded()
         assertThat(compilation).generatedSourceFile("io.example.PersonMapperImpl")
+            .contentsAsUtf8String()
+            .contains("getName()")
     }
 }

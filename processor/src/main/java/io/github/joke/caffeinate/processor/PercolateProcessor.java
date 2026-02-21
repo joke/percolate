@@ -11,6 +11,7 @@ import javax.annotation.processing.SupportedSourceVersion;
 import javax.lang.model.SourceVersion;
 import javax.lang.model.element.Element;
 import javax.lang.model.element.TypeElement;
+import java.util.HashSet;
 import java.util.Set;
 
 @AutoService(Processor.class)
@@ -18,6 +19,7 @@ import java.util.Set;
 @SupportedSourceVersion(SourceVersion.RELEASE_11)
 public class PercolateProcessor extends AbstractProcessor {
 
+    @SuppressWarnings("NullAway.Init")
     private ProcessorComponent processorComponent;
 
     @Override
@@ -32,11 +34,13 @@ public class PercolateProcessor extends AbstractProcessor {
     public boolean process(Set<? extends TypeElement> annotations, RoundEnvironment roundEnv) {
         if (roundEnv.processingOver()) return false;
         if (annotations.isEmpty()) return false;
-        Set<? extends Element> mapperElements = roundEnv.getElementsAnnotatedWith(
-                annotations.iterator().next());
+        Set<Element> mapperElements = new HashSet<>();
+        for (TypeElement annotation : annotations) {
+            mapperElements.addAll(roundEnv.getElementsAnnotatedWith(annotation));
+        }
         if (mapperElements.isEmpty()) return false;
         processorComponent.roundComponentFactory()
-                .create(roundEnv)
+                .create()
                 .pipeline()
                 .run(mapperElements);
         return false;
