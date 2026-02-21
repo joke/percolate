@@ -10,7 +10,7 @@ pluginManagement {
     }
 }
 
-rootProject.name = 'transmogrify'
+rootProject.name = 'percolate'
 
 include 'annotations'
 // include 'bom'

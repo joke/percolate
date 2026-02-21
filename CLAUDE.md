@@ -1,8 +1,12 @@
 # CLAUDE.md
 
+## Important
+
+* Use your skills!
+
 ## Project Overview
 
-Objects is a Java annotation processor in the style of Lombok and Immutables. It generates boilerplate code at compile time.
+`Percolate` is a Java annotation processor in the style of mapstruct. It generates mappers for bean mappings.
 
 ## Build Commands
 
@@ -20,12 +24,15 @@ Objects is a Java annotation processor in the style of Lombok and Immutables. It
 - `dependencies/` — Java platform BOM for centralized version management
 - `processor/` — Main annotation processor implementation
 - `annotations` — Annotations that the processor can process
+- `test-classes` — Some example bean
+- `test-mapper` — An example mapper
 
 Planned modules (commented out in settings.gradle): `bom`, `tests`.
 
 **Key libraries:**
 - **Dagger 2** for dependency injection within the processor
 - **Palantir JavaPoet** for Java source code generation
+- **JGraphT** for graph processing
 - **Google Auto Service** for `META-INF/services` registration
 - **Spock Framework** (Groovy) + **Google Compile Testing** for tests
 
@@ -39,7 +46,7 @@ The build enforces strict quality standards — all warnings are errors (`-Werro
 
 ## Conventions
 
-- Group ID: `io.github.joke.objects`
-- Package root: `io.github.joke.objects`
+- Group ID: `io.github.joke.percolate`
+- Package root: `io.github.joke.percolate`
 - Tests use Spock (Groovy BDD framework) — test files are `*.groovy` specs
 - Processor compile-time tests use Google Compile Testing to verify generated code
