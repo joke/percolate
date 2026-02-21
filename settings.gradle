@@ -10,10 +10,11 @@ pluginManagement {
     }
 }
 
-rootProject.name = 'caffeinate'
+rootProject.name = 'transmogrify'
 
 include 'annotations'
 // include 'bom'
 include 'dependencies'
 include 'processor'
-// include 'tests'
+include 'test-classes'
+include 'test-mapper'

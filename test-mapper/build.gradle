@@ -1,0 +1,26 @@
+plugins {
+    id 'java'
+    id 'groovy'
+}
+
+dependencies {
+    annotationProcessor platform(project(':dependencies'))
+    annotationProcessor("org.projectlombok:lombok:1.18.42")
+
+    compileOnly project(':annotations')
+
+    compileOnly("org.projectlombok:lombok:1.18.42")
+    compileOnly 'org.jspecify:jspecify'
+
+    implementation platform(project(':dependencies'))
+    implementation project(':test-classes')
+
+    testImplementation platform(project(':dependencies'))
+    testImplementation 'org.spockframework:spock-core'
+
+
+    implementation 'org.jgrapht:jgrapht-core:1.5.2'
+
+
+        testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+}

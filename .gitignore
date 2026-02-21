@@ -1,6 +1,11 @@
 .idea/
 /.gradle/
+bin/
 build/
 .vscode/
 .worktrees/
 docs/site/
+
+.project
+.classpath
+.settings
