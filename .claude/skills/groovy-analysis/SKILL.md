@@ -7,4 +7,4 @@ description: Use when you need information about a class
 
 ## Java style
 
-* Critical: try to gather class information via jdtls in java first
+* Critical: try to gather class information via jdtls in java first before trying to resolve the class information in groovy
