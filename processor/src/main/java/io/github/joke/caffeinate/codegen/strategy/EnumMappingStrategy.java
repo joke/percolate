@@ -27,8 +27,16 @@ public class EnumMappingStrategy implements TypeMappingStrategy {
             TypeMirror target,
             String converterMethodRef,
             ProcessingEnvironment env) {
-        TypeElement targetEnum = (TypeElement) ((DeclaredType) target).asElement();
-        TypeElement sourceEnum = (TypeElement) ((DeclaredType) source).asElement();
+        if (!(target instanceof DeclaredType) || !(source instanceof DeclaredType)) {
+            return CodeBlock.of("/* EnumMappingStrategy: unsupported type */");
+        }
+        Element targetEl = ((DeclaredType) target).asElement();
+        Element sourceEl = ((DeclaredType) source).asElement();
+        if (!(targetEl instanceof TypeElement) || !(sourceEl instanceof TypeElement)) {
+            return CodeBlock.of("/* EnumMappingStrategy: not a TypeElement */");
+        }
+        TypeElement targetEnum = (TypeElement) targetEl;
+        TypeElement sourceEnum = (TypeElement) sourceEl;
 
         Set<String> targetConstants = enumConstants(targetEnum);
         Set<String> sourceConstants = enumConstants(sourceEnum);

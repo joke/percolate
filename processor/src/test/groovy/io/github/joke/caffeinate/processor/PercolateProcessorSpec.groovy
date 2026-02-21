@@ -86,6 +86,61 @@ class PercolateProcessorSpec extends Specification {
         then:
         assertThat(compilation).succeeded()
         assertThat(compilation).generatedSourceFile("io.example.StatusMapperImpl")
+            .contentsAsUtf8String()
+            .contains("valueOf")
+    }
+
+    def "generates impl that maps Optional<A> to Optional<B> via converter method"() {
+        given:
+        def addressSrc = JavaFileObjects.forSourceLines("io.example.Address",
+            "package io.example;",
+            "public final class Address {",
+            "    private final String city;",
+            "    public Address(String city) { this.city = city; }",
+            "    public String getCity() { return city; }",
+            "}")
+        def addressDtoSrc = JavaFileObjects.forSourceLines("io.example.AddressDto",
+            "package io.example;",
+            "public final class AddressDto {",
+            "    private final String city;",
+            "    public AddressDto(String city) { this.city = city; }",
+            "    public String getCity() { return city; }",
+            "}")
+        def personSrc = JavaFileObjects.forSourceLines("io.example.PersonOpt",
+            "package io.example;",
+            "import java.util.Optional;",
+            "public final class PersonOpt {",
+            "    private final Optional<Address> address;",
+            "    public PersonOpt(Optional<Address> address) { this.address = address; }",
+            "    public Optional<Address> getAddress() { return address; }",
+            "}")
+        def personDtoSrc = JavaFileObjects.forSourceLines("io.example.PersonOptDto",
+            "package io.example;",
+            "import java.util.Optional;",
+            "public final class PersonOptDto {",
+            "    private final Optional<AddressDto> address;",
+            "    public PersonOptDto(Optional<AddressDto> address) { this.address = address; }",
+            "    public Optional<AddressDto> getAddress() { return address; }",
+            "}")
+        def mapperSrc = JavaFileObjects.forSourceLines("io.example.PersonOptMapper",
+            "package io.example;",
+            "import io.github.joke.caffeinate.Mapper;",
+            "@Mapper",
+            "public interface PersonOptMapper {",
+            "    PersonOptDto map(PersonOpt person);",
+            "    AddressDto mapAddress(Address address);",
+            "}")
+
+        when:
+        Compilation compilation = Compiler.javac()
+            .withProcessors(new PercolateProcessor())
+            .compile(addressSrc, addressDtoSrc, personSrc, personDtoSrc, mapperSrc)
+
+        then:
+        assertThat(compilation).succeeded()
+        assertThat(compilation).generatedSourceFile("io.example.PersonOptMapperImpl")
+            .contentsAsUtf8String()
+            .contains(".map(this::")
     }
 
     def "generates impl for mapper with getter-based name-matched properties"() {
