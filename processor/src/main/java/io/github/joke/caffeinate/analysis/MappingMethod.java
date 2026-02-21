@@ -1,0 +1,33 @@
+package io.github.joke.caffeinate.analysis;
+
+import javax.lang.model.element.ExecutableElement;
+import javax.lang.model.element.TypeElement;
+import javax.lang.model.element.VariableElement;
+import java.util.List;
+
+public final class MappingMethod {
+    private final ExecutableElement method;
+    private final TypeElement targetType;
+    private final List<? extends VariableElement> parameters;
+    private final List<MapAnnotation> mapAnnotations;
+    private final List<ExecutableElement> converterCandidates;
+
+    public MappingMethod(
+            ExecutableElement method,
+            TypeElement targetType,
+            List<? extends VariableElement> parameters,
+            List<MapAnnotation> mapAnnotations,
+            List<ExecutableElement> converterCandidates) {
+        this.method = method;
+        this.targetType = targetType;
+        this.parameters = parameters;
+        this.mapAnnotations = mapAnnotations;
+        this.converterCandidates = converterCandidates;
+    }
+
+    public ExecutableElement getMethod() { return method; }
+    public TypeElement getTargetType() { return targetType; }
+    public List<? extends VariableElement> getParameters() { return parameters; }
+    public List<MapAnnotation> getMapAnnotations() { return mapAnnotations; }
+    public List<ExecutableElement> getConverterCandidates() { return converterCandidates; }
+}
