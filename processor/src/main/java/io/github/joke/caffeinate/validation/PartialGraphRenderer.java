@@ -5,14 +5,13 @@ import io.github.joke.caffeinate.analysis.MappingMethod;
 import io.github.joke.caffeinate.analysis.property.Property;
 import io.github.joke.caffeinate.analysis.property.PropertyDiscoveryStrategy;
 import io.github.joke.caffeinate.analysis.property.PropertyMerger;
-
+import java.util.List;
+import java.util.Set;
 import javax.annotation.processing.ProcessingEnvironment;
 import javax.lang.model.element.Element;
 import javax.lang.model.element.ExecutableElement;
 import javax.lang.model.element.TypeElement;
 import javax.lang.model.element.VariableElement;
-import java.util.List;
-import java.util.Set;
 
 /**
  * Renders a tree showing which target properties are resolved and which are not.
@@ -22,11 +21,12 @@ public final class PartialGraphRenderer {
 
     private PartialGraphRenderer() {}
 
-    public static String render(MappingMethod method, Set<PropertyDiscoveryStrategy> strategies,
-                                ProcessingEnvironment env) {
+    public static String render(
+            MappingMethod method, Set<PropertyDiscoveryStrategy> strategies, ProcessingEnvironment env) {
         StringBuilder sb = new StringBuilder();
         sb.append("\nPartial resolution graph (from target ")
-                .append(method.getTargetType().getSimpleName()).append("):\n");
+                .append(method.getTargetType().getSimpleName())
+                .append("):\n");
         sb.append("  ").append(method.getTargetType().getSimpleName()).append("\n");
 
         List<Property> targetProps = PropertyMerger.merge(strategies, method.getTargetType(), env);
@@ -36,8 +36,7 @@ public final class PartialGraphRenderer {
             boolean resolved = isCovered(targetProp, method, strategies, env);
             String branch = isLast ? "  \u2514\u2500\u2500 " : "  \u251C\u2500\u2500 ";
             String mark = resolved ? "\u2713" : "\u2717";
-            sb.append(branch).append(targetProp.getName())
-                    .append("  ").append(mark);
+            sb.append(branch).append(targetProp.getName()).append("  ").append(mark);
             if (resolved) {
                 sb.append("  \u2190 ").append(resolvedDescription(targetProp, method, strategies, env));
             } else {
@@ -48,9 +47,13 @@ public final class PartialGraphRenderer {
         return sb.toString();
     }
 
-    private static boolean isCovered(Property targetProp, MappingMethod method,
-                                     Set<PropertyDiscoveryStrategy> strategies,
-                                     ProcessingEnvironment env) {
+    private static boolean isCovered(
+            Property targetProp,
+            MappingMethod method,
+            Set<PropertyDiscoveryStrategy> strategies,
+            ProcessingEnvironment env) {
+        // NOTE: This coverage logic must stay in sync with ValidationStage.isCovered().
+        // If you add a new coverage rule here, add it there too.
         // 1. Explicit @Map annotation
         for (MapAnnotation ann : method.getMapAnnotations()) {
             if (ann.getTarget().equals(targetProp.getName())) return true;
@@ -71,9 +74,11 @@ public final class PartialGraphRenderer {
         return false;
     }
 
-    private static String resolvedDescription(Property targetProp, MappingMethod method,
-                                              Set<PropertyDiscoveryStrategy> strategies,
-                                              ProcessingEnvironment env) {
+    private static String resolvedDescription(
+            Property targetProp,
+            MappingMethod method,
+            Set<PropertyDiscoveryStrategy> strategies,
+            ProcessingEnvironment env) {
         for (MapAnnotation ann : method.getMapAnnotations()) {
             if (ann.getTarget().equals(targetProp.getName())) return ann.getSource();
         }
@@ -92,6 +97,7 @@ public final class PartialGraphRenderer {
                 return "this." + converter.getSimpleName() + "(...)";
             }
         }
-        return "?";
+        throw new IllegalStateException(
+                "resolvedDescription() called but no resolution found — isCovered() parity bug");
     }
 }

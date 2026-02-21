@@ -56,22 +56,25 @@ public class ValidationStage {
         String graph = PartialGraphRenderer.render(method, strategies, env);
         Property firstUncovered = uncovered.get(0);
 
-        env.getMessager().printMessage(
-                Diagnostic.Kind.ERROR,
-                String.format(
-                        "[Percolate] %s.%s: validation failed.\n%s\nConsider adding: %s map%s(%s source)",
-                        descriptor.getMapperInterface().getSimpleName(),
-                        method.getMethod().getSimpleName(),
-                        graph,
-                        firstUncovered.getType(),
-                        capitalize(firstUncovered.getName()),
-                        firstUncovered.getType()),
-                method.getMethod());
+        env.getMessager()
+                .printMessage(
+                        Diagnostic.Kind.ERROR,
+                        String.format(
+                                "[Percolate] %s.%s: validation failed.\n%s\nConsider adding: %s map%s(%s source)",
+                                descriptor.getMapperInterface().getSimpleName(),
+                                method.getMethod().getSimpleName(),
+                                graph,
+                                firstUncovered.getType(),
+                                capitalize(firstUncovered.getName()),
+                                firstUncovered.getType()),
+                        method.getMethod());
 
         return false;
     }
 
     private boolean isCovered(Property targetProp, MappingMethod method) {
+        // NOTE: This coverage logic must stay in sync with PartialGraphRenderer.isCovered().
+        // If you add a new coverage rule here, add it there too.
         // 1. Explicit @Map annotation
         for (MapAnnotation ann : method.getMapAnnotations()) {
             if (ann.getTarget().equals(targetProp.getName())) return true;

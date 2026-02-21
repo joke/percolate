@@ -95,7 +95,11 @@ public class CodeGenStage {
                     Optional<String> converterRef = findConverterRef(sourceType, targetType, method);
                     if (converterRef.isPresent()) {
                         String expr = strategy.generate(
-                                        param.getSimpleName().toString(), sourceType, targetType, converterRef.get(), env)
+                                        param.getSimpleName().toString(),
+                                        sourceType,
+                                        targetType,
+                                        converterRef.get(),
+                                        env)
                                 .toString();
                         builder.addStatement("return $L", expr);
                         return builder.build();
@@ -147,7 +151,8 @@ public class CodeGenStage {
                 // 2b. Types differ — try TypeMappingStrategy
                 for (TypeMappingStrategy strategy : typeMappingStrategies) {
                     if (strategy.supports(srcProp.getType(), targetProp.getType(), env)) {
-                        Optional<String> converterRef = findConverterRef(srcProp.getType(), targetProp.getType(), method);
+                        Optional<String> converterRef =
+                                findConverterRef(srcProp.getType(), targetProp.getType(), method);
                         if (converterRef.isPresent()) {
                             return strategy.generate(
                                             accessorExpr(param.getSimpleName().toString(), srcProp),
