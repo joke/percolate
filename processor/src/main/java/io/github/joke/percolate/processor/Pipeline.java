@@ -1,8 +1,11 @@
 package io.github.joke.percolate.processor;
 
 import io.github.joke.percolate.di.RoundScoped;
+import io.github.joke.percolate.stage.CodeGenStage;
 import io.github.joke.percolate.stage.GraphBuildStage;
 import io.github.joke.percolate.stage.GraphResult;
+import io.github.joke.percolate.stage.OptimizeStage;
+import io.github.joke.percolate.stage.OptimizedGraphResult;
 import io.github.joke.percolate.stage.ParseResult;
 import io.github.joke.percolate.stage.ParseStage;
 import io.github.joke.percolate.stage.ResolveResult;
@@ -21,17 +24,23 @@ public class Pipeline {
     private final ResolveStage resolveStage;
     private final GraphBuildStage graphBuildStage;
     private final ValidateStage validateStage;
+    private final OptimizeStage optimizeStage;
+    private final CodeGenStage codeGenStage;
 
     @Inject
     Pipeline(
             ParseStage parseStage,
             ResolveStage resolveStage,
             GraphBuildStage graphBuildStage,
-            ValidateStage validateStage) {
+            ValidateStage validateStage,
+            OptimizeStage optimizeStage,
+            CodeGenStage codeGenStage) {
         this.parseStage = parseStage;
         this.resolveStage = resolveStage;
         this.graphBuildStage = graphBuildStage;
         this.validateStage = validateStage;
+        this.optimizeStage = optimizeStage;
+        this.codeGenStage = codeGenStage;
     }
 
     public void process(Set<? extends TypeElement> annotations, RoundEnvironment roundEnv) {
@@ -42,6 +51,7 @@ public class Pipeline {
         if (validated.hasFatalErrors()) {
             return;
         }
-        // more stages will follow
+        OptimizedGraphResult optimized = optimizeStage.execute(validated);
+        codeGenStage.execute(optimized);
     }
 }
