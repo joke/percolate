@@ -6,8 +6,8 @@ import javax.lang.model.type.TypeMirror;
 /** A single fully-resolved property mapping: a source expression -> a target property. */
 public final class ResolvedMapAnnotation {
     private final Property targetProperty;
-    private final String sourceExpression;   // e.g. "order.getVenue()"
-    private final TypeMirror sourceType;     // resolved type of sourceExpression
+    private final String sourceExpression; // e.g. "order.getVenue()"
+    private final TypeMirror sourceType; // resolved type of sourceExpression
 
     public ResolvedMapAnnotation(Property targetProperty, String sourceExpression, TypeMirror sourceType) {
         this.targetProperty = targetProperty;
@@ -15,7 +15,15 @@ public final class ResolvedMapAnnotation {
         this.sourceType = sourceType;
     }
 
-    public Property getTargetProperty() { return targetProperty; }
-    public String getSourceExpression() { return sourceExpression; }
-    public TypeMirror getSourceType() { return sourceType; }
+    public Property getTargetProperty() {
+        return targetProperty;
+    }
+
+    public String getSourceExpression() {
+        return sourceExpression;
+    }
+
+    public TypeMirror getSourceType() {
+        return sourceType;
+    }
 }

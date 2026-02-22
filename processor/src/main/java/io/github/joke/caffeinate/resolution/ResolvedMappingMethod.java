@@ -11,6 +11,7 @@ public final class ResolvedMappingMethod {
     private final List<? extends VariableElement> parameters;
     /** True when the method has >1 parameter — auto name-matching is disabled. */
     private final boolean requiresExplicitMappings;
+
     private final List<ResolvedMapAnnotation> resolvedMappings;
 
     public ResolvedMappingMethod(
@@ -26,9 +27,23 @@ public final class ResolvedMappingMethod {
         this.resolvedMappings = List.copyOf(resolvedMappings);
     }
 
-    public ExecutableElement getMethod() { return method; }
-    public TypeElement getTargetType() { return targetType; }
-    public List<? extends VariableElement> getParameters() { return parameters; }
-    public boolean isRequiresExplicitMappings() { return requiresExplicitMappings; }
-    public List<ResolvedMapAnnotation> getResolvedMappings() { return resolvedMappings; }
+    public ExecutableElement getMethod() {
+        return method;
+    }
+
+    public TypeElement getTargetType() {
+        return targetType;
+    }
+
+    public List<? extends VariableElement> getParameters() {
+        return parameters;
+    }
+
+    public boolean isRequiresExplicitMappings() {
+        return requiresExplicitMappings;
+    }
+
+    public List<ResolvedMapAnnotation> getResolvedMappings() {
+        return resolvedMappings;
+    }
 }

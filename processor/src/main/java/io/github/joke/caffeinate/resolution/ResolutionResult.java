@@ -11,6 +11,11 @@ public final class ResolutionResult {
         this.converterRegistry = converterRegistry;
     }
 
-    public List<ResolvedMapperDescriptor> getMappers() { return mappers; }
-    public ConverterRegistry getConverterRegistry() { return converterRegistry; }
+    public List<ResolvedMapperDescriptor> getMappers() {
+        return mappers;
+    }
+
+    public ConverterRegistry getConverterRegistry() {
+        return converterRegistry;
+    }
 }

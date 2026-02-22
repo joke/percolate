@@ -12,6 +12,11 @@ public final class ResolvedMapperDescriptor {
         this.methods = List.copyOf(methods);
     }
 
-    public TypeElement getMapperInterface() { return mapperInterface; }
-    public List<ResolvedMappingMethod> getMethods() { return methods; }
+    public TypeElement getMapperInterface() {
+        return mapperInterface;
+    }
+
+    public List<ResolvedMappingMethod> getMethods() {
+        return methods;
+    }
 }
