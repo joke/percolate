@@ -14,8 +14,8 @@ dependencies {
     constraints {
         api 'com.google.auto.service:auto-service-annotations:1.1.1'
         api 'com.google.auto.service:auto-service:1.1.1'
-        api 'com.google.dagger:dagger-compiler:2.59.1'
-        api 'com.google.dagger:dagger:2.59.1'
+        api 'com.google.dagger:dagger-compiler:2.59.2'
+        api 'com.google.dagger:dagger:2.59.2'
         api 'com.palantir.javapoet:javapoet:0.11.0'
         api 'com.google.testing.compile:compile-testing:0.23.0'
         api 'org.jspecify:jspecify:1.0.0'
