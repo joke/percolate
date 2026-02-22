@@ -46,7 +46,7 @@ public class CollectionMappingStrategy implements TypeMappingStrategy {
             return CodeBlock.of(
                     "$L.stream().map(this::$L).collect($T.toList())", sourceExpr, methodName, Collectors.class);
         }
-        return CodeBlock.of("$L /* unresolved collection mapping */", sourceExpr);
+        throw new IllegalStateException("CollectionMappingStrategy: expected MethodConverter");
     }
 
     private boolean isList(TypeMirror type) {
