@@ -251,4 +251,149 @@ class PercolateProcessorSpec extends Specification {
         assertThat(compilation).hadErrorContaining("\u2717")
         assertThat(compilation).hadErrorContaining("\u2713")
     }
+
+    def "emits error when @Map source path segment does not exist"() {
+        given:
+        def src = JavaFileObjects.forSourceLines("io.example.Src",
+            "package io.example;",
+            "public final class Src {",
+            "    public String getName() { return null; }",
+            "}")
+        def tgt = JavaFileObjects.forSourceLines("io.example.Tgt",
+            "package io.example;",
+            "public final class Tgt {",
+            "    private final String title;",
+            "    public Tgt(String title) { this.title = title; }",
+            "    public String getTitle() { return title; }",
+            "}")
+        def mapper = JavaFileObjects.forSourceLines("io.example.BadSourceMapper",
+            "package io.example;",
+            "import io.github.joke.caffeinate.Mapper;",
+            "import io.github.joke.caffeinate.Map;",
+            "@Mapper",
+            "public interface BadSourceMapper {",
+            "    @Map(target = \"title\", source = \"src.noSuchProp\")",
+            "    Tgt map(Src src);",
+            "}")
+
+        when:
+        def compilation = Compiler.javac()
+            .withProcessors(new PercolateProcessor())
+            .compile(src, tgt, mapper)
+
+        then:
+        assertThat(compilation).failed()
+        assertThat(compilation).hadErrorContaining("noSuchProp")
+    }
+
+    def "emits error when @Map target path segment does not exist"() {
+        given:
+        def src = JavaFileObjects.forSourceLines("io.example.Src2",
+            "package io.example;",
+            "public final class Src2 {",
+            "    public String getName() { return null; }",
+            "}")
+        def tgt = JavaFileObjects.forSourceLines("io.example.Tgt2",
+            "package io.example;",
+            "public final class Tgt2 {",
+            "    private final String name;",
+            "    public Tgt2(String name) { this.name = name; }",
+            "    public String getName() { return name; }",
+            "}")
+        def mapper = JavaFileObjects.forSourceLines("io.example.BadTargetMapper",
+            "package io.example;",
+            "import io.github.joke.caffeinate.Mapper;",
+            "import io.github.joke.caffeinate.Map;",
+            "@Mapper",
+            "public interface BadTargetMapper {",
+            "    @Map(target = \"noSuchProp\", source = \"src2.name\")",
+            "    Tgt2 map(Src2 src2);",
+            "}")
+
+        when:
+        def compilation = Compiler.javac()
+            .withProcessors(new PercolateProcessor())
+            .compile(src, tgt, mapper)
+
+        then:
+        assertThat(compilation).failed()
+        assertThat(compilation).hadErrorContaining("noSuchProp")
+    }
+
+    def "expands wildcard source and maps matching named properties"() {
+        given:
+        def order = JavaFileObjects.forSourceLines("io.example.SimpleOrder",
+            "package io.example;",
+            "public final class SimpleOrder {",
+            "    private final long orderId;",
+            "    private final String orderName;",
+            "    public SimpleOrder(long orderId, String orderName) { this.orderId = orderId; this.orderName = orderName; }",
+            "    public long getOrderId() { return orderId; }",
+            "    public String getOrderName() { return orderName; }",
+            "}")
+        def flat = JavaFileObjects.forSourceLines("io.example.FlatOrder",
+            "package io.example;",
+            "public final class FlatOrder {",
+            "    private final long orderId;",
+            "    private final String orderName;",
+            "    public FlatOrder(long orderId, String orderName) { this.orderId = orderId; this.orderName = orderName; }",
+            "    public long getOrderId() { return orderId; }",
+            "    public String getOrderName() { return orderName; }",
+            "}")
+        def mapper = JavaFileObjects.forSourceLines("io.example.WildcardMapper",
+            "package io.example;",
+            "import io.github.joke.caffeinate.Mapper;",
+            "import io.github.joke.caffeinate.Map;",
+            "@Mapper",
+            "public interface WildcardMapper {",
+            "    @Map(target = \".\", source = \"order.*\")",
+            "    FlatOrder map(SimpleOrder order);",
+            "}")
+
+        when:
+        def compilation = Compiler.javac()
+            .withProcessors(new PercolateProcessor())
+            .compile(order, flat, mapper)
+
+        then:
+        assertThat(compilation).succeeded()
+        def impl = assertThat(compilation).generatedSourceFile("io.example.WildcardMapperImpl")
+        impl.contentsAsUtf8String().contains("getOrderId()")
+        impl.contentsAsUtf8String().contains("getOrderName()")
+    }
+
+    def "emits error when multi-param method has uncovered target property"() {
+        given:
+        def a = JavaFileObjects.forSourceLines("io.example.PartA",
+            "package io.example;",
+            "public final class PartA { public String getFoo() { return null; } }")
+        def b = JavaFileObjects.forSourceLines("io.example.PartB",
+            "package io.example;",
+            "public final class PartB { public String getBar() { return null; } }")
+        def result = JavaFileObjects.forSourceLines("io.example.Combined",
+            "package io.example;",
+            "public final class Combined {",
+            "    private final String foo;",
+            "    private final String bar;",
+            "    public Combined(String foo, String bar) { this.foo = foo; this.bar = bar; }",
+            "    public String getFoo() { return foo; }",
+            "    public String getBar() { return bar; }",
+            "}")
+        // Multi-param, no @Map — both foo and bar are uncovered with the new rule
+        def mapper = JavaFileObjects.forSourceLines("io.example.MultiParamMapper",
+            "package io.example;",
+            "import io.github.joke.caffeinate.Mapper;",
+            "@Mapper",
+            "public interface MultiParamMapper {",
+            "    Combined map(PartA a, PartB b);",
+            "}")
+
+        when:
+        def compilation = Compiler.javac()
+            .withProcessors(new PercolateProcessor())
+            .compile(a, b, result, mapper)
+
+        then:
+        assertThat(compilation).failed()
+    }
 }
