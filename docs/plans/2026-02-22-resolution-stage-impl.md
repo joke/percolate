@@ -92,7 +92,6 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Optional;
 import javax.lang.model.type.TypeMirror;
-import javax.lang.model.util.Types;
 
 /**
  * Lookup table: (sourceType, targetType) -> Converter.
@@ -101,10 +100,8 @@ import javax.lang.model.util.Types;
 public final class ConverterRegistry {
 
     private final Map<String, Converter> converters = new LinkedHashMap<>();
-    private final Types types;
 
-    public ConverterRegistry(Types types) {
-        this.types = types;
+    public ConverterRegistry() {
     }
 
     /**
@@ -125,8 +122,6 @@ public final class ConverterRegistry {
 
     /**
      * Key uses toString() for hashing (TypeMirror has no stable hashCode across implementations).
-     * Types.isSameType is used in equals via a full scan when hash collides — acceptable here
-     * because the registry is small and built once per compilation round.
      */
     private String key(TypeMirror source, TypeMirror target) {
         return source.toString() + " -> " + target.toString();
@@ -431,7 +426,7 @@ Replace the class body — keep the same fields and constructor, but update the 
 
     /** Builds a registry from the method's explicit converter candidates. No strategy fixpoint. */
     private ConverterRegistry buildTemporaryRegistry(MappingMethod method) {
-        ConverterRegistry registry = new ConverterRegistry(env.getTypeUtils());
+        ConverterRegistry registry = new ConverterRegistry();
         for (ExecutableElement candidate : method.getConverterCandidates()) {
             if (candidate.getParameters().isEmpty()) continue;
             TypeMirror paramType = candidate.getParameters().get(0).asType();
@@ -854,7 +849,7 @@ public class ResolutionStage {
     }
 
     public ResolutionResult resolve(AnalysisResult analysis) {
-        ConverterRegistry registry = new ConverterRegistry(env.getTypeUtils());
+        ConverterRegistry registry = new ConverterRegistry();
 
         // Pass 1: register all single-param mapper methods as explicit MethodConverters.
         for (MapperDescriptor descriptor : analysis.getMappers()) {
