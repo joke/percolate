@@ -3,6 +3,7 @@
 ## Important
 
 * Use your skills!
+* Implementation subagents should use the haiku model 
 
 ## Project Overview
 

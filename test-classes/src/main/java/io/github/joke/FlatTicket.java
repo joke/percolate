@@ -1,6 +1,8 @@
 package io.github.joke;
 
 import java.util.List;
+import java.util.Optional;
+
 import lombok.Value;
 
 @Value
@@ -10,7 +12,9 @@ public class FlatTicket {
     long orderId;
     long orderNumber;
 
-    List<TicketActor> ticketActors;
+    Optional<TicketVenue> venue;
+
+    List<TicketActor> actors;
 
     @Value
     public static class TicketActor {

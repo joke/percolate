@@ -6,4 +6,5 @@ import lombok.Value;
 public class Order {
     long orderId;
     long orderNumber;
+    Venue venue;
 }
