@@ -45,7 +45,7 @@ The build enforces strict quality standards — all warnings are errors (`-Werro
 
 - **ErrorProne** is applied to all Java subprojects automatically
 - **NullAway** runs in JSpecify mode with `onlyNullMarked = true` — only classes/packages annotated with `@NullMarked` are checked
-- Java compilation targets release 8 with `-parameters` flag
+- Java compilation targets release 11 with `-parameters` flag
 
 ## Conventions
 

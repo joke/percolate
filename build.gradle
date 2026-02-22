@@ -22,7 +22,7 @@ subprojects { project ->
         pluginManager.apply 'com.diffplug.spotless'
         // pluginManager.apply 'com.palantir.baseline-format'
         tasks.withType(JavaCompile).configureEach {
-            options.release = 8
+            options.release = 11
             options.compilerArgs << '-Werror'
         }
     }
