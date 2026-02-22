@@ -20,6 +20,7 @@ public class FieldPropertyStrategy implements PropertyDiscoveryStrategy {
             if (enclosed.getKind() != ElementKind.FIELD) continue;
             VariableElement field = (VariableElement) enclosed;
             if (field.getModifiers().contains(Modifier.STATIC)) continue;
+            if (field.getModifiers().contains(Modifier.PRIVATE)) continue;
             properties.add(new Property(field.getSimpleName().toString(), field.asType(), field));
         }
         return properties;

@@ -49,18 +49,26 @@ public class EnumMappingStrategy implements TypeMappingStrategy {
         Set<String> sourceConstants = enumConstants(sourceEnum);
 
         // Validate all source constants exist in target
+        boolean hasErrors = false;
         for (String constant : sourceConstants) {
             if (!targetConstants.contains(constant)) {
                 env.getMessager()
                         .printMessage(
                                 Diagnostic.Kind.ERROR,
-                                "[Percolate] Enum constant '" + constant + "' from "
-                                        + sourceEnum.getSimpleName() + " has no match in "
-                                        + targetEnum.getSimpleName());
+                                String.format(
+                                        "[Percolate] Enum constant '%s' from %s has no match in %s",
+                                        constant, sourceEnum.getSimpleName(), targetEnum.getSimpleName()));
+                hasErrors = true;
             }
         }
+        if (hasErrors) {
+            return CodeBlock.of(
+                    "throw new $T(\"[Percolate] Enum mapping error for: \" + $L)",
+                    IllegalStateException.class,
+                    sourceExpr);
+        }
 
-        // Use valueOf(name()) pattern — maps by name at runtime
+        // Only reach here if all constants matched — use valueOf(name()) pattern
         String targetFqn = targetEnum.getQualifiedName().toString();
         return CodeBlock.of("$L.valueOf($L.name())", targetFqn, sourceExpr);
     }

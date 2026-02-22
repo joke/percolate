@@ -172,6 +172,45 @@ class PercolateProcessorSpec extends Specification {
             .contains("getName()")
     }
 
+    def "emits error when @Map source path does not resolve"() {
+        given:
+        // Source bean has "firstName" but target expects "fullName" — no name-match.
+        // @Map claims to map "fullName" from "src.nonExistentField", which doesn't exist.
+        // With the bad source path, @Map can't cover "fullName", and name-match also fails.
+        def sourceSrc = JavaFileObjects.forSourceLines("io.example.NameSource",
+            "package io.example;",
+            "public final class NameSource {",
+            "    private final String firstName;",
+            "    public NameSource(String firstName) { this.firstName = firstName; }",
+            "    public String getFirstName() { return firstName; }",
+            "}")
+        def targetSrc = JavaFileObjects.forSourceLines("io.example.NameTarget",
+            "package io.example;",
+            "public final class NameTarget {",
+            "    private final String fullName;",
+            "    public NameTarget(String fullName) { this.fullName = fullName; }",
+            "    public String getFullName() { return fullName; }",
+            "}")
+        def mapperSrc = JavaFileObjects.forSourceLines("io.example.NameBadMapper",
+            "package io.example;",
+            "import io.github.joke.caffeinate.Mapper;",
+            "import io.github.joke.caffeinate.Map;",
+            "@Mapper",
+            "public interface NameBadMapper {",
+            "    @Map(target = \"fullName\", source = \"src.nonExistentField\")",
+            "    NameTarget map(NameSource src);",
+            "}")
+
+        when:
+        Compilation compilation = Compiler.javac()
+            .withProcessors(new PercolateProcessor())
+            .compile(sourceSrc, targetSrc, mapperSrc)
+
+        then:
+        assertThat(compilation).failed()
+        assertThat(compilation).hadErrorContaining("Partial resolution graph")
+    }
+
     def "emits partial resolution graph when mapping is incomplete"() {
         given:
         def show2Src = JavaFileObjects.forSourceLines("io.example.Show2",

@@ -75,9 +75,13 @@ public class ValidationStage {
     private boolean isCovered(Property targetProp, MappingMethod method) {
         // NOTE: This coverage logic must stay in sync with PartialGraphRenderer.isCovered().
         // If you add a new coverage rule here, add it there too.
-        // 1. Explicit @Map annotation
+        // 1. Explicit @Map annotation — verify source resolves
         for (MapAnnotation ann : method.getMapAnnotations()) {
-            if (ann.getTarget().equals(targetProp.getName())) return true;
+            if (!ann.getTarget().equals(targetProp.getName())) continue;
+            String source = ann.getSource();
+            if (source.isEmpty()) continue; // empty source doesn't resolve
+            if (sourcePathResolves(source, method)) return true;
+            // source doesn't resolve → not actually covered, fall through
         }
         // 2. Name-match from any source parameter
         for (VariableElement param : method.getParameters()) {
@@ -99,5 +103,36 @@ public class ValidationStage {
     private String capitalize(String s) {
         if (s.isEmpty()) return s;
         return Character.toUpperCase(s.charAt(0)) + s.substring(1);
+    }
+
+    /** Returns true if the source path can be resolved to an actual property. */
+    private boolean sourcePathResolves(String sourcePath, MappingMethod method) {
+        int dot = sourcePath.indexOf('.');
+        if (dot > 0 && dot < sourcePath.length() - 1 && sourcePath.indexOf('.', dot + 1) < 0) {
+            // "param.propName" form
+            String paramName = sourcePath.substring(0, dot);
+            String propName = sourcePath.substring(dot + 1);
+            for (VariableElement param : method.getParameters()) {
+                if (!param.getSimpleName().toString().equals(paramName)) continue;
+                Element element = env.getTypeUtils().asElement(param.asType());
+                if (!(element instanceof TypeElement)) continue;
+                for (Property srcProp : PropertyMerger.merge(strategies, (TypeElement) element, env)) {
+                    if (srcProp.getName().equals(propName)) return true;
+                }
+            }
+            return false;
+        } else if (dot < 0) {
+            // bare "propName" form — search all params
+            for (VariableElement param : method.getParameters()) {
+                Element element = env.getTypeUtils().asElement(param.asType());
+                if (!(element instanceof TypeElement)) continue;
+                for (Property srcProp : PropertyMerger.merge(strategies, (TypeElement) element, env)) {
+                    if (srcProp.getName().equals(sourcePath)) return true;
+                }
+            }
+            return false;
+        }
+        // multi-level path or unsupported form — not resolvable
+        return false;
     }
 }
