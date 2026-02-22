@@ -13,8 +13,7 @@ public final class ConverterRegistry {
 
     private final Map<String, Converter> converters = new LinkedHashMap<>();
 
-    public ConverterRegistry() {
-    }
+    public ConverterRegistry() {}
 
     /**
      * Registers a converter for (source -> target). No-op if the pair is already registered.

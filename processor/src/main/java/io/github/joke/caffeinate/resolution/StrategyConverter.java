@@ -15,7 +15,15 @@ public final class StrategyConverter implements Converter {
         this.targetType = targetType;
     }
 
-    public TypeMappingStrategy getStrategy() { return strategy; }
-    public TypeMirror getSourceType() { return sourceType; }
-    public TypeMirror getTargetType() { return targetType; }
+    public TypeMappingStrategy getStrategy() {
+        return strategy;
+    }
+
+    public TypeMirror getSourceType() {
+        return sourceType;
+    }
+
+    public TypeMirror getTargetType() {
+        return targetType;
+    }
 }

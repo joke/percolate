@@ -4,7 +4,6 @@ import io.github.joke.FlatTicket.TicketActor;
 import io.github.joke.FlatTicket.TicketVenue;
 import io.github.joke.caffeinate.Map;
 import io.github.joke.caffeinate.Mapper;
-import java.util.List;
 
 @Mapper
 public interface TicketMapper {

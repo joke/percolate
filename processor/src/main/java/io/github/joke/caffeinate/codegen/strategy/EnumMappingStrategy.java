@@ -2,6 +2,7 @@ package io.github.joke.caffeinate.codegen.strategy;
 
 import com.google.auto.service.AutoService;
 import com.palantir.javapoet.CodeBlock;
+import io.github.joke.caffeinate.resolution.ConverterRegistry;
 import java.util.LinkedHashSet;
 import java.util.Set;
 import javax.annotation.processing.ProcessingEnvironment;
@@ -11,19 +12,28 @@ import javax.lang.model.element.TypeElement;
 import javax.lang.model.type.DeclaredType;
 import javax.lang.model.type.TypeMirror;
 import javax.tools.Diagnostic;
-import org.jspecify.annotations.Nullable;
 
 @AutoService(TypeMappingStrategy.class)
 public class EnumMappingStrategy implements TypeMappingStrategy {
 
     @Override
-    public boolean supports(TypeMirror source, TypeMirror target, ProcessingEnvironment env) {
-        return isEnum(source) && isEnum(target);
-    }
-
-    /** Enum-to-enum mapping does not require a converter method — always supported. */
-    @Override
-    public boolean supportsIdentity(TypeMirror source, TypeMirror target, ProcessingEnvironment env) {
+    public boolean canContribute(
+            TypeMirror source, TypeMirror target, ConverterRegistry registry, ProcessingEnvironment env) {
+        if (!isEnum(source) || !isEnum(target)) return false;
+        TypeElement srcEnum = (TypeElement) ((DeclaredType) source).asElement();
+        TypeElement tgtEnum = (TypeElement) ((DeclaredType) target).asElement();
+        Set<String> tgtConstants = enumConstants(tgtEnum);
+        for (String c : enumConstants(srcEnum)) {
+            if (!tgtConstants.contains(c)) {
+                env.getMessager()
+                        .printMessage(
+                                Diagnostic.Kind.ERROR,
+                                String.format(
+                                        "[Percolate] Enum constant '%s' from %s has no match in %s",
+                                        c, srcEnum.getSimpleName(), tgtEnum.getSimpleName()));
+                return false;
+            }
+        }
         return true;
     }
 
@@ -32,45 +42,10 @@ public class EnumMappingStrategy implements TypeMappingStrategy {
             String sourceExpr,
             TypeMirror source,
             TypeMirror target,
-            @Nullable String converterMethodRef,
+            ConverterRegistry registry,
             ProcessingEnvironment env) {
-        if (!(target instanceof DeclaredType) || !(source instanceof DeclaredType)) {
-            throw new IllegalStateException("EnumMappingStrategy.generate() called on non-DeclaredType");
-        }
-        Element targetEl = ((DeclaredType) target).asElement();
-        Element sourceEl = ((DeclaredType) source).asElement();
-        if (!(targetEl instanceof TypeElement) || !(sourceEl instanceof TypeElement)) {
-            throw new IllegalStateException("EnumMappingStrategy.generate() called on non-TypeElement");
-        }
-        TypeElement targetEnum = (TypeElement) targetEl;
-        TypeElement sourceEnum = (TypeElement) sourceEl;
-
-        Set<String> targetConstants = enumConstants(targetEnum);
-        Set<String> sourceConstants = enumConstants(sourceEnum);
-
-        // Validate all source constants exist in target
-        boolean hasErrors = false;
-        for (String constant : sourceConstants) {
-            if (!targetConstants.contains(constant)) {
-                env.getMessager()
-                        .printMessage(
-                                Diagnostic.Kind.ERROR,
-                                String.format(
-                                        "[Percolate] Enum constant '%s' from %s has no match in %s",
-                                        constant, sourceEnum.getSimpleName(), targetEnum.getSimpleName()));
-                hasErrors = true;
-            }
-        }
-        if (hasErrors) {
-            return CodeBlock.of(
-                    "throw new $T(\"[Percolate] Enum mapping error for: \" + $L)",
-                    IllegalStateException.class,
-                    sourceExpr);
-        }
-
-        // Only reach here if all constants matched — use valueOf(name()) pattern
-        String targetFqn = targetEnum.getQualifiedName().toString();
-        return CodeBlock.of("$L.valueOf($L.name())", targetFqn, sourceExpr);
+        TypeElement targetEnum = (TypeElement) ((DeclaredType) target).asElement();
+        return CodeBlock.of("$L.valueOf($L.name())", targetEnum.getQualifiedName(), sourceExpr);
     }
 
     private boolean isEnum(TypeMirror type) {
@@ -81,9 +56,8 @@ public class EnumMappingStrategy implements TypeMappingStrategy {
     private Set<String> enumConstants(TypeElement enumType) {
         Set<String> result = new LinkedHashSet<>();
         for (Element e : enumType.getEnclosedElements()) {
-            if (e.getKind() == ElementKind.ENUM_CONSTANT) {
+            if (e.getKind() == ElementKind.ENUM_CONSTANT)
                 result.add(e.getSimpleName().toString());
-            }
         }
         return result;
     }

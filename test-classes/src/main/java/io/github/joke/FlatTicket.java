@@ -2,7 +2,6 @@ package io.github.joke;
 
 import java.util.List;
 import java.util.Optional;
-
 import lombok.Value;
 
 @Value
