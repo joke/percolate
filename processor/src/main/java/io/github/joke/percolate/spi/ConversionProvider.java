@@ -5,6 +5,7 @@ import io.github.joke.percolate.graph.edge.ConversionEdge;
 import java.util.List;
 import javax.annotation.processing.ProcessingEnvironment;
 import javax.lang.model.type.TypeMirror;
+import org.jspecify.annotations.Nullable;
 
 /**
  * SPI for discovering type conversions. Each provider returns all conversions
@@ -16,7 +17,7 @@ public interface ConversionProvider {
      * Returns all types this source can convert to, along with the edge to add to the graph.
      * Called lazily during graph traversal — results are cached per source node.
      */
-    List<Conversion> possibleConversions(TypeMirror source, ProcessingEnvironment env);
+    List<Conversion> possibleConversions(TypeMirror source, @Nullable ProcessingEnvironment env);
 
     final class Conversion {
         private final TypeMirror targetType;
