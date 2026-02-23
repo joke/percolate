@@ -20,7 +20,7 @@ public interface TicketMapper {
     TicketVenue mapVenue(Venue venue);
 
     default TicketActor mapActor(Actor actor) {
-        final var name = actor.getFirstName() + " " + actor.getLastName();
+        final String name = actor.getFirstName() + " " + actor.getLastName();
         return new TicketActor(name);
     }
 }
