@@ -23,5 +23,4 @@ public interface TicketMapper {
         final var name = actor.getFirstName() + " " + actor.getLastName();
         return new TicketActor(name);
     }
-
 }

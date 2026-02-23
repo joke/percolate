@@ -10,5 +10,4 @@ import java.lang.annotation.Target;
 @Documented
 @Target(TYPE)
 @Retention(CLASS)
-public @interface Mapper {
-}
+public @interface Mapper {}
