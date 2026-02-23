@@ -1,9 +1,9 @@
 # These settings are synced to GitHub by https://probot.github.io/apps/settings/
 repository:
-  name: caffeinate
-  description: A Java annotation processor that generates implementation classes from annotated interfaces
-  homepage: https://joke.github.io/caffeinate/
-  topics: java, annotation-processor, code-generation
+  name: percolate
+  description: A Java annotation processor that generates mapper classes for bean mapping
+  homepage: https://joke.github.io/percolate/
+  topics: java, annotation-processor, code-generation, mapper, bean
   private: false
   has_issues: true
   has_projects: false
