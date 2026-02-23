@@ -126,21 +126,21 @@ public class GraphBuildStage {
         GraphNode currentNode;
         int startIndex;
 
-        if (method.getParameters().size() == 1) {
-            // Single-param: source path starts from the single parameter's type
+        String firstSegment = sourceSegments[0];
+        Optional<TypeNode> matchingParam = paramNodes.stream()
+                .filter(n -> n.getLabel().equals(firstSegment))
+                .findFirst();
+
+        if (matchingParam.isPresent()) {
+            // First segment is a parameter name — skip it and start from that param node
+            currentNode = matchingParam.get();
+            startIndex = 1;
+        } else if (method.getParameters().size() == 1) {
+            // Single-param fallback: source path starts from the single parameter's type
             currentNode = paramNodes.get(0);
             startIndex = 0;
         } else {
-            // Multi-param: first segment is parameter name, rest is property chain
-            String paramName = sourceSegments[0];
-            currentNode = paramNodes.stream()
-                    .filter(n -> n.getLabel().equals(paramName))
-                    .findFirst()
-                    .orElse(null);
-            if (currentNode == null) {
-                return;
-            }
-            startIndex = 1;
+            return;
         }
 
         // Walk the source chain
