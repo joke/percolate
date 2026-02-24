@@ -47,4 +47,53 @@ class ValidateStageSpec extends Specification {
         assertThat(compilation).failed()
         assertThat(compilation).hadErrorContaining('age')
     }
+
+    def "emits error when converter method is missing for type mismatch"() {
+        given:
+        def mapper = JavaFileObjects.forSourceLines('test.MissingConverterMapper',
+            'package test;',
+            'import io.github.joke.percolate.Mapper;',
+            'import io.github.joke.percolate.Map;',
+            '@Mapper',
+            'public interface MissingConverterMapper {',
+            '    @Map(target = "venue", source = "venue")',
+            '    FlatOrder map(Order order);',
+            '}',
+        )
+        def venue = JavaFileObjects.forSourceLines('test.Venue',
+            'package test;',
+            'public class Venue {',
+            '    public String getName() { return ""; }',
+            '}',
+        )
+        def flatVenue = JavaFileObjects.forSourceLines('test.FlatVenue',
+            'package test;',
+            'public class FlatVenue {',
+            '    public final String name;',
+            '    public FlatVenue(String name) { this.name = name; }',
+            '}',
+        )
+        def order = JavaFileObjects.forSourceLines('test.Order',
+            'package test;',
+            'public class Order {',
+            '    public Venue getVenue() { return null; }',
+            '}',
+        )
+        def flatOrder = JavaFileObjects.forSourceLines('test.FlatOrder',
+            'package test;',
+            'public class FlatOrder {',
+            '    public final FlatVenue venue;',
+            '    public FlatOrder(FlatVenue venue) { this.venue = venue; }',
+            '}',
+        )
+
+        when:
+        Compilation compilation = Compiler.javac()
+            .withProcessors(new PercolateProcessor())
+            .compile(mapper, venue, flatVenue, order, flatOrder)
+
+        then:
+        assertThat(compilation).failed()
+        assertThat(compilation).hadErrorContaining('venue')
+    }
 }

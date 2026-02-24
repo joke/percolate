@@ -25,15 +25,20 @@ public final class OptionalProvider implements ConversionProvider {
             List<? extends TypeMirror> args = ((DeclaredType) source).getTypeArguments();
             if (!args.isEmpty()) {
                 TypeMirror inner = args.get(0);
-                return singletonList(new Conversion(inner,
+                return singletonList(new Conversion(
+                        inner,
                         new ConversionEdge(ConversionEdge.Kind.OPTIONAL_UNWRAP, source, inner, "$expr.orElse(null)")));
             }
         } else {
             TypeElement optionalElement = env.getElementUtils().getTypeElement("java.util.Optional");
             if (optionalElement != null) {
                 DeclaredType optionalType = env.getTypeUtils().getDeclaredType(optionalElement, source);
-                return singletonList(new Conversion(optionalType,
-                        new ConversionEdge(ConversionEdge.Kind.OPTIONAL_WRAP, source, optionalType,
+                return singletonList(new Conversion(
+                        optionalType,
+                        new ConversionEdge(
+                                ConversionEdge.Kind.OPTIONAL_WRAP,
+                                source,
+                                optionalType,
                                 "java.util.Optional.ofNullable($expr)")));
             }
         }

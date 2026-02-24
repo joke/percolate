@@ -24,10 +24,21 @@ public final class PrimitiveWideningProvider implements ConversionProvider {
 
     static {
         Map<TypeKind, List<TypeKind>> map = new HashMap<>();
-        map.put(TypeKind.BYTE, Collections.unmodifiableList(Arrays.asList(TypeKind.SHORT, TypeKind.INT, TypeKind.LONG, TypeKind.FLOAT, TypeKind.DOUBLE)));
-        map.put(TypeKind.SHORT, Collections.unmodifiableList(Arrays.asList(TypeKind.INT, TypeKind.LONG, TypeKind.FLOAT, TypeKind.DOUBLE)));
-        map.put(TypeKind.CHAR, Collections.unmodifiableList(Arrays.asList(TypeKind.INT, TypeKind.LONG, TypeKind.FLOAT, TypeKind.DOUBLE)));
-        map.put(TypeKind.INT, Collections.unmodifiableList(Arrays.asList(TypeKind.LONG, TypeKind.FLOAT, TypeKind.DOUBLE)));
+        map.put(
+                TypeKind.BYTE,
+                Collections.unmodifiableList(
+                        Arrays.asList(TypeKind.SHORT, TypeKind.INT, TypeKind.LONG, TypeKind.FLOAT, TypeKind.DOUBLE)));
+        map.put(
+                TypeKind.SHORT,
+                Collections.unmodifiableList(
+                        Arrays.asList(TypeKind.INT, TypeKind.LONG, TypeKind.FLOAT, TypeKind.DOUBLE)));
+        map.put(
+                TypeKind.CHAR,
+                Collections.unmodifiableList(
+                        Arrays.asList(TypeKind.INT, TypeKind.LONG, TypeKind.FLOAT, TypeKind.DOUBLE)));
+        map.put(
+                TypeKind.INT,
+                Collections.unmodifiableList(Arrays.asList(TypeKind.LONG, TypeKind.FLOAT, TypeKind.DOUBLE)));
         map.put(TypeKind.LONG, Collections.unmodifiableList(Arrays.asList(TypeKind.FLOAT, TypeKind.DOUBLE)));
         map.put(TypeKind.FLOAT, Collections.unmodifiableList(Collections.singletonList(TypeKind.DOUBLE)));
         WIDENING = Collections.unmodifiableMap(map);
@@ -45,17 +56,19 @@ public final class PrimitiveWideningProvider implements ConversionProvider {
             List<TypeKind> targets = WIDENING.getOrDefault(source.getKind(), emptyList());
             for (TypeKind targetKind : targets) {
                 TypeMirror targetType = types.getPrimitiveType(targetKind);
-                result.add(new Conversion(targetType,
+                result.add(new Conversion(
+                        targetType,
                         new ConversionEdge(ConversionEdge.Kind.PRIMITIVE_WIDEN, source, targetType, "$expr")));
             }
-            TypeMirror boxed = types.boxedClass(types.getPrimitiveType(source.getKind())).asType();
-            result.add(new Conversion(boxed,
-                    new ConversionEdge(ConversionEdge.Kind.PRIMITIVE_BOX, source, boxed, "$expr")));
+            TypeMirror boxed =
+                    types.boxedClass(types.getPrimitiveType(source.getKind())).asType();
+            result.add(new Conversion(
+                    boxed, new ConversionEdge(ConversionEdge.Kind.PRIMITIVE_BOX, source, boxed, "$expr")));
         } else {
             try {
                 TypeMirror unboxed = types.unboxedType(source);
-                result.add(new Conversion(unboxed,
-                        new ConversionEdge(ConversionEdge.Kind.PRIMITIVE_UNBOX, source, unboxed, "$expr")));
+                result.add(new Conversion(
+                        unboxed, new ConversionEdge(ConversionEdge.Kind.PRIMITIVE_UNBOX, source, unboxed, "$expr")));
             } catch (IllegalArgumentException ignored) {
                 // Not a boxed type
             }

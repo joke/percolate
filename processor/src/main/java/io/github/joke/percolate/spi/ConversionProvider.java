@@ -1,7 +1,6 @@
 package io.github.joke.percolate.spi;
 
 import io.github.joke.percolate.graph.edge.ConversionEdge;
-
 import java.util.List;
 import javax.annotation.processing.ProcessingEnvironment;
 import javax.lang.model.type.TypeMirror;

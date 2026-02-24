@@ -6,18 +6,16 @@ import io.github.joke.percolate.graph.node.PropertyNode;
 import io.github.joke.percolate.graph.node.TypeNode;
 import io.github.joke.percolate.spi.ConversionProvider;
 import io.github.joke.percolate.spi.ConversionProvider.Conversion;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Set;
+import java.util.function.Supplier;
+import javax.annotation.processing.ProcessingEnvironment;
+import javax.lang.model.type.TypeMirror;
 import org.jgrapht.GraphType;
 import org.jgrapht.graph.AbstractGraph;
 import org.jgrapht.graph.DirectedWeightedMultigraph;
 import org.jspecify.annotations.Nullable;
-
-import java.util.function.Supplier;
-
-import javax.annotation.processing.ProcessingEnvironment;
-import javax.lang.model.type.TypeMirror;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Set;
 
 /**
  * A lazy-expanding graph that wraps a base DirectedWeightedMultigraph and materializes
@@ -62,7 +60,8 @@ public final class LazyMappingGraph extends AbstractGraph<GraphNode, GraphEdge> 
         for (ConversionProvider provider : providers) {
             List<Conversion> conversions = provider.possibleConversions(sourceType, env);
             for (Conversion conversion : conversions) {
-                TypeNode targetNode = new TypeNode(conversion.getTargetType(), conversion.getTargetType().toString());
+                TypeNode targetNode = new TypeNode(
+                        conversion.getTargetType(), conversion.getTargetType().toString());
                 base.addVertex(targetNode);
                 if (!base.containsEdge(vertex, targetNode)) {
                     base.addEdge(vertex, targetNode, conversion.getEdge());

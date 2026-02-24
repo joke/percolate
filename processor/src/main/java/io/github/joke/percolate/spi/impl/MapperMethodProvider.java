@@ -29,13 +29,14 @@ public final class MapperMethodProvider implements ConversionProvider {
         return mappers.stream()
                 .flatMap(mapper -> mapper.getMethods().stream())
                 .filter(m -> m.getParameters().size() == 1)
-                .filter(m -> types.isSameType(
-                        types.erasure(m.getParameters().get(0).getType()),
-                        types.erasure(source)))
+                .filter(m ->
+                        types.isSameType(types.erasure(m.getParameters().get(0).getType()), types.erasure(source)))
                 .map(m -> new Conversion(
                         m.getReturnType(),
                         new ConversionEdge(
-                                ConversionEdge.Kind.MAPPER_METHOD, source, m.getReturnType(),
+                                ConversionEdge.Kind.MAPPER_METHOD,
+                                source,
+                                m.getReturnType(),
                                 "this." + m.getName() + "($expr)")))
                 .collect(toList());
     }

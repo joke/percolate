@@ -26,8 +26,8 @@ public final class EnumProvider implements ConversionProvider {
 
     public static ConversionEdge createEnumEdge(TypeMirror source, TypeMirror target) {
         String targetName = ((DeclaredType) target).asElement().toString();
-        return new ConversionEdge(ConversionEdge.Kind.ENUM_VALUE_OF, source, target,
-                targetName + ".valueOf($expr.name())");
+        return new ConversionEdge(
+                ConversionEdge.Kind.ENUM_VALUE_OF, source, target, targetName + ".valueOf($expr.name())");
     }
 
     private static boolean isEnumType(TypeMirror type) {

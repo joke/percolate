@@ -10,6 +10,6 @@ public class OptimizeStage {
     OptimizeStage() {}
 
     public OptimizedGraphResult execute(ValidationResult validationResult) {
-        return new OptimizedGraphResult(validationResult.graphResult());
+        return new OptimizedGraphResult(validationResult.graphResult(), validationResult.lazyGraph());
     }
 }

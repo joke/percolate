@@ -40,14 +40,14 @@ public final class ListProvider implements ConversionProvider {
                 .flatMap(mapper -> mapper.getMethods().stream())
                 .filter(m -> m.getParameters().size() == 1)
                 .filter(m -> types.isSameType(
-                        types.erasure(m.getParameters().get(0).getType()),
-                        types.erasure(sourceElement)))
+                        types.erasure(m.getParameters().get(0).getType()), types.erasure(sourceElement)))
                 .map(m -> {
                     TypeMirror targetElement = m.getReturnType();
                     DeclaredType targetListType = types.getDeclaredType(listElement, targetElement);
                     String template = "$expr.stream().map(this::" + m.getName()
                             + ").collect(java.util.stream.Collectors.toList())";
-                    return new Conversion(targetListType,
+                    return new Conversion(
+                            targetListType,
                             new ConversionEdge(ConversionEdge.Kind.LIST_MAP, source, targetListType, template));
                 })
                 .collect(toList());
