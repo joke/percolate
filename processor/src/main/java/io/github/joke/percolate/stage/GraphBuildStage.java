@@ -7,7 +7,6 @@ import static java.util.stream.IntStream.range;
 import io.github.joke.percolate.di.RoundScoped;
 import io.github.joke.percolate.graph.edge.ConstructorParamEdge;
 import io.github.joke.percolate.graph.edge.ConstructorResultEdge;
-import io.github.joke.percolate.graph.edge.GenericPlaceholderEdge;
 import io.github.joke.percolate.graph.edge.GraphEdge;
 import io.github.joke.percolate.graph.edge.PropertyAccessEdge;
 import io.github.joke.percolate.graph.node.ConstructorNode;
@@ -64,11 +63,10 @@ public class GraphBuildStage {
     private void buildMapperGraph(DirectedWeightedMultigraph<GraphNode, GraphEdge> graph, MapperDefinition mapper) {
         mapper.getMethods().stream()
                 .filter(MethodDefinition::isAbstract)
-                .forEach(method -> buildMethodGraph(graph, method, mapper));
+                .forEach(method -> buildMethodGraph(graph, method));
     }
 
-    private void buildMethodGraph(
-            DirectedWeightedMultigraph<GraphNode, GraphEdge> graph, MethodDefinition method, MapperDefinition mapper) {
+    private void buildMethodGraph(DirectedWeightedMultigraph<GraphNode, GraphEdge> graph, MethodDefinition method) {
         MethodNode methodNode = new MethodNode(method);
         graph.addVertex(methodNode);
 
@@ -106,7 +104,7 @@ public class GraphBuildStage {
         // Process each MapDirective
         method.getDirectives()
                 .forEach(directive ->
-                        processDirective(graph, directive, method, paramNodes, constructorNode, descriptor, mapper));
+                        processDirective(graph, directive, method, paramNodes, constructorNode, descriptor));
     }
 
     private void processDirective(
@@ -115,8 +113,7 @@ public class GraphBuildStage {
             MethodDefinition method,
             List<TypeNode> paramNodes,
             ConstructorNode constructorNode,
-            CreationDescriptor descriptor,
-            MapperDefinition mapper) {
+            CreationDescriptor descriptor) {
         // Parse source path
         String sourcePath = directive.getSource();
         @SuppressWarnings("StringSplitter")
@@ -183,16 +180,7 @@ public class GraphBuildStage {
         TypeMirror targetType = descriptor.getParameters().get(paramIndex).getType();
 
         if (sourceType != null && !typesMatch(sourceType, targetType)) {
-            // Check for mapper method
-            @Nullable MethodDefinition matchingMethod = findMapperMethod(mapper, sourceType, targetType);
-            if (matchingMethod != null) {
-                // Insert intermediate TypeNode with MethodCallEdge — handled by later stages
-            } else {
-                // Add GenericPlaceholderEdge for later expansion
-                TypeNode sourceTypeNode = ensureTypeNode(graph, sourceType);
-                TypeNode targetTypeNode = ensureTypeNode(graph, targetType);
-                graph.addEdge(sourceTypeNode, targetTypeNode, new GenericPlaceholderEdge(sourceType, targetType));
-            }
+            // Type mismatch handling is deferred to the lazy graph and conversion providers
         }
 
         // Add ConstructorParamEdge
@@ -227,23 +215,6 @@ public class GraphBuildStage {
                 .isSameType(
                         processingEnv.getTypeUtils().erasure(source),
                         processingEnv.getTypeUtils().erasure(target));
-    }
-
-    private @Nullable MethodDefinition findMapperMethod(
-            MapperDefinition mapper, TypeMirror sourceType, TypeMirror targetType) {
-        return mapper.getMethods().stream()
-                .filter(MethodDefinition::isAbstract)
-                .filter(m -> m.getParameters().size() == 1)
-                .filter(m -> typesMatch(m.getParameters().get(0).getType(), sourceType))
-                .filter(m -> typesMatch(m.getReturnType(), targetType))
-                .findFirst()
-                .orElse(null);
-    }
-
-    private TypeNode ensureTypeNode(DirectedWeightedMultigraph<GraphNode, GraphEdge> graph, TypeMirror type) {
-        TypeNode node = new TypeNode(type, type.toString());
-        graph.addVertex(node);
-        return node;
     }
 
     private @Nullable CreationDescriptor findCreationDescriptor(TypeElement type) {

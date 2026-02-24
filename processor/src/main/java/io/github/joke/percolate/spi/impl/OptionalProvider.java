@@ -29,7 +29,7 @@ public final class OptionalProvider implements ConversionProvider {
                         inner,
                         new ConversionEdge(ConversionEdge.Kind.OPTIONAL_UNWRAP, source, inner, "$expr.orElse(null)")));
             }
-        } else {
+        } else if (!source.getKind().isPrimitive()) {
             TypeElement optionalElement = env.getElementUtils().getTypeElement("java.util.Optional");
             if (optionalElement != null) {
                 DeclaredType optionalType = env.getTypeUtils().getDeclaredType(optionalElement, source);
