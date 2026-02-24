@@ -1,24 +1,25 @@
 package io.github.joke.percolate.graph;
 
 import static java.util.stream.Collectors.toList;
+import static java.util.stream.Collectors.toSet;
 
 import io.github.joke.percolate.graph.edge.ConstructorParamEdge;
 import io.github.joke.percolate.graph.edge.GraphEdge;
 import io.github.joke.percolate.graph.node.ConstructorNode;
 import io.github.joke.percolate.graph.node.GraphNode;
+import io.github.joke.percolate.graph.node.PropertyNode;
+import io.github.joke.percolate.graph.node.TypeNode;
 import io.github.joke.percolate.model.Property;
 import java.util.List;
 import java.util.Set;
-import java.util.stream.Collectors;
-import org.jgrapht.graph.DirectedWeightedMultigraph;
+import org.jgrapht.Graph;
 
-/** Produces an ASCII representation of constructor node state for error diagnostics. */
 public final class GraphRenderer {
 
     private GraphRenderer() {}
 
     public static String renderConstructorNode(
-            DirectedWeightedMultigraph<GraphNode, GraphEdge> graph,
+            Graph<GraphNode, GraphEdge> graph,
             ConstructorNode constructorNode,
             Set<String> missingParams) {
 
@@ -28,31 +29,51 @@ public final class GraphRenderer {
                 .filter(ConstructorParamEdge.class::isInstance)
                 .map(ConstructorParamEdge.class::cast)
                 .map(ConstructorParamEdge::getParameterName)
-                .collect(Collectors.toSet());
+                .collect(toSet());
 
-        int maxNameLen =
-                parameters.stream().mapToInt(p -> p.getName().length()).max().orElse(0);
+        int maxNameLen = parameters.stream().mapToInt(p -> p.getName().length()).max().orElse(0);
 
         StringBuilder sb = new StringBuilder();
-        sb.append("ConstructorNode(")
+        sb.append("\n  ConstructorNode(")
                 .append(constructorNode.getTargetType().getSimpleName())
                 .append("):\n");
 
-        List<String> lines = parameters.stream()
-                .map(param -> {
-                    String name = param.getName();
-                    String padded = String.format("%-" + maxNameLen + "s", name);
-                    if (mappedParams.contains(name)) {
-                        return "  " + padded + " <- (mapped) \u2713";
-                    } else {
-                        return "  " + padded + " <- ???       \u2717  (no source mapping)";
-                    }
-                })
-                .collect(toList());
+        for (Property param : parameters) {
+            String name = param.getName();
+            String padded = String.format("%-" + maxNameLen + "s", name);
+            if (mappedParams.contains(name)) {
+                String sourceDesc = findSourceDescription(graph, constructorNode, name);
+                sb.append("    ").append(padded).append(" <- ").append(sourceDesc).append(" \u2713\n");
+            } else {
+                sb.append("    ").append(padded).append(" <- ???  \u2717  (no source mapping)\n");
+            }
+        }
 
-        sb.append(String.join("\n", lines));
-        sb.append("\n\nSuggestion: Add a matching source property for: ").append(String.join(", ", missingParams));
+        if (!missingParams.isEmpty()) {
+            sb.append("\n  Suggestion: Add a matching source property or converter for: ")
+                    .append(String.join(", ", missingParams));
+        }
 
         return sb.toString();
+    }
+
+    private static String findSourceDescription(
+            Graph<GraphNode, GraphEdge> graph, ConstructorNode constructorNode, String paramName) {
+        return graph.incomingEdgesOf(constructorNode).stream()
+                .filter(ConstructorParamEdge.class::isInstance)
+                .map(ConstructorParamEdge.class::cast)
+                .filter(e -> e.getParameterName().equals(paramName))
+                .findFirst()
+                .map(e -> {
+                    GraphNode source = graph.getEdgeSource(e);
+                    if (source instanceof PropertyNode) {
+                        return ((PropertyNode) source).name() + " (" + ((PropertyNode) source).getProperty().getType() + ")";
+                    }
+                    if (source instanceof TypeNode) {
+                        return ((TypeNode) source).getLabel() + " (" + ((TypeNode) source).getType() + ")";
+                    }
+                    return source.toString();
+                })
+                .orElse("(mapped)");
     }
 }
