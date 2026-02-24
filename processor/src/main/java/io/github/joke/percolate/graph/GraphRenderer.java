@@ -1,6 +1,5 @@
 package io.github.joke.percolate.graph;
 
-import static java.util.stream.Collectors.toList;
 import static java.util.stream.Collectors.toSet;
 
 import io.github.joke.percolate.graph.edge.ConstructorParamEdge;
@@ -19,9 +18,7 @@ public final class GraphRenderer {
     private GraphRenderer() {}
 
     public static String renderConstructorNode(
-            Graph<GraphNode, GraphEdge> graph,
-            ConstructorNode constructorNode,
-            Set<String> missingParams) {
+            Graph<GraphNode, GraphEdge> graph, ConstructorNode constructorNode, Set<String> missingParams) {
 
         List<Property> parameters = constructorNode.getDescriptor().getParameters();
 
@@ -31,7 +28,8 @@ public final class GraphRenderer {
                 .map(ConstructorParamEdge::getParameterName)
                 .collect(toSet());
 
-        int maxNameLen = parameters.stream().mapToInt(p -> p.getName().length()).max().orElse(0);
+        int maxNameLen =
+                parameters.stream().mapToInt(p -> p.getName().length()).max().orElse(0);
 
         StringBuilder sb = new StringBuilder();
         sb.append("\n  ConstructorNode(")
@@ -43,7 +41,11 @@ public final class GraphRenderer {
             String padded = String.format("%-" + maxNameLen + "s", name);
             if (mappedParams.contains(name)) {
                 String sourceDesc = findSourceDescription(graph, constructorNode, name);
-                sb.append("    ").append(padded).append(" <- ").append(sourceDesc).append(" \u2713\n");
+                sb.append("    ")
+                        .append(padded)
+                        .append(" <- ")
+                        .append(sourceDesc)
+                        .append(" \u2713\n");
             } else {
                 sb.append("    ").append(padded).append(" <- ???  \u2717  (no source mapping)\n");
             }
@@ -67,7 +69,8 @@ public final class GraphRenderer {
                 .map(e -> {
                     GraphNode source = graph.getEdgeSource(e);
                     if (source instanceof PropertyNode) {
-                        return ((PropertyNode) source).name() + " (" + ((PropertyNode) source).getProperty().getType() + ")";
+                        return ((PropertyNode) source).name() + " ("
+                                + ((PropertyNode) source).getProperty().getType() + ")";
                     }
                     if (source instanceof TypeNode) {
                         return ((TypeNode) source).getLabel() + " (" + ((TypeNode) source).getType() + ")";
