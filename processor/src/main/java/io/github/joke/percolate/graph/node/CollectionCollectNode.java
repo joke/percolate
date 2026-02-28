@@ -12,9 +12,16 @@ public final class CollectionCollectNode implements MappingNode {
         this.elementType = elementType;
     }
 
-    public TypeMirror getTargetCollectionType() { return targetCollectionType; }
-    public TypeMirror getElementType() { return elementType; }
+    public TypeMirror getTargetCollectionType() {
+        return targetCollectionType;
+    }
+
+    public TypeMirror getElementType() {
+        return elementType;
+    }
 
     @Override
-    public String toString() { return "CollectionCollect(" + elementType + "->" + targetCollectionType + ")"; }
+    public String toString() {
+        return "CollectionCollect(" + elementType + "->" + targetCollectionType + ")";
+    }
 }

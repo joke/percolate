@@ -13,9 +13,16 @@ public final class ConstructorAssignmentNode implements TargetAssignmentNode {
     }
 
     @Override
-    public TypeElement getTargetType() { return targetType; }
-    public CreationDescriptor getDescriptor() { return descriptor; }
+    public TypeElement getTargetType() {
+        return targetType;
+    }
+
+    public CreationDescriptor getDescriptor() {
+        return descriptor;
+    }
 
     @Override
-    public String toString() { return "Constructor(" + targetType.getSimpleName() + ")"; }
+    public String toString() {
+        return "Constructor(" + targetType.getSimpleName() + ")";
+    }
 }

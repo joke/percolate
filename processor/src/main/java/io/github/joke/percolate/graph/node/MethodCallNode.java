@@ -14,10 +14,20 @@ public final class MethodCallNode implements MappingNode {
         this.outType = outType;
     }
 
-    public MethodDefinition getMethod() { return method; }
-    public TypeMirror getInType() { return inType; }
-    public TypeMirror getOutType() { return outType; }
+    public MethodDefinition getMethod() {
+        return method;
+    }
+
+    public TypeMirror getInType() {
+        return inType;
+    }
+
+    public TypeMirror getOutType() {
+        return outType;
+    }
 
     @Override
-    public String toString() { return "MethodCall(" + method.getName() + ":" + inType + "->" + outType + ")"; }
+    public String toString() {
+        return "MethodCall(" + method.getName() + ":" + inType + "->" + outType + ")";
+    }
 }

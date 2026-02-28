@@ -10,8 +10,12 @@ public final class OptionalWrapNode implements MappingNode {
         this.elementType = elementType;
     }
 
-    public TypeMirror getElementType() { return elementType; }
+    public TypeMirror getElementType() {
+        return elementType;
+    }
 
     @Override
-    public String toString() { return "OptionalWrap(" + elementType + ")"; }
+    public String toString() {
+        return "OptionalWrap(" + elementType + ")";
+    }
 }

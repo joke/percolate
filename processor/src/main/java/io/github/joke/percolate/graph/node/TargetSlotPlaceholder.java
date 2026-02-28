@@ -12,9 +12,16 @@ public final class TargetSlotPlaceholder implements MappingNode {
         this.slotName = slotName;
     }
 
-    public TypeMirror getTargetType() { return targetType; }
-    public String getSlotName() { return slotName; }
+    public TypeMirror getTargetType() {
+        return targetType;
+    }
+
+    public String getSlotName() {
+        return slotName;
+    }
 
     @Override
-    public String toString() { return "Slot(" + slotName + " on " + targetType + ")"; }
+    public String toString() {
+        return "Slot(" + slotName + " on " + targetType + ")";
+    }
 }

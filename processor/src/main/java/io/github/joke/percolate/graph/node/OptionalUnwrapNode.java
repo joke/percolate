@@ -10,8 +10,12 @@ public final class OptionalUnwrapNode implements MappingNode {
         this.elementType = elementType;
     }
 
-    public TypeMirror getElementType() { return elementType; }
+    public TypeMirror getElementType() {
+        return elementType;
+    }
 
     @Override
-    public String toString() { return "OptionalUnwrap(" + elementType + ")"; }
+    public String toString() {
+        return "OptionalUnwrap(" + elementType + ")";
+    }
 }

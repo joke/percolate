@@ -11,9 +11,16 @@ public final class SourceNode implements MappingNode {
         this.type = type;
     }
 
-    public String getParamName() { return paramName; }
-    public TypeMirror getType() { return type; }
+    public String getParamName() {
+        return paramName;
+    }
+
+    public TypeMirror getType() {
+        return type;
+    }
 
     @Override
-    public String toString() { return "Source(" + paramName + ":" + type + ")"; }
+    public String toString() {
+        return "Source(" + paramName + ":" + type + ")";
+    }
 }

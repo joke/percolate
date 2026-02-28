@@ -12,9 +12,16 @@ public final class CollectionIterationNode implements MappingNode {
         this.elementType = elementType;
     }
 
-    public TypeMirror getCollectionType() { return collectionType; }
-    public TypeMirror getElementType() { return elementType; }
+    public TypeMirror getCollectionType() {
+        return collectionType;
+    }
+
+    public TypeMirror getElementType() {
+        return elementType;
+    }
 
     @Override
-    public String toString() { return "CollectionIteration(" + collectionType + "->" + elementType + ")"; }
+    public String toString() {
+        return "CollectionIteration(" + collectionType + "->" + elementType + ")";
+    }
 }

@@ -7,7 +7,7 @@ public final class PropertyAccessNode implements MappingNode {
     private final String propertyName;
     private final TypeMirror inType;
     private final TypeMirror outType;
-    private final Element accessor;
+    private final Element accessor; // ExecutableElement (getter) or VariableElement (field)
 
     public PropertyAccessNode(String propertyName, TypeMirror inType, TypeMirror outType, Element accessor) {
         this.propertyName = propertyName;
@@ -16,11 +16,24 @@ public final class PropertyAccessNode implements MappingNode {
         this.accessor = accessor;
     }
 
-    public String getPropertyName() { return propertyName; }
-    public TypeMirror getInType() { return inType; }
-    public TypeMirror getOutType() { return outType; }
-    public Element getAccessor() { return accessor; }
+    public String getPropertyName() {
+        return propertyName;
+    }
+
+    public TypeMirror getInType() {
+        return inType;
+    }
+
+    public TypeMirror getOutType() {
+        return outType;
+    }
+
+    public Element getAccessor() {
+        return accessor;
+    }
 
     @Override
-    public String toString() { return "Property(" + propertyName + ":" + inType + "->" + outType + ")"; }
+    public String toString() {
+        return "Property(" + propertyName + ":" + inType + "->" + outType + ")";
+    }
 }

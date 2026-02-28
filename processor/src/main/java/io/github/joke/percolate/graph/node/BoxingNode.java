@@ -12,9 +12,16 @@ public final class BoxingNode implements MappingNode {
         this.outType = outType;
     }
 
-    public TypeMirror getInType() { return inType; }
-    public TypeMirror getOutType() { return outType; }
+    public TypeMirror getInType() {
+        return inType;
+    }
+
+    public TypeMirror getOutType() {
+        return outType;
+    }
 
     @Override
-    public String toString() { return "Boxing(" + inType + "->" + outType + ")"; }
+    public String toString() {
+        return "Boxing(" + inType + "->" + outType + ")";
+    }
 }

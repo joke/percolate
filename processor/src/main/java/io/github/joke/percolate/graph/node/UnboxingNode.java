@@ -12,9 +12,16 @@ public final class UnboxingNode implements MappingNode {
         this.outType = outType;
     }
 
-    public TypeMirror getInType() { return inType; }
-    public TypeMirror getOutType() { return outType; }
+    public TypeMirror getInType() {
+        return inType;
+    }
+
+    public TypeMirror getOutType() {
+        return outType;
+    }
 
     @Override
-    public String toString() { return "Unboxing(" + inType + "->" + outType + ")"; }
+    public String toString() {
+        return "Unboxing(" + inType + "->" + outType + ")";
+    }
 }
