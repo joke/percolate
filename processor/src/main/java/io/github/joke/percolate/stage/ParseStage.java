@@ -25,6 +25,7 @@ import javax.inject.Inject;
 import javax.lang.model.element.Element;
 import javax.lang.model.element.ExecutableElement;
 import javax.lang.model.element.TypeElement;
+import javax.lang.model.type.TypeMirror;
 import javax.lang.model.util.Elements;
 
 @RoundScoped
@@ -116,8 +117,8 @@ public class ParseStage {
         if (method.getParameters().size() != 1) {
             return;
         }
-        javax.lang.model.type.TypeMirror inType = method.getParameters().get(0).getType();
-        javax.lang.model.type.TypeMirror outType = method.getReturnType();
+        TypeMirror inType = method.getParameters().get(0).getType();
+        TypeMirror outType = method.getReturnType();
         registry.register(inType, outType, new RegistryEntry(method, null));
     }
 }

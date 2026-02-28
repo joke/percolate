@@ -5,6 +5,7 @@ import static java.util.Collections.unmodifiableMap;
 
 import io.github.joke.percolate.model.MapperDefinition;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import javax.lang.model.element.TypeElement;
@@ -16,7 +17,7 @@ public final class ParseResult {
 
     public ParseResult(List<MapperDefinition> mappers, Map<TypeElement, MethodRegistry> registries) {
         this.mappers = unmodifiableList(new ArrayList<>(mappers));
-        this.registries = unmodifiableMap(registries);
+        this.registries = unmodifiableMap(new LinkedHashMap<>(registries));
     }
 
     public List<MapperDefinition> getMappers() {
