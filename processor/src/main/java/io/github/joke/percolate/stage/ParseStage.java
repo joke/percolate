@@ -7,7 +7,6 @@ import static javax.lang.model.element.Modifier.ABSTRACT;
 import static javax.lang.model.type.TypeKind.VOID;
 import static javax.tools.Diagnostic.Kind.ERROR;
 
-import io.github.joke.percolate.Map;
 import io.github.joke.percolate.MapList;
 import io.github.joke.percolate.Mapper;
 import io.github.joke.percolate.di.RoundScoped;
@@ -18,6 +17,7 @@ import io.github.joke.percolate.model.ParameterDefinition;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import javax.annotation.processing.Messager;
 import javax.annotation.processing.RoundEnvironment;
@@ -46,7 +46,7 @@ public class ParseStage {
                 .map(this::parseMapper)
                 .collect(toList());
 
-        java.util.Map<TypeElement, MethodRegistry> registries =
+        Map<TypeElement, MethodRegistry> registries =
                 mappers.stream().collect(toMap(MapperDefinition::getElement, this::buildRegistry));
 
         return new ParseResult(mappers, registries);
@@ -95,7 +95,7 @@ public class ParseStage {
         }
 
         // Handle single @Map annotation
-        Map map = method.getAnnotation(Map.class);
+        io.github.joke.percolate.Map map = method.getAnnotation(io.github.joke.percolate.Map.class);
         if (map != null) {
             directives.add(new MapDirective(map.target(), map.source()));
         }
