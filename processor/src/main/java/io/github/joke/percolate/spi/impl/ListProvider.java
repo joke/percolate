@@ -1,14 +1,16 @@
 package io.github.joke.percolate.spi.impl;
 
-import static java.util.Collections.emptyList;
-import static java.util.stream.Collectors.toList;
-
-import io.github.joke.percolate.graph.edge.ConversionEdge;
+import io.github.joke.percolate.graph.node.CollectionCollectNode;
+import io.github.joke.percolate.graph.node.CollectionIterationNode;
+import io.github.joke.percolate.graph.node.MethodCallNode;
 import io.github.joke.percolate.model.MapperDefinition;
+import io.github.joke.percolate.model.MethodDefinition;
+import io.github.joke.percolate.spi.ConversionFragment;
 import io.github.joke.percolate.spi.ConversionProvider;
+import io.github.joke.percolate.stage.MethodRegistry;
 import java.util.List;
+import java.util.Optional;
 import javax.annotation.processing.ProcessingEnvironment;
-import javax.lang.model.element.TypeElement;
 import javax.lang.model.type.DeclaredType;
 import javax.lang.model.type.TypeMirror;
 import javax.lang.model.util.Types;
@@ -23,34 +25,37 @@ public final class ListProvider implements ConversionProvider {
     }
 
     @Override
-    public List<Conversion> possibleConversions(TypeMirror source, @Nullable ProcessingEnvironment env) {
-        if (env == null || !isListType(source)) {
-            return emptyList();
-        }
-        TypeMirror sourceElement = getFirstTypeArgument(source);
-        if (sourceElement == null) {
-            return emptyList();
+    public boolean canHandle(TypeMirror source, TypeMirror target, ProcessingEnvironment env) {
+        return isListType(source) && isListType(target);
+    }
+
+    @Override
+    public ConversionFragment provide(
+            TypeMirror source, TypeMirror target, MethodRegistry registry, ProcessingEnvironment env) {
+        @Nullable TypeMirror sourceElement = getFirstTypeArgument(source);
+        @Nullable TypeMirror targetElement = getFirstTypeArgument(target);
+        if (sourceElement == null || targetElement == null) {
+            return ConversionFragment.of();
         }
         Types types = env.getTypeUtils();
-        TypeElement listElement = env.getElementUtils().getTypeElement("java.util.List");
-        if (listElement == null) {
-            return emptyList();
+        Optional<MethodDefinition> method = findMethod(types, sourceElement, targetElement);
+        if (!method.isPresent()) {
+            return ConversionFragment.of();
         }
+        return ConversionFragment.of(
+                new CollectionIterationNode(source, sourceElement),
+                new MethodCallNode(method.get(), sourceElement, targetElement),
+                new CollectionCollectNode(target, targetElement));
+    }
+
+    private Optional<MethodDefinition> findMethod(Types types, TypeMirror sourceElement, TypeMirror targetElement) {
         return mappers.stream()
                 .flatMap(mapper -> mapper.getMethods().stream())
                 .filter(m -> m.getParameters().size() == 1)
                 .filter(m -> types.isSameType(
                         types.erasure(m.getParameters().get(0).getType()), types.erasure(sourceElement)))
-                .map(m -> {
-                    TypeMirror targetElement = m.getReturnType();
-                    DeclaredType targetListType = types.getDeclaredType(listElement, targetElement);
-                    String template = "$expr.stream().map(this::" + m.getName()
-                            + ").collect(java.util.stream.Collectors.toList())";
-                    return new Conversion(
-                            targetListType,
-                            new ConversionEdge(ConversionEdge.Kind.LIST_MAP, source, targetListType, template));
-                })
-                .collect(toList());
+                .filter(m -> types.isSameType(types.erasure(m.getReturnType()), types.erasure(targetElement)))
+                .findFirst();
     }
 
     private static boolean isListType(TypeMirror type) {

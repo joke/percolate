@@ -2,16 +2,12 @@ package io.github.joke.percolate.graph;
 
 import io.github.joke.percolate.graph.edge.GraphEdge;
 import io.github.joke.percolate.graph.node.GraphNode;
-import io.github.joke.percolate.graph.node.PropertyNode;
-import io.github.joke.percolate.graph.node.TypeNode;
 import io.github.joke.percolate.spi.ConversionProvider;
-import io.github.joke.percolate.spi.ConversionProvider.Conversion;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.function.Supplier;
 import javax.annotation.processing.ProcessingEnvironment;
-import javax.lang.model.type.TypeMirror;
 import org.jgrapht.GraphType;
 import org.jgrapht.graph.AbstractGraph;
 import org.jgrapht.graph.DirectedWeightedMultigraph;
@@ -24,8 +20,6 @@ import org.jspecify.annotations.Nullable;
 public final class LazyMappingGraph extends AbstractGraph<GraphNode, GraphEdge> {
 
     private final DirectedWeightedMultigraph<GraphNode, GraphEdge> base;
-    private final List<ConversionProvider> providers;
-    private final @Nullable ProcessingEnvironment env;
     private final int maxDepth;
     private final Set<GraphNode> expanded = new HashSet<>();
     private int currentDepth;
@@ -36,8 +30,6 @@ public final class LazyMappingGraph extends AbstractGraph<GraphNode, GraphEdge> 
             @Nullable ProcessingEnvironment env,
             int maxDepth) {
         this.base = base;
-        this.providers = providers;
-        this.env = env;
         this.maxDepth = maxDepth;
         this.currentDepth = 0;
     }
@@ -46,39 +38,13 @@ public final class LazyMappingGraph extends AbstractGraph<GraphNode, GraphEdge> 
     public Set<GraphEdge> outgoingEdgesOf(GraphNode vertex) {
         if (!expanded.contains(vertex) && currentDepth < maxDepth) {
             expanded.add(vertex);
-            expandConversions(vertex);
+            expandConversions();
         }
         return base.outgoingEdgesOf(vertex);
     }
 
-    private void expandConversions(GraphNode vertex) {
-        @Nullable TypeMirror sourceType = getTypeOf(vertex);
-        if (sourceType == null) {
-            return;
-        }
-        currentDepth++;
-        for (ConversionProvider provider : providers) {
-            List<Conversion> conversions = provider.possibleConversions(sourceType, env);
-            for (Conversion conversion : conversions) {
-                TypeNode targetNode = new TypeNode(
-                        conversion.getTargetType(), conversion.getTargetType().toString());
-                base.addVertex(targetNode);
-                if (!base.containsEdge(vertex, targetNode)) {
-                    base.addEdge(vertex, targetNode, conversion.getEdge());
-                }
-            }
-        }
-        currentDepth--;
-    }
-
-    private static @Nullable TypeMirror getTypeOf(GraphNode node) {
-        if (node instanceof TypeNode) {
-            return ((TypeNode) node).getType();
-        }
-        if (node instanceof PropertyNode) {
-            return ((PropertyNode) node).getProperty().getType();
-        }
-        return null;
+    private void expandConversions() {
+        // ConversionProvider interface redesigned in Task 7 — expansion now handled by WiringStage.
     }
 
     // --- Delegate all other Graph methods to base ---

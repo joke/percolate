@@ -1,23 +1,27 @@
 package io.github.joke.percolate.spi.impl;
 
-import static java.util.Collections.emptyList;
-
 import com.google.auto.service.AutoService;
 import io.github.joke.percolate.graph.edge.ConversionEdge;
+import io.github.joke.percolate.spi.ConversionFragment;
 import io.github.joke.percolate.spi.ConversionProvider;
-import java.util.List;
+import io.github.joke.percolate.stage.MethodRegistry;
 import javax.annotation.processing.ProcessingEnvironment;
 import javax.lang.model.element.ElementKind;
 import javax.lang.model.type.DeclaredType;
 import javax.lang.model.type.TypeMirror;
-import org.jspecify.annotations.Nullable;
 
 @AutoService(ConversionProvider.class)
 public final class EnumProvider implements ConversionProvider {
 
     @Override
-    public List<Conversion> possibleConversions(TypeMirror source, @Nullable ProcessingEnvironment env) {
-        return emptyList();
+    public boolean canHandle(TypeMirror source, TypeMirror target, ProcessingEnvironment env) {
+        return canConvertEnums(source, target);
+    }
+
+    @Override
+    public ConversionFragment provide(
+            TypeMirror source, TypeMirror target, MethodRegistry registry, ProcessingEnvironment env) {
+        return ConversionFragment.of();
     }
 
     public static boolean canConvertEnums(TypeMirror source, TypeMirror target) {

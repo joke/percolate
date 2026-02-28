@@ -5,29 +5,27 @@ import io.github.joke.percolate.graph.edge.GraphEdge
 import io.github.joke.percolate.graph.node.GraphNode
 import io.github.joke.percolate.graph.node.TypeNode
 import io.github.joke.percolate.spi.ConversionProvider
-import org.jgrapht.alg.connectivity.ConnectivityInspector
 import org.jgrapht.graph.DirectedWeightedMultigraph
 import spock.lang.Specification
 
+import javax.annotation.processing.ProcessingEnvironment
 import javax.lang.model.type.TypeMirror
 
 class LazyMappingGraphSpec extends Specification {
 
-    def "lazily expands conversion edges during outgoingEdgesOf"() {
+    def "outgoingEdgesOf returns base graph edges — expansion is now handled by WiringStage"() {
         given:
         def base = new DirectedWeightedMultigraph<GraphNode, GraphEdge>(GraphEdge)
         def sourceType = Mock(TypeMirror) { toString() >> 'SourceType' }
         def targetType = Mock(TypeMirror) { toString() >> 'TargetType' }
         def sourceNode = new TypeNode(sourceType, 'source')
+        def targetNode = new TypeNode(targetType, 'target')
         base.addVertex(sourceNode)
+        base.addVertex(targetNode)
+        def edge = new ConversionEdge(ConversionEdge.Kind.MAPPER_METHOD, sourceType, targetType, 'this.convert($expr)')
+        base.addEdge(sourceNode, targetNode, edge)
 
-        def edge = new ConversionEdge(
-            ConversionEdge.Kind.MAPPER_METHOD, sourceType, targetType, 'this.convert($expr)')
-        def conversion = new ConversionProvider.Conversion(targetType, edge)
-        def provider = Mock(ConversionProvider) {
-            possibleConversions(sourceType, _) >> [conversion]
-        }
-
+        def provider = Mock(ConversionProvider)
         def lazy = new LazyMappingGraph(base, [provider], null, 5)
 
         when:
@@ -36,21 +34,17 @@ class LazyMappingGraphSpec extends Specification {
         then:
         edges.size() == 1
         edges.first() instanceof ConversionEdge
+        0 * provider.canHandle(_, _, _)
     }
 
-    def "caches expansion — second call returns same edges without re-expanding"() {
+    def "caches expansion — second call returns same edges without invoking providers"() {
         given:
         def base = new DirectedWeightedMultigraph<GraphNode, GraphEdge>(GraphEdge)
         def sourceType = Mock(TypeMirror) { toString() >> 'SourceType' }
-        def targetType = Mock(TypeMirror) { toString() >> 'TargetType' }
         def sourceNode = new TypeNode(sourceType, 'source')
         base.addVertex(sourceNode)
 
-        def edge = new ConversionEdge(
-            ConversionEdge.Kind.SUBTYPE, sourceType, targetType, '$expr')
-        def conversion = new ConversionProvider.Conversion(targetType, edge)
         def provider = Mock(ConversionProvider)
-
         def lazy = new LazyMappingGraph(base, [provider], null, 5)
 
         when:
@@ -58,32 +52,24 @@ class LazyMappingGraphSpec extends Specification {
         lazy.outgoingEdgesOf(sourceNode)
 
         then:
-        1 * provider.possibleConversions(sourceType, _) >> [conversion]
+        0 * provider.canHandle(_, _, _)
+        0 * provider.provide(_, _, _, _)
     }
 
-    def "respects depth limit"() {
+    def "respects depth limit — no provider calls even with multiple vertices"() {
         given:
         def base = new DirectedWeightedMultigraph<GraphNode, GraphEdge>(GraphEdge)
         def typeA = Mock(TypeMirror) { toString() >> 'A' }
         def nodeA = new TypeNode(typeA, 'a')
         base.addVertex(nodeA)
 
-        // Provider that always creates a new conversion (infinite chain)
-        def provider = Mock(ConversionProvider) {
-            possibleConversions(_, _) >> { TypeMirror src, _ ->
-                def tgt = Mock(TypeMirror) { toString() >> src.toString() + '+' }
-                def e = new ConversionEdge(ConversionEdge.Kind.SUBTYPE, src, tgt, '$expr')
-                [new ConversionProvider.Conversion(tgt, e)]
-            }
-        }
-
+        def provider = Mock(ConversionProvider)
         def lazy = new LazyMappingGraph(base, [provider], null, 3)
 
-        when: 'traverse the graph through BFS'
-        def inspector = new ConnectivityInspector(lazy)
-        def connected = inspector.connectedSetOf(nodeA)
+        when:
+        lazy.outgoingEdgesOf(nodeA)
 
-        then: 'depth is limited'
-        connected.size() <= 4 // nodeA + at most 3 expansions
+        then:
+        0 * provider.canHandle(_, _, _)
     }
 }
