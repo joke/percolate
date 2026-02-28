@@ -91,6 +91,11 @@ public class BindingStage {
         }
     }
 
+    /**
+     * Expands wildcard directives (source ending in ".*") into per-property directives.
+     * NOTE: ResolveStage currently runs before BindingStage and performs this expansion too.
+     * This method becomes the sole expansion point once ResolveStage is removed in Task 10.
+     */
     private List<MapDirective> expandDirectives(List<MapDirective> directives, List<SourceNode> sourceNodes) {
         List<MapDirective> expanded = new ArrayList<>();
         for (MapDirective directive : directives) {
@@ -163,7 +168,7 @@ public class BindingStage {
 
         String target = directive.getTarget();
         if (target.equals(".")) {
-            return; // wildcard target — handled in Task 6
+            return; // "." targets are expanded by expandDirectives before processDirective is called
         }
 
         String sourcePath = directive.getSource();
@@ -213,7 +218,7 @@ public class BindingStage {
         for (int i = startIndex; i < segments.length; i++) {
             String segment = segments[i];
             if (segment.equals("*")) {
-                return null; // wildcard — handled in Task 6
+                return null; // ".*" sources are expanded before walkPropertyChain is called; defensive guard
             }
             @Nullable TypeElement typeElement = asTypeElement(currentType);
             if (typeElement == null) {
