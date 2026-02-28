@@ -18,7 +18,7 @@ public final class MethodRegistry {
     }
 
     public void register(TypeMirror in, TypeMirror out, RegistryEntry entry) {
-        entries.put(new TypePair(in.toString(), out.toString()), entry);
+        register(in.toString(), out.toString(), entry);
     }
 
     public void register(String inTypeName, String outTypeName, RegistryEntry entry) {

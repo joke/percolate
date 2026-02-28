@@ -3,15 +3,14 @@ package io.github.joke.percolate.stage;
 import io.github.joke.percolate.graph.edge.FlowEdge;
 import io.github.joke.percolate.graph.node.MappingNode;
 import io.github.joke.percolate.model.MethodDefinition;
-import org.jgrapht.graph.DirectedWeightedMultigraph;
+import org.jgrapht.Graph;
 import org.jspecify.annotations.Nullable;
 
 public final class RegistryEntry {
     private final @Nullable MethodDefinition signature;
-    private final @Nullable DirectedWeightedMultigraph<MappingNode, FlowEdge> graph;
+    private final @Nullable Graph<MappingNode, FlowEdge> graph;
 
-    public RegistryEntry(
-            @Nullable MethodDefinition signature, @Nullable DirectedWeightedMultigraph<MappingNode, FlowEdge> graph) {
+    public RegistryEntry(@Nullable MethodDefinition signature, @Nullable Graph<MappingNode, FlowEdge> graph) {
         this.signature = signature;
         this.graph = graph;
     }
@@ -22,7 +21,7 @@ public final class RegistryEntry {
     }
 
     /** null for opaque methods. Non-null for abstract and auto-generated methods. */
-    public @Nullable DirectedWeightedMultigraph<MappingNode, FlowEdge> getGraph() {
+    public @Nullable Graph<MappingNode, FlowEdge> getGraph() {
         return graph;
     }
 
