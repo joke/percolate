@@ -1,8 +1,10 @@
 package io.github.joke.percolate.stage;
 
 import static java.util.stream.Collectors.toList;
+import static java.util.stream.Collectors.toMap;
 import static javax.lang.model.element.ElementKind.INTERFACE;
 import static javax.lang.model.element.Modifier.ABSTRACT;
+import static javax.lang.model.type.TypeKind.VOID;
 import static javax.tools.Diagnostic.Kind.ERROR;
 
 import io.github.joke.percolate.Map;
@@ -43,7 +45,11 @@ public class ParseStage {
                 .map(element -> (TypeElement) element)
                 .map(this::parseMapper)
                 .collect(toList());
-        return new ParseResult(mappers);
+
+        java.util.Map<TypeElement, MethodRegistry> registries =
+                mappers.stream().collect(toMap(MapperDefinition::getElement, this::buildRegistry));
+
+        return new ParseResult(mappers, registries);
     }
 
     private boolean validateIsInterface(Element element) {
@@ -95,5 +101,23 @@ public class ParseStage {
         }
 
         return directives;
+    }
+
+    private MethodRegistry buildRegistry(MapperDefinition mapper) {
+        MethodRegistry registry = new MethodRegistry();
+        mapper.getMethods().forEach(method -> registerMethod(registry, method));
+        return registry;
+    }
+
+    private void registerMethod(MethodRegistry registry, MethodDefinition method) {
+        if (method.getReturnType().getKind() == VOID) {
+            return;
+        }
+        if (method.getParameters().size() != 1) {
+            return;
+        }
+        javax.lang.model.type.TypeMirror inType = method.getParameters().get(0).getType();
+        javax.lang.model.type.TypeMirror outType = method.getReturnType();
+        registry.register(inType, outType, new RegistryEntry(method, null));
     }
 }
