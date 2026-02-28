@@ -36,8 +36,13 @@ Planned modules (commented out in settings.gradle): `bom`, `tests`.
 ## Java style
 
 * Prefer streams when working with collections
-* Prefer a functional java style
-* ALWAYS Prefer static imports
+* ALWAYS prefer immutability
+* Prefer a functional java style:
+  * Functions must only a few lines long. 
+  * They should do exactly one thing and only one thing.
+  * Functions must have expressive name describing what this function does.
+  * They should not mix hierarchies.
+* ALWAYS prefer static imports
 
 ## Code Quality
 
