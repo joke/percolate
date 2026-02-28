@@ -1,5 +1,6 @@
 package io.github.joke.percolate.stage;
 
+import static java.util.stream.Collectors.joining;
 import static java.util.stream.Collectors.toList;
 import static java.util.stream.Collectors.toSet;
 
@@ -86,7 +87,10 @@ public class BindingStage {
         if (method.getParameters().size() == 1) {
             return method.getParameters().get(0).getType().toString();
         }
-        return method.getParameters().stream().map(p -> p.getType().toString()).reduce("(", (a, b) -> a + "," + b)
+        return "("
+                + method.getParameters().stream()
+                        .map(p -> p.getType().toString())
+                        .collect(joining(","))
                 + ")";
     }
 
@@ -96,49 +100,66 @@ public class BindingStage {
             MethodDefinition method,
             List<SourceNode> sourceNodes) {
 
+        String target = directive.getTarget();
+        if (target.equals(".")) {
+            return; // wildcard target — handled in Task 6
+        }
+
         String sourcePath = directive.getSource();
         @SuppressWarnings("StringSplitter")
         String[] segments = sourcePath.split("\\.");
 
-        SourceNode startNode;
-        int startIndex;
-        if (sourceNodes.size() > 1) {
-            String firstName = segments[0];
-            Optional<SourceNode> match = sourceNodes.stream()
-                    .filter(n -> n.getParamName().equals(firstName))
-                    .findFirst();
-            if (!match.isPresent()) {
-                return;
-            }
-            startNode = match.get();
-            startIndex = 1;
-        } else {
-            SourceNode only = sourceNodes.get(0);
-            if (segments.length > 1 && segments[0].equals(only.getParamName())) {
-                startNode = only;
-                startIndex = 1;
-            } else {
-                startNode = only;
-                startIndex = 0;
-            }
+        EntryPoint entry = resolveEntryPoint(sourceNodes, segments);
+        if (entry == null) {
+            return;
         }
+
+        MappingNode terminal = walkPropertyChain(graph, entry.startNode, entry.startIndex, segments);
+        if (terminal == null) {
+            return;
+        }
+
+        TypeMirror terminalType = getNodeType(terminal);
+        TargetSlotPlaceholder slot = new TargetSlotPlaceholder(method.getReturnType(), target);
+        graph.addVertex(slot);
+        graph.addEdge(terminal, slot, FlowEdge.forSlot(terminalType, method.getReturnType(), target));
+    }
+
+    private @Nullable EntryPoint resolveEntryPoint(List<SourceNode> sourceNodes, String[] segments) {
+        if (sourceNodes.size() > 1) {
+            return sourceNodes.stream()
+                    .filter(n -> n.getParamName().equals(segments[0]))
+                    .findFirst()
+                    .map(n -> new EntryPoint(n, 1))
+                    .orElse(null);
+        }
+        SourceNode only = sourceNodes.get(0);
+        int startIndex = (segments.length > 1 && segments[0].equals(only.getParamName())) ? 1 : 0;
+        return new EntryPoint(only, startIndex);
+    }
+
+    private @Nullable MappingNode walkPropertyChain(
+            DirectedWeightedMultigraph<MappingNode, FlowEdge> graph,
+            SourceNode startNode,
+            int startIndex,
+            String[] segments) {
 
         MappingNode current = startNode;
         TypeMirror currentType = startNode.getType();
         for (int i = startIndex; i < segments.length; i++) {
             String segment = segments[i];
             if (segment.equals("*")) {
-                break; // wildcard — handled in Task 6
+                return null; // wildcard — handled in Task 6
             }
             @Nullable TypeElement typeElement = asTypeElement(currentType);
             if (typeElement == null) {
-                return;
+                return null;
             }
-            Set<Property> properties = discoverProperties(typeElement);
-            Optional<Property> prop =
-                    properties.stream().filter(p -> p.getName().equals(segment)).findFirst();
+            Optional<Property> prop = discoverProperties(typeElement).stream()
+                    .filter(p -> p.getName().equals(segment))
+                    .findFirst();
             if (!prop.isPresent()) {
-                return;
+                return null;
             }
             Property property = prop.get();
             PropertyAccessNode propNode =
@@ -148,17 +169,14 @@ public class BindingStage {
             current = propNode;
             currentType = property.getType();
         }
+        return current;
+    }
 
-        String target = directive.getTarget();
-        if (target.equals(".")) {
-            return; // wildcard target — handled in Task 6
+    private TypeMirror getNodeType(MappingNode node) {
+        if (node instanceof SourceNode) {
+            return ((SourceNode) node).getType();
         }
-        if (asTypeElement(method.getReturnType()) == null) {
-            return;
-        }
-        TargetSlotPlaceholder slot = new TargetSlotPlaceholder(method.getReturnType(), target);
-        graph.addVertex(slot);
-        graph.addEdge(current, slot, FlowEdge.forSlot(currentType, method.getReturnType(), target));
+        return ((PropertyAccessNode) node).getOutType();
     }
 
     private Set<Property> discoverProperties(TypeElement type) {
@@ -177,5 +195,15 @@ public class BindingStage {
     private MethodRegistry mergeRegistries(MethodRegistry a, MethodRegistry b) {
         b.entries().forEach((pair, entry) -> a.register(pair.getInTypeName(), pair.getOutTypeName(), entry));
         return a;
+    }
+
+    private static final class EntryPoint {
+        final SourceNode startNode;
+        final int startIndex;
+
+        EntryPoint(SourceNode startNode, int startIndex) {
+            this.startNode = startNode;
+            this.startIndex = startIndex;
+        }
     }
 }
