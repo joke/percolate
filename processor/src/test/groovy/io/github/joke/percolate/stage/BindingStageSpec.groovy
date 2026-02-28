@@ -66,4 +66,62 @@ class BindingStageSpec extends Specification {
         then:
         assertThat(compilation).succeeded()
     }
+
+    def "wildcard source expands all properties of the param type"() {
+        given:
+        def order = JavaFileObjects.forSourceLines('test.Order',
+            'package test;',
+            'public class Order {',
+            '    public long getOrderId() { return 0L; }',
+            '    public long getOrderNumber() { return 0L; }',
+            '}')
+        def out = JavaFileObjects.forSourceLines('test.Out',
+            'package test;',
+            'public class Out {',
+            '    private final long orderId; private final long orderNumber;',
+            '    public Out(long orderId, long orderNumber) {',
+            '        this.orderId = orderId; this.orderNumber = orderNumber;',
+            '    }',
+            '}')
+        def mapper = JavaFileObjects.forSourceLines('test.WildMapper',
+            'package test;',
+            'import io.github.joke.percolate.Mapper; import io.github.joke.percolate.Map;',
+            '@Mapper public interface WildMapper {',
+            '    @Map(target = ".", source = "order.*")',
+            '    Out map(Order order);',
+            '}')
+
+        when:
+        def compilation = Compiler.javac()
+            .withProcessors(new PercolateProcessor())
+            .compile(order, out, mapper)
+
+        then:
+        assertThat(compilation).succeeded()
+    }
+
+    def "same-name matching fills unmapped slots automatically"() {
+        given:
+        def src = JavaFileObjects.forSourceLines('test.Src',
+            'package test;',
+            'public class Src { public String getName() { return ""; } public int getAge() { return 0; } }')
+        def tgt = JavaFileObjects.forSourceLines('test.Tgt',
+            'package test;',
+            'public class Tgt { private final String name; private final int age;',
+            '    public Tgt(String name, int age) { this.name = name; this.age = age; }',
+            '    public String getName() { return name; }',
+            '    public int getAge() { return age; } }')
+        def mapper = JavaFileObjects.forSourceLines('test.AutoMapper',
+            'package test;',
+            'import io.github.joke.percolate.Mapper;',
+            '@Mapper public interface AutoMapper { Tgt map(Src src); }')
+
+        when:
+        def compilation = Compiler.javac()
+            .withProcessors(new PercolateProcessor())
+            .compile(src, tgt, mapper)
+
+        then:
+        assertThat(compilation).succeeded()
+    }
 }

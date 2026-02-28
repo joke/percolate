@@ -16,10 +16,12 @@ import io.github.joke.percolate.model.MethodDefinition;
 import io.github.joke.percolate.model.Property;
 import io.github.joke.percolate.spi.PropertyDiscoveryStrategy;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
 import java.util.ServiceLoader;
 import java.util.Set;
+import java.util.stream.Stream;
 import javax.annotation.processing.ProcessingEnvironment;
 import javax.inject.Inject;
 import javax.lang.model.element.TypeElement;
@@ -70,7 +72,13 @@ public class BindingStage {
                 })
                 .collect(toList());
 
-        method.getDirectives().forEach(directive -> processDirective(graph, directive, method, sourceNodes));
+        List<MapDirective> expanded = expandDirectives(method.getDirectives(), sourceNodes);
+        Set<String> alreadyMapped =
+                expanded.stream().map(MapDirective::getTarget).collect(toSet());
+        List<MapDirective> sameNameDirectives = generateSameNameDirectives(sourceNodes, alreadyMapped);
+
+        Stream.concat(expanded.stream(), sameNameDirectives.stream())
+                .forEach(directive -> processDirective(graph, directive, method, sourceNodes));
 
         String inKey = buildInKey(method);
         Optional<RegistryEntry> existing =
@@ -81,6 +89,59 @@ public class BindingStage {
                     method.getReturnType().toString(),
                     new RegistryEntry(existing.get().getSignature(), graph));
         }
+    }
+
+    private List<MapDirective> expandDirectives(List<MapDirective> directives, List<SourceNode> sourceNodes) {
+        List<MapDirective> expanded = new ArrayList<>();
+        for (MapDirective directive : directives) {
+            if (directive.getSource().endsWith(".*")) {
+                expanded.addAll(expandWildcard(directive, sourceNodes));
+            } else {
+                expanded.add(directive);
+            }
+        }
+        return expanded;
+    }
+
+    private List<MapDirective> expandWildcard(MapDirective directive, List<SourceNode> sourceNodes) {
+        String sourcePath = directive.getSource();
+        String prefix = sourcePath.substring(0, sourcePath.length() - 2);
+
+        @Nullable TypeMirror paramType = resolvePathType(prefix, sourceNodes);
+        if (paramType == null) {
+            return Collections.emptyList();
+        }
+        @Nullable TypeElement typeElement = asTypeElement(paramType);
+        if (typeElement == null) {
+            return Collections.emptyList();
+        }
+
+        return discoverProperties(typeElement).stream()
+                .map(prop -> new MapDirective(prop.getName(), prefix + "." + prop.getName()))
+                .collect(toList());
+    }
+
+    private @Nullable TypeMirror resolvePathType(String paramName, List<SourceNode> sourceNodes) {
+        return sourceNodes.stream()
+                .filter(n -> n.getParamName().equals(paramName))
+                .findFirst()
+                .map(SourceNode::getType)
+                .orElse(null);
+    }
+
+    private List<MapDirective> generateSameNameDirectives(List<SourceNode> sourceNodes, Set<String> alreadyMapped) {
+        if (sourceNodes.size() != 1) {
+            return Collections.emptyList();
+        }
+        SourceNode sourceNode = sourceNodes.get(0);
+        @Nullable TypeElement sourceType = asTypeElement(sourceNode.getType());
+        if (sourceType == null) {
+            return Collections.emptyList();
+        }
+        return discoverProperties(sourceType).stream()
+                .filter(prop -> !alreadyMapped.contains(prop.getName()))
+                .map(prop -> new MapDirective(prop.getName(), prop.getName()))
+                .collect(toList());
     }
 
     private String buildInKey(MethodDefinition method) {
