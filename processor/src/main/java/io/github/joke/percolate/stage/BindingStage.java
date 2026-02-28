@@ -114,7 +114,7 @@ public class BindingStage {
             return;
         }
 
-        MappingNode terminal = walkPropertyChain(graph, entry.startNode, entry.startIndex, segments);
+        MappingNode terminal = walkPropertyChain(graph, entry.getStartNode(), entry.getStartIndex(), segments);
         if (terminal == null) {
             return;
         }
@@ -126,6 +126,9 @@ public class BindingStage {
     }
 
     private @Nullable EntryPoint resolveEntryPoint(List<SourceNode> sourceNodes, String[] segments) {
+        if (sourceNodes.isEmpty()) {
+            return null;
+        }
         if (sourceNodes.size() > 1) {
             return sourceNodes.stream()
                     .filter(n -> n.getParamName().equals(segments[0]))
@@ -198,12 +201,20 @@ public class BindingStage {
     }
 
     private static final class EntryPoint {
-        final SourceNode startNode;
-        final int startIndex;
+        private final SourceNode startNode;
+        private final int startIndex;
 
         EntryPoint(SourceNode startNode, int startIndex) {
             this.startNode = startNode;
             this.startIndex = startIndex;
+        }
+
+        SourceNode getStartNode() {
+            return startNode;
+        }
+
+        int getStartIndex() {
+            return startIndex;
         }
     }
 }
