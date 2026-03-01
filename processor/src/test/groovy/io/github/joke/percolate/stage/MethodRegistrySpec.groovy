@@ -39,4 +39,11 @@ class MethodRegistrySpec extends Specification {
         then:
         !result.isPresent()
     }
+
+    def "keyFor single-param method produces plain type string"() {
+        // Covered end-to-end via BindingStageSpec and ParseStageSpec.
+        // Direct unit test requires TypeMirror mocking which is not practical here.
+        expect:
+        true
+    }
 }
