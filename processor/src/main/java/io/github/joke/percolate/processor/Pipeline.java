@@ -24,7 +24,7 @@ public class Pipeline {
 
     public void process(MapperDefinition mapper) {
         MethodRegistry registry = registrationStage.execute(mapper);
-        registry = bindingStage.execute(registry);
+        bindingStage.execute(registry);
         wiringStage.execute(registry);
         // ValidateStage, OptimizeStage, CodeGenStage reconnected in future redesign
     }

@@ -41,11 +41,11 @@ public class BindingStage {
     }
 
     public MethodRegistry execute(MethodRegistry registry) {
-        new ArrayList<>(registry.entries().values()).forEach(entry -> {
-            if (entry.getSignature() != null && entry.getSignature().isAbstract()) {
-                buildMethodGraph(entry.getSignature(), registry);
-            }
-        });
+        // Copy to avoid ConcurrentModificationException: buildMethodGraph mutates the registry
+        new ArrayList<>(registry.entries().values()).stream()
+                .map(RegistryEntry::getSignature)
+                .filter(sig -> sig != null && sig.isAbstract())
+                .forEach(sig -> buildMethodGraph(sig, registry));
         return registry;
     }
 
