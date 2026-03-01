@@ -1,6 +1,8 @@
 package io.github.joke.percolate.stage;
 
 import static java.util.stream.Collectors.toSet;
+import static java.util.stream.Collectors.toUnmodifiableList;
+import static java.util.stream.Stream.concat;
 
 import io.github.joke.percolate.di.RoundScoped;
 import io.github.joke.percolate.graph.edge.FlowEdge;
@@ -27,6 +29,7 @@ import java.util.List;
 import java.util.Optional;
 import java.util.ServiceLoader;
 import java.util.Set;
+import java.util.stream.Stream;
 import javax.annotation.processing.ProcessingEnvironment;
 import javax.inject.Inject;
 import javax.lang.model.element.TypeElement;
@@ -155,9 +158,8 @@ public class WiringStage {
     }
 
     private List<ConversionProvider> buildProviders(MethodRegistry registry) {
-        List<ConversionProvider> all = new ArrayList<>(conversionProviders);
-        all.add(0, new MapperMethodProvider(registry));
-        return all;
+        return concat(Stream.of(new MapperMethodProvider(registry)), conversionProviders.stream())
+                .collect(toUnmodifiableList());
     }
 
     private void spliceFragment(Graph<MappingNode, FlowEdge> graph, FlowEdge edge, ConversionFragment fragment) {

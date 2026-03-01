@@ -6,6 +6,7 @@ import io.github.joke.percolate.spi.ConversionFragment;
 import io.github.joke.percolate.spi.ConversionProvider;
 import io.github.joke.percolate.stage.MethodRegistry;
 import io.github.joke.percolate.stage.RegistryEntry;
+import java.util.Objects;
 import java.util.Optional;
 import javax.annotation.processing.ProcessingEnvironment;
 import javax.lang.model.type.TypeMirror;
@@ -35,7 +36,7 @@ public final class MapperMethodProvider implements ConversionProvider {
     private Optional<MethodDefinition> findMethod(Types types, TypeMirror source, TypeMirror target) {
         return registry.entries().values().stream()
                 .map(RegistryEntry::getSignature)
-                .filter(sig -> sig != null)
+                .filter(Objects::nonNull)
                 .filter(m -> m.getParameters().size() == 1)
                 .filter(m -> types.isSameType(
                         types.erasure(m.getParameters().get(0).getType()), types.erasure(source)))
