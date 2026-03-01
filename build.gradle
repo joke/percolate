@@ -45,7 +45,7 @@ subprojects { project ->
     pluginManager.withPlugin('net.ltgt.errorprone') {
         pluginManager.apply 'net.ltgt.nullaway'
         dependencies {
-            errorprone('com.google.errorprone:error_prone_core:2.47.0')
+            errorprone('com.google.errorprone:error_prone_core:2.48.0')
         }
         tasks.withType(JavaCompile).configureEach {
             options.errorprone {
