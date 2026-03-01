@@ -6,7 +6,7 @@ import io.github.joke.percolate.model.MapperDefinition;
 import io.github.joke.percolate.model.MethodDefinition;
 import javax.inject.Inject;
 
-public class RegistrationStage {
+public final class RegistrationStage {
 
     @Inject
     RegistrationStage() {}
@@ -21,6 +21,6 @@ public class RegistrationStage {
         if (method.getReturnType().getKind() == VOID) {
             return;
         }
-        registry.register(method, new RegistryEntry(method, null));
+        registry.register(method, new RegistryEntry(method, null)); // graph populated by BindingStage
     }
 }
