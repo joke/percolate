@@ -5,6 +5,7 @@ import io.github.joke.percolate.Mapper;
 import io.github.joke.percolate.di.DaggerProcessorComponent;
 import io.github.joke.percolate.di.ProcessorComponent;
 import io.github.joke.percolate.di.ProcessorModule;
+import io.github.joke.percolate.di.RoundComponent;
 import java.util.Collections;
 import java.util.Set;
 import javax.annotation.processing.AbstractProcessor;
@@ -40,7 +41,8 @@ public class PercolateProcessor extends AbstractProcessor {
         if (annotations.isEmpty()) {
             return false;
         }
-        component.roundComponentFactory().create().pipeline().process(annotations, roundEnv);
+        RoundComponent round = component.roundComponentFactory().create();
+        round.parseStage().execute(annotations, roundEnv).forEach(round.pipeline()::process);
         return false;
     }
 }

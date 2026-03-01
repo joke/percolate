@@ -1,7 +1,6 @@
 package io.github.joke.percolate.stage;
 
 import static java.util.stream.Collectors.toList;
-import static java.util.stream.Collectors.toMap;
 import static javax.lang.model.element.ElementKind.INTERFACE;
 import static javax.lang.model.element.Modifier.ABSTRACT;
 import static javax.lang.model.type.TypeKind.VOID;
@@ -17,7 +16,6 @@ import io.github.joke.percolate.model.ParameterDefinition;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
-import java.util.Map;
 import java.util.Set;
 import javax.annotation.processing.Messager;
 import javax.annotation.processing.RoundEnvironment;
@@ -25,7 +23,6 @@ import javax.inject.Inject;
 import javax.lang.model.element.Element;
 import javax.lang.model.element.ExecutableElement;
 import javax.lang.model.element.TypeElement;
-import javax.lang.model.type.TypeMirror;
 import javax.lang.model.util.Elements;
 
 @RoundScoped
@@ -40,17 +37,12 @@ public class ParseStage {
         this.messager = messager;
     }
 
-    public ParseResult execute(Set<? extends TypeElement> annotations, RoundEnvironment roundEnv) {
-        List<MapperDefinition> mappers = roundEnv.getElementsAnnotatedWith(Mapper.class).stream()
+    public List<MapperDefinition> execute(Set<? extends TypeElement> annotations, RoundEnvironment roundEnv) {
+        return roundEnv.getElementsAnnotatedWith(Mapper.class).stream()
                 .filter(this::validateIsInterface)
                 .map(element -> (TypeElement) element)
                 .map(this::parseMapper)
                 .collect(toList());
-
-        Map<TypeElement, MethodRegistry> registries =
-                mappers.stream().collect(toMap(MapperDefinition::getElement, this::buildRegistry));
-
-        return new ParseResult(mappers, registries);
     }
 
     private boolean validateIsInterface(Element element) {
@@ -102,23 +94,5 @@ public class ParseStage {
         }
 
         return directives;
-    }
-
-    private MethodRegistry buildRegistry(MapperDefinition mapper) {
-        MethodRegistry registry = new MethodRegistry();
-        mapper.getMethods().forEach(method -> registerMethod(registry, method));
-        return registry;
-    }
-
-    private void registerMethod(MethodRegistry registry, MethodDefinition method) {
-        if (method.getReturnType().getKind() == VOID) {
-            return;
-        }
-        if (method.getParameters().size() != 1) {
-            return;
-        }
-        TypeMirror inType = method.getParameters().get(0).getType();
-        TypeMirror outType = method.getReturnType();
-        registry.register(inType, outType, new RegistryEntry(method, null));
     }
 }

@@ -1,17 +1,14 @@
 package io.github.joke.percolate.stage;
 
-import static java.util.stream.Collectors.joining;
 import static java.util.stream.Collectors.toList;
 import static java.util.stream.Collectors.toSet;
 
-import io.github.joke.percolate.di.RoundScoped;
 import io.github.joke.percolate.graph.edge.FlowEdge;
 import io.github.joke.percolate.graph.node.MappingNode;
 import io.github.joke.percolate.graph.node.PropertyAccessNode;
 import io.github.joke.percolate.graph.node.SourceNode;
 import io.github.joke.percolate.graph.node.TargetSlotPlaceholder;
 import io.github.joke.percolate.model.MapDirective;
-import io.github.joke.percolate.model.MapperDefinition;
 import io.github.joke.percolate.model.MethodDefinition;
 import io.github.joke.percolate.model.Property;
 import io.github.joke.percolate.spi.PropertyDiscoveryStrategy;
@@ -30,7 +27,6 @@ import javax.lang.model.type.TypeMirror;
 import org.jgrapht.graph.DirectedWeightedMultigraph;
 import org.jspecify.annotations.Nullable;
 
-@RoundScoped
 public class BindingStage {
 
     private final ProcessingEnvironment processingEnv;
@@ -44,21 +40,13 @@ public class BindingStage {
                 .forEach(propertyStrategies::add);
     }
 
-    public MethodRegistry execute(ParseResult parseResult) {
-        parseResult
-                .getMappers()
-                .forEach(mapper ->
-                        buildMapperGraphs(mapper, parseResult.getRegistries().get(mapper.getElement())));
-        return parseResult.getRegistries().values().stream().reduce(new MethodRegistry(), this::mergeRegistries);
-    }
-
-    private void buildMapperGraphs(MapperDefinition mapper, @Nullable MethodRegistry registry) {
-        if (registry == null) {
-            return;
-        }
-        mapper.getMethods().stream()
-                .filter(MethodDefinition::isAbstract)
-                .forEach(method -> buildMethodGraph(method, registry));
+    public MethodRegistry execute(MethodRegistry registry) {
+        new ArrayList<>(registry.entries().values()).forEach(entry -> {
+            if (entry.getSignature() != null && entry.getSignature().isAbstract()) {
+                buildMethodGraph(entry.getSignature(), registry);
+            }
+        });
+        return registry;
     }
 
     private void buildMethodGraph(MethodDefinition method, MethodRegistry registry) {
@@ -80,15 +68,7 @@ public class BindingStage {
         Stream.concat(expanded.stream(), sameNameDirectives.stream())
                 .forEach(directive -> processDirective(graph, directive, method, sourceNodes));
 
-        String inKey = buildInKey(method);
-        Optional<RegistryEntry> existing =
-                registry.lookup(inKey, method.getReturnType().toString());
-        if (existing.isPresent()) {
-            registry.register(
-                    inKey,
-                    method.getReturnType().toString(),
-                    new RegistryEntry(existing.get().getSignature(), graph));
-        }
+        registry.lookup(method).ifPresent(existing -> registry.register(method, new RegistryEntry(existing.getSignature(), graph)));
     }
 
     /**
@@ -147,17 +127,6 @@ public class BindingStage {
                 .filter(prop -> !alreadyMapped.contains(prop.getName()))
                 .map(prop -> new MapDirective(prop.getName(), prop.getName()))
                 .collect(toList());
-    }
-
-    private String buildInKey(MethodDefinition method) {
-        if (method.getParameters().size() == 1) {
-            return method.getParameters().get(0).getType().toString();
-        }
-        return "("
-                + method.getParameters().stream()
-                        .map(p -> p.getType().toString())
-                        .collect(joining(","))
-                + ")";
     }
 
     private void processDirective(
@@ -259,11 +228,6 @@ public class BindingStage {
             return (TypeElement) ((DeclaredType) type).asElement();
         }
         return null;
-    }
-
-    private MethodRegistry mergeRegistries(MethodRegistry a, MethodRegistry b) {
-        b.entries().forEach((pair, entry) -> a.register(pair.getInTypeName(), pair.getOutTypeName(), entry));
-        return a;
     }
 
     private static final class EntryPoint {
