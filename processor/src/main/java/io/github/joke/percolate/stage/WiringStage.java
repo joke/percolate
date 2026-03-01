@@ -4,7 +4,6 @@ import static java.util.stream.Collectors.toSet;
 import static java.util.stream.Collectors.toUnmodifiableList;
 import static java.util.stream.Stream.concat;
 
-import io.github.joke.percolate.di.RoundScoped;
 import io.github.joke.percolate.graph.edge.FlowEdge;
 import io.github.joke.percolate.graph.node.BoxingNode;
 import io.github.joke.percolate.graph.node.CollectionCollectNode;
@@ -38,7 +37,6 @@ import javax.lang.model.type.TypeMirror;
 import org.jgrapht.Graph;
 import org.jspecify.annotations.Nullable;
 
-@RoundScoped
 public class WiringStage {
 
     private final ProcessingEnvironment processingEnv;
