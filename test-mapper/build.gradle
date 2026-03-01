@@ -8,7 +8,6 @@ dependencies {
     annotationProcessor project(':processor')
 
     compileOnly project(':annotations')
-
     compileOnly 'org.jspecify:jspecify'
 
     implementation platform(project(':dependencies'))
@@ -17,9 +16,14 @@ dependencies {
     testImplementation platform(project(':dependencies'))
     testImplementation 'org.spockframework:spock-core'
 
-
-    implementation 'org.jgrapht:jgrapht-core'
-
-
     testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+}
+
+tasks.withType(JavaCompile).configureEach {
+    options.fork = true
+    options.forkOptions.jvmArgs += [
+            // server=n tells the process to connect to YOU
+            // suspend=n allows the build to fail/finish if the IDE isn't listening
+            '-agentlib:jdwp=transport=dt_socket,server=n,address=localhost:5005,suspend=y'
+    ]
 }
