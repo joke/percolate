@@ -44,7 +44,7 @@ public final class OptionalProvider implements ConversionProvider {
         if (args.isEmpty()) {
             return ConversionFragment.of();
         }
-        return ConversionFragment.of(new OptionalWrapNode(args.get(0)));
+        return ConversionFragment.of(new OptionalWrapNode(args.get(0), target));
     }
 
     private static boolean isOptionalType(TypeMirror type) {

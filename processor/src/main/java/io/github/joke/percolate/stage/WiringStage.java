@@ -4,13 +4,26 @@ import static java.util.stream.Collectors.toSet;
 
 import io.github.joke.percolate.di.RoundScoped;
 import io.github.joke.percolate.graph.edge.FlowEdge;
+import io.github.joke.percolate.graph.node.BoxingNode;
+import io.github.joke.percolate.graph.node.CollectionCollectNode;
+import io.github.joke.percolate.graph.node.CollectionIterationNode;
 import io.github.joke.percolate.graph.node.ConstructorAssignmentNode;
 import io.github.joke.percolate.graph.node.MappingNode;
+import io.github.joke.percolate.graph.node.MethodCallNode;
+import io.github.joke.percolate.graph.node.OptionalUnwrapNode;
+import io.github.joke.percolate.graph.node.OptionalWrapNode;
+import io.github.joke.percolate.graph.node.PropertyAccessNode;
+import io.github.joke.percolate.graph.node.SourceNode;
 import io.github.joke.percolate.graph.node.TargetSlotPlaceholder;
+import io.github.joke.percolate.graph.node.UnboxingNode;
+import io.github.joke.percolate.model.Property;
+import io.github.joke.percolate.spi.ConversionFragment;
+import io.github.joke.percolate.spi.ConversionProvider;
 import io.github.joke.percolate.spi.CreationDescriptor;
 import io.github.joke.percolate.spi.ObjectCreationStrategy;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
 import java.util.ServiceLoader;
 import java.util.Set;
 import javax.annotation.processing.ProcessingEnvironment;
@@ -26,27 +39,31 @@ public class WiringStage {
 
     private final ProcessingEnvironment processingEnv;
     private final List<ObjectCreationStrategy> creationStrategies;
+    private final List<ConversionProvider> conversionProviders;
 
     @Inject
     WiringStage(ProcessingEnvironment processingEnv) {
         this.processingEnv = processingEnv;
         this.creationStrategies = new ArrayList<>();
+        this.conversionProviders = new ArrayList<>();
         ServiceLoader.load(ObjectCreationStrategy.class, getClass().getClassLoader())
                 .forEach(creationStrategies::add);
+        ServiceLoader.load(ConversionProvider.class, getClass().getClassLoader())
+                .forEach(conversionProviders::add);
     }
 
     public MethodRegistry execute(MethodRegistry registry) {
         registry.entries().forEach((pair, entry) -> {
             if (!entry.isOpaque() && entry.getGraph() != null && entry.getSignature() != null) {
-                wireGraph(entry.getGraph(), entry.getSignature().getReturnType());
+                wireGraph(entry.getGraph(), entry.getSignature().getReturnType(), registry);
             }
         });
         return registry;
     }
 
-    private void wireGraph(Graph<MappingNode, FlowEdge> graph, TypeMirror returnType) {
+    private void wireGraph(Graph<MappingNode, FlowEdge> graph, TypeMirror returnType, MethodRegistry registry) {
         resolveCreationStrategy(graph, returnType);
-        // Conversion insertion follows in Task 9
+        insertConversions(graph, registry);
     }
 
     private void resolveCreationStrategy(Graph<MappingNode, FlowEdge> graph, TypeMirror returnType) {
@@ -79,10 +96,84 @@ public class WiringStage {
             ConstructorAssignmentNode assignmentNode,
             TypeMirror returnType) {
         String slotName = ((TargetSlotPlaceholder) placeholder).getSlotName();
+        TypeMirror slotType = findSlotType(assignmentNode, slotName, returnType);
         new ArrayList<>(graph.incomingEdgesOf(placeholder)).forEach(edge -> {
             MappingNode source = graph.getEdgeSource(edge);
-            graph.addEdge(source, assignmentNode, FlowEdge.forSlot(edge.getSourceType(), returnType, slotName));
+            graph.addEdge(source, assignmentNode, FlowEdge.forSlot(edge.getSourceType(), slotType, slotName));
         });
+    }
+
+    private static TypeMirror findSlotType(ConstructorAssignmentNode node, String slotName, TypeMirror fallback) {
+        return node.getDescriptor().getParameters().stream()
+                .filter(p -> p.getName().equals(slotName))
+                .findFirst()
+                .map(Property::getType)
+                .orElse(fallback);
+    }
+
+    private void insertConversions(Graph<MappingNode, FlowEdge> graph, MethodRegistry registry) {
+        List<FlowEdge> edgesToCheck = new ArrayList<>(graph.edgeSet());
+        for (FlowEdge edge : edgesToCheck) {
+            if (!graph.containsEdge(edge)) continue;
+            TypeMirror sourceType = edge.getSourceType();
+            TypeMirror targetType = edge.getTargetType();
+            if (typesCompatible(sourceType, targetType)) continue;
+            findFragment(sourceType, targetType, registry).ifPresent(fragment -> {
+                if (!fragment.isEmpty()) {
+                    spliceFragment(graph, edge, fragment);
+                }
+            });
+        }
+    }
+
+    private boolean typesCompatible(TypeMirror source, TypeMirror target) {
+        return processingEnv
+                .getTypeUtils()
+                .isSameType(
+                        processingEnv.getTypeUtils().erasure(source),
+                        processingEnv.getTypeUtils().erasure(target));
+    }
+
+    private Optional<ConversionFragment> findFragment(TypeMirror source, TypeMirror target, MethodRegistry registry) {
+        return conversionProviders.stream()
+                .filter(p -> p.canHandle(source, target, processingEnv))
+                .findFirst()
+                .map(p -> p.provide(source, target, registry, processingEnv));
+    }
+
+    private void spliceFragment(Graph<MappingNode, FlowEdge> graph, FlowEdge edge, ConversionFragment fragment) {
+        MappingNode edgeSource = graph.getEdgeSource(edge);
+        MappingNode edgeTarget = graph.getEdgeTarget(edge);
+        graph.removeEdge(edge);
+
+        List<MappingNode> nodes = fragment.getNodes();
+        MappingNode prev = edgeSource;
+        TypeMirror prevType = edge.getSourceType();
+        for (MappingNode node : nodes) {
+            graph.addVertex(node);
+            TypeMirror nodeOutType = outTypeOf(node);
+            graph.addEdge(prev, node, FlowEdge.of(prevType, nodeOutType));
+            prev = node;
+            prevType = nodeOutType;
+        }
+        FlowEdge reconnect = edge.getSlotName() != null
+                ? FlowEdge.forSlot(prevType, edge.getTargetType(), edge.getSlotName())
+                : FlowEdge.of(prevType, edge.getTargetType());
+        graph.addEdge(prev, edgeTarget, reconnect);
+    }
+
+    private static TypeMirror outTypeOf(MappingNode node) {
+        if (node instanceof SourceNode) return ((SourceNode) node).getType();
+        if (node instanceof PropertyAccessNode) return ((PropertyAccessNode) node).getOutType();
+        if (node instanceof CollectionIterationNode) return ((CollectionIterationNode) node).getElementType();
+        if (node instanceof CollectionCollectNode) return ((CollectionCollectNode) node).getTargetCollectionType();
+        if (node instanceof OptionalWrapNode) return ((OptionalWrapNode) node).getOptionalType();
+        if (node instanceof OptionalUnwrapNode) return ((OptionalUnwrapNode) node).getElementType();
+        if (node instanceof BoxingNode) return ((BoxingNode) node).getOutType();
+        if (node instanceof UnboxingNode) return ((UnboxingNode) node).getOutType();
+        if (node instanceof MethodCallNode) return ((MethodCallNode) node).getOutType();
+        throw new IllegalArgumentException(
+                "Unknown node type: " + node.getClass().getSimpleName());
     }
 
     private @Nullable CreationDescriptor findCreationDescriptor(TypeElement type) {
