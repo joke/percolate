@@ -12,7 +12,7 @@ import javax.lang.model.type.TypeMirror;
 public final class MethodRegistry {
     private final Map<TypePair, RegistryEntry> entries = new LinkedHashMap<>();
 
-    public static String keyFor(MethodDefinition method) {
+    static String keyFor(MethodDefinition method) {
         if (method.getParameters().size() == 1) {
             return method.getParameters().get(0).getType().toString();
         }

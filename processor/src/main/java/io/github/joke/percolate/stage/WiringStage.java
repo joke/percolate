@@ -37,7 +37,7 @@ import javax.lang.model.type.TypeMirror;
 import org.jgrapht.Graph;
 import org.jspecify.annotations.Nullable;
 
-public class WiringStage {
+public final class WiringStage {
 
     private final ProcessingEnvironment processingEnv;
     private final List<ObjectCreationStrategy> creationStrategies;
@@ -54,14 +54,13 @@ public class WiringStage {
                 .forEach(conversionProviders::add);
     }
 
-    public MethodRegistry execute(MethodRegistry registry) {
+    public void execute(MethodRegistry registry) {
         List<ConversionProvider> providers = buildProviders(registry);
         registry.entries().forEach((pair, entry) -> {
             if (!entry.isOpaque() && entry.getGraph() != null && entry.getSignature() != null) {
                 wireGraph(entry.getGraph(), entry.getSignature().getReturnType(), registry, providers);
             }
         });
-        return registry;
     }
 
     private void wireGraph(

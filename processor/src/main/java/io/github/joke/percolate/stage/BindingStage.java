@@ -27,7 +27,7 @@ import javax.lang.model.type.TypeMirror;
 import org.jgrapht.graph.DirectedWeightedMultigraph;
 import org.jspecify.annotations.Nullable;
 
-public class BindingStage {
+public final class BindingStage {
 
     private final ProcessingEnvironment processingEnv;
     private final List<PropertyDiscoveryStrategy> propertyStrategies;
@@ -40,13 +40,12 @@ public class BindingStage {
                 .forEach(propertyStrategies::add);
     }
 
-    public MethodRegistry execute(MethodRegistry registry) {
+    public void execute(MethodRegistry registry) {
         // Copy to avoid ConcurrentModificationException: buildMethodGraph mutates the registry
         new ArrayList<>(registry.entries().values()).stream()
                 .map(RegistryEntry::getSignature)
                 .filter(sig -> sig != null && sig.isAbstract())
                 .forEach(sig -> buildMethodGraph(sig, registry));
-        return registry;
     }
 
     private void buildMethodGraph(MethodDefinition method, MethodRegistry registry) {

@@ -21,6 +21,8 @@ public final class RegistrationStage {
         if (method.getReturnType().getKind() == VOID) {
             return;
         }
-        registry.register(method, new RegistryEntry(method, null)); // graph populated by BindingStage
+        registry.register(method, new RegistryEntry(method, null));
+        // graph is null here for all methods; BindingStage will assign graphs to abstract methods.
+        // After BindingStage: abstract methods are non-opaque (graph != null), default methods remain permanently opaque (graph stays null).
     }
 }
