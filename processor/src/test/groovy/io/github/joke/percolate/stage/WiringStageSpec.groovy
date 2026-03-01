@@ -10,7 +10,7 @@ import static com.google.testing.compile.CompilationSubject.assertThat
 
 class WiringStageSpec extends Specification {
 
-    def "compatible types — no conversion needed — compiles and generates impl"() {
+    def "compatible types — no conversion needed — processor runs without errors"() {
         given:
         def src = JavaFileObjects.forSourceLines('test.Src',
             'package test;',
@@ -32,7 +32,7 @@ class WiringStageSpec extends Specification {
 
         then:
         assertThat(compilation).succeeded()
-        assertThat(compilation).generatedSourceFile('test.SimpleMapperImpl')
+        // CodeGenStage is disconnected (Task 10) — impl generation is a future redesign task
     }
 
     // NOTE: This test exercises the insertConversions() path in WiringStage.
