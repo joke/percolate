@@ -16,7 +16,6 @@ import io.github.joke.percolate.model.Property;
 import io.github.joke.percolate.spi.ConversionProvider;
 import io.github.joke.percolate.spi.impl.EnumProvider;
 import io.github.joke.percolate.spi.impl.ListProvider;
-import io.github.joke.percolate.spi.impl.MapperMethodProvider;
 import io.github.joke.percolate.spi.impl.OptionalProvider;
 import io.github.joke.percolate.spi.impl.PrimitiveWideningProvider;
 import io.github.joke.percolate.spi.impl.SubtypeProvider;
@@ -180,7 +179,6 @@ public class ValidateStage {
 
     private List<ConversionProvider> buildProviders(GraphResult graphResult) {
         List<ConversionProvider> providers = new ArrayList<>();
-        providers.add(new MapperMethodProvider(graphResult.getMappers()));
         providers.add(new ListProvider(graphResult.getMappers()));
         providers.add(new OptionalProvider());
         providers.add(new PrimitiveWideningProvider());

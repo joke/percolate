@@ -21,6 +21,7 @@ import io.github.joke.percolate.spi.ConversionFragment;
 import io.github.joke.percolate.spi.ConversionProvider;
 import io.github.joke.percolate.spi.CreationDescriptor;
 import io.github.joke.percolate.spi.ObjectCreationStrategy;
+import io.github.joke.percolate.spi.impl.MapperMethodProvider;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
@@ -53,17 +54,22 @@ public class WiringStage {
     }
 
     public MethodRegistry execute(MethodRegistry registry) {
+        List<ConversionProvider> providers = buildProviders(registry);
         registry.entries().forEach((pair, entry) -> {
             if (!entry.isOpaque() && entry.getGraph() != null && entry.getSignature() != null) {
-                wireGraph(entry.getGraph(), entry.getSignature().getReturnType(), registry);
+                wireGraph(entry.getGraph(), entry.getSignature().getReturnType(), registry, providers);
             }
         });
         return registry;
     }
 
-    private void wireGraph(Graph<MappingNode, FlowEdge> graph, TypeMirror returnType, MethodRegistry registry) {
+    private void wireGraph(
+            Graph<MappingNode, FlowEdge> graph,
+            TypeMirror returnType,
+            MethodRegistry registry,
+            List<ConversionProvider> providers) {
         resolveCreationStrategy(graph, returnType);
-        insertConversions(graph, registry);
+        insertConversions(graph, registry, providers);
     }
 
     private void resolveCreationStrategy(Graph<MappingNode, FlowEdge> graph, TypeMirror returnType) {
@@ -111,14 +117,17 @@ public class WiringStage {
                 .orElse(fallback);
     }
 
-    private void insertConversions(Graph<MappingNode, FlowEdge> graph, MethodRegistry registry) {
+    private void insertConversions(
+            Graph<MappingNode, FlowEdge> graph,
+            MethodRegistry registry,
+            List<ConversionProvider> providers) {
         List<FlowEdge> edgesToCheck = new ArrayList<>(graph.edgeSet());
         for (FlowEdge edge : edgesToCheck) {
             if (!graph.containsEdge(edge)) continue;
             TypeMirror sourceType = edge.getSourceType();
             TypeMirror targetType = edge.getTargetType();
             if (typesCompatible(sourceType, targetType)) continue;
-            findFragment(sourceType, targetType, registry).ifPresent(fragment -> {
+            findFragment(sourceType, targetType, registry, providers).ifPresent(fragment -> {
                 if (!fragment.isEmpty()) {
                     spliceFragment(graph, edge, fragment);
                 }
@@ -134,11 +143,21 @@ public class WiringStage {
                         processingEnv.getTypeUtils().erasure(target));
     }
 
-    private Optional<ConversionFragment> findFragment(TypeMirror source, TypeMirror target, MethodRegistry registry) {
-        return conversionProviders.stream()
+    private Optional<ConversionFragment> findFragment(
+            TypeMirror source,
+            TypeMirror target,
+            MethodRegistry registry,
+            List<ConversionProvider> providers) {
+        return providers.stream()
                 .filter(p -> p.canHandle(source, target, processingEnv))
                 .findFirst()
                 .map(p -> p.provide(source, target, registry, processingEnv));
+    }
+
+    private List<ConversionProvider> buildProviders(MethodRegistry registry) {
+        List<ConversionProvider> all = new ArrayList<>(conversionProviders);
+        all.add(0, new MapperMethodProvider(registry));
+        return all;
     }
 
     private void spliceFragment(Graph<MappingNode, FlowEdge> graph, FlowEdge edge, ConversionFragment fragment) {
