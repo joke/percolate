@@ -35,6 +35,35 @@ class WiringStageSpec extends Specification {
         // CodeGenStage is disconnected (Task 10) — impl generation is a future redesign task
     }
 
+    def "multi-property mapping to same target type produces a single constructor node in the wiring graph"() {
+        given:
+        def src = JavaFileObjects.forSourceLines('test.TwoFieldSrc',
+            'package test;',
+            'public class TwoFieldSrc {',
+            '    public String getFoo() { return ""; }',
+            '    public String getBar() { return ""; }',
+            '}')
+        def tgt = JavaFileObjects.forSourceLines('test.TwoFieldTgt',
+            'package test;',
+            'public class TwoFieldTgt {',
+            '    private final String foo; private final String bar;',
+            '    public TwoFieldTgt(String foo, String bar) { this.foo = foo; this.bar = bar; }',
+            '}')
+        def mapper = JavaFileObjects.forSourceLines('test.TwoFieldMapper',
+            'package test;',
+            'import io.github.joke.percolate.Mapper;',
+            '@Mapper public interface TwoFieldMapper { TwoFieldTgt toTarget(TwoFieldSrc src); }')
+
+        when:
+        Compiler.javac()
+            .withProcessors(new PercolateProcessor())
+            .compile(src, tgt, mapper)
+        def wiringDot = new File('/tmp/TwoFieldMapper-toTarget-wiring.dot').text
+
+        then: 'exactly one constructor node for the target type'
+        wiringDot.findAll('Constructor\\(').size() == 1
+    }
+
     // NOTE: This test exercises the insertConversions() path in WiringStage.
     // Full end-to-end code generation for the List<Actor> -> List<TicketActor> case
     // requires Task 10 (Pipeline update) to connect WiringStage output to CodeGenStage.

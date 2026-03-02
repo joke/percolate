@@ -53,6 +53,9 @@ public final class BindingStage {
     private void buildMethodGraph(MethodDefinition method, MethodRegistry registry) {
         DirectedWeightedMultigraph<MappingNode, FlowEdge> graph = new DirectedWeightedMultigraph<>(FlowEdge.class);
 
+        TargetSlotPlaceholder target = new TargetSlotPlaceholder(method.getReturnType());
+        graph.addVertex(target);
+
         List<SourceNode> sourceNodes = method.getParameters().stream()
                 .map(param -> {
                     SourceNode node = new SourceNode(param.getName(), param.getType());
@@ -67,7 +70,7 @@ public final class BindingStage {
         List<MapDirective> sameNameDirectives = generateSameNameDirectives(sourceNodes, alreadyMapped);
 
         Stream.concat(expanded.stream(), sameNameDirectives.stream())
-                .forEach(directive -> processDirective(graph, directive, method, sourceNodes));
+                .forEach(directive -> processDirective(graph, directive, target, sourceNodes));
 
         registry.lookup(method)
                 .ifPresent(existing -> registry.register(
@@ -135,11 +138,11 @@ public final class BindingStage {
     private void processDirective(
             DirectedWeightedMultigraph<MappingNode, FlowEdge> graph,
             MapDirective directive,
-            MethodDefinition method,
+            TargetSlotPlaceholder target,
             List<SourceNode> sourceNodes) {
 
-        String target = directive.getTarget();
-        if (target.equals(".")) {
+        String slotName = directive.getTarget();
+        if (slotName.equals(".")) {
             return; // "." targets are expanded by expandDirectives before processDirective is called
         }
 
@@ -158,9 +161,7 @@ public final class BindingStage {
         }
 
         TypeMirror terminalType = getNodeType(terminal);
-        TargetSlotPlaceholder slot = new TargetSlotPlaceholder(method.getReturnType(), target);
-        graph.addVertex(slot);
-        graph.addEdge(terminal, slot, FlowEdge.forSlot(terminalType, method.getReturnType(), target));
+        graph.addEdge(terminal, target, FlowEdge.forSlot(terminalType, target.getTargetType(), slotName));
     }
 
     private @Nullable EntryPoint resolveEntryPoint(List<SourceNode> sourceNodes, String[] segments) {
