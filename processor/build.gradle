@@ -16,6 +16,8 @@ dependencies {
     implementation 'org.jgrapht:jgrapht-core'
     implementation 'com.google.dagger:dagger'
     implementation 'com.palantir.javapoet:javapoet'
+    implementation 'org.jgrapht:jgrapht-io'
+
 
     testImplementation platform(project(':dependencies'))
     testImplementation 'org.spockframework:spock-core'

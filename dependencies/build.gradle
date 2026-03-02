@@ -20,6 +20,7 @@ dependencies {
         api 'com.google.testing.compile:compile-testing:0.23.0'
         api 'org.jspecify:jspecify:1.0.0'
         api 'org.jgrapht:jgrapht-core:1.5.2'
+        api 'org.jgrapht:jgrapht-io:1.5.2'
     }
 
 }
