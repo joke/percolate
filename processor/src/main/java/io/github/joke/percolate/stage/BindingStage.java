@@ -24,6 +24,7 @@ import javax.inject.Inject;
 import javax.lang.model.element.TypeElement;
 import javax.lang.model.type.DeclaredType;
 import javax.lang.model.type.TypeMirror;
+import org.jgrapht.graph.AsUnmodifiableGraph;
 import org.jgrapht.graph.DirectedWeightedMultigraph;
 import org.jspecify.annotations.Nullable;
 
@@ -67,7 +68,8 @@ public final class BindingStage {
         Stream.concat(expanded.stream(), sameNameDirectives.stream())
                 .forEach(directive -> processDirective(graph, directive, method, sourceNodes));
 
-        registry.lookup(method).ifPresent(existing -> registry.register(method, new RegistryEntry(existing.getSignature(), graph)));
+        registry.lookup(method).ifPresent(existing ->
+                registry.register(method, new RegistryEntry(existing.getSignature(), new AsUnmodifiableGraph<>(graph))));
     }
 
     /**
