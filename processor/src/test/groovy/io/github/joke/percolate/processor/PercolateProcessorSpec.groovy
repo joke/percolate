@@ -28,4 +28,30 @@ class PercolateProcessorSpec extends Specification {
         then:
         assertThat(compilation).succeeded()
     }
+
+    def "exportDot writes binding and wiring dot files to /tmp"() {
+        given:
+        def src = JavaFileObjects.forSourceLines('test.Src',
+            'package test;',
+            'public class Src { public String getName() { return ""; } }')
+        def tgt = JavaFileObjects.forSourceLines('test.Tgt',
+            'package test;',
+            'public class Tgt { private final String name;',
+            '    public Tgt(String name) { this.name = name; }',
+            '    public String getName() { return name; } }')
+        def mapper = JavaFileObjects.forSourceLines('test.DotMapper',
+            'package test;',
+            'import io.github.joke.percolate.Mapper;',
+            '@Mapper public interface DotMapper { Tgt map(Src src); }')
+
+        when:
+        def compilation = Compiler.javac()
+            .withProcessors(new PercolateProcessor())
+            .compile(src, tgt, mapper)
+
+        then:
+        assertThat(compilation).succeeded()
+        new File('/tmp/DotMapper-map-binding.dot').text.contains('digraph')
+        new File('/tmp/DotMapper-map-wiring.dot').text.contains('digraph')
+    }
 }
