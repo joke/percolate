@@ -23,6 +23,7 @@ public final class RegistrationStage {
         }
         registry.register(method, new RegistryEntry(method, null));
         // graph is null here for all methods; BindingStage will assign graphs to abstract methods.
-        // After BindingStage: abstract methods are non-opaque (graph != null), default methods remain permanently opaque (graph stays null).
+        // After BindingStage: abstract methods are non-opaque (graph != null), default methods remain permanently
+        // opaque (graph stays null).
     }
 }

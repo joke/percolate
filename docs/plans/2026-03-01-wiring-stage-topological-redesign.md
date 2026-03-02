@@ -317,12 +317,12 @@ registry.lookup(method).ifPresent(existing -> registry.register(method, new Regi
 Replace with:
 ```java
 registry.lookup(method).ifPresent(existing ->
-        registry.register(method, new RegistryEntry(existing.getSignature(), Graphs.unmodifiableGraph(graph))));
+        registry.register(method, new RegistryEntry(existing.getSignature(), new AsUnmodifiableGraph<>(graph))));
 ```
 
 Add the import at the top of `BindingStage.java`:
 ```java
-import org.jgrapht.Graphs;
+import org.jgrapht.graph.AsUnmodifiableGraph;
 ```
 
 **Step 2: Run the tests**

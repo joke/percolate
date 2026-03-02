@@ -38,8 +38,8 @@ public final class MapperMethodProvider implements ConversionProvider {
                 .map(RegistryEntry::getSignature)
                 .filter(Objects::nonNull)
                 .filter(m -> m.getParameters().size() == 1)
-                .filter(m -> types.isSameType(
-                        types.erasure(m.getParameters().get(0).getType()), types.erasure(source)))
+                .filter(m ->
+                        types.isSameType(types.erasure(m.getParameters().get(0).getType()), types.erasure(source)))
                 .filter(m -> types.isSameType(types.erasure(m.getReturnType()), types.erasure(target)))
                 .findFirst();
     }

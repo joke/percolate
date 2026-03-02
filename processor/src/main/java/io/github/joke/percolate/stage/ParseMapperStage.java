@@ -25,7 +25,8 @@ public class ParseMapperStage {
     }
 
     public MapperDefinition execute(TypeElement typeElement) {
-        String packageName = elements.getPackageOf(typeElement).getQualifiedName().toString();
+        String packageName =
+                elements.getPackageOf(typeElement).getQualifiedName().toString();
         String simpleName = typeElement.getSimpleName().toString();
         List<MethodDefinition> methods = typeElement.getEnclosedElements().stream()
                 .filter(e -> e instanceof ExecutableElement)
@@ -53,8 +54,6 @@ public class ParseMapperStage {
                     .collect(toList());
         }
         io.github.joke.percolate.Map map = method.getAnnotation(io.github.joke.percolate.Map.class);
-        return map != null
-                ? List.of(new MapDirective(map.target(), map.source()))
-                : List.of();
+        return map != null ? List.of(new MapDirective(map.target(), map.source())) : List.of();
     }
 }

@@ -61,15 +61,17 @@ public final class WiringStage {
 
     public void execute(MethodRegistry registry) {
         List<ConversionProvider> providers = buildProviders(registry);
-        new ArrayList<>(registry.entries().values()).stream()
-                .filter(entry -> !entry.isOpaque() && entry.getGraph() != null && entry.getSignature() != null)
-                .forEach(entry -> wireMethod(entry, registry, providers));
+        new ArrayList<>(registry.entries().values())
+                .stream()
+                        .filter(entry -> !entry.isOpaque() && entry.getGraph() != null && entry.getSignature() != null)
+                        .forEach(entry -> wireMethod(entry, registry, providers));
     }
 
     private void wireMethod(RegistryEntry entry, MethodRegistry registry, List<ConversionProvider> providers) {
         MethodDefinition signature = Objects.requireNonNull(entry.getSignature());
         Graph<MappingNode, FlowEdge> bindingGraph = Objects.requireNonNull(entry.getGraph());
-        Graph<MappingNode, FlowEdge> wiredGraph = buildWiredGraph(bindingGraph, signature.getReturnType(), registry, providers);
+        Graph<MappingNode, FlowEdge> wiredGraph =
+                buildWiredGraph(bindingGraph, signature.getReturnType(), registry, providers);
         registry.register(signature, new RegistryEntry(signature, new AsUnmodifiableGraph<>(wiredGraph)));
     }
 
@@ -78,12 +80,10 @@ public final class WiringStage {
             TypeMirror returnType,
             MethodRegistry registry,
             List<ConversionProvider> providers) {
-        DirectedWeightedMultigraph<MappingNode, FlowEdge> wiredGraph =
-                new DirectedWeightedMultigraph<>(FlowEdge.class);
+        DirectedWeightedMultigraph<MappingNode, FlowEdge> wiredGraph = new DirectedWeightedMultigraph<>(FlowEdge.class);
         Map<MappingNode, MappingNode> nodeMap = new LinkedHashMap<>();
 
-        TopologicalOrderIterator<MappingNode, FlowEdge> iter =
-                new TopologicalOrderIterator<>(bindingGraph);
+        TopologicalOrderIterator<MappingNode, FlowEdge> iter = new TopologicalOrderIterator<>(bindingGraph);
         while (iter.hasNext()) {
             MappingNode bindingNode = iter.next();
             MappingNode wiredNode = substituteNode(bindingNode, returnType);
@@ -140,13 +140,12 @@ public final class WiringStage {
             return FlowEdge.of(bindingEdge.getSourceType(), bindingEdge.getTargetType());
         }
         String slotName = bindingEdge.getSlotName();
-        TypeMirror slotType = findSlotType(
-                (ConstructorAssignmentNode) wiredTarget, slotName, bindingEdge.getTargetType());
+        TypeMirror slotType =
+                findSlotType((ConstructorAssignmentNode) wiredTarget, slotName, bindingEdge.getTargetType());
         return FlowEdge.forSlot(bindingEdge.getSourceType(), slotType, slotName);
     }
 
-    private static TypeMirror findSlotType(
-            ConstructorAssignmentNode node, String slotName, TypeMirror fallback) {
+    private static TypeMirror findSlotType(ConstructorAssignmentNode node, String slotName, TypeMirror fallback) {
         return node.getDescriptor().getParameters().stream()
                 .filter(p -> p.getName().equals(slotName))
                 .findFirst()
@@ -182,10 +181,7 @@ public final class WiringStage {
     }
 
     private Optional<ConversionFragment> findFragment(
-            TypeMirror source,
-            TypeMirror target,
-            MethodRegistry registry,
-            List<ConversionProvider> providers) {
+            TypeMirror source, TypeMirror target, MethodRegistry registry, List<ConversionProvider> providers) {
         return providers.stream()
                 .filter(p -> p.canHandle(source, target, processingEnv))
                 .findFirst()
@@ -193,9 +189,11 @@ public final class WiringStage {
     }
 
     private boolean typesCompatible(TypeMirror source, TypeMirror target) {
-        return processingEnv.getTypeUtils().isSameType(
-                processingEnv.getTypeUtils().erasure(source),
-                processingEnv.getTypeUtils().erasure(target));
+        return processingEnv
+                .getTypeUtils()
+                .isSameType(
+                        processingEnv.getTypeUtils().erasure(source),
+                        processingEnv.getTypeUtils().erasure(target));
     }
 
     private @Nullable CreationDescriptor findCreationDescriptor(TypeElement type) {
@@ -223,6 +221,7 @@ public final class WiringStage {
         if (node instanceof BoxingNode) return ((BoxingNode) node).getOutType();
         if (node instanceof UnboxingNode) return ((UnboxingNode) node).getOutType();
         if (node instanceof MethodCallNode) return ((MethodCallNode) node).getOutType();
-        throw new IllegalArgumentException("Unknown node type: " + node.getClass().getSimpleName());
+        throw new IllegalArgumentException(
+                "Unknown node type: " + node.getClass().getSimpleName());
     }
 }

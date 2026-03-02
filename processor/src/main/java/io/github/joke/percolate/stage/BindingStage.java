@@ -43,10 +43,11 @@ public final class BindingStage {
 
     public void execute(MethodRegistry registry) {
         // Copy to avoid ConcurrentModificationException: buildMethodGraph mutates the registry
-        new ArrayList<>(registry.entries().values()).stream()
-                .map(RegistryEntry::getSignature)
-                .filter(sig -> sig != null && sig.isAbstract())
-                .forEach(sig -> buildMethodGraph(sig, registry));
+        new ArrayList<>(registry.entries().values())
+                .stream()
+                        .map(RegistryEntry::getSignature)
+                        .filter(sig -> sig != null && sig.isAbstract())
+                        .forEach(sig -> buildMethodGraph(sig, registry));
     }
 
     private void buildMethodGraph(MethodDefinition method, MethodRegistry registry) {
@@ -68,8 +69,9 @@ public final class BindingStage {
         Stream.concat(expanded.stream(), sameNameDirectives.stream())
                 .forEach(directive -> processDirective(graph, directive, method, sourceNodes));
 
-        registry.lookup(method).ifPresent(existing ->
-                registry.register(method, new RegistryEntry(existing.getSignature(), new AsUnmodifiableGraph<>(graph))));
+        registry.lookup(method)
+                .ifPresent(existing -> registry.register(
+                        method, new RegistryEntry(existing.getSignature(), new AsUnmodifiableGraph<>(graph))));
     }
 
     /**
