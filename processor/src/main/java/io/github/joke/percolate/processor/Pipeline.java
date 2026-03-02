@@ -2,7 +2,6 @@ package io.github.joke.percolate.processor;
 
 import static java.nio.charset.StandardCharsets.UTF_8;
 import static java.util.Collections.singletonMap;
-
 import static org.jgrapht.nio.DefaultAttribute.createAttribute;
 
 import io.github.joke.percolate.di.RoundScoped;
