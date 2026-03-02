@@ -19,8 +19,11 @@ public class Pipeline {
     private final WiringStage wiringStage;
 
     @Inject
-    Pipeline(ParseMapperStage parseMapperStage, RegistrationStage registrationStage,
-             BindingStage bindingStage, WiringStage wiringStage) {
+    Pipeline(
+            ParseMapperStage parseMapperStage,
+            RegistrationStage registrationStage,
+            BindingStage bindingStage,
+            WiringStage wiringStage) {
         this.parseMapperStage = parseMapperStage;
         this.registrationStage = registrationStage;
         this.bindingStage = bindingStage;
