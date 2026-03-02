@@ -4,9 +4,18 @@ import static java.util.stream.Collectors.toUnmodifiableList;
 import static java.util.stream.Stream.concat;
 
 import io.github.joke.percolate.graph.edge.FlowEdge;
+import io.github.joke.percolate.graph.node.BoxingNode;
+import io.github.joke.percolate.graph.node.CollectionCollectNode;
+import io.github.joke.percolate.graph.node.CollectionIterationNode;
 import io.github.joke.percolate.graph.node.ConstructorAssignmentNode;
 import io.github.joke.percolate.graph.node.MappingNode;
+import io.github.joke.percolate.graph.node.MethodCallNode;
+import io.github.joke.percolate.graph.node.OptionalUnwrapNode;
+import io.github.joke.percolate.graph.node.OptionalWrapNode;
+import io.github.joke.percolate.graph.node.PropertyAccessNode;
+import io.github.joke.percolate.graph.node.SourceNode;
 import io.github.joke.percolate.graph.node.TargetSlotPlaceholder;
+import io.github.joke.percolate.graph.node.UnboxingNode;
 import io.github.joke.percolate.model.MethodDefinition;
 import io.github.joke.percolate.model.Property;
 import io.github.joke.percolate.spi.ConversionFragment;
@@ -14,15 +23,6 @@ import io.github.joke.percolate.spi.ConversionProvider;
 import io.github.joke.percolate.spi.CreationDescriptor;
 import io.github.joke.percolate.spi.ObjectCreationStrategy;
 import io.github.joke.percolate.spi.impl.MapperMethodProvider;
-import io.github.joke.percolate.graph.node.BoxingNode;
-import io.github.joke.percolate.graph.node.CollectionCollectNode;
-import io.github.joke.percolate.graph.node.CollectionIterationNode;
-import io.github.joke.percolate.graph.node.MethodCallNode;
-import io.github.joke.percolate.graph.node.OptionalUnwrapNode;
-import io.github.joke.percolate.graph.node.OptionalWrapNode;
-import io.github.joke.percolate.graph.node.PropertyAccessNode;
-import io.github.joke.percolate.graph.node.SourceNode;
-import io.github.joke.percolate.graph.node.UnboxingNode;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -61,21 +61,26 @@ public final class WiringStage {
 
     public void execute(MethodRegistry registry) {
         List<ConversionProvider> providers = buildProviders(registry);
-        new ArrayList<>(registry.entries().entrySet()).forEach(e -> {
-            RegistryEntry entry = e.getValue();
-            if (!entry.isOpaque() && entry.getGraph() != null && entry.getSignature() != null) {
-                wireMethod(entry, registry, providers);
-            }
-        });
+        new ArrayList<>(registry.entries().values()).stream()
+                .filter(entry -> !entry.isOpaque() && entry.getGraph() != null && entry.getSignature() != null)
+                .forEach(entry -> wireMethod(entry, registry, providers));
     }
 
     private void wireMethod(RegistryEntry entry, MethodRegistry registry, List<ConversionProvider> providers) {
-        Graph<MappingNode, FlowEdge> bindingGraph = Objects.requireNonNull(entry.getGraph());
         MethodDefinition signature = Objects.requireNonNull(entry.getSignature());
+        Graph<MappingNode, FlowEdge> bindingGraph = Objects.requireNonNull(entry.getGraph());
+        Graph<MappingNode, FlowEdge> wiredGraph = buildWiredGraph(bindingGraph, signature.getReturnType(), registry, providers);
+        registry.register(signature, new RegistryEntry(signature, new AsUnmodifiableGraph<>(wiredGraph)));
+    }
+
+    private Graph<MappingNode, FlowEdge> buildWiredGraph(
+            Graph<MappingNode, FlowEdge> bindingGraph,
+            TypeMirror returnType,
+            MethodRegistry registry,
+            List<ConversionProvider> providers) {
         DirectedWeightedMultigraph<MappingNode, FlowEdge> wiredGraph =
                 new DirectedWeightedMultigraph<>(FlowEdge.class);
         Map<MappingNode, MappingNode> nodeMap = new LinkedHashMap<>();
-        TypeMirror returnType = signature.getReturnType();
 
         TopologicalOrderIterator<MappingNode, FlowEdge> iter =
                 new TopologicalOrderIterator<>(bindingGraph);
@@ -90,10 +95,7 @@ public final class WiringStage {
                 processEdge(wiredGraph, wiredSource, wiredNode, edge, registry, providers);
             });
         }
-
-        registry.register(
-                signature,
-                new RegistryEntry(signature, new AsUnmodifiableGraph<>(wiredGraph)));
+        return wiredGraph;
     }
 
     private MappingNode substituteNode(MappingNode bindingNode, TypeMirror returnType) {
