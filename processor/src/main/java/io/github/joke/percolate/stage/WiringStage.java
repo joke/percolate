@@ -240,9 +240,9 @@ public final class WiringStage {
                 findFragment(edge.getSourceType(), edge.getTargetType(), registry, providers);
         if (fragment.isPresent() && !fragment.get().isEmpty()) {
             spliceFragment(graph, src, tgt, edge, fragment.get());
-        } else {
-            graph.addEdge(src, tgt, edge);
         }
+        // If no fragment found, the edge is severed — the source node becomes a dead-end,
+        // which ValidateStage will detect via forward/backward reachability analysis.
     }
 
     private static TypeMirror outTypeOf(MappingNode node) {

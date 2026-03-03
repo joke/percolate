@@ -13,6 +13,7 @@ import io.github.joke.percolate.stage.MethodRegistry;
 import io.github.joke.percolate.stage.ParseMapperStage;
 import io.github.joke.percolate.stage.RegistrationStage;
 import io.github.joke.percolate.stage.RegistryEntry;
+import io.github.joke.percolate.stage.ValidateStage;
 import io.github.joke.percolate.stage.WiringStage;
 import java.io.IOException;
 import java.io.Writer;
@@ -30,17 +31,20 @@ public class Pipeline {
     private final RegistrationStage registrationStage;
     private final BindingStage bindingStage;
     private final WiringStage wiringStage;
+    private final ValidateStage validateStage;
 
     @Inject
     Pipeline(
             ParseMapperStage parseMapperStage,
             RegistrationStage registrationStage,
             BindingStage bindingStage,
-            WiringStage wiringStage) {
+            WiringStage wiringStage,
+            ValidateStage validateStage) {
         this.parseMapperStage = parseMapperStage;
         this.registrationStage = registrationStage;
         this.bindingStage = bindingStage;
         this.wiringStage = wiringStage;
+        this.validateStage = validateStage;
     }
 
     public void process(TypeElement typeElement) {
@@ -50,7 +54,7 @@ public class Pipeline {
         exportDot(mapper.getSimpleName(), registry, "binding");
         wiringStage.execute(registry);
         exportDot(mapper.getSimpleName(), registry, "wiring");
-        // ValidateStage, OptimizeStage, CodeGenStage reconnected in future redesign
+        validateStage.execute(registry);
     }
 
     private static void exportDot(String mapperName, MethodRegistry registry, String phase) {
