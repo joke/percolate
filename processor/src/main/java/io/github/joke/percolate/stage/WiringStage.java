@@ -130,9 +130,8 @@ public final class WiringStage {
         Optional<ConversionFragment> fragment = findFragment(srcType, tgtType, registry, providers);
         if (fragment.isPresent() && !fragment.get().isEmpty()) {
             spliceFragment(wiredGraph, wiredSource, wiredTarget, wiredEdge, fragment.get());
-        } else {
-            wiredGraph.addEdge(wiredSource, wiredTarget, wiredEdge);
         }
+        // If no fragment found, the edge is severed — dead-end detected by ValidateStage.
     }
 
     private FlowEdge adjustEdge(MappingNode wiredTarget, FlowEdge bindingEdge) {
