@@ -37,11 +37,11 @@ public final class ValidateStage {
     public boolean execute(MethodRegistry registry) {
         return registry.entries().values().stream()
                 .filter(entry -> !entry.isOpaque() && entry.getGraph() != null && entry.getSignature() != null)
-                .map(this::validateEntry)
+                .map(this::entryHasErrors)
                 .reduce(false, Boolean::logicalOr);
     }
 
-    private boolean validateEntry(RegistryEntry entry) {
+    private boolean entryHasErrors(RegistryEntry entry) {
         Graph<MappingNode, FlowEdge> graph = requireNonNull(entry.getGraph());
         MethodDefinition signature = requireNonNull(entry.getSignature());
 
