@@ -28,6 +28,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.ServiceLoader;
+import java.util.stream.IntStream;
 import javax.annotation.processing.ProcessingEnvironment;
 import javax.inject.Inject;
 import javax.lang.model.element.TypeElement;
@@ -204,36 +205,42 @@ public final class WiringStage {
             DirectedWeightedMultigraph<MappingNode, FlowEdge> graph,
             MethodRegistry registry,
             List<ConversionProvider> providers) {
-        for (int i = 0; i < 10; i++) {
-            if (!expandIncompatibleEdges(graph, registry, providers)) {
-                break;
-            }
-        }
+        var unused = IntStream.range(0, 10).allMatch(i -> expandIncompatibleEdges(graph, registry, providers));
+    }
+
+    private List<FlowEdge> findIncompatibleEdges(Graph<MappingNode, FlowEdge> graph) {
+        return graph.edgeSet().stream()
+                .filter(e -> !typesCompatible(e.getSourceType(), e.getTargetType()))
+                .collect(toList());
     }
 
     private boolean expandIncompatibleEdges(
             DirectedWeightedMultigraph<MappingNode, FlowEdge> graph,
             MethodRegistry registry,
             List<ConversionProvider> providers) {
-        List<FlowEdge> incompatible = graph.edgeSet().stream()
-                .filter(e -> !typesCompatible(e.getSourceType(), e.getTargetType()))
-                .collect(toList());
+        List<FlowEdge> incompatible = findIncompatibleEdges(graph);
         if (incompatible.isEmpty()) {
             return false;
         }
-        for (FlowEdge edge : incompatible) {
-            MappingNode src = graph.getEdgeSource(edge);
-            MappingNode tgt = graph.getEdgeTarget(edge);
-            graph.removeEdge(edge);
-            Optional<ConversionFragment> fragment =
-                    findFragment(edge.getSourceType(), edge.getTargetType(), registry, providers);
-            if (fragment.isPresent() && !fragment.get().isEmpty()) {
-                spliceFragment(graph, src, tgt, edge, fragment.get());
-            } else {
-                graph.addEdge(src, tgt, edge);
-            }
-        }
+        incompatible.forEach(edge -> expandEdge(graph, edge, registry, providers));
         return true;
+    }
+
+    private void expandEdge(
+            DirectedWeightedMultigraph<MappingNode, FlowEdge> graph,
+            FlowEdge edge,
+            MethodRegistry registry,
+            List<ConversionProvider> providers) {
+        MappingNode src = graph.getEdgeSource(edge);
+        MappingNode tgt = graph.getEdgeTarget(edge);
+        graph.removeEdge(edge);
+        Optional<ConversionFragment> fragment =
+                findFragment(edge.getSourceType(), edge.getTargetType(), registry, providers);
+        if (fragment.isPresent() && !fragment.get().isEmpty()) {
+            spliceFragment(graph, src, tgt, edge, fragment.get());
+        } else {
+            graph.addEdge(src, tgt, edge);
+        }
     }
 
     private static TypeMirror outTypeOf(MappingNode node) {
