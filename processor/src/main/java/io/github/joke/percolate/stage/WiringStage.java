@@ -69,6 +69,9 @@ public final class WiringStage {
     private void wireMethod(RegistryEntry entry, MethodRegistry registry, List<ConversionProvider> providers) {
         MethodDefinition signature = requireNonNull(entry.getSignature());
         Graph<MappingNode, FlowEdge> bindingGraph = requireNonNull(entry.getGraph());
+        // Temporarily remove the current method from the registry so providers cannot
+        // self-reference it (e.g. MapperMethodProvider resolving map(List<A>) via map itself).
+        registry.register(signature, new RegistryEntry(null, null));
         DirectedWeightedMultigraph<MappingNode, FlowEdge> wiredGraph =
                 buildWiredGraph(bindingGraph, signature.getReturnType(), registry, providers);
         stabilizeGraph(wiredGraph, registry, providers);
