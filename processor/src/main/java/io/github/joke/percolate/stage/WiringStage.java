@@ -1,5 +1,6 @@
 package io.github.joke.percolate.stage;
 
+import static java.util.Comparator.comparingInt;
 import static java.util.Objects.requireNonNull;
 import static java.util.stream.Collectors.toList;
 
@@ -23,7 +24,6 @@ import io.github.joke.percolate.spi.ConversionProvider;
 import io.github.joke.percolate.spi.CreationDescriptor;
 import io.github.joke.percolate.spi.ObjectCreationStrategy;
 import java.util.ArrayList;
-import static java.util.Comparator.comparingInt;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
