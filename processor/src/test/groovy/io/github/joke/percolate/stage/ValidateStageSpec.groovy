@@ -96,4 +96,38 @@ class ValidateStageSpec extends Specification {
         assertThat(compilation).failed()
         assertThat(compilation).hadErrorContaining('venue')
     }
+
+    def "emits error when element mapper is missing for List-to-List mapping"() {
+        given:
+        def actor = JavaFileObjects.forSourceLines('test.Actor',
+            'package test;',
+            'public class Actor { public String getName() { return ""; } }')
+        def ticketActor = JavaFileObjects.forSourceLines('test.TicketActor',
+            'package test;',
+            'public class TicketActor { private final String name;',
+            '    public TicketActor(String name) { this.name = name; } }')
+        def container = JavaFileObjects.forSourceLines('test.Container',
+            'package test; import java.util.List;',
+            'public class Container { public List<Actor> getActors() { return null; } }')
+        def result = JavaFileObjects.forSourceLines('test.Result',
+            'package test; import java.util.List;',
+            'public class Result { private final List<TicketActor> actors;',
+            '    public Result(List<TicketActor> actors) { this.actors = actors; } }')
+        def mapper = JavaFileObjects.forSourceLines('test.ListMapper',
+            'package test; import java.util.List;',
+            'import io.github.joke.percolate.Mapper;',
+            '@Mapper public interface ListMapper {',
+            '    Result map(Container container);',
+            '    // mapActor is intentionally missing',
+            '}')
+
+        when:
+        def compilation = Compiler.javac()
+            .withProcessors(new PercolateProcessor())
+            .compile(actor, ticketActor, container, result, mapper)
+
+        then:
+        assertThat(compilation).failed()
+        assertThat(compilation).hadErrorContaining('actors')
+    }
 }
