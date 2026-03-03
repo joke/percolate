@@ -22,6 +22,11 @@ import org.jspecify.annotations.Nullable;
 public final class ListProvider implements ConversionProvider {
 
     @Override
+    public int priority() {
+        return 50;
+    }
+
+    @Override
     public boolean canHandle(TypeMirror source, TypeMirror target, MethodRegistry registry, ProcessingEnvironment env) {
         return isListType(source) && isListType(target);
     }

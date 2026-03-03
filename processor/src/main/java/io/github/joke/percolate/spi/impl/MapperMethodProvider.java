@@ -17,6 +17,11 @@ import javax.lang.model.util.Types;
 public final class MapperMethodProvider implements ConversionProvider {
 
     @Override
+    public int priority() {
+        return 10;
+    }
+
+    @Override
     public boolean canHandle(TypeMirror source, TypeMirror target, MethodRegistry registry, ProcessingEnvironment env) {
         return findMethod(env.getTypeUtils(), source, target, registry).isPresent();
     }

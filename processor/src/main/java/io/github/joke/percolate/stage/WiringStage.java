@@ -23,6 +23,7 @@ import io.github.joke.percolate.spi.ConversionProvider;
 import io.github.joke.percolate.spi.CreationDescriptor;
 import io.github.joke.percolate.spi.ObjectCreationStrategy;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -55,6 +56,7 @@ public final class WiringStage {
                 .forEach(creationStrategies::add);
         ServiceLoader.load(ConversionProvider.class, getClass().getClassLoader())
                 .forEach(conversionProviders::add);
+        conversionProviders.sort(Comparator.comparingInt(ConversionProvider::priority));
     }
 
     public void execute(MethodRegistry registry) {

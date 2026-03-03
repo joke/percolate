@@ -15,4 +15,9 @@ public interface ConversionProvider {
      */
     ConversionFragment provide(
             TypeMirror source, TypeMirror target, MethodRegistry registry, ProcessingEnvironment env);
+
+    /** Lower number = higher priority. Default is 100. */
+    default int priority() {
+        return 100;
+    }
 }
