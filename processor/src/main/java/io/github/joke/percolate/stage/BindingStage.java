@@ -24,6 +24,7 @@ import javax.inject.Inject;
 import javax.lang.model.element.TypeElement;
 import javax.lang.model.type.DeclaredType;
 import javax.lang.model.type.TypeMirror;
+import javax.lang.model.util.Types;
 import org.jgrapht.graph.AsUnmodifiableGraph;
 import org.jgrapht.graph.DirectedWeightedMultigraph;
 import org.jspecify.annotations.Nullable;
@@ -145,9 +146,8 @@ public final class BindingStage {
     }
 
     private boolean sameErasure(TypeMirror a, TypeMirror b) {
-        return processingEnv
-                .getTypeUtils()
-                .isSameType(processingEnv.getTypeUtils().erasure(a), processingEnv.getTypeUtils().erasure(b));
+        Types types = processingEnv.getTypeUtils();
+        return types.isSameType(types.erasure(a), types.erasure(b));
     }
 
     private void processDirective(

@@ -1,5 +1,7 @@
 package io.github.joke.percolate.stage;
 
+import static java.util.Objects.requireNonNull;
+
 import io.github.joke.percolate.graph.edge.FlowEdge;
 import io.github.joke.percolate.graph.node.BoxingNode;
 import io.github.joke.percolate.graph.node.CollectionCollectNode;
@@ -23,7 +25,6 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import java.util.Optional;
 import java.util.ServiceLoader;
 import javax.annotation.processing.ProcessingEnvironment;
@@ -62,8 +63,8 @@ public final class WiringStage {
     }
 
     private void wireMethod(RegistryEntry entry, MethodRegistry registry, List<ConversionProvider> providers) {
-        MethodDefinition signature = Objects.requireNonNull(entry.getSignature());
-        Graph<MappingNode, FlowEdge> bindingGraph = Objects.requireNonNull(entry.getGraph());
+        MethodDefinition signature = requireNonNull(entry.getSignature());
+        Graph<MappingNode, FlowEdge> bindingGraph = requireNonNull(entry.getGraph());
         Graph<MappingNode, FlowEdge> wiredGraph =
                 buildWiredGraph(bindingGraph, signature.getReturnType(), registry, providers);
         registry.register(signature, new RegistryEntry(signature, new AsUnmodifiableGraph<>(wiredGraph)));
@@ -85,7 +86,7 @@ public final class WiringStage {
             nodeMap.put(bindingNode, wiredNode);
 
             bindingGraph.incomingEdgesOf(bindingNode).forEach(edge -> {
-                MappingNode wiredSource = Objects.requireNonNull(nodeMap.get(bindingGraph.getEdgeSource(edge)));
+                MappingNode wiredSource = requireNonNull(nodeMap.get(bindingGraph.getEdgeSource(edge)));
                 processEdge(wiredGraph, wiredSource, wiredNode, edge, registry, providers);
             });
         }
