@@ -1,5 +1,6 @@
 package io.github.joke.percolate.spi.impl;
 
+import com.google.auto.service.AutoService;
 import io.github.joke.percolate.graph.node.MethodCallNode;
 import io.github.joke.percolate.model.MethodDefinition;
 import io.github.joke.percolate.spi.ConversionFragment;
@@ -12,28 +13,24 @@ import javax.annotation.processing.ProcessingEnvironment;
 import javax.lang.model.type.TypeMirror;
 import javax.lang.model.util.Types;
 
+@AutoService(ConversionProvider.class)
 public final class MapperMethodProvider implements ConversionProvider {
 
-    private final MethodRegistry registry;
-
-    public MapperMethodProvider(MethodRegistry registry) {
-        this.registry = registry;
-    }
-
     @Override
-    public boolean canHandle(TypeMirror source, TypeMirror target, ProcessingEnvironment env) {
-        return findMethod(env.getTypeUtils(), source, target).isPresent();
+    public boolean canHandle(TypeMirror source, TypeMirror target, MethodRegistry registry, ProcessingEnvironment env) {
+        return findMethod(env.getTypeUtils(), source, target, registry).isPresent();
     }
 
     @Override
     public ConversionFragment provide(
-            TypeMirror source, TypeMirror target, MethodRegistry ignored, ProcessingEnvironment env) {
-        return findMethod(env.getTypeUtils(), source, target)
+            TypeMirror source, TypeMirror target, MethodRegistry registry, ProcessingEnvironment env) {
+        return findMethod(env.getTypeUtils(), source, target, registry)
                 .map(m -> ConversionFragment.of(new MethodCallNode(m, source, target)))
                 .orElse(ConversionFragment.of());
     }
 
-    private Optional<MethodDefinition> findMethod(Types types, TypeMirror source, TypeMirror target) {
+    private static Optional<MethodDefinition> findMethod(
+            Types types, TypeMirror source, TypeMirror target, MethodRegistry registry) {
         return registry.entries().values().stream()
                 .map(RegistryEntry::getSignature)
                 .filter(Objects::nonNull)

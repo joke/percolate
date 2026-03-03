@@ -15,7 +15,7 @@ import javax.lang.model.type.TypeMirror;
 public final class OptionalProvider implements ConversionProvider {
 
     @Override
-    public boolean canHandle(TypeMirror source, TypeMirror target, ProcessingEnvironment env) {
+    public boolean canHandle(TypeMirror source, TypeMirror target, MethodRegistry registry, ProcessingEnvironment env) {
         return isOptionalType(source) || isOptionalType(target);
     }
 

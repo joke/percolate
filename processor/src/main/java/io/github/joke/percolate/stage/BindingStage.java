@@ -67,10 +67,15 @@ public final class BindingStage {
         List<MapDirective> expanded = expandDirectives(method.getDirectives(), sourceNodes);
         Set<String> alreadyMapped =
                 expanded.stream().map(MapDirective::getTarget).collect(toSet());
-        List<MapDirective> sameNameDirectives = generateSameNameDirectives(sourceNodes, alreadyMapped);
+        List<MapDirective> sameNameDirectives =
+                generateSameNameDirectives(sourceNodes, alreadyMapped, target.getTargetType());
 
         Stream.concat(expanded.stream(), sameNameDirectives.stream())
                 .forEach(directive -> processDirective(graph, directive, target, sourceNodes));
+
+        if (graph.incomingEdgesOf(target).isEmpty()) {
+            sourceNodes.forEach(src -> graph.addEdge(src, target, FlowEdge.of(src.getType(), target.getTargetType())));
+        }
 
         registry.lookup(method)
                 .ifPresent(existing -> registry.register(
@@ -120,11 +125,15 @@ public final class BindingStage {
                 .orElse(null);
     }
 
-    private List<MapDirective> generateSameNameDirectives(List<SourceNode> sourceNodes, Set<String> alreadyMapped) {
+    private List<MapDirective> generateSameNameDirectives(
+            List<SourceNode> sourceNodes, Set<String> alreadyMapped, TypeMirror targetType) {
         if (sourceNodes.size() != 1) {
             return Collections.emptyList();
         }
         SourceNode sourceNode = sourceNodes.get(0);
+        if (sameErasure(sourceNode.getType(), targetType)) {
+            return Collections.emptyList();
+        }
         @Nullable TypeElement sourceType = asTypeElement(sourceNode.getType());
         if (sourceType == null) {
             return Collections.emptyList();
@@ -133,6 +142,12 @@ public final class BindingStage {
                 .filter(prop -> !alreadyMapped.contains(prop.getName()))
                 .map(prop -> new MapDirective(prop.getName(), prop.getName()))
                 .collect(toList());
+    }
+
+    private boolean sameErasure(TypeMirror a, TypeMirror b) {
+        return processingEnv
+                .getTypeUtils()
+                .isSameType(processingEnv.getTypeUtils().erasure(a), processingEnv.getTypeUtils().erasure(b));
     }
 
     private void processDirective(

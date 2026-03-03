@@ -1,8 +1,5 @@
 package io.github.joke.percolate.stage;
 
-import static java.util.stream.Collectors.toUnmodifiableList;
-import static java.util.stream.Stream.concat;
-
 import io.github.joke.percolate.graph.edge.FlowEdge;
 import io.github.joke.percolate.graph.node.BoxingNode;
 import io.github.joke.percolate.graph.node.CollectionCollectNode;
@@ -22,7 +19,6 @@ import io.github.joke.percolate.spi.ConversionFragment;
 import io.github.joke.percolate.spi.ConversionProvider;
 import io.github.joke.percolate.spi.CreationDescriptor;
 import io.github.joke.percolate.spi.ObjectCreationStrategy;
-import io.github.joke.percolate.spi.impl.MapperMethodProvider;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -30,7 +26,6 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.ServiceLoader;
-import java.util.stream.Stream;
 import javax.annotation.processing.ProcessingEnvironment;
 import javax.inject.Inject;
 import javax.lang.model.element.TypeElement;
@@ -60,11 +55,10 @@ public final class WiringStage {
     }
 
     public void execute(MethodRegistry registry) {
-        List<ConversionProvider> providers = buildProviders(registry);
         new ArrayList<>(registry.entries().values())
                 .stream()
                         .filter(entry -> !entry.isOpaque() && entry.getGraph() != null && entry.getSignature() != null)
-                        .forEach(entry -> wireMethod(entry, registry, providers));
+                        .forEach(entry -> wireMethod(entry, registry, conversionProviders));
     }
 
     private void wireMethod(RegistryEntry entry, MethodRegistry registry, List<ConversionProvider> providers) {
@@ -175,25 +169,16 @@ public final class WiringStage {
         wiredGraph.addEdge(prev, target, reconnect);
     }
 
-    private List<ConversionProvider> buildProviders(MethodRegistry registry) {
-        return concat(Stream.of(new MapperMethodProvider(registry)), conversionProviders.stream())
-                .collect(toUnmodifiableList());
-    }
-
     private Optional<ConversionFragment> findFragment(
             TypeMirror source, TypeMirror target, MethodRegistry registry, List<ConversionProvider> providers) {
         return providers.stream()
-                .filter(p -> p.canHandle(source, target, processingEnv))
+                .filter(p -> p.canHandle(source, target, registry, processingEnv))
                 .findFirst()
                 .map(p -> p.provide(source, target, registry, processingEnv));
     }
 
     private boolean typesCompatible(TypeMirror source, TypeMirror target) {
-        return processingEnv
-                .getTypeUtils()
-                .isSameType(
-                        processingEnv.getTypeUtils().erasure(source),
-                        processingEnv.getTypeUtils().erasure(target));
+        return processingEnv.getTypeUtils().isSameType(source, target);
     }
 
     private @Nullable CreationDescriptor findCreationDescriptor(TypeElement type) {

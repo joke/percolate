@@ -36,7 +36,7 @@ public final class PrimitiveWideningProvider implements ConversionProvider {
     }
 
     @Override
-    public boolean canHandle(TypeMirror source, TypeMirror target, ProcessingEnvironment env) {
+    public boolean canHandle(TypeMirror source, TypeMirror target, MethodRegistry registry, ProcessingEnvironment env) {
         Types types = env.getTypeUtils();
         if (source.getKind().isPrimitive()) {
             return isWideningTarget(source, target) || isBoxedVersion(types, source, target);

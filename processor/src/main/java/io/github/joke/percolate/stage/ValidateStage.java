@@ -49,7 +49,7 @@ public class ValidateStage {
 
     public ValidationResult execute(GraphResult graphResult) {
         DirectedWeightedMultigraph<GraphNode, GraphEdge> baseGraph = graphResult.getGraph();
-        List<ConversionProvider> providers = buildProviders(graphResult);
+        List<ConversionProvider> providers = buildProviders();
         LazyMappingGraph lazyGraph = new LazyMappingGraph(baseGraph, providers, processingEnv, 5);
 
         boolean hasFatalErrors = false;
@@ -177,9 +177,9 @@ public class ValidateStage {
         return false;
     }
 
-    private List<ConversionProvider> buildProviders(GraphResult graphResult) {
+    private List<ConversionProvider> buildProviders() {
         List<ConversionProvider> providers = new ArrayList<>();
-        providers.add(new ListProvider(graphResult.getMappers()));
+        providers.add(new ListProvider());
         providers.add(new OptionalProvider());
         providers.add(new PrimitiveWideningProvider());
         providers.add(new SubtypeProvider());

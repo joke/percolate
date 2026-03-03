@@ -6,7 +6,7 @@ import javax.lang.model.type.TypeMirror;
 
 public interface ConversionProvider {
 
-    boolean canHandle(TypeMirror source, TypeMirror target, ProcessingEnvironment env);
+    boolean canHandle(TypeMirror source, TypeMirror target, MethodRegistry registry, ProcessingEnvironment env);
 
     /**
      * Returns a ConversionFragment — the nodes to insert between source and target.

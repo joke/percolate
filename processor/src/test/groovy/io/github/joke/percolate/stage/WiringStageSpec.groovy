@@ -64,6 +64,70 @@ class WiringStageSpec extends Specification {
         wiringDot.findAll('Constructor\\(').size() == 1
     }
 
+    def "List<T> to List<U> — wiring graph contains iteration, method call, and collect nodes"() {
+        given:
+        def actor = JavaFileObjects.forSourceLines('test.Actor',
+            'package test;',
+            'public class Actor { public String getName() { return ""; } }')
+        def ticketActor = JavaFileObjects.forSourceLines('test.TicketActor',
+            'package test;',
+            'public class TicketActor { private final String name;',
+            '    public TicketActor(String name) { this.name = name; } }')
+        def mapper = JavaFileObjects.forSourceLines('test.ListMapper',
+            'package test;',
+            'import io.github.joke.percolate.Mapper;',
+            'import java.util.List;',
+            '@Mapper public interface ListMapper {',
+            '    List<TicketActor> map(List<Actor> actors);',
+            '    TicketActor mapActor(Actor actor);',
+            '}')
+
+        when:
+        Compiler.javac()
+            .withProcessors(new PercolateProcessor())
+            .compile(actor, ticketActor, mapper)
+        def wiringDot = new File('/tmp/ListMapper-map-wiring.dot').text
+
+        then: 'collection expansion nodes are present'
+        wiringDot.contains('CollectionIteration(')
+        wiringDot.contains('MethodCall(mapActor')
+        wiringDot.contains('CollectionCollect(')
+    }
+
+    def "nested object mapping — wiring graph contains MethodCallNode for the sub-mapper"() {
+        given:
+        def inner = JavaFileObjects.forSourceLines('test.Inner',
+            'package test;',
+            'public class Inner { public String getValue() { return ""; } }')
+        def mappedInner = JavaFileObjects.forSourceLines('test.MappedInner',
+            'package test;',
+            'public class MappedInner { private final String value;',
+            '    public MappedInner(String value) { this.value = value; } }')
+        def outer = JavaFileObjects.forSourceLines('test.Outer',
+            'package test;',
+            'public class Outer { public Inner getInner() { return null; } }')
+        def mappedOuter = JavaFileObjects.forSourceLines('test.MappedOuter',
+            'package test;',
+            'public class MappedOuter { private final MappedInner inner;',
+            '    public MappedOuter(MappedInner inner) { this.inner = inner; } }')
+        def mapper = JavaFileObjects.forSourceLines('test.NestedMapper',
+            'package test;',
+            'import io.github.joke.percolate.Mapper;',
+            '@Mapper public interface NestedMapper {',
+            '    MappedOuter mapOuter(Outer outer);',
+            '    MappedInner mapInner(Inner inner);',
+            '}')
+
+        when:
+        Compiler.javac()
+            .withProcessors(new PercolateProcessor())
+            .compile(inner, mappedInner, outer, mappedOuter, mapper)
+        def wiringDot = new File('/tmp/NestedMapper-mapOuter-wiring.dot').text
+
+        then: 'method call node for mapInner is present'
+        wiringDot.contains('MethodCall(mapInner')
+    }
+
     // NOTE: This test exercises the insertConversions() path in WiringStage.
     // Full end-to-end code generation for the List<Actor> -> List<TicketActor> case
     // requires Task 10 (Pipeline update) to connect WiringStage output to CodeGenStage.
