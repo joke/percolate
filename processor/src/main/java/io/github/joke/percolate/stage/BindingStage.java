@@ -66,8 +66,9 @@ public final class BindingStage {
                 .collect(toList());
 
         List<MapDirective> expanded = expandDirectives(method.getDirectives(), sourceNodes);
-        Set<String> alreadyMapped =
-                expanded.stream().map(MapDirective::getTarget).collect(toSet());
+        Set<String> alreadyMapped = expanded.stream()
+                .flatMap(d -> Stream.of(d.getTarget(), sourceLeaf(d.getSource())))
+                .collect(toSet());
         List<MapDirective> sameNameDirectives =
                 generateSameNameDirectives(sourceNodes, alreadyMapped, target.getTargetType());
 
@@ -240,6 +241,11 @@ public final class BindingStage {
         return propertyStrategies.stream()
                 .flatMap(s -> s.discoverProperties(type, processingEnv).stream())
                 .collect(toSet());
+    }
+
+    private static String sourceLeaf(String source) {
+        int dot = source.lastIndexOf('.');
+        return dot >= 0 ? source.substring(dot + 1) : source;
     }
 
     private @Nullable TypeElement asTypeElement(TypeMirror type) {

@@ -1,7 +1,6 @@
 package io.github.joke.percolate.stage;
 
 import static java.util.Objects.requireNonNull;
-import static java.util.stream.Collectors.toList;
 import static java.util.stream.Collectors.toSet;
 import static javax.tools.Diagnostic.Kind.ERROR;
 
@@ -10,11 +9,9 @@ import io.github.joke.percolate.graph.edge.FlowEdge;
 import io.github.joke.percolate.graph.node.ConstructorAssignmentNode;
 import io.github.joke.percolate.graph.node.MappingNode;
 import io.github.joke.percolate.graph.node.PropertyAccessNode;
-import io.github.joke.percolate.graph.node.SourceNode;
 import io.github.joke.percolate.model.MethodDefinition;
 import io.github.joke.percolate.model.Property;
 import java.util.LinkedHashSet;
-import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
@@ -45,40 +42,30 @@ public final class ValidateStage {
         Graph<MappingNode, FlowEdge> graph = requireNonNull(entry.getGraph());
         MethodDefinition signature = requireNonNull(entry.getSignature());
 
-        List<SourceNode> sources = graph.vertexSet().stream()
-                .filter(SourceNode.class::isInstance)
-                .map(SourceNode.class::cast)
-                .collect(toList());
-
         Optional<ConstructorAssignmentNode> sinkOpt = graph.vertexSet().stream()
                 .filter(ConstructorAssignmentNode.class::isInstance)
                 .map(ConstructorAssignmentNode.class::cast)
                 .findFirst();
 
-        if (sources.isEmpty() || !sinkOpt.isPresent()) {
+        if (!sinkOpt.isPresent()) {
             return false;
         }
         ConstructorAssignmentNode sink = sinkOpt.get();
 
-        boolean deadEndErrors = reportDeadEnds(graph, sources, sink, signature);
+        boolean deadEndErrors = reportDeadEnds(graph, sink, signature);
         boolean paramErrors = reportMissingParams(graph, sink, signature);
         return deadEndErrors || paramErrors;
     }
 
     private boolean reportDeadEnds(
             Graph<MappingNode, FlowEdge> graph,
-            List<SourceNode> sources,
             ConstructorAssignmentNode sink,
             MethodDefinition signature) {
-        Set<MappingNode> forwardReachable = forwardReachable(graph, sources);
         Set<MappingNode> canReachSink = backwardReachable(graph, sink);
 
-        Set<MappingNode> broken = new LinkedHashSet<>(forwardReachable);
-        broken.removeAll(canReachSink);
-
         boolean hasErrors = false;
-        for (MappingNode node : broken) {
-            if (node instanceof PropertyAccessNode) {
+        for (MappingNode node : graph.vertexSet()) {
+            if (node instanceof PropertyAccessNode && !canReachSink.contains(node)) {
                 PropertyAccessNode prop = (PropertyAccessNode) node;
                 messager.printMessage(
                         ERROR,
@@ -113,14 +100,6 @@ public final class ValidateStage {
             }
         }
         return hasErrors;
-    }
-
-    private static Set<MappingNode> forwardReachable(Graph<MappingNode, FlowEdge> graph, List<SourceNode> sources) {
-        Set<MappingNode> reachable = new LinkedHashSet<>();
-        for (SourceNode source : sources) {
-            new DepthFirstIterator<>(graph, source).forEachRemaining(reachable::add);
-        }
-        return reachable;
     }
 
     private static Set<MappingNode> backwardReachable(

@@ -97,6 +97,43 @@ class ValidateStageSpec extends Specification {
         assertThat(compilation).hadErrorContaining('venue')
     }
 
+    def "emits error when source property is stranded by Optional-wrapping without a converter"() {
+        given: 'venue requires Venue→FlatVenue conversion; Result wraps it as Optional<FlatVenue>; no mapVenue provided'
+        def venue = JavaFileObjects.forSourceLines('test.Venue',
+            'package test;',
+            'public class Venue { public String getName() { return ""; } }')
+        def flatVenue = JavaFileObjects.forSourceLines('test.FlatVenue',
+            'package test;',
+            'public class FlatVenue { public final String name;',
+            '    public FlatVenue(String name) { this.name = name; } }')
+        def order = JavaFileObjects.forSourceLines('test.Order',
+            'package test;',
+            'public class Order { public Venue getVenue() { return null; } }')
+        def result = JavaFileObjects.forSourceLines('test.Result',
+            'package test; import java.util.Optional;',
+            'public class Result {',
+            '    public final Optional<FlatVenue> venue;',
+            '    public Result(Optional<FlatVenue> venue) { this.venue = venue; } }')
+        def mapper = JavaFileObjects.forSourceLines('test.OrderMapper',
+            'package test;',
+            'import io.github.joke.percolate.Mapper;',
+            'import io.github.joke.percolate.Map;',
+            '@Mapper public interface OrderMapper {',
+            '    @Map(target = "venue", source = "venue")',
+            '    Result map(Order order);',
+            '    // mapVenue intentionally omitted',
+            '}')
+
+        when:
+        def compilation = Compiler.javac()
+            .withProcessors(new PercolateProcessor())
+            .compile(venue, flatVenue, order, result, mapper)
+
+        then:
+        assertThat(compilation).failed()
+        assertThat(compilation).hadErrorContaining('venue')
+    }
+
     def "emits error when element mapper is missing for List-to-List mapping"() {
         given:
         def actor = JavaFileObjects.forSourceLines('test.Actor',
