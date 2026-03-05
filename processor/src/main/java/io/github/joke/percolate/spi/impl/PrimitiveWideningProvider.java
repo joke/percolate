@@ -25,7 +25,7 @@ public final class PrimitiveWideningProvider implements ConversionProvider {
     private static final Map<TypeKind, List<TypeKind>> WIDENING;
 
     static {
-        Map<TypeKind, List<TypeKind>> map = new HashMap<>();
+        final var map = new HashMap<TypeKind, List<TypeKind>>();
         map.put(TypeKind.BYTE, asList(TypeKind.SHORT, TypeKind.INT, TypeKind.LONG, TypeKind.FLOAT, TypeKind.DOUBLE));
         map.put(TypeKind.SHORT, asList(TypeKind.INT, TypeKind.LONG, TypeKind.FLOAT, TypeKind.DOUBLE));
         map.put(TypeKind.CHAR, asList(TypeKind.INT, TypeKind.LONG, TypeKind.FLOAT, TypeKind.DOUBLE));
@@ -36,8 +36,12 @@ public final class PrimitiveWideningProvider implements ConversionProvider {
     }
 
     @Override
-    public boolean canHandle(TypeMirror source, TypeMirror target, MethodRegistry registry, ProcessingEnvironment env) {
-        Types types = env.getTypeUtils();
+    public boolean canHandle(
+            final TypeMirror source,
+            final TypeMirror target,
+            final MethodRegistry registry,
+            final ProcessingEnvironment env) {
+        final var types = env.getTypeUtils();
         if (source.getKind().isPrimitive()) {
             return isWideningTarget(source, target) || isBoxedVersion(types, source, target);
         }
@@ -46,7 +50,10 @@ public final class PrimitiveWideningProvider implements ConversionProvider {
 
     @Override
     public ConversionFragment provide(
-            TypeMirror source, TypeMirror target, MethodRegistry registry, ProcessingEnvironment env) {
+            final TypeMirror source,
+            final TypeMirror target,
+            final MethodRegistry registry,
+            final ProcessingEnvironment env) {
         if (source.getKind().isPrimitive() && !target.getKind().isPrimitive()) {
             return ConversionFragment.of(new BoxingNode(source, target));
         }
@@ -56,19 +63,19 @@ public final class PrimitiveWideningProvider implements ConversionProvider {
         return ConversionFragment.of();
     }
 
-    private static boolean isWideningTarget(TypeMirror source, TypeMirror target) {
+    private static boolean isWideningTarget(final TypeMirror source, final TypeMirror target) {
         return WIDENING.getOrDefault(source.getKind(), emptyList()).contains(target.getKind());
     }
 
-    private static boolean isBoxedVersion(Types types, TypeMirror source, TypeMirror target) {
-        TypeMirror boxed =
+    private static boolean isBoxedVersion(final Types types, final TypeMirror source, final TypeMirror target) {
+        final var boxed =
                 types.boxedClass(types.getPrimitiveType(source.getKind())).asType();
         return types.isSameType(boxed, target);
     }
 
-    private static boolean isUnboxedVersion(Types types, TypeMirror source, TypeMirror target) {
+    private static boolean isUnboxedVersion(final Types types, final TypeMirror source, final TypeMirror target) {
         try {
-            TypeMirror unboxed = types.unboxedType(source);
+            final var unboxed = types.unboxedType(source);
             return types.isSameType(unboxed, target);
         } catch (IllegalArgumentException ignored) {
             return false;

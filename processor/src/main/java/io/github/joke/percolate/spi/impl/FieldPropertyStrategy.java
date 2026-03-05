@@ -17,13 +17,13 @@ import javax.lang.model.element.VariableElement;
 public final class FieldPropertyStrategy implements PropertyDiscoveryStrategy {
 
     @Override
-    public Set<Property> discoverProperties(TypeElement type, ProcessingEnvironment env) {
+    public Set<Property> discoverProperties(final TypeElement type, final ProcessingEnvironment env) {
         return type.getEnclosedElements().stream()
-                .filter(e -> e.getKind() == FIELD)
-                .filter(e -> !e.getModifiers().contains(PRIVATE))
-                .filter(e -> !e.getModifiers().contains(PROTECTED))
-                .map(e -> (VariableElement) e)
-                .map(e -> new Property(e.getSimpleName().toString(), e.asType(), e))
+                .filter(element -> element.getKind() == FIELD)
+                .filter(element -> !element.getModifiers().contains(PRIVATE))
+                .filter(element -> !element.getModifiers().contains(PROTECTED))
+                .map(element -> (VariableElement) element)
+                .map(element -> new Property(element.getSimpleName().toString(), element.asType(), element))
                 .collect(toSet());
     }
 }

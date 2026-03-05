@@ -1,8 +1,5 @@
 package io.github.joke.percolate.model;
 
-import static java.util.Collections.unmodifiableList;
-
-import java.util.ArrayList;
 import java.util.List;
 import javax.lang.model.element.ExecutableElement;
 import javax.lang.model.type.TypeMirror;
@@ -17,18 +14,18 @@ public final class MethodDefinition {
     private final List<MapDirective> directives;
 
     public MethodDefinition(
-            ExecutableElement element,
-            String name,
-            TypeMirror returnType,
-            List<ParameterDefinition> parameters,
-            boolean isAbstract,
-            List<MapDirective> directives) {
+            final ExecutableElement element,
+            final String name,
+            final TypeMirror returnType,
+            final List<ParameterDefinition> parameters,
+            final boolean isAbstract,
+            final List<MapDirective> directives) {
         this.element = element;
         this.name = name;
         this.returnType = returnType;
-        this.parameters = unmodifiableList(new ArrayList<>(parameters));
+        this.parameters = List.copyOf(parameters);
         this.isAbstract = isAbstract;
-        this.directives = unmodifiableList(new ArrayList<>(directives));
+        this.directives = List.copyOf(directives);
     }
 
     public ExecutableElement getElement() {
@@ -55,7 +52,7 @@ public final class MethodDefinition {
         return directives;
     }
 
-    public MethodDefinition withDirectives(List<MapDirective> directives) {
+    public MethodDefinition withDirectives(final List<MapDirective> directives) {
         return new MethodDefinition(element, name, returnType, parameters, isAbstract, directives);
     }
 }

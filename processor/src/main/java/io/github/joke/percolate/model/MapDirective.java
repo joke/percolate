@@ -5,7 +5,7 @@ public final class MapDirective {
     private final String target;
     private final String source;
 
-    public MapDirective(String target, String source) {
+    public MapDirective(final String target, final String source) {
         this.target = target;
         this.source = source;
     }

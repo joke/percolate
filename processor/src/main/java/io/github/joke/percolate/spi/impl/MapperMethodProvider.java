@@ -22,27 +22,37 @@ public final class MapperMethodProvider implements ConversionProvider {
     }
 
     @Override
-    public boolean canHandle(TypeMirror source, TypeMirror target, MethodRegistry registry, ProcessingEnvironment env) {
+    public boolean canHandle(
+            final TypeMirror source,
+            final TypeMirror target,
+            final MethodRegistry registry,
+            final ProcessingEnvironment env) {
         return findMethod(env.getTypeUtils(), source, target, registry).isPresent();
     }
 
     @Override
     public ConversionFragment provide(
-            TypeMirror source, TypeMirror target, MethodRegistry registry, ProcessingEnvironment env) {
+            final TypeMirror source,
+            final TypeMirror target,
+            final MethodRegistry registry,
+            final ProcessingEnvironment env) {
         return findMethod(env.getTypeUtils(), source, target, registry)
-                .map(m -> ConversionFragment.of(new MethodCallNode(m, source, target)))
+                .map(method -> ConversionFragment.of(new MethodCallNode(method, source, target)))
                 .orElse(ConversionFragment.of());
     }
 
     private static Optional<MethodDefinition> findMethod(
-            Types types, TypeMirror source, TypeMirror target, MethodRegistry registry) {
+            final Types types,
+            final TypeMirror source,
+            final TypeMirror target,
+            final MethodRegistry registry) {
         return registry.entries().values().stream()
                 .map(RegistryEntry::getSignature)
                 .filter(Objects::nonNull)
-                .filter(m -> m.getParameters().size() == 1)
-                .filter(m ->
-                        types.isSameType(types.erasure(m.getParameters().get(0).getType()), types.erasure(source)))
-                .filter(m -> types.isSameType(types.erasure(m.getReturnType()), types.erasure(target)))
+                .filter(method -> method.getParameters().size() == 1)
+                .filter(method ->
+                        types.isSameType(types.erasure(method.getParameters().get(0).getType()), types.erasure(source)))
+                .filter(method -> types.isSameType(types.erasure(method.getReturnType()), types.erasure(target)))
                 .findFirst();
     }
 }

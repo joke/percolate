@@ -16,34 +16,29 @@ import javax.lang.model.element.TypeElement;
 public final class GetterPropertyStrategy implements PropertyDiscoveryStrategy {
 
     @Override
-    public Set<Property> discoverProperties(TypeElement type, ProcessingEnvironment env) {
+    public Set<Property> discoverProperties(final TypeElement type, final ProcessingEnvironment env) {
         return type.getEnclosedElements().stream()
-                .filter(e -> e.getKind() == METHOD)
-                .filter(e -> e.getModifiers().contains(PUBLIC))
-                .map(e -> (ExecutableElement) e)
-                .filter(e -> e.getParameters().isEmpty())
-                .filter(e -> isGetter(e))
-                .map(e -> toProperty(e))
+                .filter(element -> element.getKind() == METHOD)
+                .filter(element -> element.getModifiers().contains(PUBLIC))
+                .map(element -> (ExecutableElement) element)
+                .filter(element -> element.getParameters().isEmpty())
+                .filter(GetterPropertyStrategy::isGetter)
+                .map(GetterPropertyStrategy::toProperty)
                 .collect(toSet());
     }
 
-    private static boolean isGetter(ExecutableElement method) {
-        String name = method.getSimpleName().toString();
+    private static boolean isGetter(final ExecutableElement method) {
+        final var name = method.getSimpleName().toString();
         return (name.startsWith("get") && name.length() > 3) || (name.startsWith("is") && name.length() > 2);
     }
 
-    private static Property toProperty(ExecutableElement method) {
-        String name = method.getSimpleName().toString();
-        String propertyName;
-        if (name.startsWith("get")) {
-            propertyName = decapitalize(name.substring(3));
-        } else {
-            propertyName = decapitalize(name.substring(2));
-        }
+    private static Property toProperty(final ExecutableElement method) {
+        final var name = method.getSimpleName().toString();
+        final var propertyName = name.startsWith("get") ? decapitalize(name.substring(3)) : decapitalize(name.substring(2));
         return new Property(propertyName, method.getReturnType(), method);
     }
 
-    private static String decapitalize(String name) {
+    private static String decapitalize(final String name) {
         if (name.isEmpty()) {
             return name;
         }

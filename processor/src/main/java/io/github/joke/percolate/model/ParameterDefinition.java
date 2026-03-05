@@ -7,7 +7,7 @@ public final class ParameterDefinition {
     private final String name;
     private final TypeMirror type;
 
-    public ParameterDefinition(String name, TypeMirror type) {
+    public ParameterDefinition(final String name, final TypeMirror type) {
         this.name = name;
         this.type = type;
     }

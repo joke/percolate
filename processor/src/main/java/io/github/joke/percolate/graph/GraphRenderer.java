@@ -1,5 +1,6 @@
 package io.github.joke.percolate.graph;
 
+import static java.util.stream.Collectors.joining;
 import static java.util.stream.Collectors.toSet;
 
 import io.github.joke.percolate.graph.edge.ConstructorParamEdge;
@@ -9,7 +10,6 @@ import io.github.joke.percolate.graph.node.GraphNode;
 import io.github.joke.percolate.graph.node.PropertyNode;
 import io.github.joke.percolate.graph.node.TypeNode;
 import io.github.joke.percolate.model.Property;
-import java.util.List;
 import java.util.Set;
 import org.jgrapht.Graph;
 
@@ -18,38 +18,30 @@ public final class GraphRenderer {
     private GraphRenderer() {}
 
     public static String renderConstructorNode(
-            Graph<GraphNode, GraphEdge> graph, ConstructorNode constructorNode, Set<String> missingParams) {
+            final Graph<GraphNode, GraphEdge> graph,
+            final ConstructorNode constructorNode,
+            final Set<String> missingParams) {
 
-        List<Property> parameters = constructorNode.getDescriptor().getParameters();
+        final var parameters = constructorNode.getDescriptor().getParameters();
 
-        Set<String> mappedParams = graph.incomingEdgesOf(constructorNode).stream()
+        final var mappedParams = graph.incomingEdgesOf(constructorNode).stream()
                 .filter(ConstructorParamEdge.class::isInstance)
                 .map(ConstructorParamEdge.class::cast)
                 .map(ConstructorParamEdge::getParameterName)
                 .collect(toSet());
 
-        int maxNameLen =
-                parameters.stream().mapToInt(p -> p.getName().length()).max().orElse(0);
+        final var maxNameLen =
+                parameters.stream().mapToInt(param -> param.getName().length()).max().orElse(0);
 
-        StringBuilder sb = new StringBuilder();
+        final var paramLines = parameters.stream()
+                .map(param -> formatParam(graph, constructorNode, mappedParams, maxNameLen, param))
+                .collect(joining());
+
+        final var sb = new StringBuilder();
         sb.append("\n  ConstructorNode(")
                 .append(constructorNode.getTargetType().getSimpleName())
-                .append("):\n");
-
-        for (Property param : parameters) {
-            String name = param.getName();
-            String padded = String.format("%-" + maxNameLen + "s", name);
-            if (mappedParams.contains(name)) {
-                String sourceDesc = findSourceDescription(graph, constructorNode, name);
-                sb.append("    ")
-                        .append(padded)
-                        .append(" <- ")
-                        .append(sourceDesc)
-                        .append(" \u2713\n");
-            } else {
-                sb.append("    ").append(padded).append(" <- ???  \u2717  (no source mapping)\n");
-            }
-        }
+                .append("):\n")
+                .append(paramLines);
 
         if (!missingParams.isEmpty()) {
             sb.append("\n  Suggestion: Add a matching source property or converter for: ")
@@ -59,15 +51,32 @@ public final class GraphRenderer {
         return sb.toString();
     }
 
+    private static String formatParam(
+            final Graph<GraphNode, GraphEdge> graph,
+            final ConstructorNode constructorNode,
+            final Set<String> mappedParams,
+            final int maxNameLen,
+            final Property param) {
+        final var name = param.getName();
+        final var padded = String.format("%-" + maxNameLen + "s", name);
+        if (mappedParams.contains(name)) {
+            final var sourceDesc = findSourceDescription(graph, constructorNode, name);
+            return "    " + padded + " <- " + sourceDesc + " \u2713\n";
+        }
+        return "    " + padded + " <- ???  \u2717  (no source mapping)\n";
+    }
+
     private static String findSourceDescription(
-            Graph<GraphNode, GraphEdge> graph, ConstructorNode constructorNode, String paramName) {
+            final Graph<GraphNode, GraphEdge> graph,
+            final ConstructorNode constructorNode,
+            final String paramName) {
         return graph.incomingEdgesOf(constructorNode).stream()
                 .filter(ConstructorParamEdge.class::isInstance)
                 .map(ConstructorParamEdge.class::cast)
-                .filter(e -> e.getParameterName().equals(paramName))
+                .filter(paramEdge -> paramEdge.getParameterName().equals(paramName))
                 .findFirst()
-                .map(e -> {
-                    GraphNode source = graph.getEdgeSource(e);
+                .map(paramEdge -> {
+                    final var source = graph.getEdgeSource(paramEdge);
                     if (source instanceof PropertyNode) {
                         return ((PropertyNode) source).name() + " ("
                                 + ((PropertyNode) source).getProperty().getType() + ")";

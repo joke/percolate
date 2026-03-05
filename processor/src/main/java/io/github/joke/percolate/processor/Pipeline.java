@@ -7,7 +7,6 @@ import static org.jgrapht.nio.DefaultAttribute.createAttribute;
 import io.github.joke.percolate.di.RoundScoped;
 import io.github.joke.percolate.graph.edge.FlowEdge;
 import io.github.joke.percolate.graph.node.MappingNode;
-import io.github.joke.percolate.model.MapperDefinition;
 import io.github.joke.percolate.stage.BindingStage;
 import io.github.joke.percolate.stage.MethodRegistry;
 import io.github.joke.percolate.stage.ParseMapperStage;
@@ -16,12 +15,11 @@ import io.github.joke.percolate.stage.RegistryEntry;
 import io.github.joke.percolate.stage.ValidateStage;
 import io.github.joke.percolate.stage.WiringStage;
 import java.io.IOException;
-import java.io.Writer;
 import java.nio.file.Files;
 import java.nio.file.Paths;
-import java.util.Objects;
 import javax.inject.Inject;
 import javax.lang.model.element.TypeElement;
+import org.jgrapht.Graph;
 import org.jgrapht.nio.dot.DOTExporter;
 
 @RoundScoped
@@ -35,11 +33,11 @@ public class Pipeline {
 
     @Inject
     Pipeline(
-            ParseMapperStage parseMapperStage,
-            RegistrationStage registrationStage,
-            BindingStage bindingStage,
-            WiringStage wiringStage,
-            ValidateStage validateStage) {
+            final ParseMapperStage parseMapperStage,
+            final RegistrationStage registrationStage,
+            final BindingStage bindingStage,
+            final WiringStage wiringStage,
+            final ValidateStage validateStage) {
         this.parseMapperStage = parseMapperStage;
         this.registrationStage = registrationStage;
         this.bindingStage = bindingStage;
@@ -47,9 +45,9 @@ public class Pipeline {
         this.validateStage = validateStage;
     }
 
-    public void process(TypeElement typeElement) {
-        MapperDefinition mapper = parseMapperStage.execute(typeElement);
-        MethodRegistry registry = registrationStage.execute(mapper);
+    public void process(final TypeElement typeElement) {
+        final var mapper = parseMapperStage.execute(typeElement);
+        final var registry = registrationStage.execute(mapper);
         bindingStage.execute(registry);
         exportDot(mapper.getSimpleName(), registry, "binding");
         wiringStage.execute(registry);
@@ -57,22 +55,37 @@ public class Pipeline {
         validateStage.execute(registry);
     }
 
-    private static void exportDot(String mapperName, MethodRegistry registry, String phase) {
-        registry.entries().forEach((typePair, entry) -> writeEntryDot(mapperName, phase, entry));
+    private static void exportDot(final String mapperName, final MethodRegistry registry, final String phase) {
+        registry.entries().forEach((typePair, registryEntry) -> writeEntryDot(mapperName, phase, registryEntry));
     }
 
-    private static void writeEntryDot(String mapperName, String phase, RegistryEntry entry) {
+    private static void writeEntryDot(final String mapperName, final String phase, final RegistryEntry entry) {
         if (entry.isOpaque() || entry.getSignature() == null || entry.getGraph() == null) {
             return;
         }
-        String methodName = Objects.requireNonNull(entry.getSignature()).getName();
-        String path = "/tmp/" + mapperName + "-" + methodName + "-" + phase + ".dot";
-        DOTExporter<MappingNode, FlowEdge> exporter = new DOTExporter<>();
-        exporter.setVertexIdProvider(v -> String.valueOf(System.identityHashCode(v)));
-        exporter.setVertexAttributeProvider(v -> singletonMap("label", createAttribute(v.toString())));
-        exporter.setEdgeAttributeProvider(e -> singletonMap("label", createAttribute(e.toString())));
-        try (Writer w = Files.newBufferedWriter(Paths.get(path), UTF_8)) {
-            exporter.exportGraph(Objects.requireNonNull(entry.getGraph()), w);
+        final var methodName = entry.getSignature().getName();
+        final var path = buildDotPath(mapperName, phase, methodName);
+        writeGraph(path, buildDotExporter(), entry.getGraph());
+    }
+
+    private static String buildDotPath(final String mapperName, final String phase, final String methodName) {
+        return "/tmp/" + mapperName + "-" + methodName + "-" + phase + ".dot";
+    }
+
+    private static DOTExporter<MappingNode, FlowEdge> buildDotExporter() {
+        final var exporter = new DOTExporter<MappingNode, FlowEdge>();
+        exporter.setVertexIdProvider(node -> String.valueOf(System.identityHashCode(node)));
+        exporter.setVertexAttributeProvider(node -> singletonMap("label", createAttribute(node.toString())));
+        exporter.setEdgeAttributeProvider(edge -> singletonMap("label", createAttribute(edge.toString())));
+        return exporter;
+    }
+
+    private static void writeGraph(
+            final String path,
+            final DOTExporter<MappingNode, FlowEdge> exporter,
+            final Graph<MappingNode, FlowEdge> graph) {
+        try (final var writer = Files.newBufferedWriter(Paths.get(path), UTF_8)) {
+            exporter.exportGraph(graph, writer);
         } catch (IOException ignored) {
             // debug aid — processor must not fail if /tmp/ is unwritable
         }

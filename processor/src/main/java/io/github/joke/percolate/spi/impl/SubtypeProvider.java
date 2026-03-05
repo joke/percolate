@@ -11,14 +11,21 @@ import javax.lang.model.type.TypeMirror;
 public final class SubtypeProvider implements ConversionProvider {
 
     @Override
-    public boolean canHandle(TypeMirror source, TypeMirror target, MethodRegistry registry, ProcessingEnvironment env) {
+    public boolean canHandle(
+            final TypeMirror source,
+            final TypeMirror target,
+            final MethodRegistry registry,
+            final ProcessingEnvironment env) {
         return env.getTypeUtils().isSubtype(source, target)
                 && !env.getTypeUtils().isSameType(source, target);
     }
 
     @Override
     public ConversionFragment provide(
-            TypeMirror source, TypeMirror target, MethodRegistry registry, ProcessingEnvironment env) {
+            final TypeMirror source,
+            final TypeMirror target,
+            final MethodRegistry registry,
+            final ProcessingEnvironment env) {
         return ConversionFragment.of();
     }
 }

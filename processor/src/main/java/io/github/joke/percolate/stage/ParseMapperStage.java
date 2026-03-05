@@ -1,6 +1,6 @@
 package io.github.joke.percolate.stage;
 
-import static java.util.stream.Collectors.toList;
+import static java.util.stream.Collectors.toUnmodifiableList;
 import static javax.lang.model.element.Modifier.ABSTRACT;
 
 import io.github.joke.percolate.MapList;
@@ -20,40 +20,40 @@ public class ParseMapperStage {
     private final Elements elements;
 
     @Inject
-    ParseMapperStage(Elements elements) {
+    ParseMapperStage(final Elements elements) {
         this.elements = elements;
     }
 
-    public MapperDefinition execute(TypeElement typeElement) {
-        String packageName =
+    public MapperDefinition execute(final TypeElement typeElement) {
+        final var packageName =
                 elements.getPackageOf(typeElement).getQualifiedName().toString();
-        String simpleName = typeElement.getSimpleName().toString();
-        List<MethodDefinition> methods = typeElement.getEnclosedElements().stream()
-                .filter(e -> e instanceof ExecutableElement)
-                .map(e -> (ExecutableElement) e)
+        final var simpleName = typeElement.getSimpleName().toString();
+        final var methods = typeElement.getEnclosedElements().stream()
+                .filter(element -> element instanceof ExecutableElement)
+                .map(element -> (ExecutableElement) element)
                 .map(this::parseMethod)
-                .collect(toList());
+                .collect(toUnmodifiableList());
         return new MapperDefinition(typeElement, packageName, simpleName, methods);
     }
 
-    private MethodDefinition parseMethod(ExecutableElement method) {
-        String name = method.getSimpleName().toString();
-        boolean isAbstract = method.getModifiers().contains(ABSTRACT);
-        List<ParameterDefinition> parameters = method.getParameters().stream()
+    private MethodDefinition parseMethod(final ExecutableElement method) {
+        final var name = method.getSimpleName().toString();
+        final var isAbstract = method.getModifiers().contains(ABSTRACT);
+        final var parameters = method.getParameters().stream()
                 .map(param -> new ParameterDefinition(param.getSimpleName().toString(), param.asType()))
-                .collect(toList());
-        List<MapDirective> directives = extractMapDirectives(method);
+                .collect(toUnmodifiableList());
+        final var directives = extractMapDirectives(method);
         return new MethodDefinition(method, name, method.getReturnType(), parameters, isAbstract, directives);
     }
 
-    private List<MapDirective> extractMapDirectives(ExecutableElement method) {
-        MapList mapList = method.getAnnotation(MapList.class);
+    private List<MapDirective> extractMapDirectives(final ExecutableElement method) {
+        final var mapList = method.getAnnotation(MapList.class);
         if (mapList != null) {
             return Arrays.stream(mapList.value())
-                    .map(m -> new MapDirective(m.target(), m.source()))
-                    .collect(toList());
+                    .map(mapping -> new MapDirective(mapping.target(), mapping.source()))
+                    .collect(toUnmodifiableList());
         }
-        io.github.joke.percolate.Map map = method.getAnnotation(io.github.joke.percolate.Map.class);
+        final var map = method.getAnnotation(io.github.joke.percolate.Map.class);
         return map != null ? List.of(new MapDirective(map.target(), map.source())) : List.of();
     }
 }

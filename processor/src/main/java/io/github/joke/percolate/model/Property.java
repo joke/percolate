@@ -9,7 +9,7 @@ public final class Property {
     private final TypeMirror type;
     private final Element accessor;
 
-    public Property(String name, TypeMirror type, Element accessor) {
+    public Property(final String name, final TypeMirror type, final Element accessor) {
         this.name = name;
         this.type = type;
         this.accessor = accessor;

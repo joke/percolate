@@ -8,46 +8,47 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Optional;
 import javax.lang.model.type.TypeMirror;
+import org.jetbrains.annotations.Unmodifiable;
 
 public final class MethodRegistry {
     private final Map<TypePair, RegistryEntry> entries = new LinkedHashMap<>();
 
-    static String keyFor(MethodDefinition method) {
+    static String keyFor(final MethodDefinition method) {
         if (method.getParameters().size() == 1) {
             return method.getParameters().get(0).getType().toString();
         }
         return "("
                 + method.getParameters().stream()
-                        .map(p -> p.getType().toString())
+                        .map(parameter -> parameter.getType().toString())
                         .collect(joining(","))
                 + ")";
     }
 
-    public void register(MethodDefinition method, RegistryEntry entry) {
+    public void register(final MethodDefinition method, final RegistryEntry entry) {
         register(keyFor(method), method.getReturnType().toString(), entry);
     }
 
-    public Optional<RegistryEntry> lookup(MethodDefinition method) {
+    public Optional<RegistryEntry> lookup(final MethodDefinition method) {
         return lookup(keyFor(method), method.getReturnType().toString());
     }
 
-    public Optional<RegistryEntry> lookup(TypeMirror in, TypeMirror out) {
+    public Optional<RegistryEntry> lookup(final TypeMirror in, final TypeMirror out) {
         return lookup(in.toString(), out.toString());
     }
 
-    public Optional<RegistryEntry> lookup(String inTypeName, String outTypeName) {
+    public Optional<RegistryEntry> lookup(final String inTypeName, final String outTypeName) {
         return Optional.ofNullable(entries.get(new TypePair(inTypeName, outTypeName)));
     }
 
-    public void register(TypeMirror in, TypeMirror out, RegistryEntry entry) {
+    public void register(final TypeMirror in, final TypeMirror out, final RegistryEntry entry) {
         register(in.toString(), out.toString(), entry);
     }
 
-    public void register(String inTypeName, String outTypeName, RegistryEntry entry) {
+    public void register(final String inTypeName, final String outTypeName, final RegistryEntry entry) {
         entries.put(new TypePair(inTypeName, outTypeName), entry);
     }
 
-    public Map<TypePair, RegistryEntry> entries() {
+    public @Unmodifiable Map<TypePair, RegistryEntry> entries() {
         return Collections.unmodifiableMap(entries);
     }
 }

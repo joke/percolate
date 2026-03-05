@@ -14,27 +14,34 @@ import javax.lang.model.type.TypeMirror;
 public final class EnumProvider implements ConversionProvider {
 
     @Override
-    public boolean canHandle(TypeMirror source, TypeMirror target, MethodRegistry registry, ProcessingEnvironment env) {
+    public boolean canHandle(
+            final TypeMirror source,
+            final TypeMirror target,
+            final MethodRegistry registry,
+            final ProcessingEnvironment env) {
         return canConvertEnums(source, target);
     }
 
     @Override
     public ConversionFragment provide(
-            TypeMirror source, TypeMirror target, MethodRegistry registry, ProcessingEnvironment env) {
+            final TypeMirror source,
+            final TypeMirror target,
+            final MethodRegistry registry,
+            final ProcessingEnvironment env) {
         return ConversionFragment.of();
     }
 
-    public static boolean canConvertEnums(TypeMirror source, TypeMirror target) {
+    public static boolean canConvertEnums(final TypeMirror source, final TypeMirror target) {
         return isEnumType(source) && isEnumType(target);
     }
 
-    public static ConversionEdge createEnumEdge(TypeMirror source, TypeMirror target) {
-        String targetName = ((DeclaredType) target).asElement().toString();
+    public static ConversionEdge createEnumEdge(final TypeMirror source, final TypeMirror target) {
+        final var targetName = ((DeclaredType) target).asElement().toString();
         return new ConversionEdge(
                 ConversionEdge.Kind.ENUM_VALUE_OF, source, target, targetName + ".valueOf($expr.name())");
     }
 
-    private static boolean isEnumType(TypeMirror type) {
+    private static boolean isEnumType(final TypeMirror type) {
         if (!(type instanceof DeclaredType)) {
             return false;
         }

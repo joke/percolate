@@ -7,7 +7,7 @@ public final class TypePair {
     private final String inTypeName;
     private final String outTypeName;
 
-    public TypePair(String inTypeName, String outTypeName) {
+    public TypePair(final String inTypeName, final String outTypeName) {
         this.inTypeName = inTypeName;
         this.outTypeName = outTypeName;
     }
@@ -21,11 +21,11 @@ public final class TypePair {
     }
 
     @Override
-    public boolean equals(Object o) {
+    public boolean equals(final Object o) {
         if (!(o instanceof TypePair)) {
             return false;
         }
-        TypePair other = (TypePair) o;
+        final var other = (TypePair) o;
         return inTypeName.equals(other.inTypeName) && outTypeName.equals(other.outTypeName);
     }
 

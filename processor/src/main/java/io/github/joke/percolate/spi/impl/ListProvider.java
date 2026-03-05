@@ -9,7 +9,6 @@ import io.github.joke.percolate.spi.ConversionFragment;
 import io.github.joke.percolate.spi.ConversionProvider;
 import io.github.joke.percolate.stage.MethodRegistry;
 import io.github.joke.percolate.stage.RegistryEntry;
-import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
 import javax.annotation.processing.ProcessingEnvironment;
@@ -27,21 +26,28 @@ public final class ListProvider implements ConversionProvider {
     }
 
     @Override
-    public boolean canHandle(TypeMirror source, TypeMirror target, MethodRegistry registry, ProcessingEnvironment env) {
+    public boolean canHandle(
+            final TypeMirror source,
+            final TypeMirror target,
+            final MethodRegistry registry,
+            final ProcessingEnvironment env) {
         return isListType(source) && isListType(target);
     }
 
     @Override
     public ConversionFragment provide(
-            TypeMirror source, TypeMirror target, MethodRegistry registry, ProcessingEnvironment env) {
-        @Nullable TypeMirror sourceElement = getFirstTypeArgument(source);
-        @Nullable TypeMirror targetElement = getFirstTypeArgument(target);
+            final TypeMirror source,
+            final TypeMirror target,
+            final MethodRegistry registry,
+            final ProcessingEnvironment env) {
+        final var sourceElement = getFirstTypeArgument(source);
+        final var targetElement = getFirstTypeArgument(target);
         if (sourceElement == null || targetElement == null) {
             return ConversionFragment.of();
         }
-        Types types = env.getTypeUtils();
-        Optional<MethodDefinition> method = findMethod(types, sourceElement, targetElement, registry);
-        if (!method.isPresent()) {
+        final var types = env.getTypeUtils();
+        final var method = findMethod(types, sourceElement, targetElement, registry);
+        if (method.isEmpty()) {
             return ConversionFragment.of();
         }
         return ConversionFragment.of(
@@ -51,29 +57,32 @@ public final class ListProvider implements ConversionProvider {
     }
 
     private static Optional<MethodDefinition> findMethod(
-            Types types, TypeMirror sourceElement, TypeMirror targetElement, MethodRegistry registry) {
+            final Types types,
+            final TypeMirror sourceElement,
+            final TypeMirror targetElement,
+            final MethodRegistry registry) {
         return registry.entries().values().stream()
                 .map(RegistryEntry::getSignature)
                 .filter(Objects::nonNull)
-                .filter(m -> m.getParameters().size() == 1)
-                .filter(m -> types.isSameType(
-                        types.erasure(m.getParameters().get(0).getType()), types.erasure(sourceElement)))
-                .filter(m -> types.isSameType(types.erasure(m.getReturnType()), types.erasure(targetElement)))
+                .filter(method -> method.getParameters().size() == 1)
+                .filter(method -> types.isSameType(
+                        types.erasure(method.getParameters().get(0).getType()), types.erasure(sourceElement)))
+                .filter(method -> types.isSameType(types.erasure(method.getReturnType()), types.erasure(targetElement)))
                 .findFirst();
     }
 
-    private static boolean isListType(TypeMirror type) {
+    private static boolean isListType(final TypeMirror type) {
         if (!(type instanceof DeclaredType)) {
             return false;
         }
         return "java.util.List".equals(((DeclaredType) type).asElement().toString());
     }
 
-    private static @Nullable TypeMirror getFirstTypeArgument(TypeMirror type) {
+    private static @Nullable TypeMirror getFirstTypeArgument(final TypeMirror type) {
         if (!(type instanceof DeclaredType)) {
             return null;
         }
-        List<? extends TypeMirror> args = ((DeclaredType) type).getTypeArguments();
+        final var args = ((DeclaredType) type).getTypeArguments();
         return args.isEmpty() ? null : args.get(0);
     }
 }

@@ -1,10 +1,8 @@
 package io.github.joke.percolate.spi;
 
 import static java.util.Arrays.asList;
-import static java.util.Collections.unmodifiableList;
 
 import io.github.joke.percolate.graph.node.MappingNode;
-import java.util.ArrayList;
 import java.util.List;
 
 /**
@@ -15,11 +13,11 @@ public final class ConversionFragment {
 
     private final List<MappingNode> nodes;
 
-    public ConversionFragment(List<MappingNode> nodes) {
-        this.nodes = unmodifiableList(new ArrayList<>(nodes));
+    public ConversionFragment(final List<MappingNode> nodes) {
+        this.nodes = List.copyOf(nodes);
     }
 
-    public static ConversionFragment of(MappingNode... nodes) {
+    public static ConversionFragment of(final MappingNode... nodes) {
         return new ConversionFragment(asList(nodes));
     }
 

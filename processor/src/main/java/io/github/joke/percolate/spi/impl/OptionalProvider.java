@@ -6,7 +6,6 @@ import io.github.joke.percolate.graph.node.OptionalWrapNode;
 import io.github.joke.percolate.spi.ConversionFragment;
 import io.github.joke.percolate.spi.ConversionProvider;
 import io.github.joke.percolate.stage.MethodRegistry;
-import java.util.List;
 import javax.annotation.processing.ProcessingEnvironment;
 import javax.lang.model.type.DeclaredType;
 import javax.lang.model.type.TypeMirror;
@@ -15,13 +14,20 @@ import javax.lang.model.type.TypeMirror;
 public final class OptionalProvider implements ConversionProvider {
 
     @Override
-    public boolean canHandle(TypeMirror source, TypeMirror target, MethodRegistry registry, ProcessingEnvironment env) {
+    public boolean canHandle(
+            final TypeMirror source,
+            final TypeMirror target,
+            final MethodRegistry registry,
+            final ProcessingEnvironment env) {
         return isOptionalType(source) || isOptionalType(target);
     }
 
     @Override
     public ConversionFragment provide(
-            TypeMirror source, TypeMirror target, MethodRegistry registry, ProcessingEnvironment env) {
+            final TypeMirror source,
+            final TypeMirror target,
+            final MethodRegistry registry,
+            final ProcessingEnvironment env) {
         if (isOptionalType(source) && !isOptionalType(target)) {
             return unwrapFragment(source);
         }
@@ -31,23 +37,23 @@ public final class OptionalProvider implements ConversionProvider {
         return ConversionFragment.of();
     }
 
-    private static ConversionFragment unwrapFragment(TypeMirror source) {
-        List<? extends TypeMirror> args = ((DeclaredType) source).getTypeArguments();
+    private static ConversionFragment unwrapFragment(final TypeMirror source) {
+        final var args = ((DeclaredType) source).getTypeArguments();
         if (args.isEmpty()) {
             return ConversionFragment.of();
         }
         return ConversionFragment.of(new OptionalUnwrapNode(args.get(0), source));
     }
 
-    private static ConversionFragment wrapFragment(TypeMirror target) {
-        List<? extends TypeMirror> args = ((DeclaredType) target).getTypeArguments();
+    private static ConversionFragment wrapFragment(final TypeMirror target) {
+        final var args = ((DeclaredType) target).getTypeArguments();
         if (args.isEmpty()) {
             return ConversionFragment.of();
         }
         return ConversionFragment.of(new OptionalWrapNode(args.get(0), target));
     }
 
-    private static boolean isOptionalType(TypeMirror type) {
+    private static boolean isOptionalType(final TypeMirror type) {
         if (!(type instanceof DeclaredType)) {
             return false;
         }

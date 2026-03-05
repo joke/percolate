@@ -25,17 +25,17 @@ public final class LazyMappingGraph extends AbstractGraph<GraphNode, GraphEdge> 
     private int currentDepth;
 
     public LazyMappingGraph(
-            DirectedWeightedMultigraph<GraphNode, GraphEdge> base,
-            List<ConversionProvider> providers,
-            @Nullable ProcessingEnvironment env,
-            int maxDepth) {
+            final DirectedWeightedMultigraph<GraphNode, GraphEdge> base,
+            final List<ConversionProvider> providers,
+            final @Nullable ProcessingEnvironment env,
+            final int maxDepth) {
         this.base = base;
         this.maxDepth = maxDepth;
         this.currentDepth = 0;
     }
 
     @Override
-    public Set<GraphEdge> outgoingEdgesOf(GraphNode vertex) {
+    public Set<GraphEdge> outgoingEdgesOf(final GraphNode vertex) {
         if (!expanded.contains(vertex) && currentDepth < maxDepth) {
             expanded.add(vertex);
             expandConversions();
@@ -70,62 +70,62 @@ public final class LazyMappingGraph extends AbstractGraph<GraphNode, GraphEdge> 
     }
 
     @Override
-    public GraphNode getEdgeSource(GraphEdge edge) {
+    public GraphNode getEdgeSource(final GraphEdge edge) {
         return base.getEdgeSource(edge);
     }
 
     @Override
-    public GraphNode getEdgeTarget(GraphEdge edge) {
+    public GraphNode getEdgeTarget(final GraphEdge edge) {
         return base.getEdgeTarget(edge);
     }
 
     @Override
-    public Set<GraphEdge> incomingEdgesOf(GraphNode vertex) {
+    public Set<GraphEdge> incomingEdgesOf(final GraphNode vertex) {
         return base.incomingEdgesOf(vertex);
     }
 
     @Override
-    public int degreeOf(GraphNode vertex) {
+    public int degreeOf(final GraphNode vertex) {
         return base.degreeOf(vertex);
     }
 
     @Override
-    public int inDegreeOf(GraphNode vertex) {
+    public int inDegreeOf(final GraphNode vertex) {
         return base.inDegreeOf(vertex);
     }
 
     @Override
-    public int outDegreeOf(GraphNode vertex) {
+    public int outDegreeOf(final GraphNode vertex) {
         return base.outDegreeOf(vertex);
     }
 
     @Override
-    public Set<GraphEdge> edgesOf(GraphNode vertex) {
+    public Set<GraphEdge> edgesOf(final GraphNode vertex) {
         return base.edgesOf(vertex);
     }
 
     @Override
-    public Set<GraphEdge> getAllEdges(GraphNode source, GraphNode target) {
+    public Set<GraphEdge> getAllEdges(final GraphNode source, final GraphNode target) {
         return base.getAllEdges(source, target);
     }
 
     @Override
-    public GraphEdge getEdge(GraphNode source, GraphNode target) {
+    public GraphEdge getEdge(final GraphNode source, final GraphNode target) {
         return base.getEdge(source, target);
     }
 
     @Override
-    public boolean containsEdge(GraphEdge edge) {
+    public boolean containsEdge(final GraphEdge edge) {
         return base.containsEdge(edge);
     }
 
     @Override
-    public boolean containsEdge(GraphNode source, GraphNode target) {
+    public boolean containsEdge(final GraphNode source, final GraphNode target) {
         return base.containsEdge(source, target);
     }
 
     @Override
-    public boolean containsVertex(GraphNode vertex) {
+    public boolean containsVertex(final GraphNode vertex) {
         return base.containsVertex(vertex);
     }
 
@@ -135,17 +135,17 @@ public final class LazyMappingGraph extends AbstractGraph<GraphNode, GraphEdge> 
     }
 
     @Override
-    public double getEdgeWeight(GraphEdge edge) {
+    public double getEdgeWeight(final GraphEdge edge) {
         return base.getEdgeWeight(edge);
     }
 
     @Override
-    public GraphEdge addEdge(GraphNode source, GraphNode target) {
+    public GraphEdge addEdge(final GraphNode source, final GraphNode target) {
         return base.addEdge(source, target);
     }
 
     @Override
-    public boolean addEdge(GraphNode source, GraphNode target, GraphEdge edge) {
+    public boolean addEdge(final GraphNode source, final GraphNode target, final GraphEdge edge) {
         return base.addEdge(source, target, edge);
     }
 
@@ -155,27 +155,27 @@ public final class LazyMappingGraph extends AbstractGraph<GraphNode, GraphEdge> 
     }
 
     @Override
-    public boolean addVertex(GraphNode vertex) {
+    public boolean addVertex(final GraphNode vertex) {
         return base.addVertex(vertex);
     }
 
     @Override
-    public boolean removeEdge(GraphEdge edge) {
+    public boolean removeEdge(final GraphEdge edge) {
         return base.removeEdge(edge);
     }
 
     @Override
-    public GraphEdge removeEdge(GraphNode source, GraphNode target) {
+    public GraphEdge removeEdge(final GraphNode source, final GraphNode target) {
         return base.removeEdge(source, target);
     }
 
     @Override
-    public boolean removeVertex(GraphNode vertex) {
+    public boolean removeVertex(final GraphNode vertex) {
         return base.removeVertex(vertex);
     }
 
     @Override
-    public void setEdgeWeight(GraphEdge edge, double weight) {
+    public void setEdgeWeight(final GraphEdge edge, final double weight) {
         base.setEdgeWeight(edge, weight);
     }
 

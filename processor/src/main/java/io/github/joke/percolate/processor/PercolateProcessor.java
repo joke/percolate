@@ -20,7 +20,7 @@ public class PercolateProcessor extends AbstractProcessor {
     private ProcessorComponent component;
 
     @Override
-    public synchronized void init(ProcessingEnvironment processingEnv) {
+    public synchronized void init(final ProcessingEnvironment processingEnv) {
         super.init(processingEnv);
         component = DaggerProcessorComponent.factory().create(new ProcessorModule(processingEnv));
     }
@@ -36,7 +36,7 @@ public class PercolateProcessor extends AbstractProcessor {
     }
 
     @Override
-    public boolean process(Set<? extends TypeElement> annotations, RoundEnvironment roundEnv) {
+    public boolean process(final Set<? extends TypeElement> annotations, final RoundEnvironment roundEnv) {
         if (annotations.isEmpty()) {
             return false;
         }

@@ -1,7 +1,7 @@
 package io.github.joke.percolate.stage;
 
-import static java.util.stream.Collectors.toList;
 import static java.util.stream.Collectors.toSet;
+import static java.util.stream.Collectors.toUnmodifiableList;
 
 import io.github.joke.percolate.graph.edge.FlowEdge;
 import io.github.joke.percolate.graph.node.MappingNode;
@@ -12,10 +12,8 @@ import io.github.joke.percolate.model.MapDirective;
 import io.github.joke.percolate.model.MethodDefinition;
 import io.github.joke.percolate.model.Property;
 import io.github.joke.percolate.spi.PropertyDiscoveryStrategy;
-import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
-import java.util.Optional;
 import java.util.ServiceLoader;
 import java.util.Set;
 import java.util.stream.Stream;
@@ -24,7 +22,6 @@ import javax.inject.Inject;
 import javax.lang.model.element.TypeElement;
 import javax.lang.model.type.DeclaredType;
 import javax.lang.model.type.TypeMirror;
-import javax.lang.model.util.Types;
 import org.jgrapht.graph.AsUnmodifiableGraph;
 import org.jgrapht.graph.DirectedWeightedMultigraph;
 import org.jspecify.annotations.Nullable;
@@ -35,41 +32,44 @@ public final class BindingStage {
     private final List<PropertyDiscoveryStrategy> propertyStrategies;
 
     @Inject
-    BindingStage(ProcessingEnvironment processingEnv) {
+    BindingStage(final ProcessingEnvironment processingEnv) {
         this.processingEnv = processingEnv;
-        this.propertyStrategies = new ArrayList<>();
-        ServiceLoader.load(PropertyDiscoveryStrategy.class, getClass().getClassLoader())
-                .forEach(propertyStrategies::add);
+        this.propertyStrategies = loadPropertyStrategies();
     }
 
-    public void execute(MethodRegistry registry) {
+    private static List<PropertyDiscoveryStrategy> loadPropertyStrategies() {
+        return ServiceLoader.load(PropertyDiscoveryStrategy.class, BindingStage.class.getClassLoader()).stream()
+                .map(ServiceLoader.Provider::get)
+                .collect(toUnmodifiableList());
+    }
+
+    public void execute(final MethodRegistry registry) {
         // Copy to avoid ConcurrentModificationException: buildMethodGraph mutates the registry
-        new ArrayList<>(registry.entries().values())
-                .stream()
-                        .map(RegistryEntry::getSignature)
-                        .filter(sig -> sig != null && sig.isAbstract())
-                        .forEach(sig -> buildMethodGraph(sig, registry));
+        List.copyOf(registry.entries().values()).stream()
+                .map(RegistryEntry::getSignature)
+                .filter(signature -> signature != null && signature.isAbstract())
+                .forEach(signature -> buildMethodGraph(signature, registry));
     }
 
-    private void buildMethodGraph(MethodDefinition method, MethodRegistry registry) {
-        DirectedWeightedMultigraph<MappingNode, FlowEdge> graph = new DirectedWeightedMultigraph<>(FlowEdge.class);
+    private void buildMethodGraph(final MethodDefinition method, final MethodRegistry registry) {
+        final var graph = new DirectedWeightedMultigraph<MappingNode, FlowEdge>(FlowEdge.class);
 
-        TargetSlotPlaceholder target = new TargetSlotPlaceholder(method.getReturnType());
+        final var target = new TargetSlotPlaceholder(method.getReturnType());
         graph.addVertex(target);
 
-        List<SourceNode> sourceNodes = method.getParameters().stream()
+        final var sourceNodes = method.getParameters().stream()
                 .map(param -> {
-                    SourceNode node = new SourceNode(param.getName(), param.getType());
+                    final var node = new SourceNode(param.getName(), param.getType());
                     graph.addVertex(node);
                     return node;
                 })
-                .collect(toList());
+                .collect(toUnmodifiableList());
 
-        List<MapDirective> expanded = expandDirectives(method.getDirectives(), sourceNodes);
-        Set<String> alreadyMapped = expanded.stream()
-                .flatMap(d -> Stream.of(d.getTarget(), sourceLeaf(d.getSource())))
+        final var expanded = expandDirectives(method.getDirectives(), sourceNodes);
+        final var alreadyMapped = expanded.stream()
+                .flatMap(directive -> Stream.of(directive.getTarget(), sourceLeaf(directive.getSource())))
                 .collect(toSet());
-        List<MapDirective> sameNameDirectives =
+        final var sameNameDirectives =
                 generateSameNameDirectives(sourceNodes, alreadyMapped, target.getTargetType());
 
         Stream.concat(expanded.stream(), sameNameDirectives.stream())
@@ -89,166 +89,169 @@ public final class BindingStage {
      * NOTE: ResolveStage currently runs before BindingStage and performs this expansion too.
      * This method becomes the sole expansion point once ResolveStage is removed in Task 10.
      */
-    private List<MapDirective> expandDirectives(List<MapDirective> directives, List<SourceNode> sourceNodes) {
-        List<MapDirective> expanded = new ArrayList<>();
-        for (MapDirective directive : directives) {
-            if (directive.getSource().endsWith(".*")) {
-                expanded.addAll(expandWildcard(directive, sourceNodes));
-            } else {
-                expanded.add(directive);
-            }
-        }
-        return expanded;
+    private List<MapDirective> expandDirectives(
+            final List<MapDirective> directives, final List<SourceNode> sourceNodes) {
+        return directives.stream()
+                .flatMap(directive -> directive.getSource().endsWith(".*")
+                        ? expandWildcard(directive, sourceNodes).stream()
+                        : Stream.of(directive))
+                .collect(toUnmodifiableList());
     }
 
-    private List<MapDirective> expandWildcard(MapDirective directive, List<SourceNode> sourceNodes) {
-        String sourcePath = directive.getSource();
-        String prefix = sourcePath.substring(0, sourcePath.length() - 2);
+    private List<MapDirective> expandWildcard(
+            final MapDirective directive, final List<SourceNode> sourceNodes) {
+        final var sourcePath = directive.getSource();
+        final var prefix = sourcePath.substring(0, sourcePath.length() - 2);
 
-        @Nullable TypeMirror paramType = resolvePathType(prefix, sourceNodes);
+        final var paramType = resolvePathType(prefix, sourceNodes);
         if (paramType == null) {
             return Collections.emptyList();
         }
-        @Nullable TypeElement typeElement = asTypeElement(paramType);
+        final var typeElement = asTypeElement(paramType);
         if (typeElement == null) {
             return Collections.emptyList();
         }
 
         return discoverProperties(typeElement).stream()
                 .map(prop -> new MapDirective(prop.getName(), prefix + "." + prop.getName()))
-                .collect(toList());
+                .collect(toUnmodifiableList());
     }
 
-    private @Nullable TypeMirror resolvePathType(String paramName, List<SourceNode> sourceNodes) {
+    private @Nullable TypeMirror resolvePathType(final String paramName, final List<SourceNode> sourceNodes) {
         return sourceNodes.stream()
-                .filter(n -> n.getParamName().equals(paramName))
+                .filter(sourceNode -> sourceNode.getParamName().equals(paramName))
                 .findFirst()
                 .map(SourceNode::getType)
                 .orElse(null);
     }
 
     private List<MapDirective> generateSameNameDirectives(
-            List<SourceNode> sourceNodes, Set<String> alreadyMapped, TypeMirror targetType) {
+            final List<SourceNode> sourceNodes, final Set<String> alreadyMapped, final TypeMirror targetType) {
         if (sourceNodes.size() != 1) {
             return Collections.emptyList();
         }
-        SourceNode sourceNode = sourceNodes.get(0);
+        final var sourceNode = sourceNodes.get(0);
         if (sameErasure(sourceNode.getType(), targetType)) {
             return Collections.emptyList();
         }
-        @Nullable TypeElement sourceType = asTypeElement(sourceNode.getType());
+        final var sourceType = asTypeElement(sourceNode.getType());
         if (sourceType == null) {
             return Collections.emptyList();
         }
         return discoverProperties(sourceType).stream()
                 .filter(prop -> !alreadyMapped.contains(prop.getName()))
                 .map(prop -> new MapDirective(prop.getName(), prop.getName()))
-                .collect(toList());
+                .collect(toUnmodifiableList());
     }
 
-    private boolean sameErasure(TypeMirror a, TypeMirror b) {
-        Types types = processingEnv.getTypeUtils();
+    private boolean sameErasure(final TypeMirror a, final TypeMirror b) {
+        final var types = processingEnv.getTypeUtils();
         return types.isSameType(types.erasure(a), types.erasure(b));
     }
 
     private void processDirective(
-            DirectedWeightedMultigraph<MappingNode, FlowEdge> graph,
-            MapDirective directive,
-            TargetSlotPlaceholder target,
-            List<SourceNode> sourceNodes) {
+            final DirectedWeightedMultigraph<MappingNode, FlowEdge> graph,
+            final MapDirective directive,
+            final TargetSlotPlaceholder target,
+            final List<SourceNode> sourceNodes) {
 
-        String slotName = directive.getTarget();
+        final var slotName = directive.getTarget();
         if (slotName.equals(".")) {
             return; // "." targets are expanded by expandDirectives before processDirective is called
         }
 
-        String sourcePath = directive.getSource();
+        final var sourcePath = directive.getSource();
         @SuppressWarnings("StringSplitter")
-        String[] segments = sourcePath.split("\\.");
+        final var segments = sourcePath.split("\\.");
 
-        EntryPoint entry = resolveEntryPoint(sourceNodes, segments);
+        final var entry = resolveEntryPoint(sourceNodes, segments);
         if (entry == null) {
             return;
         }
 
-        MappingNode terminal = walkPropertyChain(graph, entry.getStartNode(), entry.getStartIndex(), segments);
+        final var terminal = walkPropertyChain(graph, entry.getStartNode(), entry.getStartIndex(), segments);
         if (terminal == null) {
             return;
         }
 
-        TypeMirror terminalType = getNodeType(terminal);
+        final var terminalType = getNodeType(terminal);
         graph.addEdge(terminal, target, FlowEdge.forSlot(terminalType, target.getTargetType(), slotName));
     }
 
-    private @Nullable EntryPoint resolveEntryPoint(List<SourceNode> sourceNodes, String[] segments) {
+    private @Nullable EntryPoint resolveEntryPoint(final List<SourceNode> sourceNodes, final String[] segments) {
         if (sourceNodes.isEmpty()) {
             return null;
         }
         if (sourceNodes.size() > 1) {
             return sourceNodes.stream()
-                    .filter(n -> n.getParamName().equals(segments[0]))
+                    .filter(sourceNode -> sourceNode.getParamName().equals(segments[0]))
                     .findFirst()
-                    .map(n -> new EntryPoint(n, 1))
+                    .map(sourceNode -> new EntryPoint(sourceNode, 1))
                     .orElse(null);
         }
-        SourceNode only = sourceNodes.get(0);
-        int startIndex = (segments.length > 1 && segments[0].equals(only.getParamName())) ? 1 : 0;
+        final var only = sourceNodes.get(0);
+        final var startIndex = (segments.length > 1 && segments[0].equals(only.getParamName())) ? 1 : 0;
         return new EntryPoint(only, startIndex);
     }
 
     private @Nullable MappingNode walkPropertyChain(
-            DirectedWeightedMultigraph<MappingNode, FlowEdge> graph,
-            SourceNode startNode,
-            int startIndex,
-            String[] segments) {
-
-        MappingNode current = startNode;
-        TypeMirror currentType = startNode.getType();
-        for (int i = startIndex; i < segments.length; i++) {
-            String segment = segments[i];
-            if (segment.equals("*")) {
-                return null; // ".*" sources are expanded before walkPropertyChain is called; defensive guard
-            }
-            @Nullable TypeElement typeElement = asTypeElement(currentType);
-            if (typeElement == null) {
-                return null;
-            }
-            Optional<Property> prop = discoverProperties(typeElement).stream()
-                    .filter(p -> p.getName().equals(segment))
-                    .findFirst();
-            if (!prop.isPresent()) {
-                return null;
-            }
-            Property property = prop.get();
-            PropertyAccessNode propNode =
-                    new PropertyAccessNode(segment, currentType, property.getType(), property.getAccessor());
-            graph.addVertex(propNode);
-            graph.addEdge(current, propNode, FlowEdge.of(currentType, property.getType()));
-            current = propNode;
-            currentType = property.getType();
-        }
-        return current;
+            final DirectedWeightedMultigraph<MappingNode, FlowEdge> graph,
+            final SourceNode startNode,
+            final int startIndex,
+            final String[] segments) {
+        return walkSegments(graph, startNode, startNode.getType(), startIndex, segments);
     }
 
-    private TypeMirror getNodeType(MappingNode node) {
+    private @Nullable MappingNode walkSegments(
+            final DirectedWeightedMultigraph<MappingNode, FlowEdge> graph,
+            final MappingNode current,
+            final TypeMirror currentType,
+            final int index,
+            final String[] segments) {
+        if (index >= segments.length) {
+            return current;
+        }
+        final var segment = segments[index];
+        if (segment.equals("*")) {
+            return null; // ".*" sources are expanded before walkPropertyChain is called; defensive guard
+        }
+        final var typeElement = asTypeElement(currentType);
+        if (typeElement == null) {
+            return null;
+        }
+        final var prop = discoverProperties(typeElement).stream()
+                .filter(property -> property.getName().equals(segment))
+                .findFirst();
+        if (prop.isEmpty()) {
+            return null;
+        }
+        final var property = prop.get();
+        final var propNode =
+                new PropertyAccessNode(segment, currentType, property.getType(), property.getAccessor());
+        graph.addVertex(propNode);
+        graph.addEdge(current, propNode, FlowEdge.of(currentType, property.getType()));
+        return walkSegments(graph, propNode, property.getType(), index + 1, segments);
+    }
+
+    private TypeMirror getNodeType(final MappingNode node) {
         if (node instanceof SourceNode) {
             return ((SourceNode) node).getType();
         }
         return ((PropertyAccessNode) node).getOutType();
     }
 
-    private Set<Property> discoverProperties(TypeElement type) {
+    private Set<Property> discoverProperties(final TypeElement type) {
         return propertyStrategies.stream()
-                .flatMap(s -> s.discoverProperties(type, processingEnv).stream())
+                .flatMap(strategy -> strategy.discoverProperties(type, processingEnv).stream())
                 .collect(toSet());
     }
 
-    private static String sourceLeaf(String source) {
-        int dot = source.lastIndexOf('.');
+    private static String sourceLeaf(final String source) {
+        final var dot = source.lastIndexOf('.');
         return dot >= 0 ? source.substring(dot + 1) : source;
     }
 
-    private @Nullable TypeElement asTypeElement(TypeMirror type) {
+    private @Nullable TypeElement asTypeElement(final TypeMirror type) {
         if (type instanceof DeclaredType) {
             return (TypeElement) ((DeclaredType) type).asElement();
         }
@@ -259,7 +262,7 @@ public final class BindingStage {
         private final SourceNode startNode;
         private final int startIndex;
 
-        EntryPoint(SourceNode startNode, int startIndex) {
+        EntryPoint(final SourceNode startNode, final int startIndex) {
             this.startNode = startNode;
             this.startIndex = startIndex;
         }

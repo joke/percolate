@@ -1,8 +1,5 @@
 package io.github.joke.percolate.model;
 
-import static java.util.Collections.unmodifiableList;
-
-import java.util.ArrayList;
 import java.util.List;
 import javax.lang.model.element.TypeElement;
 
@@ -14,11 +11,14 @@ public final class MapperDefinition {
     private final List<MethodDefinition> methods;
 
     public MapperDefinition(
-            TypeElement element, String packageName, String simpleName, List<MethodDefinition> methods) {
+            final TypeElement element,
+            final String packageName,
+            final String simpleName,
+            final List<MethodDefinition> methods) {
         this.element = element;
         this.packageName = packageName;
         this.simpleName = simpleName;
-        this.methods = unmodifiableList(new ArrayList<>(methods));
+        this.methods = List.copyOf(methods);
     }
 
     public TypeElement getElement() {
@@ -37,7 +37,7 @@ public final class MapperDefinition {
         return methods;
     }
 
-    public MapperDefinition withMethods(List<MethodDefinition> methods) {
+    public MapperDefinition withMethods(final List<MethodDefinition> methods) {
         return new MapperDefinition(element, packageName, simpleName, methods);
     }
 }

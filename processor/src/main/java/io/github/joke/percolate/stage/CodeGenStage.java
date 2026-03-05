@@ -1,7 +1,7 @@
 package io.github.joke.percolate.stage;
 
 import static java.util.Comparator.comparingInt;
-import static java.util.stream.Collectors.toList;
+import static java.util.stream.Collectors.toUnmodifiableList;
 import static javax.lang.model.element.Modifier.PUBLIC;
 
 import com.palantir.javapoet.ClassName;
@@ -21,9 +21,9 @@ import io.github.joke.percolate.graph.node.TypeNode;
 import io.github.joke.percolate.model.MapperDefinition;
 import io.github.joke.percolate.model.MethodDefinition;
 import io.github.joke.percolate.model.Property;
-import io.github.joke.percolate.spi.CreationDescriptor;
 import io.github.joke.percolate.spi.impl.EnumProvider;
 import java.io.IOException;
+import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.List;
 import javax.annotation.processing.Filer;
@@ -41,156 +41,160 @@ public class CodeGenStage {
     private final Types types;
 
     @Inject
-    CodeGenStage(Filer filer, Types types) {
+    CodeGenStage(final Filer filer, final Types types) {
         this.filer = filer;
         this.types = types;
     }
 
-    public void execute(OptimizedGraphResult optimizedResult) {
-        LazyMappingGraph graph = optimizedResult.lazyGraph();
+    public void execute(final OptimizedGraphResult optimizedResult) {
+        final var graph = optimizedResult.lazyGraph();
 
         optimizedResult.graphResult().getMappers().forEach(mapper -> generateMapper(graph, mapper));
     }
 
-    private void generateMapper(LazyMappingGraph graph, MapperDefinition mapper) {
-        ClassName mapperName = ClassName.get(mapper.getPackageName(), mapper.getSimpleName());
-        ClassName implName = ClassName.get(mapper.getPackageName(), mapper.getSimpleName() + "Impl");
+    private void generateMapper(final LazyMappingGraph graph, final MapperDefinition mapper) {
+        final var mapperName = ClassName.get(mapper.getPackageName(), mapper.getSimpleName());
+        final var implName = ClassName.get(mapper.getPackageName(), mapper.getSimpleName() + "Impl");
 
-        List<MethodSpec> methods = mapper.getMethods().stream()
+        final var methods = mapper.getMethods().stream()
                 .filter(MethodDefinition::isAbstract)
                 .map(method -> generateMethod(graph, method))
-                .collect(toList());
+                .collect(toUnmodifiableList());
 
-        TypeSpec typeSpec = TypeSpec.classBuilder(implName)
+        final var typeSpec = TypeSpec.classBuilder(implName)
                 .addModifiers(PUBLIC)
                 .addSuperinterface(mapperName)
                 .addMethods(methods)
                 .build();
 
-        JavaFile javaFile = JavaFile.builder(mapper.getPackageName(), typeSpec).build();
+        final var javaFile = JavaFile.builder(mapper.getPackageName(), typeSpec).build();
 
         try {
             javaFile.writeTo(filer);
-        } catch (IOException e) {
-            throw new RuntimeException("Failed to write generated source for " + implName, e);
+        } catch (IOException ioException) {
+            throw new RuntimeException("Failed to write generated source for " + implName, ioException);
         }
     }
 
-    private MethodSpec generateMethod(LazyMappingGraph graph, MethodDefinition method) {
-        TypeMirror returnType = method.getReturnType();
-        String returnTypeQualified = getQualifiedName(returnType);
+    private MethodSpec generateMethod(final LazyMappingGraph graph, final MethodDefinition method) {
+        final var returnType = method.getReturnType();
+        final var returnTypeQualified = getQualifiedName(returnType);
 
         // Find the ConstructorNode for the return type
-        ConstructorNode constructorNode = graph.vertexSet().stream()
+        final var constructorNode = graph.vertexSet().stream()
                 .filter(ConstructorNode.class::isInstance)
                 .map(ConstructorNode.class::cast)
                 .filter(cn -> cn.getTargetType().getQualifiedName().toString().equals(returnTypeQualified))
                 .findFirst()
                 .orElseThrow(() -> new IllegalStateException("No ConstructorNode found for " + returnType));
 
-        CreationDescriptor descriptor = constructorNode.getDescriptor();
-        List<Property> parameters = descriptor.getParameters();
+        final var descriptor = constructorNode.getDescriptor();
+        final var parameters = descriptor.getParameters();
 
         // Get ConstructorParamEdges sorted by parameter index
-        List<ConstructorParamEdge> paramEdges = graph.incomingEdgesOf(constructorNode).stream()
+        final var paramEdges = graph.incomingEdgesOf(constructorNode).stream()
                 .filter(ConstructorParamEdge.class::isInstance)
                 .map(ConstructorParamEdge.class::cast)
                 .sorted(comparingInt(ConstructorParamEdge::getParameterIndex))
-                .collect(toList());
+                .collect(toUnmodifiableList());
 
         // Build argument expressions in constructor parameter order
-        List<String> args = new ArrayList<>();
-        for (Property param : parameters) {
-            @Nullable
-            ConstructorParamEdge edge = paramEdges.stream()
-                    .filter(e -> e.getParameterName().equals(param.getName()))
-                    .findFirst()
-                    .orElse(null);
+        final var args = parameters.stream()
+                .map(param -> buildArgExpression(graph, paramEdges, param))
+                .collect(toUnmodifiableList());
 
-            if (edge == null) {
-                args.add("null /* unmapped: " + param.getName() + " */");
-                continue;
-            }
-
-            GraphNode sourceNode = graph.getEdgeSource(edge);
-            String expression = buildExpression(graph, sourceNode);
-
-            // Apply type conversion from graph edges if types differ
-            TypeMirror targetType = param.getType();
-            expression = applyConversionFromGraph(graph, sourceNode, expression, targetType);
-
-            args.add(expression);
-        }
-
-        MethodSpec.Builder methodBuilder = MethodSpec.methodBuilder(method.getName())
+        final var methodBuilder = MethodSpec.methodBuilder(method.getName())
                 .addAnnotation(Override.class)
                 .addModifiers(PUBLIC)
                 .returns(TypeName.get(returnType));
 
-        method.getParameters().forEach(p -> methodBuilder.addParameter(TypeName.get(p.getType()), p.getName()));
+        method.getParameters().forEach(parameter -> methodBuilder.addParameter(TypeName.get(parameter.getType()), parameter.getName()));
 
-        String argsJoined = String.join(", ", args);
+        final var argsJoined = String.join(", ", args);
         methodBuilder.addStatement("return new $L($L)", returnTypeQualified, argsJoined);
 
         return methodBuilder.build();
     }
 
+    private String buildArgExpression(
+            final LazyMappingGraph graph,
+            final List<ConstructorParamEdge> paramEdges,
+            final Property param) {
+        final var edge = paramEdges.stream()
+                .filter(paramEdge -> paramEdge.getParameterName().equals(param.getName()))
+                .findFirst()
+                .orElse(null);
+
+        if (edge == null) {
+            return "null /* unmapped: " + param.getName() + " */";
+        }
+
+        final var sourceNode = graph.getEdgeSource(edge);
+        final var expression = buildExpression(graph, sourceNode);
+
+        // Apply type conversion from graph edges if types differ
+        return applyConversionFromGraph(graph, sourceNode, expression, param.getType());
+    }
+
     private String applyConversionFromGraph(
-            LazyMappingGraph graph, GraphNode sourceNode, String baseExpression, TypeMirror targetType) {
-        @Nullable TypeMirror sourceType = getNodeType(sourceNode);
+            final LazyMappingGraph graph,
+            final GraphNode sourceNode,
+            final String baseExpression,
+            final TypeMirror targetType) {
+        final var sourceType = getNodeType(sourceNode);
         if (sourceType != null && types.isSameType(sourceType, targetType)) {
             return baseExpression;
         }
         // Check enum-to-enum conversion (not modeled as ConversionEdge in the graph)
         if (sourceType != null && EnumProvider.canConvertEnums(sourceType, targetType)) {
-            ConversionEdge enumEdge = EnumProvider.createEnumEdge(sourceType, targetType);
+            final var enumEdge = EnumProvider.createEnumEdge(sourceType, targetType);
             return enumEdge.getExpressionTemplate().replace("$expr", baseExpression);
         }
         // Find conversion path from source to target via BFS on ConversionEdges
-        List<ConversionEdge> path = findConversionPath(graph, sourceNode, targetType);
-        String expression = baseExpression;
-        for (ConversionEdge edge : path) {
-            expression = edge.getExpressionTemplate().replace("$expr", expression);
-        }
-        return expression;
+        final var path = findConversionPath(graph, sourceNode, targetType);
+        return path.stream().reduce(
+                baseExpression,
+                (expr, conversionEdge) -> conversionEdge.getExpressionTemplate().replace("$expr", expr),
+                (a, b) -> b);
     }
 
-    private List<ConversionEdge> findConversionPath(LazyMappingGraph graph, GraphNode start, TypeMirror targetType) {
+    private List<ConversionEdge> findConversionPath(
+            final LazyMappingGraph graph, final GraphNode start, final TypeMirror targetType) {
         // BFS to find shortest path of ConversionEdges reaching targetType
-        java.util.Queue<List<ConversionEdge>> queue = new java.util.ArrayDeque<>();
+        final var queue = new ArrayDeque<List<ConversionEdge>>();
         // Seed with each outgoing ConversionEdge from start
         graph.outgoingEdgesOf(start).stream()
                 .filter(ConversionEdge.class::isInstance)
                 .map(ConversionEdge.class::cast)
-                .forEach(e -> {
-                    List<ConversionEdge> initial = new ArrayList<>();
-                    initial.add(e);
+                .forEach(conversionEdge -> {
+                    final var initial = new ArrayList<ConversionEdge>();
+                    initial.add(conversionEdge);
                     queue.add(initial);
                 });
-        int maxDepth = 5;
+        final var maxDepth = 5;
         while (!queue.isEmpty()) {
-            List<ConversionEdge> path = queue.poll();
+            final var path = queue.poll();
             if (path.size() > maxDepth) {
                 break;
             }
-            ConversionEdge last = path.get(path.size() - 1);
+            final var last = path.get(path.size() - 1);
             if (types.isSameType(last.getTargetType(), targetType)) {
                 return path;
             }
-            GraphNode target = graph.getEdgeTarget(last);
+            final var target = graph.getEdgeTarget(last);
             graph.outgoingEdgesOf(target).stream()
                     .filter(ConversionEdge.class::isInstance)
                     .map(ConversionEdge.class::cast)
-                    .forEach(e -> {
-                        List<ConversionEdge> extended = new ArrayList<>(path);
-                        extended.add(e);
+                    .forEach(conversionEdge -> {
+                        final var extended = new ArrayList<>(path);
+                        extended.add(conversionEdge);
                         queue.add(extended);
                     });
         }
-        return new ArrayList<>();
+        return List.of();
     }
 
-    private @Nullable TypeMirror getNodeType(GraphNode node) {
+    private @Nullable TypeMirror getNodeType(final GraphNode node) {
         if (node instanceof TypeNode) {
             return ((TypeNode) node).getType();
         }
@@ -200,41 +204,31 @@ public class CodeGenStage {
         return null;
     }
 
-    private String buildExpression(LazyMappingGraph graph, GraphNode node) {
-        List<String> chain = new ArrayList<>();
-        GraphNode current = node;
-
-        while (current instanceof PropertyNode) {
-            PropertyNode propertyNode = (PropertyNode) current;
-            Property property = propertyNode.getProperty();
-
-            if (property.getAccessor() instanceof ExecutableElement) {
-                chain.add(
-                        0,
-                        ((ExecutableElement) property.getAccessor())
-                                        .getSimpleName()
-                                        .toString() + "()");
-            } else {
-                chain.add(0, property.getName());
-            }
-
-            // Walk up to parent via incoming PropertyAccessEdge
-            @Nullable GraphNode parent = findParentViaPropertyAccess(graph, current);
-            if (parent == null) {
-                // fallback: use the stored parent reference
-                parent = propertyNode.getParent();
-            }
-            current = parent;
-        }
-
-        if (current instanceof TypeNode) {
-            chain.add(0, ((TypeNode) current).getLabel());
-        }
-
-        return String.join(".", chain);
+    private String buildExpression(final LazyMappingGraph graph, final GraphNode node) {
+        return buildExpressionChain(graph, node);
     }
 
-    private @Nullable GraphNode findParentViaPropertyAccess(LazyMappingGraph graph, GraphNode node) {
+    private String buildExpressionChain(final LazyMappingGraph graph, final GraphNode node) {
+        if (!(node instanceof PropertyNode)) {
+            if (node instanceof TypeNode) {
+                return ((TypeNode) node).getLabel();
+            }
+            return "";
+        }
+        final var propertyNode = (PropertyNode) node;
+        final var property = propertyNode.getProperty();
+        final var accessor = property.getAccessor() instanceof ExecutableElement
+                ? ((ExecutableElement) property.getAccessor()).getSimpleName().toString() + "()"
+                : property.getName();
+
+        // Walk up to parent via incoming PropertyAccessEdge
+        final var parentViaEdge = findParentViaPropertyAccess(graph, node);
+        final var parent = parentViaEdge != null ? parentViaEdge : propertyNode.getParent();
+        final var parentExpr = buildExpressionChain(graph, parent);
+        return parentExpr.isEmpty() ? accessor : parentExpr + "." + accessor;
+    }
+
+    private @Nullable GraphNode findParentViaPropertyAccess(final LazyMappingGraph graph, final GraphNode node) {
         return graph.incomingEdgesOf(node).stream()
                 .filter(PropertyAccessEdge.class::isInstance)
                 .map(graph::getEdgeSource)
@@ -242,7 +236,7 @@ public class CodeGenStage {
                 .orElse(null);
     }
 
-    private String getQualifiedName(TypeMirror typeMirror) {
+    private String getQualifiedName(final TypeMirror typeMirror) {
         if (typeMirror instanceof DeclaredType) {
             return ((DeclaredType) typeMirror).asElement().toString();
         }

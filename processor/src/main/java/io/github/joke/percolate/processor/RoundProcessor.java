@@ -14,12 +14,12 @@ public class RoundProcessor {
     private final Pipeline pipeline;
 
     @Inject
-    RoundProcessor(MapperDiscoveryStage discoveryStage, Pipeline pipeline) {
+    RoundProcessor(final MapperDiscoveryStage discoveryStage, final Pipeline pipeline) {
         this.discoveryStage = discoveryStage;
         this.pipeline = pipeline;
     }
 
-    public void process(Set<? extends TypeElement> annotations, RoundEnvironment roundEnv) {
+    public void process(final Set<? extends TypeElement> annotations, final RoundEnvironment roundEnv) {
         discoveryStage.execute(annotations, roundEnv).forEach(pipeline::process);
     }
 }

@@ -1,6 +1,6 @@
 package io.github.joke.percolate.stage;
 
-import static java.util.stream.Collectors.toList;
+import static java.util.stream.Collectors.toUnmodifiableList;
 import static javax.lang.model.element.ElementKind.INTERFACE;
 import static javax.tools.Diagnostic.Kind.ERROR;
 
@@ -20,18 +20,18 @@ public class MapperDiscoveryStage {
     private final Messager messager;
 
     @Inject
-    MapperDiscoveryStage(Messager messager) {
+    MapperDiscoveryStage(final Messager messager) {
         this.messager = messager;
     }
 
-    public List<TypeElement> execute(Set<? extends TypeElement> annotations, RoundEnvironment roundEnv) {
+    public List<TypeElement> execute(final Set<? extends TypeElement> annotations, final RoundEnvironment roundEnv) {
         return roundEnv.getElementsAnnotatedWith(Mapper.class).stream()
                 .filter(this::validateIsInterface)
                 .map(element -> (TypeElement) element)
-                .collect(toList());
+                .collect(toUnmodifiableList());
     }
 
-    private boolean validateIsInterface(Element element) {
+    private boolean validateIsInterface(final Element element) {
         if (element.getKind() != INTERFACE) {
             messager.printMessage(ERROR, "@Mapper can only be applied to interfaces", element);
             return false;

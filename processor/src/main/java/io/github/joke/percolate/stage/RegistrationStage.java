@@ -11,13 +11,13 @@ public final class RegistrationStage {
     @Inject
     RegistrationStage() {}
 
-    public MethodRegistry execute(MapperDefinition mapper) {
-        MethodRegistry registry = new MethodRegistry();
+    public MethodRegistry execute(final MapperDefinition mapper) {
+        final var registry = new MethodRegistry();
         mapper.getMethods().forEach(method -> register(registry, method));
         return registry;
     }
 
-    private static void register(MethodRegistry registry, MethodDefinition method) {
+    private static void register(final MethodRegistry registry, final MethodDefinition method) {
         if (method.getReturnType().getKind() == VOID) {
             return;
         }
