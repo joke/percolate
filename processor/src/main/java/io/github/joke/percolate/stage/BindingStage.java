@@ -69,8 +69,7 @@ public final class BindingStage {
         final var alreadyMapped = expanded.stream()
                 .flatMap(directive -> Stream.of(directive.getTarget(), sourceLeaf(directive.getSource())))
                 .collect(toSet());
-        final var sameNameDirectives =
-                generateSameNameDirectives(sourceNodes, alreadyMapped, target.getTargetType());
+        final var sameNameDirectives = generateSameNameDirectives(sourceNodes, alreadyMapped, target.getTargetType());
 
         Stream.concat(expanded.stream(), sameNameDirectives.stream())
                 .forEach(directive -> processDirective(graph, directive, target, sourceNodes));
@@ -98,8 +97,7 @@ public final class BindingStage {
                 .collect(toUnmodifiableList());
     }
 
-    private List<MapDirective> expandWildcard(
-            final MapDirective directive, final List<SourceNode> sourceNodes) {
+    private List<MapDirective> expandWildcard(final MapDirective directive, final List<SourceNode> sourceNodes) {
         final var sourcePath = directive.getSource();
         final var prefix = sourcePath.substring(0, sourcePath.length() - 2);
 
@@ -138,10 +136,20 @@ public final class BindingStage {
         if (sourceType == null) {
             return Collections.emptyList();
         }
+        final var targetSlotNames = targetSlotNames(targetType);
         return discoverProperties(sourceType).stream()
                 .filter(prop -> !alreadyMapped.contains(prop.getName()))
+                .filter(prop -> targetSlotNames.isEmpty() || targetSlotNames.contains(prop.getName()))
                 .map(prop -> new MapDirective(prop.getName(), prop.getName()))
                 .collect(toUnmodifiableList());
+    }
+
+    private Set<String> targetSlotNames(final TypeMirror targetType) {
+        final var targetElement = asTypeElement(targetType);
+        if (targetElement == null) {
+            return Collections.emptySet();
+        }
+        return discoverProperties(targetElement).stream().map(Property::getName).collect(toSet());
     }
 
     private boolean sameErasure(final TypeMirror a, final TypeMirror b) {
@@ -226,8 +234,7 @@ public final class BindingStage {
             return null;
         }
         final var property = prop.get();
-        final var propNode =
-                new PropertyAccessNode(segment, currentType, property.getType(), property.getAccessor());
+        final var propNode = new PropertyAccessNode(segment, currentType, property.getType(), property.getAccessor());
         graph.addVertex(propNode);
         graph.addEdge(current, propNode, FlowEdge.of(currentType, property.getType()));
         return walkSegments(graph, propNode, property.getType(), index + 1, segments);

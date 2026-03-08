@@ -18,8 +18,8 @@ public interface TicketMapper {
     @Map(target = "zip", source = "zipCode")
     TicketVenue mapVenue(Venue venue);
 
-        default FlatTicket.TicketActor mapActor(Actor actor) {
-            final String name = actor.getFirstName() + " " + actor.getLastName();
-            return new FlatTicket.TicketActor(name);
-        }
+    default FlatTicket.TicketActor mapActor(Actor actor) {
+        final String name = actor.getFirstName() + " " + actor.getLastName();
+        return new FlatTicket.TicketActor(name);
+    }
 }
