@@ -1,6 +1,5 @@
 package io.github.joke;
 
-import io.github.joke.FlatTicket.TicketActor;
 import io.github.joke.FlatTicket.TicketVenue;
 import io.github.joke.percolate.Map;
 import io.github.joke.percolate.Mapper;
@@ -19,8 +18,8 @@ public interface TicketMapper {
     @Map(target = "zip", source = "zipCode")
     TicketVenue mapVenue(Venue venue);
 
-    default TicketActor mapActor(Actor actor) {
-        final String name = actor.getFirstName() + " " + actor.getLastName();
-        return new TicketActor(name);
-    }
+        default FlatTicket.TicketActor mapActor(Actor actor) {
+            final String name = actor.getFirstName() + " " + actor.getLastName();
+            return new FlatTicket.TicketActor(name);
+        }
 }

@@ -20,8 +20,10 @@ dependencies {
     implementation 'com.palantir.javapoet:javapoet'
 
     testImplementation platform(project(':dependencies'))
-    testImplementation 'org.spockframework:spock-core'
     testImplementation 'com.google.testing.compile:compile-testing'
-
+    testImplementation 'org.spockframework:spock-core'
+    
+    testRuntimeOnly 'net.bytebuddy:byte-buddy'
     testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+    testRuntimeOnly 'org.mockito:mockito-junit-jupiter'
 }
