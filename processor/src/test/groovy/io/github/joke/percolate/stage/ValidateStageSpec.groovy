@@ -150,10 +150,10 @@ class ValidateStageSpec extends Specification {
             'package test; import java.util.List;',
             'public class Result { private final List<TicketActor> actors;',
             '    public Result(List<TicketActor> actors) { this.actors = actors; } }')
-        def mapper = JavaFileObjects.forSourceLines('test.ListMapper',
+        def mapper = JavaFileObjects.forSourceLines('test.NoElementMapperMapper',
             'package test; import java.util.List;',
             'import io.github.joke.percolate.Mapper;',
-            '@Mapper public interface ListMapper {',
+            '@Mapper public interface NoElementMapperMapper {',
             '    Result map(Container container);',
             '    // mapActor is intentionally missing',
             '}')

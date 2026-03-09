@@ -42,16 +42,13 @@ public final class MapperMethodProvider implements ConversionProvider {
     }
 
     private static Optional<MethodDefinition> findMethod(
-            final Types types,
-            final TypeMirror source,
-            final TypeMirror target,
-            final MethodRegistry registry) {
+            final Types types, final TypeMirror source, final TypeMirror target, final MethodRegistry registry) {
         return registry.entries().values().stream()
                 .map(RegistryEntry::getSignature)
                 .filter(Objects::nonNull)
                 .filter(method -> method.getParameters().size() == 1)
-                .filter(method ->
-                        types.isSameType(types.erasure(method.getParameters().get(0).getType()), types.erasure(source)))
+                .filter(method -> types.isSameType(
+                        types.erasure(method.getParameters().get(0).getType()), types.erasure(source)))
                 .filter(method -> types.isSameType(types.erasure(method.getReturnType()), types.erasure(target)))
                 .findFirst();
     }

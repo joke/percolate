@@ -34,7 +34,8 @@ public final class GetterPropertyStrategy implements PropertyDiscoveryStrategy {
 
     private static Property toProperty(final ExecutableElement method) {
         final var name = method.getSimpleName().toString();
-        final var propertyName = name.startsWith("get") ? decapitalize(name.substring(3)) : decapitalize(name.substring(2));
+        final var propertyName =
+                name.startsWith("get") ? decapitalize(name.substring(3)) : decapitalize(name.substring(2));
         return new Property(propertyName, method.getReturnType(), method);
     }
 

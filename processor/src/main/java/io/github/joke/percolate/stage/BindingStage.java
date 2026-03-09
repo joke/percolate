@@ -236,7 +236,7 @@ public final class BindingStage {
         final var property = prop.get();
         final var propNode = new PropertyAccessNode(segment, currentType, property.getType(), property.getAccessor());
         graph.addVertex(propNode);
-        graph.addEdge(current, propNode, FlowEdge.of(currentType, property.getType()));
+        graph.addEdge(current, propNode, FlowEdge.of(currentType, currentType));
         return walkSegments(graph, propNode, property.getType(), index + 1, segments);
     }
 

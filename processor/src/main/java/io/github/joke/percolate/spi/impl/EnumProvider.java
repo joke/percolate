@@ -1,7 +1,6 @@
 package io.github.joke.percolate.spi.impl;
 
 import com.google.auto.service.AutoService;
-import io.github.joke.percolate.graph.edge.ConversionEdge;
 import io.github.joke.percolate.spi.ConversionFragment;
 import io.github.joke.percolate.spi.ConversionProvider;
 import io.github.joke.percolate.stage.MethodRegistry;
@@ -33,12 +32,6 @@ public final class EnumProvider implements ConversionProvider {
 
     public static boolean canConvertEnums(final TypeMirror source, final TypeMirror target) {
         return isEnumType(source) && isEnumType(target);
-    }
-
-    public static ConversionEdge createEnumEdge(final TypeMirror source, final TypeMirror target) {
-        final var targetName = ((DeclaredType) target).asElement().toString();
-        return new ConversionEdge(
-                ConversionEdge.Kind.ENUM_VALUE_OF, source, target, targetName + ".valueOf($expr.name())");
     }
 
     private static boolean isEnumType(final TypeMirror type) {

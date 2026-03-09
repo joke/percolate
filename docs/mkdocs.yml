@@ -17,6 +17,11 @@ nav:
   - '@Immutable': immutable.md
   - '@Mutable': mutable.md
   - Reference: reference.md
+  - Architecture:
+    - Overview: architecture/index.md
+    - Pipeline: architecture/pipeline.md
+    - Graph Model: architecture/graph-model.md
+    - SPI: architecture/spi.md
 
 markdown_extensions:
   - pymdownx.highlight:

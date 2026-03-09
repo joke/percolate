@@ -165,7 +165,8 @@ public final class WiringStage {
             return FlowEdge.of(bindingEdge.getSourceType(), bindingEdge.getTargetType());
         }
         final var slotName = bindingEdge.getSlotName();
-        final var slotType = findSlotType((ConstructorAssignmentNode) wiredTarget, slotName, bindingEdge.getTargetType());
+        final var slotType =
+                findSlotType((ConstructorAssignmentNode) wiredTarget, slotName, bindingEdge.getTargetType());
         return FlowEdge.forSlot(bindingEdge.getSourceType(), slotType, slotName);
     }
 
@@ -249,7 +250,8 @@ public final class WiringStage {
             final DirectedWeightedMultigraph<MappingNode, FlowEdge> graph,
             final MethodRegistry registry,
             final List<ConversionProvider> providers) {
-        final var unused = IntStream.range(0, 10).allMatch(iteration -> expandIncompatibleEdges(graph, registry, providers));
+        final var unused =
+                IntStream.range(0, 10).allMatch(iteration -> expandIncompatibleEdges(graph, registry, providers));
     }
 
     @Unmodifiable

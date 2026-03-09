@@ -11,8 +11,7 @@ public final class RegistryEntry {
     private final @Nullable Graph<MappingNode, FlowEdge> graph;
 
     public RegistryEntry(
-            final @Nullable MethodDefinition signature,
-            final @Nullable Graph<MappingNode, FlowEdge> graph) {
+            final @Nullable MethodDefinition signature, final @Nullable Graph<MappingNode, FlowEdge> graph) {
         this.signature = signature;
         this.graph = graph;
     }

@@ -63,17 +63,18 @@ public final class ValidateStage {
             final MethodDefinition signature) {
         final var canReachSink = backwardReachable(graph, sink);
         return graph.vertexSet().stream()
-                .filter(PropertyAccessNode.class::isInstance)
-                .map(PropertyAccessNode.class::cast)
-                .filter(prop -> !canReachSink.contains(prop))
-                .peek(prop -> messager.printMessage(
-                        ERROR,
-                        "Property '" + prop.getPropertyName()
-                                + "' (type " + prop.getOutType()
-                                + ") has no conversion path to "
-                                + sink.getTargetType().getSimpleName()
-                                + " in " + signature.getName()))
-                .count() > 0;
+                        .filter(PropertyAccessNode.class::isInstance)
+                        .map(PropertyAccessNode.class::cast)
+                        .filter(prop -> !canReachSink.contains(prop))
+                        .peek(prop -> messager.printMessage(
+                                ERROR,
+                                "Property '" + prop.getPropertyName()
+                                        + "' (type " + prop.getOutType()
+                                        + ") has no conversion path to "
+                                        + sink.getTargetType().getSimpleName()
+                                        + " in " + signature.getName()))
+                        .count()
+                > 0;
     }
 
     private boolean reportMissingParams(
@@ -85,14 +86,15 @@ public final class ValidateStage {
                 .filter(Objects::nonNull)
                 .collect(toSet());
         return sink.getDescriptor().getParameters().stream()
-                .filter(param -> !mappedSlots.contains(param.getName()))
-                .peek(param -> messager.printMessage(
-                        ERROR,
-                        "No source mapping for constructor parameter '"
-                                + param.getName()
-                                + "' of " + sink.getTargetType().getSimpleName()
-                                + " in " + signature.getName()))
-                .count() > 0;
+                        .filter(param -> !mappedSlots.contains(param.getName()))
+                        .peek(param -> messager.printMessage(
+                                ERROR,
+                                "No source mapping for constructor parameter '"
+                                        + param.getName()
+                                        + "' of " + sink.getTargetType().getSimpleName()
+                                        + " in " + signature.getName()))
+                        .count()
+                > 0;
     }
 
     private static Set<MappingNode> backwardReachable(
