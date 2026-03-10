@@ -1,9 +1,15 @@
 package io.github.joke.percolate.spi.impl;
 
-import static java.util.Arrays.asList;
 import static java.util.Collections.emptyList;
-import static java.util.Collections.singletonList;
-import static java.util.Collections.unmodifiableMap;
+import static java.util.Map.entry;
+import static java.util.Map.ofEntries;
+import static javax.lang.model.type.TypeKind.BYTE;
+import static javax.lang.model.type.TypeKind.CHAR;
+import static javax.lang.model.type.TypeKind.DOUBLE;
+import static javax.lang.model.type.TypeKind.FLOAT;
+import static javax.lang.model.type.TypeKind.INT;
+import static javax.lang.model.type.TypeKind.LONG;
+import static javax.lang.model.type.TypeKind.SHORT;
 
 import com.google.auto.service.AutoService;
 import io.github.joke.percolate.graph.node.BoxingNode;
@@ -11,7 +17,6 @@ import io.github.joke.percolate.graph.node.UnboxingNode;
 import io.github.joke.percolate.spi.ConversionFragment;
 import io.github.joke.percolate.spi.ConversionProvider;
 import io.github.joke.percolate.stage.MethodRegistry;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import javax.annotation.processing.ProcessingEnvironment;
@@ -22,18 +27,13 @@ import javax.lang.model.util.Types;
 @AutoService(ConversionProvider.class)
 public final class PrimitiveWideningProvider implements ConversionProvider {
 
-    private static final Map<TypeKind, List<TypeKind>> WIDENING;
-
-    static {
-        final var map = new HashMap<TypeKind, List<TypeKind>>();
-        map.put(TypeKind.BYTE, asList(TypeKind.SHORT, TypeKind.INT, TypeKind.LONG, TypeKind.FLOAT, TypeKind.DOUBLE));
-        map.put(TypeKind.SHORT, asList(TypeKind.INT, TypeKind.LONG, TypeKind.FLOAT, TypeKind.DOUBLE));
-        map.put(TypeKind.CHAR, asList(TypeKind.INT, TypeKind.LONG, TypeKind.FLOAT, TypeKind.DOUBLE));
-        map.put(TypeKind.INT, asList(TypeKind.LONG, TypeKind.FLOAT, TypeKind.DOUBLE));
-        map.put(TypeKind.LONG, asList(TypeKind.FLOAT, TypeKind.DOUBLE));
-        map.put(TypeKind.FLOAT, singletonList(TypeKind.DOUBLE));
-        WIDENING = unmodifiableMap(map);
-    }
+    private static final Map<TypeKind, List<TypeKind>> WIDENING = ofEntries(
+            entry(BYTE, List.of(SHORT, INT, LONG, FLOAT, DOUBLE)),
+            entry(SHORT, List.of(INT, LONG, FLOAT, DOUBLE)),
+            entry(CHAR, List.of(INT, LONG, FLOAT, DOUBLE)),
+            entry(INT, List.of(LONG, FLOAT, DOUBLE)),
+            entry(LONG, List.of(FLOAT, DOUBLE)),
+            entry(FLOAT, List.of(DOUBLE)));
 
     @Override
     public boolean canHandle(
