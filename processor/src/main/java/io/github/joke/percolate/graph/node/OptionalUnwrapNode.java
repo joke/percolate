@@ -21,6 +21,16 @@ public final class OptionalUnwrapNode implements MappingNode {
     }
 
     @Override
+    public TypeMirror inType() {
+        return optionalType;
+    }
+
+    @Override
+    public TypeMirror outType() {
+        return elementType;
+    }
+
+    @Override
     public String toString() {
         return "OptionalUnwrap(" + elementType + ")";
     }

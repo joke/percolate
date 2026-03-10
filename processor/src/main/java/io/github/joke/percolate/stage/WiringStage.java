@@ -5,18 +5,9 @@ import static java.util.Objects.requireNonNull;
 import static java.util.stream.Collectors.toUnmodifiableList;
 
 import io.github.joke.percolate.graph.edge.FlowEdge;
-import io.github.joke.percolate.graph.node.BoxingNode;
-import io.github.joke.percolate.graph.node.CollectionCollectNode;
-import io.github.joke.percolate.graph.node.CollectionIterationNode;
 import io.github.joke.percolate.graph.node.ConstructorAssignmentNode;
 import io.github.joke.percolate.graph.node.MappingNode;
-import io.github.joke.percolate.graph.node.MethodCallNode;
-import io.github.joke.percolate.graph.node.OptionalUnwrapNode;
-import io.github.joke.percolate.graph.node.OptionalWrapNode;
-import io.github.joke.percolate.graph.node.PropertyAccessNode;
-import io.github.joke.percolate.graph.node.SourceNode;
 import io.github.joke.percolate.graph.node.TargetSlotPlaceholder;
-import io.github.joke.percolate.graph.node.UnboxingNode;
 import io.github.joke.percolate.model.Property;
 import io.github.joke.percolate.spi.ConversionFragment;
 import io.github.joke.percolate.spi.ConversionProvider;
@@ -199,8 +190,8 @@ public final class WiringStage {
             final var conversionNode = nodes.get(index);
             wiredGraph.addVertex(conversionNode);
             final var predecessorNode = index == 0 ? source : nodes.get(index - 1);
-            final var predecessorType = index == 0 ? edge.getSourceType() : outTypeOf(nodes.get(index - 1));
-            wiredGraph.addEdge(predecessorNode, conversionNode, FlowEdge.of(predecessorType, inTypeOf(conversionNode)));
+            final var predecessorType = index == 0 ? edge.getSourceType() : nodes.get(index - 1).outType();
+            wiredGraph.addEdge(predecessorNode, conversionNode, FlowEdge.of(predecessorType, conversionNode.inType()));
         });
     }
 
@@ -211,8 +202,8 @@ public final class WiringStage {
             final List<MappingNode> nodes) {
         final var lastNode = nodes.get(nodes.size() - 1);
         final var reconnect = edge.getSlotName() != null
-                ? FlowEdge.forSlot(outTypeOf(lastNode), edge.getTargetType(), edge.getSlotName())
-                : FlowEdge.of(outTypeOf(lastNode), edge.getTargetType());
+                ? FlowEdge.forSlot(lastNode.outType(), edge.getTargetType(), edge.getSlotName())
+                : FlowEdge.of(lastNode.outType(), edge.getTargetType());
         wiredGraph.addEdge(lastNode, target, reconnect);
     }
 
@@ -250,8 +241,9 @@ public final class WiringStage {
             final DirectedWeightedMultigraph<MappingNode, FlowEdge> graph,
             final MethodRegistry registry,
             final List<ConversionProvider> providers) {
-        final var unused =
-                IntStream.range(0, 10).allMatch(iteration -> expandIncompatibleEdges(graph, registry, providers));
+        IntStream.range(0, 10)
+                .takeWhile(i -> expandIncompatibleEdges(graph, registry, providers))
+                .forEach(i -> {});
     }
 
     @Unmodifiable
@@ -289,31 +281,4 @@ public final class WiringStage {
         // which ValidateStage will detect via forward/backward reachability analysis.
     }
 
-    private static TypeMirror outTypeOf(final MappingNode node) {
-        if (node instanceof SourceNode) return ((SourceNode) node).getType();
-        if (node instanceof PropertyAccessNode) return ((PropertyAccessNode) node).getOutType();
-        if (node instanceof CollectionIterationNode) return ((CollectionIterationNode) node).getElementType();
-        if (node instanceof CollectionCollectNode) return ((CollectionCollectNode) node).getTargetCollectionType();
-        if (node instanceof OptionalWrapNode) return ((OptionalWrapNode) node).getOptionalType();
-        if (node instanceof OptionalUnwrapNode) return ((OptionalUnwrapNode) node).getElementType();
-        if (node instanceof BoxingNode) return ((BoxingNode) node).getOutType();
-        if (node instanceof UnboxingNode) return ((UnboxingNode) node).getOutType();
-        if (node instanceof MethodCallNode) return ((MethodCallNode) node).getOutType();
-        throw new IllegalArgumentException(
-                "Unknown node type: " + node.getClass().getSimpleName());
-    }
-
-    private static TypeMirror inTypeOf(final MappingNode node) {
-        if (node instanceof SourceNode) return ((SourceNode) node).getType();
-        if (node instanceof PropertyAccessNode) return ((PropertyAccessNode) node).getInType();
-        if (node instanceof CollectionIterationNode) return ((CollectionIterationNode) node).getCollectionType();
-        if (node instanceof CollectionCollectNode) return ((CollectionCollectNode) node).getElementType();
-        if (node instanceof OptionalWrapNode) return ((OptionalWrapNode) node).getElementType();
-        if (node instanceof OptionalUnwrapNode) return ((OptionalUnwrapNode) node).getOptionalType();
-        if (node instanceof BoxingNode) return ((BoxingNode) node).getInType();
-        if (node instanceof UnboxingNode) return ((UnboxingNode) node).getInType();
-        if (node instanceof MethodCallNode) return ((MethodCallNode) node).getInType();
-        throw new IllegalArgumentException(
-                "Unknown node type: " + node.getClass().getSimpleName());
-    }
 }

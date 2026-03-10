@@ -15,6 +15,16 @@ public final class TargetSlotPlaceholder implements MappingNode {
     }
 
     @Override
+    public TypeMirror inType() {
+        return targetType;
+    }
+
+    @Override
+    public TypeMirror outType() {
+        return targetType;
+    }
+
+    @Override
     public String toString() {
         return "Slot(" + targetType + ")";
     }

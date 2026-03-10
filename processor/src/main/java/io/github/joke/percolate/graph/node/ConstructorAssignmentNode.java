@@ -2,6 +2,7 @@ package io.github.joke.percolate.graph.node;
 
 import io.github.joke.percolate.spi.CreationDescriptor;
 import javax.lang.model.element.TypeElement;
+import javax.lang.model.type.TypeMirror;
 
 public final class ConstructorAssignmentNode implements TargetAssignmentNode {
     private final TypeElement targetType;
@@ -19,6 +20,16 @@ public final class ConstructorAssignmentNode implements TargetAssignmentNode {
 
     public CreationDescriptor getDescriptor() {
         return descriptor;
+    }
+
+    @Override
+    public TypeMirror inType() {
+        return targetType.asType();
+    }
+
+    @Override
+    public TypeMirror outType() {
+        return targetType.asType();
     }
 
     @Override
