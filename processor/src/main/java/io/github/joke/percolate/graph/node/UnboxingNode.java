@@ -21,6 +21,16 @@ public final class UnboxingNode implements MappingNode {
     }
 
     @Override
+    public TypeMirror inType() {
+        return inType;
+    }
+
+    @Override
+    public TypeMirror outType() {
+        return outType;
+    }
+
+    @Override
     public String toString() {
         return "Unboxing(" + inType + "->" + outType + ")";
     }

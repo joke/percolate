@@ -1,4 +1,10 @@
 package io.github.joke.percolate.graph.node;
 
-/** Marker interface for all nodes in the mapping data-flow graph. */
-public interface MappingNode {}
+import javax.lang.model.type.TypeMirror;
+
+/** Interface for all nodes in the mapping data-flow graph. */
+public interface MappingNode {
+    TypeMirror inType();
+
+    TypeMirror outType();
+}

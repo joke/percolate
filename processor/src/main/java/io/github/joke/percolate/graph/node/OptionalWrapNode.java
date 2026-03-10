@@ -21,6 +21,16 @@ public final class OptionalWrapNode implements MappingNode {
     }
 
     @Override
+    public TypeMirror inType() {
+        return elementType;
+    }
+
+    @Override
+    public TypeMirror outType() {
+        return optionalType;
+    }
+
+    @Override
     public String toString() {
         return "OptionalWrap(" + elementType + ")";
     }

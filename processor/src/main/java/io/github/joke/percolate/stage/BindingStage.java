@@ -182,8 +182,7 @@ public final class BindingStage {
             return;
         }
 
-        final var terminalType = getNodeType(terminal);
-        graph.addEdge(terminal, target, FlowEdge.forSlot(terminalType, target.getTargetType(), slotName));
+        graph.addEdge(terminal, target, FlowEdge.forSlot(terminal.outType(), target.getTargetType(), slotName));
     }
 
     private @Nullable EntryPoint resolveEntryPoint(final List<SourceNode> sourceNodes, final String[] segments) {
@@ -238,13 +237,6 @@ public final class BindingStage {
         graph.addVertex(propNode);
         graph.addEdge(current, propNode, FlowEdge.of(currentType, currentType));
         return walkSegments(graph, propNode, property.getType(), index + 1, segments);
-    }
-
-    private TypeMirror getNodeType(final MappingNode node) {
-        if (node instanceof SourceNode) {
-            return ((SourceNode) node).getType();
-        }
-        return ((PropertyAccessNode) node).getOutType();
     }
 
     private Set<Property> discoverProperties(final TypeElement type) {

@@ -33,6 +33,16 @@ public final class PropertyAccessNode implements MappingNode {
     }
 
     @Override
+    public TypeMirror inType() {
+        return inType;
+    }
+
+    @Override
+    public TypeMirror outType() {
+        return outType;
+    }
+
+    @Override
     public String toString() {
         return "Property(" + propertyName + ":" + inType + "->" + outType + ")";
     }

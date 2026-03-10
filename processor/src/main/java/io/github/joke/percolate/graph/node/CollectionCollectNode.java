@@ -21,6 +21,16 @@ public final class CollectionCollectNode implements MappingNode {
     }
 
     @Override
+    public TypeMirror inType() {
+        return elementType;
+    }
+
+    @Override
+    public TypeMirror outType() {
+        return targetCollectionType;
+    }
+
+    @Override
     public String toString() {
         return "CollectionCollect(" + elementType + "->" + targetCollectionType + ")";
     }

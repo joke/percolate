@@ -20,6 +20,16 @@ public final class SourceNode implements MappingNode {
     }
 
     @Override
+    public TypeMirror inType() {
+        return type;
+    }
+
+    @Override
+    public TypeMirror outType() {
+        return type;
+    }
+
+    @Override
     public String toString() {
         return "Source(" + paramName + ":" + type + ")";
     }
