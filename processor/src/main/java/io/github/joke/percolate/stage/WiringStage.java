@@ -190,7 +190,8 @@ public final class WiringStage {
             final var conversionNode = nodes.get(index);
             wiredGraph.addVertex(conversionNode);
             final var predecessorNode = index == 0 ? source : nodes.get(index - 1);
-            final var predecessorType = index == 0 ? edge.getSourceType() : nodes.get(index - 1).outType();
+            final var predecessorType =
+                    index == 0 ? edge.getSourceType() : nodes.get(index - 1).outType();
             wiredGraph.addEdge(predecessorNode, conversionNode, FlowEdge.of(predecessorType, conversionNode.inType()));
         });
     }
@@ -280,5 +281,4 @@ public final class WiringStage {
         // If no fragment found, the edge is severed — the source node becomes a dead-end,
         // which ValidateStage will detect via forward/backward reachability analysis.
     }
-
 }
