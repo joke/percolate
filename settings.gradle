@@ -1,0 +1,18 @@
+pluginManagement {  
+    repositories {
+        gradlePluginPortal()
+    }
+    plugins {
+        id 'net.ltgt.errorprone' version '5.1.0'
+        id 'net.ltgt.nullaway' version '3.0.0'
+        id 'com.palantir.baseline' version '7.4.0'
+        id 'com.diffplug.gradle.spotless' version '8.4.0'
+    }
+}
+
+rootProject.name = 'percolate'
+
+include 'annotations'
+// include 'bom'
+include 'dependencies'
+include 'processor'

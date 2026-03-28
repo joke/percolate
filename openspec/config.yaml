@@ -1,0 +1,32 @@
+schema: spec-driven
+
+context: |
+  Tech stack: Java 11, Google Dagger 2.59.1, Java Poet 0.12.0, Lombok, JGraphT 1.5.2, Gradle 9.3
+  We use conventional commits
+  Testing: Spock 2.4, Groovy 5.0, Google Compile Testing
+
+rules:
+  proposal:
+  - Identify affected teams
+  design:
+  - Include mermaid diagrams for complex flows
+  
+
+# Project context (optional)
+# This is shown to AI when creating artifacts.
+# Add your tech stack, conventions, style guides, domain knowledge, etc.
+# Example:
+#   context: |
+#     Tech stack: TypeScript, React, Node.js
+#     We use conventional commits
+#     Domain: e-commerce platform
+
+# Per-artifact rules (optional)
+# Add custom rules for specific artifacts.
+# Example:
+#   rules:
+#     proposal:
+#       - Keep proposals under 500 words
+#       - Always include a "Non-goals" section
+#     tasks:
+#       - Break tasks into chunks of max 2 hours
