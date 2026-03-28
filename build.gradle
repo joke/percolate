@@ -71,6 +71,9 @@ subprojects { project ->
             }
         }
         tasks.withType(JacocoCoverageVerification).configureEach {
+            dependsOn test
+            dependsOn tasks.matching { it.name == 'integrationTest' }
+            executionData.from fileTree(buildDir).include('jacoco/*.exec')
             violationRules {
                 rule {
                     limit {

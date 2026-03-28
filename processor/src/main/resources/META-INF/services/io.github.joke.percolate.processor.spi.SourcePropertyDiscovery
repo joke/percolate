@@ -1,0 +1,2 @@
+io.github.joke.percolate.processor.spi.GetterDiscovery
+io.github.joke.percolate.processor.spi.FieldDiscovery$Source
