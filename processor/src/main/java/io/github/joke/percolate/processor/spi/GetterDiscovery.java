@@ -1,14 +1,16 @@
 package io.github.joke.percolate.processor.spi;
 
+import static java.util.stream.Collectors.toUnmodifiableList;
+import static javax.lang.model.element.ElementKind.METHOD;
+import static javax.lang.model.element.Modifier.PUBLIC;
+
 import com.google.auto.service.AutoService;
 import io.github.joke.percolate.processor.model.GetterAccessor;
 import io.github.joke.percolate.processor.model.ReadAccessor;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
-import javax.lang.model.element.ElementKind;
+import java.util.Objects;
 import javax.lang.model.element.ExecutableElement;
-import javax.lang.model.element.Modifier;
 import javax.lang.model.element.TypeElement;
 import javax.lang.model.type.DeclaredType;
 import javax.lang.model.type.TypeMirror;
@@ -29,29 +31,21 @@ public final class GetterDiscovery implements SourcePropertyDiscovery {
             return List.of();
         }
 
-        final List<ReadAccessor> accessors = new ArrayList<>();
-
         final TypeElement typeElement = (TypeElement) ((DeclaredType) type).asElement();
-        for (final var enclosed : typeElement.getEnclosedElements()) {
-            if (enclosed.getKind() != ElementKind.METHOD) {
-                continue;
-            }
-            if (!enclosed.getModifiers().contains(Modifier.PUBLIC)) {
-                continue;
-            }
-            final ExecutableElement method = (ExecutableElement) enclosed;
-            if (!method.getParameters().isEmpty()) {
-                continue;
-            }
-
-            final String methodName = method.getSimpleName().toString();
-            final String propertyName = extractPropertyName(methodName);
-            if (propertyName != null) {
-                accessors.add(new GetterAccessor(propertyName, method.getReturnType(), method));
-            }
-        }
-
-        return List.copyOf(accessors);
+        return typeElement.getEnclosedElements().stream()
+                .filter(e -> e.getKind() == METHOD)
+                .filter(e -> e.getModifiers().contains(PUBLIC))
+                .map(ExecutableElement.class::cast)
+                .filter(m -> m.getParameters().isEmpty())
+                .map(m -> {
+                    final String propertyName =
+                            extractPropertyName(m.getSimpleName().toString());
+                    return propertyName != null
+                            ? (ReadAccessor) new GetterAccessor(propertyName, m.getReturnType(), m)
+                            : null;
+                })
+                .filter(Objects::nonNull)
+                .collect(toUnmodifiableList());
     }
 
     @SuppressWarnings("NullAway")

@@ -14,11 +14,11 @@ The mapping graph SHALL be a `DefaultDirectedGraph<PropertyNode, MappingEdge>` f
 - **THEN** the graph SHALL contain 4 nodes and 2 directed edges from source to target nodes
 
 ### Requirement: PropertyNode carries accessor metadata
-`SourcePropertyNode` SHALL carry the property name, type, and `ReadAccessor`. `TargetPropertyNode` SHALL carry the property name, type, and `WriteAccessor`. These accessors are used by the generate stage to emit correct access code.
+`SourcePropertyNode` SHALL carry the property name, type, and `ReadAccessor`. `TargetPropertyNode` SHALL carry the property name, type, and `WriteAccessor`. These accessors are used by the generate stage to emit correct access code. `PropertyNode` SHALL use Lombok `@Getter` and `@RequiredArgsConstructor(access = AccessLevel.PROTECTED)` to generate accessors and constructor. Leaf subclasses SHALL use Lombok `@Getter` for their own fields. Accessor methods SHALL follow JavaBean naming conventions (`getName()`, `getType()`, `getAccessor()`).
 
 #### Scenario: Source node provides read accessor
 - **WHEN** a `SourcePropertyNode` is created for property `firstName` with a `GetterAccessor`
-- **THEN** `accessor()` SHALL return the `GetterAccessor` for code generation
+- **THEN** `getAccessor()` SHALL return the `GetterAccessor` for code generation
 
 ### Requirement: MappingEdge represents a property mapping
 `MappingEdge` SHALL represent a directed mapping from a source property to a target property. It SHALL carry the mapping type (e.g., `DIRECT` for explicit `@Map` directives).

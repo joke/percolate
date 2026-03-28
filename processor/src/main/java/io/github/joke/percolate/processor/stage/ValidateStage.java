@@ -1,5 +1,7 @@
 package io.github.joke.percolate.processor.stage;
 
+import static javax.tools.Diagnostic.Kind.ERROR;
+
 import io.github.joke.percolate.processor.Diagnostic;
 import io.github.joke.percolate.processor.StageResult;
 import io.github.joke.percolate.processor.graph.MappingEdge;
@@ -10,7 +12,6 @@ import jakarta.inject.Inject;
 import java.io.StringWriter;
 import java.util.ArrayList;
 import java.util.List;
-import javax.tools.Diagnostic.Kind;
 import org.jgrapht.nio.dot.DOTExporter;
 
 public final class ValidateStage {
@@ -31,14 +32,14 @@ public final class ValidateStage {
 
             if (inDegree == 0) {
                 errors.add(new Diagnostic(
-                        mappingGraph.getMapperType(), "Unmapped target property: " + node.name(), Kind.ERROR));
+                        mappingGraph.getMapperType(), "Unmapped target property: " + node.getName(), ERROR));
             }
 
             if (inDegree > 1) {
                 errors.add(new Diagnostic(
                         mappingGraph.getMapperType(),
-                        "Conflicting mappings for target property: " + node.name(),
-                        Kind.ERROR));
+                        "Conflicting mappings for target property: " + node.getName(),
+                        ERROR));
             }
         }
 
@@ -51,7 +52,7 @@ public final class ValidateStage {
 
     @SuppressWarnings("UnusedMethod")
     public String exportDot(final MappingGraph mappingGraph) {
-        final DOTExporter<PropertyNode, MappingEdge> exporter = new DOTExporter<>(PropertyNode::name);
+        final DOTExporter<PropertyNode, MappingEdge> exporter = new DOTExporter<>(PropertyNode::getName);
         final StringWriter writer = new StringWriter();
         exporter.exportGraph(mappingGraph.getGraph(), writer);
         return writer.toString();

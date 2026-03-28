@@ -1,5 +1,11 @@
 package io.github.joke.percolate.processor.stage;
 
+import static java.util.Comparator.comparingInt;
+import static java.util.stream.Collectors.toUnmodifiableList;
+import static javax.lang.model.element.Modifier.FINAL;
+import static javax.lang.model.element.Modifier.PUBLIC;
+import static javax.tools.Diagnostic.Kind.ERROR;
+
 import com.palantir.javapoet.ClassName;
 import com.palantir.javapoet.CodeBlock;
 import com.palantir.javapoet.JavaFile;
@@ -22,12 +28,9 @@ import io.github.joke.percolate.processor.model.ReadAccessor;
 import jakarta.inject.Inject;
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Comparator;
 import java.util.List;
 import javax.annotation.processing.Filer;
-import javax.lang.model.element.Modifier;
 import javax.lang.model.element.PackageElement;
-import javax.tools.Diagnostic.Kind;
 
 public final class GenerateStage {
 
@@ -47,9 +50,8 @@ public final class GenerateStage {
         final var mapperName = ClassName.get(packageName, simpleName);
         final var implName = ClassName.get(packageName, simpleName + "Impl");
 
-        final TypeSpec.Builder classBuilder = TypeSpec.classBuilder(implName)
-                .addModifiers(Modifier.PUBLIC, Modifier.FINAL)
-                .addSuperinterface(mapperName);
+        final TypeSpec.Builder classBuilder =
+                TypeSpec.classBuilder(implName).addModifiers(PUBLIC, FINAL).addSuperinterface(mapperName);
 
         for (final DiscoveredMethod method : mappingGraph.getMethods()) {
             classBuilder.addMethod(generateMethod(method, mappingGraph));
@@ -61,8 +63,8 @@ public final class GenerateStage {
         try {
             javaFile.writeTo(filer);
         } catch (final IOException e) {
-            return StageResult.failure(List.of(
-                    new Diagnostic(mapperType, "Failed to write generated file: " + e.getMessage(), Kind.ERROR)));
+            return StageResult.failure(
+                    List.of(new Diagnostic(mapperType, "Failed to write generated file: " + e.getMessage(), ERROR)));
         }
 
         return StageResult.success(javaFile);
@@ -77,21 +79,18 @@ public final class GenerateStage {
         final MethodSpec.Builder methodBuilder = MethodSpec.methodBuilder(
                         executableElement.getSimpleName().toString())
                 .addAnnotation(Override.class)
-                .addModifiers(Modifier.PUBLIC)
+                .addModifiers(PUBLIC)
                 .returns(returnType)
                 .addParameter(TypeName.get(method.getOriginal().getSourceType()), sourceParamName);
 
         final var graph = mappingGraph.getGraph();
-        final List<TargetPropertyNode> targetNodes = new ArrayList<>();
-
-        for (final PropertyNode node : graph.vertexSet()) {
-            if (node instanceof TargetPropertyNode) {
-                targetNodes.add((TargetPropertyNode) node);
-            }
-        }
+        final List<TargetPropertyNode> targetNodes = new ArrayList<>(graph.vertexSet().stream()
+                .filter(TargetPropertyNode.class::isInstance)
+                .map(TargetPropertyNode.class::cast)
+                .collect(toUnmodifiableList()));
 
         final boolean allConstructor =
-                targetNodes.stream().allMatch(t -> t.accessor() instanceof ConstructorParamAccessor);
+                targetNodes.stream().allMatch(t -> t.getAccessor() instanceof ConstructorParamAccessor);
 
         if (allConstructor) {
             generateConstructorBody(methodBuilder, targetNodes, graph, sourceParamName, returnType);
@@ -109,7 +108,7 @@ public final class GenerateStage {
             final String sourceParamName,
             final TypeName returnType) {
 
-        targetNodes.sort(Comparator.comparingInt(t -> ((ConstructorParamAccessor) t.accessor()).paramIndex()));
+        targetNodes.sort(comparingInt(t -> ((ConstructorParamAccessor) t.getAccessor()).getParamIndex()));
 
         final List<CodeBlock> args = new ArrayList<>();
         for (final TargetPropertyNode targetNode : targetNodes) {
@@ -120,7 +119,7 @@ public final class GenerateStage {
             }
             final var edge = edges.iterator().next();
             final SourcePropertyNode sourceNode = (SourcePropertyNode) graph.getEdgeSource(edge);
-            args.add(generateReadExpression(sourceNode.accessor(), sourceParamName));
+            args.add(generateReadExpression(sourceNode.getAccessor(), sourceParamName));
         }
 
         methodBuilder.addStatement("return new $T($L)", returnType, CodeBlock.join(args, ", "));
@@ -142,10 +141,10 @@ public final class GenerateStage {
             }
             final var edge = edges.iterator().next();
             final SourcePropertyNode sourceNode = (SourcePropertyNode) graph.getEdgeSource(edge);
-            final var readExpr = generateReadExpression(sourceNode.accessor(), sourceParamName);
+            final var readExpr = generateReadExpression(sourceNode.getAccessor(), sourceParamName);
 
-            if (targetNode.accessor() instanceof FieldWriteAccessor) {
-                methodBuilder.addStatement("target.$L = $L", targetNode.name(), readExpr);
+            if (targetNode.getAccessor() instanceof FieldWriteAccessor) {
+                methodBuilder.addStatement("target.$L = $L", targetNode.getName(), readExpr);
             }
         }
 
@@ -155,10 +154,10 @@ public final class GenerateStage {
     private CodeBlock generateReadExpression(final ReadAccessor accessor, final String sourceParamName) {
         if (accessor instanceof GetterAccessor) {
             final GetterAccessor getter = (GetterAccessor) accessor;
-            return CodeBlock.of("$L.$L()", sourceParamName, getter.method().getSimpleName());
+            return CodeBlock.of("$L.$L()", sourceParamName, getter.getMethod().getSimpleName());
         }
         if (accessor instanceof FieldReadAccessor) {
-            return CodeBlock.of("$L.$L", sourceParamName, accessor.name());
+            return CodeBlock.of("$L.$L", sourceParamName, accessor.getName());
         }
         return CodeBlock.of("null");
     }

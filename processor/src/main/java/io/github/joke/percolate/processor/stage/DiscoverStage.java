@@ -1,17 +1,17 @@
 package io.github.joke.percolate.processor.stage;
 
+import static java.util.Comparator.comparingInt;
+import static java.util.stream.Collectors.toUnmodifiableList;
+
 import io.github.joke.percolate.processor.StageResult;
 import io.github.joke.percolate.processor.model.DiscoveredMethod;
 import io.github.joke.percolate.processor.model.DiscoveredModel;
 import io.github.joke.percolate.processor.model.MapperModel;
-import io.github.joke.percolate.processor.model.MappingMethodModel;
 import io.github.joke.percolate.processor.model.ReadAccessor;
 import io.github.joke.percolate.processor.model.WriteAccessor;
 import io.github.joke.percolate.processor.spi.SourcePropertyDiscovery;
 import io.github.joke.percolate.processor.spi.TargetPropertyDiscovery;
 import jakarta.inject.Inject;
-import java.util.ArrayList;
-import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -36,13 +36,12 @@ public final class DiscoverStage {
     }
 
     public StageResult<DiscoveredModel> execute(final MapperModel mapperModel) {
-        final List<DiscoveredMethod> discoveredMethods = new ArrayList<>();
-
-        for (final MappingMethodModel method : mapperModel.getMethods()) {
-            final Map<String, ReadAccessor> sourceProps = discoverSourceProperties(method.getSourceType());
-            final Map<String, WriteAccessor> targetProps = discoverTargetProperties(method.getTargetType());
-            discoveredMethods.add(new DiscoveredMethod(method, sourceProps, targetProps));
-        }
+        final var discoveredMethods = mapperModel.getMethods().stream()
+                .map(method -> new DiscoveredMethod(
+                        method,
+                        discoverSourceProperties(method.getSourceType()),
+                        discoverTargetProperties(method.getTargetType())))
+                .collect(toUnmodifiableList());
 
         return StageResult.success(new DiscoveredModel(mapperModel.getMapperType(), discoveredMethods));
     }
@@ -53,10 +52,10 @@ public final class DiscoverStage {
 
         for (final SourcePropertyDiscovery strategy : sourceStrategies) {
             for (final ReadAccessor accessor : strategy.discover(sourceType, elements, types)) {
-                final int currentPriority = priorities.getOrDefault(accessor.name(), Integer.MIN_VALUE);
+                final int currentPriority = priorities.getOrDefault(accessor.getName(), Integer.MIN_VALUE);
                 if (strategy.priority() > currentPriority) {
-                    merged.put(accessor.name(), accessor);
-                    priorities.put(accessor.name(), strategy.priority());
+                    merged.put(accessor.getName(), accessor);
+                    priorities.put(accessor.getName(), strategy.priority());
                 }
             }
         }
@@ -70,10 +69,10 @@ public final class DiscoverStage {
 
         for (final TargetPropertyDiscovery strategy : targetStrategies) {
             for (final WriteAccessor accessor : strategy.discover(targetType, elements, types)) {
-                final int currentPriority = priorities.getOrDefault(accessor.name(), Integer.MIN_VALUE);
+                final int currentPriority = priorities.getOrDefault(accessor.getName(), Integer.MIN_VALUE);
                 if (strategy.priority() > currentPriority) {
-                    merged.put(accessor.name(), accessor);
-                    priorities.put(accessor.name(), strategy.priority());
+                    merged.put(accessor.getName(), accessor);
+                    priorities.put(accessor.getName(), strategy.priority());
                 }
             }
         }
@@ -82,17 +81,17 @@ public final class DiscoverStage {
     }
 
     private static <T> List<T> loadAndSort(final Class<T> serviceClass) {
-        final List<T> strategies = new ArrayList<>();
-        ServiceLoader.load(serviceClass, DiscoverStage.class.getClassLoader()).forEach(strategies::add);
-        strategies.sort(Comparator.comparingInt(s -> {
-            if (s instanceof SourcePropertyDiscovery) {
-                return -((SourcePropertyDiscovery) s).priority();
-            }
-            if (s instanceof TargetPropertyDiscovery) {
-                return -((TargetPropertyDiscovery) s).priority();
-            }
-            return 0;
-        }));
-        return strategies;
+        return ServiceLoader.load(serviceClass, DiscoverStage.class.getClassLoader()).stream()
+                .map(ServiceLoader.Provider::get)
+                .sorted(comparingInt(s -> {
+                    if (s instanceof SourcePropertyDiscovery) {
+                        return -((SourcePropertyDiscovery) s).priority();
+                    }
+                    if (s instanceof TargetPropertyDiscovery) {
+                        return -((TargetPropertyDiscovery) s).priority();
+                    }
+                    return 0;
+                }))
+                .collect(toUnmodifiableList());
     }
 }

@@ -1,5 +1,7 @@
 package io.github.joke.percolate.processor.stage;
 
+import static javax.tools.Diagnostic.Kind.ERROR;
+
 import io.github.joke.percolate.processor.Diagnostic;
 import io.github.joke.percolate.processor.StageResult;
 import io.github.joke.percolate.processor.graph.MappingEdge;
@@ -17,7 +19,6 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import javax.tools.Diagnostic.Kind;
 import org.jgrapht.graph.DefaultDirectedGraph;
 
 public final class BuildGraphStage {
@@ -34,14 +35,16 @@ public final class BuildGraphStage {
             final Map<String, TargetPropertyNode> targetNodes = new LinkedHashMap<>();
 
             for (final ReadAccessor accessor : method.getSourceProperties().values()) {
-                final SourcePropertyNode node = new SourcePropertyNode(accessor.name(), accessor.type(), accessor);
-                sourceNodes.put(accessor.name(), node);
+                final SourcePropertyNode node =
+                        new SourcePropertyNode(accessor.getName(), accessor.getType(), accessor);
+                sourceNodes.put(accessor.getName(), node);
                 graph.addVertex(node);
             }
 
             for (final WriteAccessor accessor : method.getTargetProperties().values()) {
-                final TargetPropertyNode node = new TargetPropertyNode(accessor.name(), accessor.type(), accessor);
-                targetNodes.put(accessor.name(), node);
+                final TargetPropertyNode node =
+                        new TargetPropertyNode(accessor.getName(), accessor.getType(), accessor);
+                targetNodes.put(accessor.getName(), node);
                 graph.addVertex(node);
             }
 
@@ -53,7 +56,7 @@ public final class BuildGraphStage {
                     errors.add(new Diagnostic(
                             method.getOriginal().getMethod(),
                             "Unknown source property: " + directive.getSource(),
-                            Kind.ERROR));
+                            ERROR));
                     continue;
                 }
 
@@ -61,7 +64,7 @@ public final class BuildGraphStage {
                     errors.add(new Diagnostic(
                             method.getOriginal().getMethod(),
                             "Unknown target property: " + directive.getTarget(),
-                            Kind.ERROR));
+                            ERROR));
                     continue;
                 }
 

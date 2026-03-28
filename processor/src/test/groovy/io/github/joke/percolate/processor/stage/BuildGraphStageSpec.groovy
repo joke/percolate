@@ -41,8 +41,8 @@ class BuildGraphStageSpec extends Specification {
         final graph = result.value().graph
         graph.vertexSet().size() == 2
         graph.edgeSet().size() == 1
-        graph.vertexSet().find { it instanceof SourcePropertyNode }.name() == 'firstName'
-        graph.vertexSet().find { it instanceof TargetPropertyNode }.name() == 'givenName'
+        graph.vertexSet().find { it instanceof SourcePropertyNode }.name == 'firstName'
+        graph.vertexSet().find { it instanceof TargetPropertyNode }.name == 'givenName'
         graph.edgeSet().first().type == MappingEdge.Type.DIRECT
     }
 

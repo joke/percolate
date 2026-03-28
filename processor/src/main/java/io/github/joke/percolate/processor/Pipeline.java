@@ -58,8 +58,8 @@ final class Pipeline {
     }
 
     private void reportErrors(final StageResult<?> result) {
-        for (final Diagnostic diagnostic : result.errors()) {
-            messager.printMessage(diagnostic.getKind(), diagnostic.getMessage(), diagnostic.getElement());
-        }
+        result.errors()
+                .forEach(diagnostic ->
+                        messager.printMessage(diagnostic.getKind(), diagnostic.getMessage(), diagnostic.getElement()));
     }
 }

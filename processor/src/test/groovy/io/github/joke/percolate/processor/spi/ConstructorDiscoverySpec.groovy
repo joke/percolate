@@ -45,9 +45,9 @@ class ConstructorDiscoverySpec extends Specification {
         final result = discovery.discover(type, elements, types)
         result.size() == 1
         result[0] instanceof ConstructorParamAccessor
-        result[0].name() == 'givenName'
-        result[0].type() == paramType
-        (result[0] as ConstructorParamAccessor).paramIndex() == 0
+        result[0].name == 'givenName'
+        result[0].type == paramType
+        (result[0] as ConstructorParamAccessor).paramIndex == 0
     }
 
     def 'uses constructor with most parameters'() {

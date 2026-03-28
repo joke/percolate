@@ -1,14 +1,16 @@
 package io.github.joke.percolate.processor.spi;
 
+import static java.util.stream.Collectors.toUnmodifiableList;
+import static javax.lang.model.element.ElementKind.FIELD;
+import static javax.lang.model.element.Modifier.PUBLIC;
+import static javax.lang.model.element.Modifier.STATIC;
+
 import com.google.auto.service.AutoService;
 import io.github.joke.percolate.processor.model.FieldReadAccessor;
 import io.github.joke.percolate.processor.model.FieldWriteAccessor;
 import io.github.joke.percolate.processor.model.ReadAccessor;
 import io.github.joke.percolate.processor.model.WriteAccessor;
-import java.util.ArrayList;
 import java.util.List;
-import javax.lang.model.element.ElementKind;
-import javax.lang.model.element.Modifier;
 import javax.lang.model.element.TypeElement;
 import javax.lang.model.element.VariableElement;
 import javax.lang.model.type.DeclaredType;
@@ -25,23 +27,13 @@ public final class FieldDiscovery {
             return List.of();
         }
 
-        final List<VariableElement> fields = new ArrayList<>();
-
         final TypeElement typeElement = (TypeElement) ((DeclaredType) type).asElement();
-        for (final var enclosed : typeElement.getEnclosedElements()) {
-            if (enclosed.getKind() != ElementKind.FIELD) {
-                continue;
-            }
-            if (!enclosed.getModifiers().contains(Modifier.PUBLIC)) {
-                continue;
-            }
-            if (enclosed.getModifiers().contains(Modifier.STATIC)) {
-                continue;
-            }
-            fields.add((VariableElement) enclosed);
-        }
-
-        return List.copyOf(fields);
+        return typeElement.getEnclosedElements().stream()
+                .filter(e -> e.getKind() == FIELD)
+                .filter(e -> e.getModifiers().contains(PUBLIC))
+                .filter(e -> !e.getModifiers().contains(STATIC))
+                .map(VariableElement.class::cast)
+                .collect(toUnmodifiableList());
     }
 
     @AutoService(SourcePropertyDiscovery.class)
@@ -54,11 +46,10 @@ public final class FieldDiscovery {
 
         @Override
         public List<ReadAccessor> discover(final TypeMirror type, final Elements elements, final Types types) {
-            final List<ReadAccessor> accessors = new ArrayList<>();
-            for (final VariableElement field : findPublicFields(type)) {
-                accessors.add(new FieldReadAccessor(field.getSimpleName().toString(), field.asType(), field));
-            }
-            return List.copyOf(accessors);
+            return findPublicFields(type).stream()
+                    .map(field -> (ReadAccessor)
+                            new FieldReadAccessor(field.getSimpleName().toString(), field.asType(), field))
+                    .collect(toUnmodifiableList());
         }
     }
 
@@ -72,11 +63,10 @@ public final class FieldDiscovery {
 
         @Override
         public List<WriteAccessor> discover(final TypeMirror type, final Elements elements, final Types types) {
-            final List<WriteAccessor> accessors = new ArrayList<>();
-            for (final VariableElement field : findPublicFields(type)) {
-                accessors.add(new FieldWriteAccessor(field.getSimpleName().toString(), field.asType(), field));
-            }
-            return List.copyOf(accessors);
+            return findPublicFields(type).stream()
+                    .map(field -> (WriteAccessor)
+                            new FieldWriteAccessor(field.getSimpleName().toString(), field.asType(), field))
+                    .collect(toUnmodifiableList());
         }
     }
 }

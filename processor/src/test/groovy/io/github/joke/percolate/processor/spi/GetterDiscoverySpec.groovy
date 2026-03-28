@@ -45,8 +45,8 @@ class GetterDiscoverySpec extends Specification {
         final result = discovery.discover(type, elements, types)
         result.size() == 1
         result[0] instanceof GetterAccessor
-        result[0].name() == 'firstName'
-        result[0].type() == returnType
+        result[0].name == 'firstName'
+        result[0].type == returnType
     }
 
     def 'discovers boolean getter isActive()'() {
@@ -66,7 +66,7 @@ class GetterDiscoverySpec extends Specification {
         expect:
         final result = discovery.discover(type, elements, types)
         result.size() == 1
-        result[0].name() == 'active'
+        result[0].name == 'active'
     }
 
     def 'ignores non-getter methods'() {

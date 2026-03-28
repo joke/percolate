@@ -1,5 +1,11 @@
 package io.github.joke.percolate.processor.stage;
 
+import static java.util.stream.Collectors.toUnmodifiableList;
+import static javax.lang.model.element.ElementKind.METHOD;
+import static javax.lang.model.element.Modifier.ABSTRACT;
+import static javax.lang.model.type.TypeKind.VOID;
+import static javax.tools.Diagnostic.Kind.ERROR;
+
 import io.github.joke.percolate.Map;
 import io.github.joke.percolate.MapList;
 import io.github.joke.percolate.processor.Diagnostic;
@@ -9,14 +15,10 @@ import io.github.joke.percolate.processor.model.MapperModel;
 import io.github.joke.percolate.processor.model.MappingMethodModel;
 import jakarta.inject.Inject;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
-import java.util.stream.Collectors;
-import javax.lang.model.element.ElementKind;
 import javax.lang.model.element.ExecutableElement;
-import javax.lang.model.element.Modifier;
 import javax.lang.model.element.TypeElement;
-import javax.lang.model.type.TypeKind;
-import javax.tools.Diagnostic.Kind;
 
 public final class AnalyzeStage {
 
@@ -27,11 +29,11 @@ public final class AnalyzeStage {
         final List<Diagnostic> errors = new ArrayList<>();
 
         final List<MappingMethodModel> methods = mapperType.getEnclosedElements().stream()
-                .filter(e -> e.getKind() == ElementKind.METHOD)
-                .filter(e -> e.getModifiers().contains(Modifier.ABSTRACT))
+                .filter(e -> e.getKind() == METHOD)
+                .filter(e -> e.getModifiers().contains(ABSTRACT))
                 .map(ExecutableElement.class::cast)
                 .map(method -> analyzeMethod(method, errors))
-                .collect(Collectors.toList());
+                .collect(toUnmodifiableList());
 
         if (!errors.isEmpty()) {
             return StageResult.failure(errors);
@@ -42,11 +44,11 @@ public final class AnalyzeStage {
 
     private MappingMethodModel analyzeMethod(final ExecutableElement method, final List<Diagnostic> errors) {
         if (method.getParameters().isEmpty()) {
-            errors.add(new Diagnostic(method, "Mapping method must have a source parameter", Kind.ERROR));
+            errors.add(new Diagnostic(method, "Mapping method must have a source parameter", ERROR));
         }
 
-        if (method.getReturnType().getKind() == TypeKind.VOID) {
-            errors.add(new Diagnostic(method, "Mapping method must have a non-void return type", Kind.ERROR));
+        if (method.getReturnType().getKind() == VOID) {
+            errors.add(new Diagnostic(method, "Mapping method must have a non-void return type", ERROR));
         }
 
         final var sourceType = method.getParameters().isEmpty()
@@ -59,21 +61,18 @@ public final class AnalyzeStage {
     }
 
     private List<MapDirective> parseDirectives(final ExecutableElement method) {
-        final List<MapDirective> directives = new ArrayList<>();
-
         final MapList mapList = method.getAnnotation(MapList.class);
         if (mapList != null) {
-            for (final Map map : mapList.value()) {
-                directives.add(new MapDirective(map.source(), map.target()));
-            }
-            return directives;
+            return Arrays.stream(mapList.value())
+                    .map(map -> new MapDirective(map.source(), map.target()))
+                    .collect(toUnmodifiableList());
         }
 
         final Map map = method.getAnnotation(Map.class);
         if (map != null) {
-            directives.add(new MapDirective(map.source(), map.target()));
+            return List.of(new MapDirective(map.source(), map.target()));
         }
 
-        return directives;
+        return List.of();
     }
 }

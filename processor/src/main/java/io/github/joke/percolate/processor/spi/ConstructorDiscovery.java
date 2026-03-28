@@ -1,12 +1,14 @@
 package io.github.joke.percolate.processor.spi;
 
+import static java.util.Comparator.comparingInt;
+import static java.util.stream.Collectors.toUnmodifiableList;
+import static javax.lang.model.element.ElementKind.CONSTRUCTOR;
+
 import com.google.auto.service.AutoService;
 import io.github.joke.percolate.processor.model.ConstructorParamAccessor;
 import io.github.joke.percolate.processor.model.WriteAccessor;
-import java.util.ArrayList;
-import java.util.Comparator;
 import java.util.List;
-import javax.lang.model.element.ElementKind;
+import java.util.stream.IntStream;
 import javax.lang.model.element.ExecutableElement;
 import javax.lang.model.element.TypeElement;
 import javax.lang.model.element.VariableElement;
@@ -25,8 +27,6 @@ public final class ConstructorDiscovery implements TargetPropertyDiscovery {
 
     @Override
     public List<WriteAccessor> discover(final TypeMirror type, final Elements elements, final Types types) {
-        final List<WriteAccessor> accessors = new ArrayList<>();
-
         if (!(type instanceof DeclaredType)) {
             return List.of();
         }
@@ -34,9 +34,9 @@ public final class ConstructorDiscovery implements TargetPropertyDiscovery {
         final TypeElement typeElement = (TypeElement) ((DeclaredType) type).asElement();
 
         final ExecutableElement constructor = typeElement.getEnclosedElements().stream()
-                .filter(e -> e.getKind() == ElementKind.CONSTRUCTOR)
+                .filter(e -> e.getKind() == CONSTRUCTOR)
                 .map(ExecutableElement.class::cast)
-                .max(Comparator.comparingInt(c -> c.getParameters().size()))
+                .max(comparingInt(c -> c.getParameters().size()))
                 .orElse(null);
 
         if (constructor == null) {
@@ -44,12 +44,12 @@ public final class ConstructorDiscovery implements TargetPropertyDiscovery {
         }
 
         final List<? extends VariableElement> params = constructor.getParameters();
-        for (int i = 0; i < params.size(); i++) {
-            final VariableElement param = params.get(i);
-            accessors.add(
-                    new ConstructorParamAccessor(param.getSimpleName().toString(), param.asType(), constructor, i));
-        }
-
-        return List.copyOf(accessors);
+        return IntStream.range(0, params.size())
+                .mapToObj(i -> {
+                    final VariableElement param = params.get(i);
+                    return (WriteAccessor) new ConstructorParamAccessor(
+                            param.getSimpleName().toString(), param.asType(), constructor, i);
+                })
+                .collect(toUnmodifiableList());
     }
 }

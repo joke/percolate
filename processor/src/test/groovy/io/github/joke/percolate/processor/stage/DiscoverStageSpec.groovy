@@ -99,10 +99,10 @@ class DiscoverStageSpec extends Specification {
 
         for (strategy in strategies) {
             for (accessor in strategy.discover(type, elements, types)) {
-                final currentPriority = priorities.getOrDefault(accessor.name(), Integer.MIN_VALUE)
+                final currentPriority = priorities.getOrDefault(accessor.name, Integer.MIN_VALUE)
                 if (strategy.priority() > currentPriority) {
-                    merged[accessor.name()] = accessor
-                    priorities[accessor.name()] = strategy.priority()
+                    merged[accessor.name] = accessor
+                    priorities[accessor.name] = strategy.priority()
                 }
             }
         }

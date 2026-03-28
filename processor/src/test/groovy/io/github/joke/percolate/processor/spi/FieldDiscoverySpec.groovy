@@ -48,7 +48,7 @@ class FieldDiscoverySpec extends Specification {
         final result = new FieldDiscovery.Source().discover(type, elements, types)
         result.size() == 1
         result[0] instanceof FieldReadAccessor
-        result[0].name() == 'firstName'
+        result[0].name == 'firstName'
     }
 
     def 'target discovers public fields as WriteAccessor'() {
@@ -68,7 +68,7 @@ class FieldDiscoverySpec extends Specification {
         final result = new FieldDiscovery.Target().discover(type, elements, types)
         result.size() == 1
         result[0] instanceof FieldWriteAccessor
-        result[0].name() == 'firstName'
+        result[0].name == 'firstName'
     }
 
     def 'ignores private fields'() {
