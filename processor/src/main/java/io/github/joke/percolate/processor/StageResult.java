@@ -1,6 +1,5 @@
 package io.github.joke.percolate.processor;
 
-import java.util.Collections;
 import java.util.List;
 import org.jspecify.annotations.Nullable;
 
@@ -15,7 +14,7 @@ public final class StageResult<T> {
     }
 
     public static <T> StageResult<T> success(final T value) {
-        return new StageResult<>(value, Collections.emptyList());
+        return new StageResult<>(value, List.of());
     }
 
     public static <T> StageResult<T> failure(final List<Diagnostic> errors) {

@@ -26,7 +26,7 @@ public final class ConstructorDiscovery implements TargetPropertyDiscovery {
         final List<WriteAccessor> accessors = new ArrayList<>();
 
         if (!(type instanceof DeclaredType)) {
-            return accessors;
+            return List.of();
         }
 
         final TypeElement typeElement = (TypeElement) ((DeclaredType) type).asElement();
@@ -38,7 +38,7 @@ public final class ConstructorDiscovery implements TargetPropertyDiscovery {
                 .orElse(null);
 
         if (constructor == null) {
-            return accessors;
+            return List.of();
         }
 
         final List<? extends VariableElement> params = constructor.getParameters();
@@ -48,6 +48,6 @@ public final class ConstructorDiscovery implements TargetPropertyDiscovery {
                     new ConstructorParamAccessor(param.getSimpleName().toString(), param.asType(), constructor, i));
         }
 
-        return accessors;
+        return List.copyOf(accessors);
     }
 }

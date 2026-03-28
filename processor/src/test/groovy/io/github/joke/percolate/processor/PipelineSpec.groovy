@@ -32,58 +32,63 @@ class PipelineSpec extends Specification {
 
     def 'successful pipeline returns JavaFile'() {
         given:
-        def element = Mock(TypeElement)
-        def mapperModel = Mock(MapperModel)
-        def discoveredModel = Mock(DiscoveredModel)
-        def mappingGraph = Mock(MappingGraph)
-        def javaFile = JavaFile.builder('com.example', TypeSpec.classBuilder('Test').build()).build()
-
-        analyzeStage.execute(element) >> StageResult.success(mapperModel)
-        discoverStage.execute(mapperModel) >> StageResult.success(discoveredModel)
-        buildGraphStage.execute(discoveredModel) >> StageResult.success(mappingGraph)
-        validateStage.execute(mappingGraph) >> StageResult.success(mappingGraph)
-        generateStage.execute(mappingGraph) >> StageResult.success(javaFile)
+        final element = Mock(TypeElement)
+        final mapperModel = Mock(MapperModel)
+        final discoveredModel = Mock(DiscoveredModel)
+        final mappingGraph = Mock(MappingGraph)
+        final javaFile = JavaFile.builder('com.example', TypeSpec.classBuilder('Test').build()).build()
 
         when:
-        def result = pipeline.process(element)
+        final result = pipeline.process(element)
 
         then:
+        1 * analyzeStage.execute(element) >> StageResult.success(mapperModel)
+        1 * discoverStage.execute(mapperModel) >> StageResult.success(discoveredModel)
+        1 * buildGraphStage.execute(discoveredModel) >> StageResult.success(mappingGraph)
+        1 * validateStage.execute(mappingGraph) >> StageResult.success(mappingGraph)
+        1 * generateStage.execute(mappingGraph) >> StageResult.success(javaFile)
+        0 * _
+
+        expect:
         result != null
     }
 
     def 'analyze failure stops pipeline and reports errors'() {
         given:
-        def element = Mock(TypeElement)
-        def diagnostic = new Diagnostic(Mock(Element), 'analysis failed', Kind.ERROR)
-        analyzeStage.execute(element) >> StageResult.failure([diagnostic])
-
+        final element = Mock(TypeElement)
+        final diagnostic = new Diagnostic(Mock(Element), 'analysis failed', Kind.ERROR)
         when:
-        def result = pipeline.process(element)
+        final result = pipeline.process(element)
 
         then:
-        result == null
+        1 * analyzeStage.execute(element) >> StageResult.failure([diagnostic])
         1 * messager.printMessage(Kind.ERROR, 'analysis failed', _)
+        0 * _
+
+        expect:
+        result == null
     }
 
     def 'validate failure stops pipeline and reports errors'() {
         given:
-        def element = Mock(TypeElement)
-        def mapperModel = Mock(MapperModel)
-        def discoveredModel = Mock(DiscoveredModel)
-        def mappingGraph = Mock(MappingGraph)
-        def diagnostic = new Diagnostic(Mock(Element), 'unmapped target', Kind.ERROR)
-
-        analyzeStage.execute(element) >> StageResult.success(mapperModel)
-        discoverStage.execute(mapperModel) >> StageResult.success(discoveredModel)
-        buildGraphStage.execute(discoveredModel) >> StageResult.success(mappingGraph)
-        validateStage.execute(mappingGraph) >> StageResult.failure([diagnostic])
+        final element = Mock(TypeElement)
+        final mapperModel = Mock(MapperModel)
+        final discoveredModel = Mock(DiscoveredModel)
+        final mappingGraph = Mock(MappingGraph)
+        final diagnostic = new Diagnostic(Mock(Element), 'unmapped target', Kind.ERROR)
 
         when:
-        def result = pipeline.process(element)
+        final result = pipeline.process(element)
 
         then:
-        result == null
+        1 * analyzeStage.execute(element) >> StageResult.success(mapperModel)
+        1 * discoverStage.execute(mapperModel) >> StageResult.success(discoveredModel)
+        1 * buildGraphStage.execute(discoveredModel) >> StageResult.success(mappingGraph)
+        1 * validateStage.execute(mappingGraph) >> StageResult.failure([diagnostic])
         1 * messager.printMessage(Kind.ERROR, 'unmapped target', _)
-        0 * generateStage.execute(_)
+        0 * _
+
+        expect:
+        result == null
     }
 }

@@ -23,28 +23,24 @@ class BuildGraphStageSpec extends Specification {
 
     def 'builds graph with source and target nodes connected by direct edge'() {
         given:
-        def typeMirror = Mock(TypeMirror)
-        def sourceAccessor = new GetterAccessor('firstName', typeMirror, Mock(ExecutableElement))
-        def targetAccessor = new ConstructorParamAccessor('givenName', typeMirror, Mock(ExecutableElement), 0)
+        final typeMirror = Mock(TypeMirror)
+        final sourceAccessor = new GetterAccessor('firstName', typeMirror, Mock(ExecutableElement))
+        final targetAccessor = new ConstructorParamAccessor('givenName', typeMirror, Mock(ExecutableElement), 0)
 
-        def method = new MappingMethodModel(
+        final method = new MappingMethodModel(
                 Mock(ExecutableElement), typeMirror, typeMirror,
                 [new MapDirective('firstName', 'givenName')])
-        def discovered = new DiscoveredMethod(method,
+        final discovered = new DiscoveredMethod(method,
                 [firstName: sourceAccessor],
                 [givenName: targetAccessor])
-        def model = new DiscoveredModel(Mock(TypeElement), [discovered])
+        final model = new DiscoveredModel(Mock(TypeElement), [discovered])
 
-        when:
-        def result = stage.execute(model)
-
-        then:
+        expect:
+        final result = stage.execute(model)
         result.isSuccess()
-        def graph = result.value().graph
+        final graph = result.value().graph
         graph.vertexSet().size() == 2
         graph.edgeSet().size() == 1
-
-        and:
         graph.vertexSet().find { it instanceof SourcePropertyNode }.name() == 'firstName'
         graph.vertexSet().find { it instanceof TargetPropertyNode }.name() == 'givenName'
         graph.edgeSet().first().type == MappingEdge.Type.DIRECT
@@ -52,67 +48,61 @@ class BuildGraphStageSpec extends Specification {
 
     def 'fails for unknown source property'() {
         given:
-        def typeMirror = Mock(TypeMirror)
-        def targetAccessor = new ConstructorParamAccessor('givenName', typeMirror, Mock(ExecutableElement), 0)
+        final typeMirror = Mock(TypeMirror)
+        final targetAccessor = new ConstructorParamAccessor('givenName', typeMirror, Mock(ExecutableElement), 0)
 
-        def method = new MappingMethodModel(
+        final method = new MappingMethodModel(
                 Mock(ExecutableElement), typeMirror, typeMirror,
                 [new MapDirective('nonexistent', 'givenName')])
-        def discovered = new DiscoveredMethod(method,
+        final discovered = new DiscoveredMethod(method,
                 [:],
                 [givenName: targetAccessor])
-        def model = new DiscoveredModel(Mock(TypeElement), [discovered])
+        final model = new DiscoveredModel(Mock(TypeElement), [discovered])
 
-        when:
-        def result = stage.execute(model)
-
-        then:
+        expect:
+        final result = stage.execute(model)
         !result.isSuccess()
         result.errors().any { it.message.contains('Unknown source property: nonexistent') }
     }
 
     def 'fails for unknown target property'() {
         given:
-        def typeMirror = Mock(TypeMirror)
-        def sourceAccessor = new GetterAccessor('firstName', typeMirror, Mock(ExecutableElement))
+        final typeMirror = Mock(TypeMirror)
+        final sourceAccessor = new GetterAccessor('firstName', typeMirror, Mock(ExecutableElement))
 
-        def method = new MappingMethodModel(
+        final method = new MappingMethodModel(
                 Mock(ExecutableElement), typeMirror, typeMirror,
                 [new MapDirective('firstName', 'nonexistent')])
-        def discovered = new DiscoveredMethod(method,
+        final discovered = new DiscoveredMethod(method,
                 [firstName: sourceAccessor],
                 [:])
-        def model = new DiscoveredModel(Mock(TypeElement), [discovered])
+        final model = new DiscoveredModel(Mock(TypeElement), [discovered])
 
-        when:
-        def result = stage.execute(model)
-
-        then:
+        expect:
+        final result = stage.execute(model)
         !result.isSuccess()
         result.errors().any { it.message.contains('Unknown target property: nonexistent') }
     }
 
     def 'adds all target properties as nodes even without mappings'() {
         given:
-        def typeMirror = Mock(TypeMirror)
-        def sourceAccessor = new GetterAccessor('firstName', typeMirror, Mock(ExecutableElement))
-        def targetAccessor1 = new ConstructorParamAccessor('givenName', typeMirror, Mock(ExecutableElement), 0)
-        def targetAccessor2 = new ConstructorParamAccessor('familyName', typeMirror, Mock(ExecutableElement), 1)
+        final typeMirror = Mock(TypeMirror)
+        final sourceAccessor = new GetterAccessor('firstName', typeMirror, Mock(ExecutableElement))
+        final targetAccessor1 = new ConstructorParamAccessor('givenName', typeMirror, Mock(ExecutableElement), 0)
+        final targetAccessor2 = new ConstructorParamAccessor('familyName', typeMirror, Mock(ExecutableElement), 1)
 
-        def method = new MappingMethodModel(
+        final method = new MappingMethodModel(
                 Mock(ExecutableElement), typeMirror, typeMirror,
                 [new MapDirective('firstName', 'givenName')])
-        def discovered = new DiscoveredMethod(method,
+        final discovered = new DiscoveredMethod(method,
                 [firstName: sourceAccessor],
                 [givenName: targetAccessor1, familyName: targetAccessor2])
-        def model = new DiscoveredModel(Mock(TypeElement), [discovered])
+        final model = new DiscoveredModel(Mock(TypeElement), [discovered])
 
-        when:
-        def result = stage.execute(model)
-
-        then:
+        expect:
+        final result = stage.execute(model)
         result.isSuccess()
-        def targetNodes = result.value().graph.vertexSet().findAll { it instanceof TargetPropertyNode }
+        final targetNodes = result.value().graph.vertexSet().findAll { it instanceof TargetPropertyNode }
         targetNodes.size() == 2
     }
 }

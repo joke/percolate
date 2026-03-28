@@ -33,21 +33,19 @@ class FieldDiscoverySpec extends Specification {
 
     def 'source discovers public fields as ReadAccessor'() {
         given:
-        def fieldType = Mock(TypeMirror)
-        def fieldName = Stub(Name) { toString() >> 'firstName' }
-        def field = Stub(VariableElement) {
-            getKind() >> ElementKind.FIELD
-            getModifiers() >> ([Modifier.PUBLIC] as Set)
-            getSimpleName() >> fieldName
+        final fieldType = Mock(TypeMirror)
+        final fieldName = Stub(Name) { toString() >> 'firstName' }
+        final field = Stub(VariableElement) {
+            kind >> ElementKind.FIELD
+            modifiers >> ([Modifier.PUBLIC] as Set)
+            simpleName >> fieldName
             asType() >> fieldType
         }
-        def typeElement = Stub(TypeElement) { getEnclosedElements() >> [field] }
-        def type = Stub(DeclaredType) { asElement() >> typeElement }
+        final typeElement = Stub(TypeElement) { enclosedElements >> [field] }
+        final type = Stub(DeclaredType) { asElement() >> typeElement }
 
-        when:
-        def result = new FieldDiscovery.Source().discover(type, elements, types)
-
-        then:
+        expect:
+        final result = new FieldDiscovery.Source().discover(type, elements, types)
         result.size() == 1
         result[0] instanceof FieldReadAccessor
         result[0].name() == 'firstName'
@@ -55,21 +53,19 @@ class FieldDiscoverySpec extends Specification {
 
     def 'target discovers public fields as WriteAccessor'() {
         given:
-        def fieldType = Mock(TypeMirror)
-        def fieldName = Stub(Name) { toString() >> 'firstName' }
-        def field = Stub(VariableElement) {
-            getKind() >> ElementKind.FIELD
-            getModifiers() >> ([Modifier.PUBLIC] as Set)
-            getSimpleName() >> fieldName
+        final fieldType = Mock(TypeMirror)
+        final fieldName = Stub(Name) { toString() >> 'firstName' }
+        final field = Stub(VariableElement) {
+            kind >> ElementKind.FIELD
+            modifiers >> ([Modifier.PUBLIC] as Set)
+            simpleName >> fieldName
             asType() >> fieldType
         }
-        def typeElement = Stub(TypeElement) { getEnclosedElements() >> [field] }
-        def type = Stub(DeclaredType) { asElement() >> typeElement }
+        final typeElement = Stub(TypeElement) { enclosedElements >> [field] }
+        final type = Stub(DeclaredType) { asElement() >> typeElement }
 
-        when:
-        def result = new FieldDiscovery.Target().discover(type, elements, types)
-
-        then:
+        expect:
+        final result = new FieldDiscovery.Target().discover(type, elements, types)
         result.size() == 1
         result[0] instanceof FieldWriteAccessor
         result[0].name() == 'firstName'
@@ -77,39 +73,35 @@ class FieldDiscoverySpec extends Specification {
 
     def 'ignores private fields'() {
         given:
-        def fieldName = Stub(Name) { toString() >> 'secret' }
-        def field = Stub(VariableElement) {
-            getKind() >> ElementKind.FIELD
-            getModifiers() >> ([Modifier.PRIVATE] as Set)
-            getSimpleName() >> fieldName
+        final fieldName = Stub(Name) { toString() >> 'secret' }
+        final field = Stub(VariableElement) {
+            kind >> ElementKind.FIELD
+            modifiers >> ([Modifier.PRIVATE] as Set)
+            simpleName >> fieldName
             asType() >> Mock(TypeMirror)
         }
-        def typeElement = Stub(TypeElement) { getEnclosedElements() >> [field] }
-        def type = Stub(DeclaredType) { asElement() >> typeElement }
+        final typeElement = Stub(TypeElement) { enclosedElements >> [field] }
+        final type = Stub(DeclaredType) { asElement() >> typeElement }
 
-        when:
-        def result = new FieldDiscovery.Source().discover(type, elements, types)
-
-        then:
+        expect:
+        final result = new FieldDiscovery.Source().discover(type, elements, types)
         result.isEmpty()
     }
 
     def 'ignores static fields'() {
         given:
-        def fieldName = Stub(Name) { toString() >> 'CONSTANT' }
-        def field = Stub(VariableElement) {
-            getKind() >> ElementKind.FIELD
-            getModifiers() >> ([Modifier.PUBLIC, Modifier.STATIC] as Set)
-            getSimpleName() >> fieldName
+        final fieldName = Stub(Name) { toString() >> 'CONSTANT' }
+        final field = Stub(VariableElement) {
+            kind >> ElementKind.FIELD
+            modifiers >> ([Modifier.PUBLIC, Modifier.STATIC] as Set)
+            simpleName >> fieldName
             asType() >> Mock(TypeMirror)
         }
-        def typeElement = Stub(TypeElement) { getEnclosedElements() >> [field] }
-        def type = Stub(DeclaredType) { asElement() >> typeElement }
+        final typeElement = Stub(TypeElement) { enclosedElements >> [field] }
+        final type = Stub(DeclaredType) { asElement() >> typeElement }
 
-        when:
-        def result = new FieldDiscovery.Source().discover(type, elements, types)
-
-        then:
+        expect:
+        final result = new FieldDiscovery.Source().discover(type, elements, types)
         result.isEmpty()
     }
 }

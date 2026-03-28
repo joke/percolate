@@ -28,23 +28,21 @@ class ConstructorDiscoverySpec extends Specification {
 
     def 'discovers constructor parameters'() {
         given:
-        def paramType = Mock(TypeMirror)
-        def paramName = Stub(Name) { toString() >> 'givenName' }
-        def param = Stub(VariableElement) {
-            getSimpleName() >> paramName
+        final paramType = Mock(TypeMirror)
+        final paramName = Stub(Name) { toString() >> 'givenName' }
+        final param = Stub(VariableElement) {
+            simpleName >> paramName
             asType() >> paramType
         }
-        def constructor = Stub(ExecutableElement) {
-            getKind() >> ElementKind.CONSTRUCTOR
-            getParameters() >> [param]
+        final constructor = Stub(ExecutableElement) {
+            kind >> ElementKind.CONSTRUCTOR
+            parameters >> [param]
         }
-        def typeElement = Stub(TypeElement) { getEnclosedElements() >> [constructor] }
-        def type = Stub(DeclaredType) { asElement() >> typeElement }
+        final typeElement = Stub(TypeElement) { enclosedElements >> [constructor] }
+        final type = Stub(DeclaredType) { asElement() >> typeElement }
 
-        when:
-        def result = discovery.discover(type, elements, types)
-
-        then:
+        expect:
+        final result = discovery.discover(type, elements, types)
         result.size() == 1
         result[0] instanceof ConstructorParamAccessor
         result[0].name() == 'givenName'
@@ -54,38 +52,34 @@ class ConstructorDiscoverySpec extends Specification {
 
     def 'uses constructor with most parameters'() {
         given:
-        def smallCtor = Stub(ExecutableElement) {
-            getKind() >> ElementKind.CONSTRUCTOR
-            getParameters() >> []
+        final smallCtor = Stub(ExecutableElement) {
+            kind >> ElementKind.CONSTRUCTOR
+            parameters >> []
         }
-        def nameA = Stub(Name) { toString() >> 'a' }
-        def nameB = Stub(Name) { toString() >> 'b' }
-        def largeCtor = Stub(ExecutableElement) {
-            getKind() >> ElementKind.CONSTRUCTOR
-            getParameters() >> [
-                Stub(VariableElement) { getSimpleName() >> nameA; asType() >> Mock(TypeMirror) },
-                Stub(VariableElement) { getSimpleName() >> nameB; asType() >> Mock(TypeMirror) }
+        final nameA = Stub(Name) { toString() >> 'a' }
+        final nameB = Stub(Name) { toString() >> 'b' }
+        final largeCtor = Stub(ExecutableElement) {
+            kind >> ElementKind.CONSTRUCTOR
+            parameters >> [
+                Stub(VariableElement) { simpleName >> nameA; asType() >> Mock(TypeMirror) },
+                Stub(VariableElement) { simpleName >> nameB; asType() >> Mock(TypeMirror) }
             ]
         }
-        def typeElement = Stub(TypeElement) { getEnclosedElements() >> [smallCtor, largeCtor] }
-        def type = Stub(DeclaredType) { asElement() >> typeElement }
+        final typeElement = Stub(TypeElement) { enclosedElements >> [smallCtor, largeCtor] }
+        final type = Stub(DeclaredType) { asElement() >> typeElement }
 
-        when:
-        def result = discovery.discover(type, elements, types)
-
-        then:
+        expect:
+        final result = discovery.discover(type, elements, types)
         result.size() == 2
     }
 
     def 'returns empty for type without constructors'() {
         given:
-        def typeElement = Stub(TypeElement) { getEnclosedElements() >> [] }
-        def type = Stub(DeclaredType) { asElement() >> typeElement }
+        final typeElement = Stub(TypeElement) { enclosedElements >> [] }
+        final type = Stub(DeclaredType) { asElement() >> typeElement }
 
-        when:
-        def result = discovery.discover(type, elements, types)
-
-        then:
+        expect:
+        final result = discovery.discover(type, elements, types)
         result.isEmpty()
     }
 }

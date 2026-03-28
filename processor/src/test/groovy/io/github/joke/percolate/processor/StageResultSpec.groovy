@@ -11,7 +11,7 @@ class StageResultSpec extends Specification {
 
     def 'success result isSuccess() returns true'() {
         given:
-        def result = StageResult.success('value')
+        final result = StageResult.success('value')
 
         expect:
         result.isSuccess()
@@ -19,7 +19,7 @@ class StageResultSpec extends Specification {
 
     def 'success result value() returns the value'() {
         given:
-        def result = StageResult.success('hello')
+        final result = StageResult.success('hello')
 
         expect:
         result.value() == 'hello'
@@ -27,7 +27,7 @@ class StageResultSpec extends Specification {
 
     def 'success result errors() returns empty list'() {
         given:
-        def result = StageResult.success('value')
+        final result = StageResult.success('value')
 
         expect:
         result.errors().isEmpty()
@@ -35,8 +35,8 @@ class StageResultSpec extends Specification {
 
     def 'failure result isSuccess() returns false'() {
         given:
-        def diagnostic = new Diagnostic(Mock(Element), 'error message', Kind.ERROR)
-        def result = StageResult.failure([diagnostic])
+        final diagnostic = new Diagnostic(Mock(Element), 'error message', Kind.ERROR)
+        final result = StageResult.failure([diagnostic])
 
         expect:
         !result.isSuccess()
@@ -44,8 +44,8 @@ class StageResultSpec extends Specification {
 
     def 'failure result errors() returns diagnostics'() {
         given:
-        def diagnostic = new Diagnostic(Mock(Element), 'error message', Kind.ERROR)
-        def result = StageResult.failure([diagnostic])
+        final diagnostic = new Diagnostic(Mock(Element), 'error message', Kind.ERROR)
+        final result = StageResult.failure([diagnostic])
 
         expect:
         result.errors() == [diagnostic]
@@ -53,8 +53,8 @@ class StageResultSpec extends Specification {
 
     def 'failure result value() throws IllegalStateException'() {
         given:
-        def diagnostic = new Diagnostic(Mock(Element), 'error message', Kind.ERROR)
-        def result = StageResult.failure([diagnostic])
+        final diagnostic = new Diagnostic(Mock(Element), 'error message', Kind.ERROR)
+        final result = StageResult.failure([diagnostic])
 
         when:
         result.value()

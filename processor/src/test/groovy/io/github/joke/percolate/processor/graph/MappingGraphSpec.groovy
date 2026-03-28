@@ -14,11 +14,11 @@ class MappingGraphSpec extends Specification {
 
     def 'graph contains source and target nodes connected by direct mapping edge'() {
         given:
-        def graph = new DefaultDirectedGraph<PropertyNode, MappingEdge>(MappingEdge)
-        def typeMirror = Mock(TypeMirror)
-        def sourceNode = new SourcePropertyNode('firstName', typeMirror,
+        final graph = new DefaultDirectedGraph<PropertyNode, MappingEdge>(MappingEdge)
+        final typeMirror = Mock(TypeMirror)
+        final sourceNode = new SourcePropertyNode('firstName', typeMirror,
                 new GetterAccessor('firstName', typeMirror, Mock(ExecutableElement)))
-        def targetNode = new TargetPropertyNode('givenName', typeMirror,
+        final targetNode = new TargetPropertyNode('givenName', typeMirror,
                 new ConstructorParamAccessor('givenName', typeMirror, Mock(ExecutableElement), 0))
 
         when:
@@ -34,8 +34,8 @@ class MappingGraphSpec extends Specification {
 
     def 'PropertyNode toString includes class name and property name'() {
         given:
-        def typeMirror = Mock(TypeMirror)
-        def node = new SourcePropertyNode('firstName', typeMirror,
+        final typeMirror = Mock(TypeMirror)
+        final node = new SourcePropertyNode('firstName', typeMirror,
                 new GetterAccessor('firstName', typeMirror, Mock(ExecutableElement)))
 
         expect:

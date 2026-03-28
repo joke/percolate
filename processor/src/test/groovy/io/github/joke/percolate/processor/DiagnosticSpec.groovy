@@ -11,8 +11,8 @@ class DiagnosticSpec extends Specification {
 
     def 'carries element, message, and kind'() {
         given:
-        def element = Mock(Element)
-        def diagnostic = new Diagnostic(element, 'something went wrong', Kind.ERROR)
+        final element = Mock(Element)
+        final diagnostic = new Diagnostic(element, 'something went wrong', Kind.ERROR)
 
         expect:
         diagnostic.element == element

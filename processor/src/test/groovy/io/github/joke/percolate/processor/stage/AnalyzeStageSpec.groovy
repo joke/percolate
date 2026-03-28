@@ -21,27 +21,25 @@ class AnalyzeStageSpec extends Specification {
 
     def 'extracts abstract method with @Map annotation'() {
         given:
-        def sourceType = Mock(TypeMirror)
-        def targetType = Stub(TypeMirror) { getKind() >> TypeKind.DECLARED }
-        def param = Stub(VariableElement) { asType() >> sourceType }
-        def mapAnnotation = Stub(Map) {
+        final sourceType = Mock(TypeMirror)
+        final targetType = Stub(TypeMirror) { kind >> TypeKind.DECLARED }
+        final param = Stub(VariableElement) { asType() >> sourceType }
+        final mapAnnotation = Stub(Map) {
             source() >> 'firstName'
             target() >> 'givenName'
         }
-        def method = Stub(ExecutableElement) {
-            getKind() >> ElementKind.METHOD
-            getModifiers() >> ([Modifier.ABSTRACT] as Set)
-            getParameters() >> [param]
-            getReturnType() >> targetType
+        final method = Stub(ExecutableElement) {
+            kind >> ElementKind.METHOD
+            modifiers >> ([Modifier.ABSTRACT] as Set)
+            parameters >> [param]
+            returnType >> targetType
             getAnnotation(MapList) >> null
             getAnnotation(Map) >> mapAnnotation
         }
-        def mapperType = Stub(TypeElement) { getEnclosedElements() >> [method] }
+        final mapperType = Stub(TypeElement) { enclosedElements >> [method] }
 
-        when:
-        def result = stage.execute(mapperType)
-
-        then:
+        expect:
+        final result = stage.execute(mapperType)
         result.isSuccess()
         result.value().methods.size() == 1
         result.value().methods[0].directives.size() == 1
@@ -53,107 +51,97 @@ class AnalyzeStageSpec extends Specification {
 
     def 'extracts method with multiple @Map annotations via @MapList'() {
         given:
-        def sourceType = Mock(TypeMirror)
-        def targetType = Stub(TypeMirror) { getKind() >> TypeKind.DECLARED }
-        def param = Stub(VariableElement) { asType() >> sourceType }
-        def map1 = Stub(Map) { source() >> 'firstName'; target() >> 'givenName' }
-        def map2 = Stub(Map) { source() >> 'lastName'; target() >> 'familyName' }
-        def mapList = Stub(MapList) { value() >> ([map1, map2] as Map[]) }
-        def method = Stub(ExecutableElement) {
-            getKind() >> ElementKind.METHOD
-            getModifiers() >> ([Modifier.ABSTRACT] as Set)
-            getParameters() >> [param]
-            getReturnType() >> targetType
+        final sourceType = Mock(TypeMirror)
+        final targetType = Stub(TypeMirror) { kind >> TypeKind.DECLARED }
+        final param = Stub(VariableElement) { asType() >> sourceType }
+        final map1 = Stub(Map) { source() >> 'firstName'; target() >> 'givenName' }
+        final map2 = Stub(Map) { source() >> 'lastName'; target() >> 'familyName' }
+        final mapList = Stub(MapList) { value() >> ([map1, map2] as Map[]) }
+        final method = Stub(ExecutableElement) {
+            kind >> ElementKind.METHOD
+            modifiers >> ([Modifier.ABSTRACT] as Set)
+            parameters >> [param]
+            returnType >> targetType
             getAnnotation(MapList) >> mapList
         }
-        def mapperType = Stub(TypeElement) { getEnclosedElements() >> [method] }
+        final mapperType = Stub(TypeElement) { enclosedElements >> [method] }
 
-        when:
-        def result = stage.execute(mapperType)
-
-        then:
+        expect:
+        final result = stage.execute(mapperType)
         result.isSuccess()
         result.value().methods[0].directives.size() == 2
     }
 
     def 'ignores non-abstract methods'() {
         given:
-        def method = Stub(ExecutableElement) {
-            getKind() >> ElementKind.METHOD
-            getModifiers() >> ([] as Set)
+        final method = Stub(ExecutableElement) {
+            kind >> ElementKind.METHOD
+            modifiers >> ([] as Set)
         }
-        def mapperType = Stub(TypeElement) { getEnclosedElements() >> [method] }
+        final mapperType = Stub(TypeElement) { enclosedElements >> [method] }
 
-        when:
-        def result = stage.execute(mapperType)
-
-        then:
+        expect:
+        final result = stage.execute(mapperType)
         result.isSuccess()
         result.value().methods.isEmpty()
     }
 
     def 'fails when method has no parameters'() {
         given:
-        def targetType = Stub(TypeMirror) { getKind() >> TypeKind.DECLARED }
-        def method = Stub(ExecutableElement) {
-            getKind() >> ElementKind.METHOD
-            getModifiers() >> ([Modifier.ABSTRACT] as Set)
-            getParameters() >> []
-            getReturnType() >> targetType
+        final targetType = Stub(TypeMirror) { kind >> TypeKind.DECLARED }
+        final method = Stub(ExecutableElement) {
+            kind >> ElementKind.METHOD
+            modifiers >> ([Modifier.ABSTRACT] as Set)
+            parameters >> []
+            returnType >> targetType
             getAnnotation(MapList) >> null
             getAnnotation(Map) >> null
         }
-        def mapperType = Stub(TypeElement) { getEnclosedElements() >> [method] }
+        final mapperType = Stub(TypeElement) { enclosedElements >> [method] }
 
-        when:
-        def result = stage.execute(mapperType)
-
-        then:
+        expect:
+        final result = stage.execute(mapperType)
         !result.isSuccess()
         result.errors().any { it.message.contains('source parameter') }
     }
 
     def 'fails when method has void return type'() {
         given:
-        def voidType = Stub(TypeMirror) { getKind() >> TypeKind.VOID }
-        def param = Stub(VariableElement) { asType() >> Mock(TypeMirror) }
-        def method = Stub(ExecutableElement) {
-            getKind() >> ElementKind.METHOD
-            getModifiers() >> ([Modifier.ABSTRACT] as Set)
-            getParameters() >> [param]
-            getReturnType() >> voidType
+        final voidType = Stub(TypeMirror) { kind >> TypeKind.VOID }
+        final param = Stub(VariableElement) { asType() >> Mock(TypeMirror) }
+        final method = Stub(ExecutableElement) {
+            kind >> ElementKind.METHOD
+            modifiers >> ([Modifier.ABSTRACT] as Set)
+            parameters >> [param]
+            returnType >> voidType
             getAnnotation(MapList) >> null
             getAnnotation(Map) >> null
         }
-        def mapperType = Stub(TypeElement) { getEnclosedElements() >> [method] }
+        final mapperType = Stub(TypeElement) { enclosedElements >> [method] }
 
-        when:
-        def result = stage.execute(mapperType)
-
-        then:
+        expect:
+        final result = stage.execute(mapperType)
         !result.isSuccess()
         result.errors().any { it.message.contains('non-void return type') }
     }
 
     def 'method without @Map annotations produces empty directives'() {
         given:
-        def sourceType = Mock(TypeMirror)
-        def targetType = Stub(TypeMirror) { getKind() >> TypeKind.DECLARED }
-        def param = Stub(VariableElement) { asType() >> sourceType }
-        def method = Stub(ExecutableElement) {
-            getKind() >> ElementKind.METHOD
-            getModifiers() >> ([Modifier.ABSTRACT] as Set)
-            getParameters() >> [param]
-            getReturnType() >> targetType
+        final sourceType = Mock(TypeMirror)
+        final targetType = Stub(TypeMirror) { kind >> TypeKind.DECLARED }
+        final param = Stub(VariableElement) { asType() >> sourceType }
+        final method = Stub(ExecutableElement) {
+            kind >> ElementKind.METHOD
+            modifiers >> ([Modifier.ABSTRACT] as Set)
+            parameters >> [param]
+            returnType >> targetType
             getAnnotation(MapList) >> null
             getAnnotation(Map) >> null
         }
-        def mapperType = Stub(TypeElement) { getEnclosedElements() >> [method] }
+        final mapperType = Stub(TypeElement) { enclosedElements >> [method] }
 
-        when:
-        def result = stage.execute(mapperType)
-
-        then:
+        expect:
+        final result = stage.execute(mapperType)
         result.isSuccess()
         result.value().methods[0].directives.isEmpty()
     }

@@ -29,22 +29,20 @@ class GetterDiscoverySpec extends Specification {
 
     def 'discovers getter method getFirstName()'() {
         given:
-        def returnType = Mock(TypeMirror)
-        def name = Stub(Name) { toString() >> 'getFirstName' }
-        def method = Stub(ExecutableElement) {
-            getKind() >> ElementKind.METHOD
-            getModifiers() >> ([Modifier.PUBLIC] as Set)
-            getParameters() >> []
-            getSimpleName() >> name
+        final returnType = Mock(TypeMirror)
+        final name = Stub(Name) { toString() >> 'getFirstName' }
+        final method = Stub(ExecutableElement) {
+            kind >> ElementKind.METHOD
+            modifiers >> ([Modifier.PUBLIC] as Set)
+            parameters >> []
+            simpleName >> name
             getReturnType() >> returnType
         }
-        def typeElement = Stub(TypeElement) { getEnclosedElements() >> [method] }
-        def type = Stub(DeclaredType) { asElement() >> typeElement }
+        final typeElement = Stub(TypeElement) { enclosedElements >> [method] }
+        final type = Stub(DeclaredType) { asElement() >> typeElement }
 
-        when:
-        def result = discovery.discover(type, elements, types)
-
-        then:
+        expect:
+        final result = discovery.discover(type, elements, types)
         result.size() == 1
         result[0] instanceof GetterAccessor
         result[0].name() == 'firstName'
@@ -53,83 +51,75 @@ class GetterDiscoverySpec extends Specification {
 
     def 'discovers boolean getter isActive()'() {
         given:
-        def returnType = Mock(TypeMirror)
-        def name = Stub(Name) { toString() >> 'isActive' }
-        def method = Stub(ExecutableElement) {
-            getKind() >> ElementKind.METHOD
-            getModifiers() >> ([Modifier.PUBLIC] as Set)
-            getParameters() >> []
-            getSimpleName() >> name
+        final returnType = Mock(TypeMirror)
+        final name = Stub(Name) { toString() >> 'isActive' }
+        final method = Stub(ExecutableElement) {
+            kind >> ElementKind.METHOD
+            modifiers >> ([Modifier.PUBLIC] as Set)
+            parameters >> []
+            simpleName >> name
             getReturnType() >> returnType
         }
-        def typeElement = Stub(TypeElement) { getEnclosedElements() >> [method] }
-        def type = Stub(DeclaredType) { asElement() >> typeElement }
+        final typeElement = Stub(TypeElement) { enclosedElements >> [method] }
+        final type = Stub(DeclaredType) { asElement() >> typeElement }
 
-        when:
-        def result = discovery.discover(type, elements, types)
-
-        then:
+        expect:
+        final result = discovery.discover(type, elements, types)
         result.size() == 1
         result[0].name() == 'active'
     }
 
     def 'ignores non-getter methods'() {
         given:
-        def name = Stub(Name) { toString() >> 'doSomething' }
-        def method = Stub(ExecutableElement) {
-            getKind() >> ElementKind.METHOD
-            getModifiers() >> ([Modifier.PUBLIC] as Set)
-            getParameters() >> []
-            getSimpleName() >> name
-            getReturnType() >> Mock(TypeMirror)
+        final name = Stub(Name) { toString() >> 'doSomething' }
+        final method = Stub(ExecutableElement) {
+            kind >> ElementKind.METHOD
+            modifiers >> ([Modifier.PUBLIC] as Set)
+            parameters >> []
+            simpleName >> name
+            returnType >> Mock(TypeMirror)
         }
-        def typeElement = Stub(TypeElement) { getEnclosedElements() >> [method] }
-        def type = Stub(DeclaredType) { asElement() >> typeElement }
+        final typeElement = Stub(TypeElement) { enclosedElements >> [method] }
+        final type = Stub(DeclaredType) { asElement() >> typeElement }
 
-        when:
-        def result = discovery.discover(type, elements, types)
-
-        then:
+        expect:
+        final result = discovery.discover(type, elements, types)
         result.isEmpty()
     }
 
     def 'ignores methods with parameters'() {
         given:
-        def name = Stub(Name) { toString() >> 'getFirstName' }
-        def method = Stub(ExecutableElement) {
-            getKind() >> ElementKind.METHOD
-            getModifiers() >> ([Modifier.PUBLIC] as Set)
-            getParameters() >> [Mock(Element)]
-            getSimpleName() >> name
-            getReturnType() >> Mock(TypeMirror)
+        final name = Stub(Name) { toString() >> 'getFirstName' }
+        final method = Stub(ExecutableElement) {
+            kind >> ElementKind.METHOD
+            modifiers >> ([Modifier.PUBLIC] as Set)
+            parameters >> [Mock(Element)]
+            simpleName >> name
+            returnType >> Mock(TypeMirror)
         }
-        def typeElement = Stub(TypeElement) { getEnclosedElements() >> [method] }
-        def type = Stub(DeclaredType) { asElement() >> typeElement }
+        final typeElement = Stub(TypeElement) { enclosedElements >> [method] }
+        final type = Stub(DeclaredType) { asElement() >> typeElement }
 
-        when:
-        def result = discovery.discover(type, elements, types)
-
-        then:
+        expect:
+        final result = discovery.discover(type, elements, types)
         result.isEmpty()
     }
 
     def 'ignores non-public methods'() {
         given:
-        def name = Stub(Name) { toString() >> 'getFirstName' }
-        def method = Stub(ExecutableElement) {
-            getKind() >> ElementKind.METHOD
-            getModifiers() >> ([Modifier.PRIVATE] as Set)
-            getParameters() >> []
-            getSimpleName() >> name
-            getReturnType() >> Mock(TypeMirror)
+        final name = Stub(Name) { toString() >> 'getFirstName' }
+        final method = Stub(ExecutableElement) {
+            kind >> ElementKind.METHOD
+            modifiers >> ([Modifier.PRIVATE] as Set)
+            parameters >> []
+            simpleName >> name
+            returnType >> Mock(TypeMirror)
         }
-        def typeElement = Stub(TypeElement) { getEnclosedElements() >> [method] }
-        def type = Stub(DeclaredType) { asElement() >> typeElement }
+        final typeElement = Stub(TypeElement) { enclosedElements >> [method] }
+        final type = Stub(DeclaredType) { asElement() >> typeElement }
 
-        when:
-        def result = discovery.discover(type, elements, types)
-
-        then:
+        expect:
+        final result = discovery.discover(type, elements, types)
         result.isEmpty()
     }
 }

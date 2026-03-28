@@ -23,11 +23,11 @@ public final class GetterDiscovery implements SourcePropertyDiscovery {
 
     @Override
     public List<ReadAccessor> discover(final TypeMirror type, final Elements elements, final Types types) {
-        final List<ReadAccessor> accessors = new ArrayList<>();
-
         if (!(type instanceof DeclaredType)) {
-            return accessors;
+            return List.of();
         }
+
+        final List<ReadAccessor> accessors = new ArrayList<>();
 
         final TypeElement typeElement = (TypeElement) ((DeclaredType) type).asElement();
         for (final var enclosed : typeElement.getEnclosedElements()) {
@@ -49,7 +49,7 @@ public final class GetterDiscovery implements SourcePropertyDiscovery {
             }
         }
 
-        return accessors;
+        return List.copyOf(accessors);
     }
 
     @SuppressWarnings("NullAway")

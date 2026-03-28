@@ -12,11 +12,11 @@ class PercolateProcessorUnitSpec extends Specification {
 
     def 'getSupportedSourceVersion() returns latest supported'() {
         expect:
-        processor.getSupportedSourceVersion() == SourceVersion.latestSupported()
+        processor.supportedSourceVersion == SourceVersion.latestSupported()
     }
 
     def 'supports @Mapper annotation type'() {
         expect:
-        processor.getSupportedAnnotationTypes() == ['io.github.joke.percolate.Mapper'] as Set
+        processor.supportedAnnotationTypes == ['io.github.joke.percolate.Mapper'] as Set
     }
 }

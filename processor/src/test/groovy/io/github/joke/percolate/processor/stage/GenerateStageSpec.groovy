@@ -10,7 +10,7 @@ class GenerateStageSpec extends Specification {
 
     def 'stage can be instantiated with Filer'() {
         given:
-        def filer = Stub(Filer)
+        final filer = Stub(Filer)
 
         expect:
         new GenerateStage(filer) != null

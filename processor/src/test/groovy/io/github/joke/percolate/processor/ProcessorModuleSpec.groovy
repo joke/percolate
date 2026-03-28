@@ -17,8 +17,8 @@ class ProcessorModuleSpec extends Specification {
 
     def 'elements() returns element utilities from processing environment'() {
         given:
-        def elements = Mock(Elements)
-        processingEnvironment.getElementUtils() >> elements
+        final elements = Mock(Elements)
+        processingEnvironment.elementUtils >> elements
 
         expect:
         module.elements() == elements
@@ -26,8 +26,8 @@ class ProcessorModuleSpec extends Specification {
 
     def 'types() returns type utilities from processing environment'() {
         given:
-        def types = Mock(Types)
-        processingEnvironment.getTypeUtils() >> types
+        final types = Mock(Types)
+        processingEnvironment.typeUtils >> types
 
         expect:
         module.types() == types
@@ -35,8 +35,8 @@ class ProcessorModuleSpec extends Specification {
 
     def 'messager() returns messager from processing environment'() {
         given:
-        def messager = Mock(Messager)
-        processingEnvironment.getMessager() >> messager
+        final messager = Mock(Messager)
+        processingEnvironment.messager >> messager
 
         expect:
         module.messager() == messager
@@ -44,8 +44,8 @@ class ProcessorModuleSpec extends Specification {
 
     def 'filer() returns filer from processing environment'() {
         given:
-        def filer = Mock(Filer)
-        processingEnvironment.getFiler() >> filer
+        final filer = Mock(Filer)
+        processingEnvironment.filer >> filer
 
         expect:
         module.filer() == filer

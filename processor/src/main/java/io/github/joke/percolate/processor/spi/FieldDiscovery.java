@@ -20,11 +20,11 @@ public final class FieldDiscovery {
     private FieldDiscovery() {}
 
     static List<VariableElement> findPublicFields(final TypeMirror type) {
-        final List<VariableElement> fields = new ArrayList<>();
-
         if (!(type instanceof DeclaredType)) {
-            return fields;
+            return List.of();
         }
+
+        final List<VariableElement> fields = new ArrayList<>();
 
         final TypeElement typeElement = (TypeElement) ((DeclaredType) type).asElement();
         for (final var enclosed : typeElement.getEnclosedElements()) {
@@ -40,7 +40,7 @@ public final class FieldDiscovery {
             fields.add((VariableElement) enclosed);
         }
 
-        return fields;
+        return List.copyOf(fields);
     }
 
     public static final class Source implements SourcePropertyDiscovery {
@@ -56,7 +56,7 @@ public final class FieldDiscovery {
             for (final VariableElement field : findPublicFields(type)) {
                 accessors.add(new FieldReadAccessor(field.getSimpleName().toString(), field.asType(), field));
             }
-            return accessors;
+            return List.copyOf(accessors);
         }
     }
 
@@ -73,7 +73,7 @@ public final class FieldDiscovery {
             for (final VariableElement field : findPublicFields(type)) {
                 accessors.add(new FieldWriteAccessor(field.getSimpleName().toString(), field.asType(), field));
             }
-            return accessors;
+            return List.copyOf(accessors);
         }
     }
 }
