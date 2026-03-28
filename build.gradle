@@ -41,11 +41,31 @@ subprojects { project ->
 
     pluginManager.withPlugin('java') {
         pluginManager.apply 'com.palantir.baseline-testing'
+
+        tasks.named('test') {
+            useJUnitPlatform {
+                includeTags 'unit'
+            }
+        }
+
+        tasks.register('integrationTest', Test) {
+            useJUnitPlatform {
+                includeTags 'integration'
+            }
+            testClassesDirs = sourceSets.test.output.classesDirs
+            classpath = sourceSets.test.runtimeClasspath
+        }
+
+        tasks.named('check') {
+            dependsOn 'integrationTest'
+        }
     }
 
     pluginManager.withPlugin('jacoco') {
         tasks.withType(JacocoReport).configureEach {
             dependsOn test
+            dependsOn tasks.matching { it.name == 'integrationTest' }
+            executionData.from fileTree(buildDir).include('jacoco/*.exec')
             reports {
                 xml.required = true
             }

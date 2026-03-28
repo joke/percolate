@@ -24,12 +24,16 @@
   - `Messager` via `getMessager()`
   - `Filer` via `getFiler()`
 
+The `ProcessorModule` class SHALL use `@RequiredArgsConstructor` to replace its manual constructor. The `processingEnvironment` field SHALL be `private final` with no explicit constructor.
+
 ## Pipeline
 
 - Constructor-injected by Dagger
 - Method: `process(TypeElement element)` returning `JavaFile`
 - Body: returns `null` (placeholder)
 - No constructor dependencies yet (empty, stages added later)
+
+The `Pipeline` class SHALL use `@RequiredArgsConstructor(onConstructor_ = @Inject)` instead of a manual `@Inject` constructor when it has dependencies. While it has no dependencies, it SHALL retain the explicit `@Inject` empty constructor.
 
 ## Package
 

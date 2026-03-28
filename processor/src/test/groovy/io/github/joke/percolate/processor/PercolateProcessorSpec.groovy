@@ -4,9 +4,11 @@ import com.google.testing.compile.Compilation
 import com.google.testing.compile.Compiler
 import com.google.testing.compile.JavaFileObjects
 import spock.lang.Specification
+import spock.lang.Tag
 
 import static com.google.testing.compile.Compiler.javac
 
+@Tag('integration')
 class PercolateProcessorSpec extends Specification {
 
     def 'processes @Mapper annotated interface without errors'() {

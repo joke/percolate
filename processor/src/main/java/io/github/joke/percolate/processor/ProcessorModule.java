@@ -7,15 +7,13 @@ import javax.annotation.processing.Messager;
 import javax.annotation.processing.ProcessingEnvironment;
 import javax.lang.model.util.Elements;
 import javax.lang.model.util.Types;
+import lombok.RequiredArgsConstructor;
 
 @Module
+@RequiredArgsConstructor
 final class ProcessorModule {
 
     private final ProcessingEnvironment processingEnvironment;
-
-    ProcessorModule(final ProcessingEnvironment processingEnvironment) {
-        this.processingEnvironment = processingEnvironment;
-    }
 
     @Provides
     Elements elements() {
