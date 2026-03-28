@@ -6,7 +6,7 @@ plugins {
 }
 
 subprojects { project ->
-    group 'io.github.joke.percolate'
+    group = 'io.github.joke.percolate'
 
     repositories {
         mavenCentral()
