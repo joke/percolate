@@ -1,5 +1,6 @@
 package io.github.joke.percolate.processor.spi;
 
+import com.google.auto.service.AutoService;
 import io.github.joke.percolate.processor.model.FieldReadAccessor;
 import io.github.joke.percolate.processor.model.FieldWriteAccessor;
 import io.github.joke.percolate.processor.model.ReadAccessor;
@@ -43,6 +44,7 @@ public final class FieldDiscovery {
         return List.copyOf(fields);
     }
 
+    @AutoService(SourcePropertyDiscovery.class)
     public static final class Source implements SourcePropertyDiscovery {
 
         @Override
@@ -60,6 +62,7 @@ public final class FieldDiscovery {
         }
     }
 
+    @AutoService(TargetPropertyDiscovery.class)
     public static final class Target implements TargetPropertyDiscovery {
 
         @Override

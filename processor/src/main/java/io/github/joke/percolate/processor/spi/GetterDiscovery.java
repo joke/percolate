@@ -1,5 +1,6 @@
 package io.github.joke.percolate.processor.spi;
 
+import com.google.auto.service.AutoService;
 import io.github.joke.percolate.processor.model.GetterAccessor;
 import io.github.joke.percolate.processor.model.ReadAccessor;
 import java.util.ArrayList;
@@ -14,6 +15,7 @@ import javax.lang.model.type.TypeMirror;
 import javax.lang.model.util.Elements;
 import javax.lang.model.util.Types;
 
+@AutoService(SourcePropertyDiscovery.class)
 public final class GetterDiscovery implements SourcePropertyDiscovery {
 
     @Override

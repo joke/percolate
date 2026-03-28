@@ -83,7 +83,7 @@ public final class DiscoverStage {
 
     private static <T> List<T> loadAndSort(final Class<T> serviceClass) {
         final List<T> strategies = new ArrayList<>();
-        ServiceLoader.load(serviceClass).forEach(strategies::add);
+        ServiceLoader.load(serviceClass, DiscoverStage.class.getClassLoader()).forEach(strategies::add);
         strategies.sort(Comparator.comparingInt(s -> {
             if (s instanceof SourcePropertyDiscovery) {
                 return -((SourcePropertyDiscovery) s).priority();

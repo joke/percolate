@@ -1,5 +1,6 @@
 package io.github.joke.percolate.processor.spi;
 
+import com.google.auto.service.AutoService;
 import io.github.joke.percolate.processor.model.ConstructorParamAccessor;
 import io.github.joke.percolate.processor.model.WriteAccessor;
 import java.util.ArrayList;
@@ -14,6 +15,7 @@ import javax.lang.model.type.TypeMirror;
 import javax.lang.model.util.Elements;
 import javax.lang.model.util.Types;
 
+@AutoService(TargetPropertyDiscovery.class)
 public final class ConstructorDiscovery implements TargetPropertyDiscovery {
 
     @Override
