@@ -1,15 +1,14 @@
-package io.github.joke.percolate.processor.graph;
+package io.github.joke.percolate.processor.transform;
 
 import io.github.joke.percolate.processor.model.DiscoveredMethod;
 import java.util.List;
 import java.util.Map;
 import javax.lang.model.element.TypeElement;
 import lombok.Value;
-import org.jgrapht.graph.DefaultDirectedGraph;
 
 @Value
-public class MappingGraph {
+public class ResolvedModel {
     TypeElement mapperType;
     List<DiscoveredMethod> methods;
-    Map<DiscoveredMethod, DefaultDirectedGraph<PropertyNode, MappingEdge>> methodGraphs;
+    Map<DiscoveredMethod, List<ResolvedMapping>> methodMappings;
 }

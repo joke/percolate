@@ -6,6 +6,7 @@ import io.github.joke.percolate.processor.graph.PropertyNode
 import io.github.joke.percolate.processor.graph.SourcePropertyNode
 import io.github.joke.percolate.processor.graph.TargetPropertyNode
 import io.github.joke.percolate.processor.model.ConstructorParamAccessor
+import io.github.joke.percolate.processor.model.DiscoveredMethod
 import io.github.joke.percolate.processor.model.GetterAccessor
 import org.jgrapht.graph.DefaultDirectedGraph
 import spock.lang.Specification
@@ -42,37 +43,47 @@ class ValidateStageSpec extends Specification {
         g.addEdge(s1, t1, new MappingEdge(MappingEdge.Type.DIRECT))
         g.addEdge(s2, t2, new MappingEdge(MappingEdge.Type.DIRECT))
 
-        final mappingGraph = new MappingGraph(mapperType, [], g)
+        final method = Mock(DiscoveredMethod)
+        final mappingGraph = new MappingGraph(mapperType, [method], [(method): g])
 
         expect:
         final result = stage.execute(mappingGraph)
         result.isSuccess()
     }
 
-    def 'fails when target property is unmapped'() {
+    def 'fails when target property is unmapped with rich error message'() {
         given:
         final g = new DefaultDirectedGraph<PropertyNode, MappingEdge>(MappingEdge)
         final s1 = new SourcePropertyNode('firstName', typeMirror,
                 new GetterAccessor('firstName', typeMirror, dummyMethod))
+        final s2 = new SourcePropertyNode('midleName', typeMirror,
+                new GetterAccessor('midleName', typeMirror, dummyMethod))
         final t1 = new TargetPropertyNode('givenName', typeMirror,
                 new ConstructorParamAccessor('givenName', typeMirror, dummyMethod, 0))
         final t2 = new TargetPropertyNode('middleName', typeMirror,
                 new ConstructorParamAccessor('middleName', typeMirror, dummyMethod, 1))
 
         g.addVertex(s1)
+        g.addVertex(s2)
         g.addVertex(t1)
         g.addVertex(t2)
         g.addEdge(s1, t1, new MappingEdge(MappingEdge.Type.DIRECT))
 
-        final mappingGraph = new MappingGraph(mapperType, [], g)
+        final method = Mock(DiscoveredMethod)
+        final mappingGraph = new MappingGraph(mapperType, [method], [(method): g])
 
-        expect:
+        when:
         final result = stage.execute(mappingGraph)
+
+        then:
         !result.isSuccess()
-        result.errors().any { it.message.contains('Unmapped target property: middleName') }
+        final message = result.errors().find { it.message.contains('middleName') }?.message
+        message.contains("Unmapped target property 'middleName'")
+        message.contains('Unmapped source properties: [midleName]')
+        message.contains("Did you mean to map 'midleName' -> 'middleName'?")
     }
 
-    def 'fails when target has duplicate mappings'() {
+    def 'fails when target has duplicate mappings with rich error message'() {
         given:
         final g = new DefaultDirectedGraph<PropertyNode, MappingEdge>(MappingEdge)
         final s1 = new SourcePropertyNode('a', typeMirror,
@@ -88,12 +99,17 @@ class ValidateStageSpec extends Specification {
         g.addEdge(s1, t1, new MappingEdge(MappingEdge.Type.DIRECT))
         g.addEdge(s2, t1, new MappingEdge(MappingEdge.Type.DIRECT))
 
-        final mappingGraph = new MappingGraph(mapperType, [], g)
+        final method = Mock(DiscoveredMethod)
+        final mappingGraph = new MappingGraph(mapperType, [method], [(method): g])
 
-        expect:
+        when:
         final result = stage.execute(mappingGraph)
+
+        then:
         !result.isSuccess()
-        result.errors().any { it.message.contains('Conflicting mappings for target property: x') }
+        final message = result.errors().first().message
+        message.contains("Conflicting mappings for target property 'x'")
+        message.contains('Mapped from: [a, b]')
     }
 
     def 'exports graph as DOT format'() {
@@ -107,7 +123,8 @@ class ValidateStageSpec extends Specification {
         g.addVertex(t1)
         g.addEdge(s1, t1, new MappingEdge(MappingEdge.Type.DIRECT))
 
-        final mappingGraph = new MappingGraph(mapperType, [], g)
+        final method = Mock(DiscoveredMethod)
+        final mappingGraph = new MappingGraph(mapperType, [method], [(method): g])
 
         expect:
         final dot = stage.exportDot(mappingGraph)

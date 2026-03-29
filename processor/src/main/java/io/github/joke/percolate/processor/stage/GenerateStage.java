@@ -1,7 +1,6 @@
 package io.github.joke.percolate.processor.stage;
 
 import static java.util.Comparator.comparingInt;
-import static java.util.stream.Collectors.toUnmodifiableList;
 import static javax.lang.model.element.Modifier.FINAL;
 import static javax.lang.model.element.Modifier.PUBLIC;
 import static javax.tools.Diagnostic.Kind.ERROR;
@@ -14,21 +13,20 @@ import com.palantir.javapoet.TypeName;
 import com.palantir.javapoet.TypeSpec;
 import io.github.joke.percolate.processor.Diagnostic;
 import io.github.joke.percolate.processor.StageResult;
-import io.github.joke.percolate.processor.graph.MappingEdge;
-import io.github.joke.percolate.processor.graph.MappingGraph;
-import io.github.joke.percolate.processor.graph.PropertyNode;
-import io.github.joke.percolate.processor.graph.SourcePropertyNode;
-import io.github.joke.percolate.processor.graph.TargetPropertyNode;
 import io.github.joke.percolate.processor.model.ConstructorParamAccessor;
 import io.github.joke.percolate.processor.model.DiscoveredMethod;
 import io.github.joke.percolate.processor.model.FieldReadAccessor;
 import io.github.joke.percolate.processor.model.FieldWriteAccessor;
 import io.github.joke.percolate.processor.model.GetterAccessor;
 import io.github.joke.percolate.processor.model.ReadAccessor;
+import io.github.joke.percolate.processor.transform.ResolvedMapping;
+import io.github.joke.percolate.processor.transform.ResolvedModel;
+import io.github.joke.percolate.processor.transform.SubMapOperation;
 import jakarta.inject.Inject;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
 import javax.annotation.processing.Filer;
 import javax.lang.model.element.PackageElement;
 
@@ -42,8 +40,8 @@ public final class GenerateStage {
     }
 
     @SuppressWarnings("NullAway")
-    public StageResult<JavaFile> execute(final MappingGraph mappingGraph) {
-        final var mapperType = mappingGraph.getMapperType();
+    public StageResult<JavaFile> execute(final ResolvedModel resolvedModel) {
+        final var mapperType = resolvedModel.getMapperType();
         final PackageElement packageElement = (PackageElement) mapperType.getEnclosingElement();
         final var packageName = packageElement.getQualifiedName().toString();
         final var simpleName = mapperType.getSimpleName().toString();
@@ -53,8 +51,10 @@ public final class GenerateStage {
         final TypeSpec.Builder classBuilder =
                 TypeSpec.classBuilder(implName).addModifiers(PUBLIC, FINAL).addSuperinterface(mapperName);
 
-        for (final DiscoveredMethod method : mappingGraph.getMethods()) {
-            classBuilder.addMethod(generateMethod(method, mappingGraph));
+        for (final DiscoveredMethod method : resolvedModel.getMethods()) {
+            final var mappings =
+                    Objects.requireNonNull(resolvedModel.getMethodMappings().get(method));
+            classBuilder.addMethod(generateMethod(method, mappings));
         }
 
         final JavaFile javaFile =
@@ -70,7 +70,7 @@ public final class GenerateStage {
         return StageResult.success(javaFile);
     }
 
-    private MethodSpec generateMethod(final DiscoveredMethod method, final MappingGraph mappingGraph) {
+    private MethodSpec generateMethod(final DiscoveredMethod method, final List<ResolvedMapping> mappings) {
         final var executableElement = method.getOriginal().getMethod();
         final var sourceParam = executableElement.getParameters().get(0);
         final var sourceParamName = sourceParam.getSimpleName().toString();
@@ -83,19 +83,13 @@ public final class GenerateStage {
                 .returns(returnType)
                 .addParameter(TypeName.get(method.getOriginal().getSourceType()), sourceParamName);
 
-        final var graph = mappingGraph.getGraph();
-        final List<TargetPropertyNode> targetNodes = new ArrayList<>(graph.vertexSet().stream()
-                .filter(TargetPropertyNode.class::isInstance)
-                .map(TargetPropertyNode.class::cast)
-                .collect(toUnmodifiableList()));
-
         final boolean allConstructor =
-                targetNodes.stream().allMatch(t -> t.getAccessor() instanceof ConstructorParamAccessor);
+                mappings.stream().allMatch(m -> m.getTarget().getAccessor() instanceof ConstructorParamAccessor);
 
         if (allConstructor) {
-            generateConstructorBody(methodBuilder, targetNodes, graph, sourceParamName, returnType);
+            generateConstructorBody(methodBuilder, mappings, sourceParamName, returnType);
         } else {
-            generateFieldBody(methodBuilder, targetNodes, graph, sourceParamName, returnType);
+            generateFieldBody(methodBuilder, mappings, sourceParamName, returnType);
         }
 
         return methodBuilder.build();
@@ -103,23 +97,16 @@ public final class GenerateStage {
 
     private void generateConstructorBody(
             final MethodSpec.Builder methodBuilder,
-            final List<TargetPropertyNode> targetNodes,
-            final org.jgrapht.graph.DefaultDirectedGraph<PropertyNode, MappingEdge> graph,
+            final List<ResolvedMapping> mappings,
             final String sourceParamName,
             final TypeName returnType) {
 
-        targetNodes.sort(comparingInt(t -> ((ConstructorParamAccessor) t.getAccessor()).getParamIndex()));
+        final List<ResolvedMapping> sorted = new ArrayList<>(mappings);
+        sorted.sort(comparingInt(m -> ((ConstructorParamAccessor) m.getTarget().getAccessor()).getParamIndex()));
 
         final List<CodeBlock> args = new ArrayList<>();
-        for (final TargetPropertyNode targetNode : targetNodes) {
-            final var edges = graph.incomingEdgesOf(targetNode);
-            if (edges.isEmpty()) {
-                args.add(CodeBlock.of("null"));
-                continue;
-            }
-            final var edge = edges.iterator().next();
-            final SourcePropertyNode sourceNode = (SourcePropertyNode) graph.getEdgeSource(edge);
-            args.add(generateReadExpression(sourceNode.getAccessor(), sourceParamName));
+        for (final ResolvedMapping mapping : sorted) {
+            args.add(generateValueExpression(mapping, sourceParamName));
         }
 
         methodBuilder.addStatement("return new $T($L)", returnType, CodeBlock.join(args, ", "));
@@ -127,28 +114,34 @@ public final class GenerateStage {
 
     private void generateFieldBody(
             final MethodSpec.Builder methodBuilder,
-            final List<TargetPropertyNode> targetNodes,
-            final org.jgrapht.graph.DefaultDirectedGraph<PropertyNode, MappingEdge> graph,
+            final List<ResolvedMapping> mappings,
             final String sourceParamName,
             final TypeName returnType) {
 
         methodBuilder.addStatement("$T target = new $T()", returnType, returnType);
 
-        for (final TargetPropertyNode targetNode : targetNodes) {
-            final var edges = graph.incomingEdgesOf(targetNode);
-            if (edges.isEmpty()) {
-                continue;
-            }
-            final var edge = edges.iterator().next();
-            final SourcePropertyNode sourceNode = (SourcePropertyNode) graph.getEdgeSource(edge);
-            final var readExpr = generateReadExpression(sourceNode.getAccessor(), sourceParamName);
-
-            if (targetNode.getAccessor() instanceof FieldWriteAccessor) {
-                methodBuilder.addStatement("target.$L = $L", targetNode.getName(), readExpr);
+        for (final ResolvedMapping mapping : mappings) {
+            if (mapping.getTarget().getAccessor() instanceof FieldWriteAccessor) {
+                final var valueExpr = generateValueExpression(mapping, sourceParamName);
+                methodBuilder.addStatement("target.$L = $L", mapping.getTarget().getName(), valueExpr);
             }
         }
 
         methodBuilder.addStatement("return target");
+    }
+
+    private CodeBlock generateValueExpression(final ResolvedMapping mapping, final String sourceParamName) {
+        final var readExpr = generateReadExpression(mapping.getSource().getAccessor(), sourceParamName);
+        final var chain = mapping.getChain();
+
+        if (!chain.isEmpty() && chain.get(0).getOperation() instanceof SubMapOperation) {
+            final var subMap = (SubMapOperation) chain.get(0).getOperation();
+            final var methodName =
+                    subMap.getTargetMethod().getOriginal().getMethod().getSimpleName();
+            return CodeBlock.of("$L($L)", methodName, readExpr);
+        }
+
+        return readExpr;
     }
 
     private CodeBlock generateReadExpression(final ReadAccessor accessor, final String sourceParamName) {

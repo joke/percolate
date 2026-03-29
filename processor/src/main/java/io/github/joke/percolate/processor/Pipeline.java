@@ -5,7 +5,9 @@ import io.github.joke.percolate.processor.stage.AnalyzeStage;
 import io.github.joke.percolate.processor.stage.BuildGraphStage;
 import io.github.joke.percolate.processor.stage.DiscoverStage;
 import io.github.joke.percolate.processor.stage.GenerateStage;
+import io.github.joke.percolate.processor.stage.ResolveTransformsStage;
 import io.github.joke.percolate.processor.stage.ValidateStage;
+import io.github.joke.percolate.processor.stage.ValidateTransformsStage;
 import jakarta.inject.Inject;
 import javax.annotation.processing.Messager;
 import javax.lang.model.element.TypeElement;
@@ -19,6 +21,8 @@ final class Pipeline {
     private final DiscoverStage discoverStage;
     private final BuildGraphStage buildGraphStage;
     private final ValidateStage validateStage;
+    private final ResolveTransformsStage resolveTransformsStage;
+    private final ValidateTransformsStage validateTransformsStage;
     private final GenerateStage generateStage;
     private final Messager messager;
 
@@ -48,7 +52,19 @@ final class Pipeline {
             return null;
         }
 
-        final var generateResult = generateStage.execute(validateResult.value());
+        final var resolveResult = resolveTransformsStage.execute(validateResult.value());
+        if (!resolveResult.isSuccess()) {
+            reportErrors(resolveResult);
+            return null;
+        }
+
+        final var validateTransformsResult = validateTransformsStage.execute(resolveResult.value());
+        if (!validateTransformsResult.isSuccess()) {
+            reportErrors(validateTransformsResult);
+            return null;
+        }
+
+        final var generateResult = generateStage.execute(validateTransformsResult.value());
         if (!generateResult.isSuccess()) {
             reportErrors(generateResult);
             return null;

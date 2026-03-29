@@ -9,7 +9,10 @@ import io.github.joke.percolate.processor.stage.AnalyzeStage
 import io.github.joke.percolate.processor.stage.BuildGraphStage
 import io.github.joke.percolate.processor.stage.DiscoverStage
 import io.github.joke.percolate.processor.stage.GenerateStage
+import io.github.joke.percolate.processor.stage.ResolveTransformsStage
 import io.github.joke.percolate.processor.stage.ValidateStage
+import io.github.joke.percolate.processor.stage.ValidateTransformsStage
+import io.github.joke.percolate.processor.transform.ResolvedModel
 import spock.lang.Specification
 import spock.lang.Tag
 
@@ -25,10 +28,13 @@ class PipelineSpec extends Specification {
     DiscoverStage discoverStage = Mock()
     BuildGraphStage buildGraphStage = Mock()
     ValidateStage validateStage = Mock()
+    ResolveTransformsStage resolveTransformsStage = Mock()
+    ValidateTransformsStage validateTransformsStage = Mock()
     GenerateStage generateStage = Mock()
     Messager messager = Mock()
 
-    Pipeline pipeline = new Pipeline(analyzeStage, discoverStage, buildGraphStage, validateStage, generateStage, messager)
+    Pipeline pipeline = new Pipeline(analyzeStage, discoverStage, buildGraphStage, validateStage,
+            resolveTransformsStage, validateTransformsStage, generateStage, messager)
 
     def 'successful pipeline returns JavaFile'() {
         given:
@@ -36,6 +42,7 @@ class PipelineSpec extends Specification {
         final mapperModel = Mock(MapperModel)
         final discoveredModel = Mock(DiscoveredModel)
         final mappingGraph = Mock(MappingGraph)
+        final resolvedModel = Mock(ResolvedModel)
         final javaFile = JavaFile.builder('com.example', TypeSpec.classBuilder('Test').build()).build()
 
         when:
@@ -46,7 +53,9 @@ class PipelineSpec extends Specification {
         1 * discoverStage.execute(mapperModel) >> StageResult.success(discoveredModel)
         1 * buildGraphStage.execute(discoveredModel) >> StageResult.success(mappingGraph)
         1 * validateStage.execute(mappingGraph) >> StageResult.success(mappingGraph)
-        1 * generateStage.execute(mappingGraph) >> StageResult.success(javaFile)
+        1 * resolveTransformsStage.execute(mappingGraph) >> StageResult.success(resolvedModel)
+        1 * validateTransformsStage.execute(resolvedModel) >> StageResult.success(resolvedModel)
+        1 * generateStage.execute(resolvedModel) >> StageResult.success(javaFile)
         0 * _
 
         expect:
@@ -57,6 +66,7 @@ class PipelineSpec extends Specification {
         given:
         final element = Mock(TypeElement)
         final diagnostic = new Diagnostic(Mock(Element), 'analysis failed', Kind.ERROR)
+
         when:
         final result = pipeline.process(element)
 

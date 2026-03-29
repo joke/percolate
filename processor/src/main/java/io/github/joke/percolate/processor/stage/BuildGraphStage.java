@@ -3,6 +3,7 @@ package io.github.joke.percolate.processor.stage;
 import static javax.tools.Diagnostic.Kind.ERROR;
 
 import io.github.joke.percolate.processor.Diagnostic;
+import io.github.joke.percolate.processor.ErrorMessages;
 import io.github.joke.percolate.processor.StageResult;
 import io.github.joke.percolate.processor.graph.MappingEdge;
 import io.github.joke.percolate.processor.graph.MappingGraph;
@@ -27,10 +28,12 @@ public final class BuildGraphStage {
     BuildGraphStage() {}
 
     public StageResult<MappingGraph> execute(final DiscoveredModel discoveredModel) {
-        final DefaultDirectedGraph<PropertyNode, MappingEdge> graph = new DefaultDirectedGraph<>(MappingEdge.class);
+        final Map<DiscoveredMethod, DefaultDirectedGraph<PropertyNode, MappingEdge>> methodGraphs =
+                new LinkedHashMap<>();
         final List<Diagnostic> errors = new ArrayList<>();
 
         for (final DiscoveredMethod method : discoveredModel.getMethods()) {
+            final DefaultDirectedGraph<PropertyNode, MappingEdge> graph = new DefaultDirectedGraph<>(MappingEdge.class);
             final Map<String, SourcePropertyNode> sourceNodes = new LinkedHashMap<>();
             final Map<String, TargetPropertyNode> targetNodes = new LinkedHashMap<>();
 
@@ -55,7 +58,8 @@ public final class BuildGraphStage {
                 if (sourceNode == null) {
                     errors.add(new Diagnostic(
                             method.getOriginal().getMethod(),
-                            "Unknown source property: " + directive.getSource(),
+                            ErrorMessages.unknownSourceProperty(
+                                    directive.getSource(), method.getOriginal(), sourceNodes.keySet()),
                             ERROR));
                     continue;
                 }
@@ -63,13 +67,16 @@ public final class BuildGraphStage {
                 if (targetNode == null) {
                     errors.add(new Diagnostic(
                             method.getOriginal().getMethod(),
-                            "Unknown target property: " + directive.getTarget(),
+                            ErrorMessages.unknownTargetProperty(
+                                    directive.getTarget(), method.getOriginal(), targetNodes.keySet()),
                             ERROR));
                     continue;
                 }
 
                 graph.addEdge(sourceNode, targetNode, new MappingEdge(MappingEdge.Type.DIRECT));
             }
+
+            methodGraphs.put(method, graph);
         }
 
         if (!errors.isEmpty()) {
@@ -77,6 +84,6 @@ public final class BuildGraphStage {
         }
 
         return StageResult.success(
-                new MappingGraph(discoveredModel.getMapperType(), discoveredModel.getMethods(), graph));
+                new MappingGraph(discoveredModel.getMapperType(), discoveredModel.getMethods(), methodGraphs));
     }
 }

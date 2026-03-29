@@ -226,7 +226,124 @@ class PercolateProcessorSpec extends Specification {
                 .withProcessors(new PercolateProcessor())
                 .compile(source, goodTarget, badTarget, goodMapper, badMapper)
         compilation.errors().size() == 1
-        compilation.errors()[0].getMessage(null).contains('Unmapped target property: extra')
+        compilation.errors()[0].getMessage(null).contains("Unmapped target property 'extra'")
         compilation.errors()[0].getMessage(null).contains('FailMapper') || true
+    }
+
+    def 'generates nested submapping via sibling method'() {
+        given:
+        final address = JavaFileObjects.forSourceString('test.Address', '''
+            package test;
+            public class Address {
+                private final String street;
+                private final String city;
+                public Address(String street, String city) {
+                    this.street = street;
+                    this.city = city;
+                }
+                public String getStreet() { return street; }
+                public String getCity() { return city; }
+            }
+        ''')
+        final addressDto = JavaFileObjects.forSourceString('test.AddressDTO', '''
+            package test;
+            public class AddressDTO {
+                private final String street;
+                private final String city;
+                public AddressDTO(String street, String city) {
+                    this.street = street;
+                    this.city = city;
+                }
+                public String getStreet() { return street; }
+                public String getCity() { return city; }
+            }
+        ''')
+        final order = JavaFileObjects.forSourceString('test.Order', '''
+            package test;
+            public class Order {
+                private final String name;
+                private final Address billingAddress;
+                public Order(String name, Address billingAddress) {
+                    this.name = name;
+                    this.billingAddress = billingAddress;
+                }
+                public String getName() { return name; }
+                public Address getBillingAddress() { return billingAddress; }
+            }
+        ''')
+        final orderDto = JavaFileObjects.forSourceString('test.OrderDTO', '''
+            package test;
+            public class OrderDTO {
+                private final String name;
+                private final AddressDTO address;
+                public OrderDTO(String name, AddressDTO address) {
+                    this.name = name;
+                    this.address = address;
+                }
+                public String getName() { return name; }
+                public AddressDTO getAddress() { return address; }
+            }
+        ''')
+        final mapper = JavaFileObjects.forSourceString('test.OrderMapper', '''
+            package test;
+            import io.github.joke.percolate.Mapper;
+            import io.github.joke.percolate.Map;
+
+            @Mapper
+            public interface OrderMapper {
+                @Map(source = "name", target = "name")
+                @Map(source = "billingAddress", target = "address")
+                OrderDTO map(Order order);
+
+                @Map(source = "street", target = "street")
+                @Map(source = "city", target = "city")
+                AddressDTO mapAddress(Address address);
+            }
+        ''')
+
+        expect:
+        final compilation = javac()
+                .withProcessors(new PercolateProcessor())
+                .compile(address, addressDto, order, orderDto, mapper)
+        compilation.status() == Compilation.Status.SUCCESS
+        compilation.generatedSourceFiles().any { it.name.contains('OrderMapperImpl') }
+    }
+
+    def 'reports error for unresolvable type mismatch without sibling method'() {
+        given:
+        final source = JavaFileObjects.forSourceString('test.SrcNested', '''
+            package test;
+            public class SrcNested {
+                private final String name;
+                public SrcNested(String name) { this.name = name; }
+                public String getName() { return name; }
+            }
+        ''')
+        final target = JavaFileObjects.forSourceString('test.TgtNested', '''
+            package test;
+            public class TgtNested {
+                private final Integer name;
+                public TgtNested(Integer name) { this.name = name; }
+                public Integer getName() { return name; }
+            }
+        ''')
+        final mapper = JavaFileObjects.forSourceString('test.BadNestedMapper', '''
+            package test;
+            import io.github.joke.percolate.Mapper;
+            import io.github.joke.percolate.Map;
+
+            @Mapper
+            public interface BadNestedMapper {
+                @Map(source = "name", target = "name")
+                TgtNested map(SrcNested source);
+            }
+        ''')
+
+        expect:
+        final compilation = javac()
+                .withProcessors(new PercolateProcessor())
+                .compile(source, target, mapper)
+        compilation.status() == Compilation.Status.FAILURE
+        compilation.errors().any { it.getMessage(null).contains('no mapping method found') }
     }
 }

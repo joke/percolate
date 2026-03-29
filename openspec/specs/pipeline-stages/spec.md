@@ -29,7 +29,7 @@ Defines the stage-based processing pipeline architecture: `StageResult` modeling
 - **THEN** a `Diagnostic` with `Kind.ERROR`, the method element, and a descriptive message SHALL be created
 
 ### Requirement: Pipeline chains stages sequentially
-The `Pipeline` SHALL execute stages in order: analyze → discover → build graph → validate → generate. If any stage returns a failure, the pipeline SHALL stop processing that mapper, report all diagnostics to `Messager`, and return `null`.
+The `Pipeline` SHALL execute stages in order: analyze → discover → build graph → validate → resolve transforms → validate transforms → generate. If any stage returns a failure, the pipeline SHALL stop processing that mapper, report all diagnostics to `Messager`, and return `null`.
 
 #### Scenario: All stages succeed
 - **WHEN** all stages return success for a mapper
@@ -51,4 +51,4 @@ All stages SHALL be constructor-injected by Dagger. The `Pipeline` SHALL receive
 
 #### Scenario: Pipeline receives stages from Dagger
 - **WHEN** the `ProcessorComponent` is built
-- **THEN** the `Pipeline` SHALL have all five stages injected and ready to execute
+- **THEN** the `Pipeline` SHALL have all seven stages injected and ready to execute
