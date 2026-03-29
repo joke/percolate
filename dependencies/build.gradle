@@ -8,7 +8,7 @@ javaPlatform {
 
 dependencies {
 
-    api platform('org.apache.groovy:groovy-bom:5.0.4')
+    api platform('org.apache.groovy:groovy-bom:5.0.5')
     api platform('org.spockframework:spock-bom:2.4-groovy-5.0')
 
     constraints {
