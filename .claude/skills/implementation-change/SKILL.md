@@ -8,10 +8,10 @@ user-invocable: false
 
 **Implement class changes (loop until done or blocked)**
 
-- Start by implementing or modifying tests first
-- Review the test code against all coding conventions and modify accordingly 
 - Write main code or make changes to existing code
-- Review the code against all coding conventions and modify accordingly
+- **CRITICAL**: Review the generated code thoroughly. Everything **MUST** align with the coding conventions.  
+- Implementing or modifying tests
+- **CRITICAL**: Review the tests thoroughly. Everything **MUST** align with the coding conversion. 
 
   **Pause if:**
   - It is unclear how to follow the conventions → ask for clarification

@@ -13,6 +13,7 @@ import com.palantir.javapoet.TypeName;
 import com.palantir.javapoet.TypeSpec;
 import io.github.joke.percolate.processor.Diagnostic;
 import io.github.joke.percolate.processor.StageResult;
+import io.github.joke.percolate.processor.graph.TransformEdge;
 import io.github.joke.percolate.processor.model.ConstructorParamAccessor;
 import io.github.joke.percolate.processor.model.DiscoveredMethod;
 import io.github.joke.percolate.processor.model.FieldReadAccessor;
@@ -21,7 +22,6 @@ import io.github.joke.percolate.processor.model.GetterAccessor;
 import io.github.joke.percolate.processor.model.ReadAccessor;
 import io.github.joke.percolate.processor.transform.ResolvedMapping;
 import io.github.joke.percolate.processor.transform.ResolvedModel;
-import io.github.joke.percolate.processor.transform.SubMapOperation;
 import jakarta.inject.Inject;
 import java.io.IOException;
 import java.util.ArrayList;
@@ -132,16 +132,13 @@ public final class GenerateStage {
 
     private CodeBlock generateValueExpression(final ResolvedMapping mapping, final String sourceParamName) {
         final var readExpr = generateReadExpression(mapping.getSource().getAccessor(), sourceParamName);
-        final var chain = mapping.getChain();
+        final var edges = mapping.getEdges();
 
-        if (!chain.isEmpty() && chain.get(0).getOperation() instanceof SubMapOperation) {
-            final var subMap = (SubMapOperation) chain.get(0).getOperation();
-            final var methodName =
-                    subMap.getTargetMethod().getOriginal().getMethod().getSimpleName();
-            return CodeBlock.of("$L($L)", methodName, readExpr);
+        var result = readExpr;
+        for (final TransformEdge edge : edges) {
+            result = edge.getCodeTemplate().apply(result);
         }
-
-        return readExpr;
+        return result;
     }
 
     private CodeBlock generateReadExpression(final ReadAccessor accessor, final String sourceParamName) {

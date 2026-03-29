@@ -9,25 +9,26 @@ import io.github.joke.percolate.processor.model.ConstructorParamAccessor
 import io.github.joke.percolate.processor.model.DiscoveredMethod
 import io.github.joke.percolate.processor.model.GetterAccessor
 import io.github.joke.percolate.processor.model.MappingMethodModel
-import io.github.joke.percolate.processor.transform.DirectOperation
-import io.github.joke.percolate.processor.transform.SubMapOperation
-import io.github.joke.percolate.processor.transform.UnresolvedOperation
+import io.github.joke.percolate.processor.spi.DirectAssignableStrategy
+import io.github.joke.percolate.processor.spi.MethodCallStrategy
 import org.jgrapht.graph.DefaultDirectedGraph
 import spock.lang.Specification
 import spock.lang.Tag
 
 import javax.lang.model.element.ExecutableElement
+import javax.lang.model.element.Name
 import javax.lang.model.element.TypeElement
 import javax.lang.model.type.TypeMirror
+import javax.lang.model.util.Elements
 import javax.lang.model.util.Types
 
 @Tag('unit')
 class ResolveTransformsStageSpec extends Specification {
 
     Types types = Mock()
-    ResolveTransformsStage stage = new ResolveTransformsStage(types)
+    Elements elements = Mock()
 
-    def 'resolves assignable types as DIRECT'() {
+    def 'resolves assignable types via DirectAssignableStrategy'() {
         given:
         final sourceType = Mock(TypeMirror)
         final targetType = Mock(TypeMirror)
@@ -47,16 +48,19 @@ class ResolveTransformsStageSpec extends Specification {
 
         types.isAssignable(sourceType, targetType) >> true
 
+        final stage = new ResolveTransformsStage(types, elements, [new DirectAssignableStrategy()])
+
         expect:
         final result = stage.execute(mappingGraph)
         result.isSuccess()
         final mappings = result.value().methodMappings[discovered]
         mappings.size() == 1
-        mappings[0].chain.size() == 1
-        mappings[0].chain[0].operation instanceof DirectOperation
+        mappings[0].isResolved()
+        mappings[0].edges.size() == 1
+        mappings[0].edges[0].strategy instanceof DirectAssignableStrategy
     }
 
-    def 'resolves non-assignable types with sibling method as SUBMAP'() {
+    def 'resolves non-assignable types with sibling method via MethodCallStrategy'() {
         given:
         final addressType = Mock(TypeMirror)
         final addressDtoType = Mock(TypeMirror)
@@ -75,7 +79,9 @@ class ResolveTransformsStageSpec extends Specification {
         final mainMethod = new MappingMethodModel(Mock(ExecutableElement), stringType, stringType, [])
         final mainDiscovered = new DiscoveredMethod(mainMethod, [billingAddress: sourceAccessor], [address: targetAccessor])
 
-        final siblingMethod = new MappingMethodModel(Mock(ExecutableElement), addressType, addressDtoType, [])
+        final methodName = Stub(Name) { toString() >> 'mapAddress' }
+        final siblingExec = Stub(ExecutableElement) { getSimpleName() >> methodName }
+        final siblingMethod = new MappingMethodModel(siblingExec, addressType, addressDtoType, [])
         final siblingDiscovered = new DiscoveredMethod(siblingMethod, [:], [:])
 
         final siblingGraph = new DefaultDirectedGraph<PropertyNode, MappingEdge>(MappingEdge)
@@ -87,18 +93,19 @@ class ResolveTransformsStageSpec extends Specification {
         types.isAssignable(addressType, addressType) >> true
         types.isAssignable(addressDtoType, addressDtoType) >> true
 
+        final stage = new ResolveTransformsStage(types, elements, [new DirectAssignableStrategy(), new MethodCallStrategy()])
+
         expect:
         final result = stage.execute(mappingGraph)
         result.isSuccess()
         final mappings = result.value().methodMappings[mainDiscovered]
         mappings.size() == 1
-        mappings[0].chain.size() == 1
-        final op = mappings[0].chain[0].operation
-        op instanceof SubMapOperation
-        (op as SubMapOperation).targetMethod == siblingDiscovered
+        mappings[0].isResolved()
+        mappings[0].edges.size() == 1
+        mappings[0].edges[0].strategy instanceof MethodCallStrategy
     }
 
-    def 'marks non-assignable types without sibling method as UNRESOLVED'() {
+    def 'marks non-assignable types without matching strategy as unresolved'() {
         given:
         final fooType = Mock(TypeMirror)
         final barType = Mock(TypeMirror)
@@ -117,18 +124,15 @@ class ResolveTransformsStageSpec extends Specification {
         final discovered = new DiscoveredMethod(method, [data: sourceAccessor], [data: targetAccessor])
         final mappingGraph = new MappingGraph(Mock(TypeElement), [discovered], [(discovered): g])
 
-        types.isAssignable(fooType, barType) >> false
         types.isAssignable(_, _) >> false
+
+        final stage = new ResolveTransformsStage(types, elements, [new DirectAssignableStrategy(), new MethodCallStrategy()])
 
         expect:
         final result = stage.execute(mappingGraph)
         result.isSuccess()
         final mappings = result.value().methodMappings[discovered]
         mappings.size() == 1
-        mappings[0].chain.size() == 1
-        final op = mappings[0].chain[0].operation
-        op instanceof UnresolvedOperation
-        (op as UnresolvedOperation).sourceType == fooType
-        (op as UnresolvedOperation).targetType == barType
+        !mappings[0].isResolved()
     }
 }

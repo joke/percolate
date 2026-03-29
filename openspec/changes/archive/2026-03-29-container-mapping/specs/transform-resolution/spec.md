@@ -1,10 +1,4 @@
-# Transform Resolution Spec
-
-## Purpose
-
-Defines the ResolveTransforms stage that bridges type gaps between source and target properties by constructing a JGraphT type transformation graph per mapping edge, using BFS expansion with registered TypeTransformStrategy implementations to find a path from source type to target type, producing a ResolvedModel with per-method GraphPath chains for code generation.
-
-## Requirements
+## MODIFIED Requirements
 
 ### Requirement: ResolveTransforms stage resolves type-gap transforms
 The `ResolveTransforms` stage SHALL walk each mapping edge in the validated `MappingGraph` and determine the transformation needed to bridge the source property type to the target property type. For each edge, it SHALL construct a JGraphT `DefaultDirectedGraph<TypeNode, TransformEdge>` and populate it using a BFS expansion loop: each iteration asks all registered `TypeTransformStrategy` implementations (discovered via `ServiceLoader`) for proposals on open type gaps, adds resulting edges to the graph, and checks for a complete path using `BFSShortestPath.findPathBetween()`. Resolution SHALL succeed when a path from source type node to target type node exists. If no strategy contributes new edges in an iteration, the gap SHALL be marked as unresolved. The loop SHALL terminate after at most 30 iterations.
@@ -19,7 +13,7 @@ The `ResolveTransforms` stage SHALL walk each mapping edge in the validated `Map
 
 #### Scenario: Container types resolve via multi-step strategy chain
 - **WHEN** a mapping edge connects source property `persons` (type `List<Person>`) to target property `persons` (type `Set<PersonDTO>`), and the mapper has method `PersonDTO map(Person)`
-- **THEN** strategies SHALL contribute edges across iterations producing a path: `List<Person>` -> `Stream<Person>` -> `Stream<PersonDTO>` -> `Set<PersonDTO>`
+- **THEN** strategies SHALL contribute edges across iterations producing a path: `List<Person>` → `Stream<Person>` → `Stream<PersonDTO>` → `Set<PersonDTO>`
 
 #### Scenario: Subtype assignability counts as DIRECT
 - **WHEN** a mapping edge connects source property `value` (type `String`) to target property `value` (type `Object`)
@@ -33,7 +27,7 @@ Each resolved mapping SHALL carry a `GraphPath<TypeNode, TransformEdge>` represe
 - **THEN** the path SHALL contain one `TransformEdge` with identity code template
 
 #### Scenario: Container transform produces multi-edge path
-- **WHEN** `List<Person>` -> `Set<PersonDTO>` resolves via stream expansion
+- **WHEN** `List<Person>` → `Set<PersonDTO>` resolves via stream expansion
 - **THEN** the path SHALL contain three `TransformEdge`s: StreamFromCollection, StreamMap, CollectToSet
 
 ### Requirement: ResolveTransforms produces a ResolvedModel

@@ -8,8 +8,6 @@ import io.github.joke.percolate.processor.StageResult;
 import io.github.joke.percolate.processor.model.DiscoveredMethod;
 import io.github.joke.percolate.processor.transform.ResolvedMapping;
 import io.github.joke.percolate.processor.transform.ResolvedModel;
-import io.github.joke.percolate.processor.transform.TransformNode;
-import io.github.joke.percolate.processor.transform.UnresolvedOperation;
 import jakarta.inject.Inject;
 import java.util.ArrayList;
 import java.util.List;
@@ -28,20 +26,17 @@ public final class ValidateTransformsStage {
             final var method = entry.getKey();
 
             for (final ResolvedMapping mapping : entry.getValue()) {
-                for (final TransformNode node : mapping.getChain()) {
-                    if (node.getOperation() instanceof UnresolvedOperation) {
-                        final var unresolved = (UnresolvedOperation) node.getOperation();
-                        errors.add(new Diagnostic(
-                                method.getOriginal().getMethod(),
-                                ErrorMessages.unresolvedTransform(
-                                        mapping.getSource().getName(),
-                                        mapping.getTarget().getName(),
-                                        unresolved.getSourceType(),
-                                        unresolved.getTargetType(),
-                                        method.getOriginal(),
-                                        resolvedModel.getMapperType()),
-                                ERROR));
-                    }
+                if (!mapping.isResolved()) {
+                    errors.add(new Diagnostic(
+                            method.getOriginal().getMethod(),
+                            ErrorMessages.unresolvedTransform(
+                                    mapping.getSource().getName(),
+                                    mapping.getTarget().getName(),
+                                    mapping.getSource().getType(),
+                                    mapping.getTarget().getType(),
+                                    method.getOriginal(),
+                                    resolvedModel.getMapperType()),
+                            ERROR));
                 }
             }
         }

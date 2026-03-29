@@ -2,15 +2,17 @@ package io.github.joke.percolate.processor.stage
 
 import io.github.joke.percolate.processor.graph.SourcePropertyNode
 import io.github.joke.percolate.processor.graph.TargetPropertyNode
+import io.github.joke.percolate.processor.graph.TransformEdge
+import io.github.joke.percolate.processor.graph.TypeNode
 import io.github.joke.percolate.processor.model.ConstructorParamAccessor
 import io.github.joke.percolate.processor.model.DiscoveredMethod
 import io.github.joke.percolate.processor.model.GetterAccessor
 import io.github.joke.percolate.processor.model.MappingMethodModel
-import io.github.joke.percolate.processor.transform.DirectOperation
+import io.github.joke.percolate.processor.spi.DirectAssignableStrategy
 import io.github.joke.percolate.processor.transform.ResolvedMapping
 import io.github.joke.percolate.processor.transform.ResolvedModel
-import io.github.joke.percolate.processor.transform.TransformNode
-import io.github.joke.percolate.processor.transform.UnresolvedOperation
+import org.jgrapht.alg.shortestpath.BFSShortestPath
+import org.jgrapht.graph.DefaultDirectedGraph
 import spock.lang.Specification
 import spock.lang.Tag
 
@@ -32,8 +34,9 @@ class ValidateTransformsStageSpec extends Specification {
 
         final s = new SourcePropertyNode('name', sourceType, sourceAccessor)
         final t = new TargetPropertyNode('name', targetType, targetAccessor)
-        final chain = [new TransformNode(sourceType, targetType, new DirectOperation())]
-        final mapping = new ResolvedMapping(s, t, chain)
+
+        final path = createSingleEdgePath(sourceType, targetType)
+        final mapping = new ResolvedMapping(s, t, path)
 
         final execElement = Stub(ExecutableElement) { toString() >> 'map(Source)' }
         final method = new MappingMethodModel(execElement, sourceType, targetType, [])
@@ -54,8 +57,7 @@ class ValidateTransformsStageSpec extends Specification {
 
         final s = new SourcePropertyNode('data', fooType, sourceAccessor)
         final t = new TargetPropertyNode('data', barType, targetAccessor)
-        final chain = [new TransformNode(fooType, barType, new UnresolvedOperation(fooType, barType))]
-        final mapping = new ResolvedMapping(s, t, chain)
+        final mapping = new ResolvedMapping(s, t, null)
 
         final mapperType = Stub(TypeElement) { toString() >> 'TestMapper' }
         final execElement = Stub(ExecutableElement) { toString() >> 'map(Foo)' }
@@ -87,8 +89,8 @@ class ValidateTransformsStageSpec extends Specification {
         final s2 = new SourcePropertyNode('b', fooType, new GetterAccessor('b', fooType, Mock(ExecutableElement)))
         final t2 = new TargetPropertyNode('b', bazType, new ConstructorParamAccessor('b', bazType, Mock(ExecutableElement), 1))
 
-        final mapping1 = new ResolvedMapping(s1, t1, [new TransformNode(fooType, barType, new UnresolvedOperation(fooType, barType))])
-        final mapping2 = new ResolvedMapping(s2, t2, [new TransformNode(fooType, bazType, new UnresolvedOperation(fooType, bazType))])
+        final mapping1 = new ResolvedMapping(s1, t1, null)
+        final mapping2 = new ResolvedMapping(s2, t2, null)
 
         final execElement = Stub(ExecutableElement) { toString() >> 'map(Foo)' }
         final method = new MappingMethodModel(execElement, fooType, barType, [])
@@ -101,5 +103,15 @@ class ValidateTransformsStageSpec extends Specification {
         then:
         !result.isSuccess()
         result.errors().size() == 2
+    }
+
+    private static createSingleEdgePath(final TypeMirror sourceType, final TypeMirror targetType) {
+        final graph = new DefaultDirectedGraph<TypeNode, TransformEdge>(TransformEdge)
+        final sourceNode = new TypeNode(sourceType, sourceType.toString())
+        final targetNode = new TypeNode(targetType, targetType.toString())
+        graph.addVertex(sourceNode)
+        graph.addVertex(targetNode)
+        graph.addEdge(sourceNode, targetNode, new TransformEdge(new DirectAssignableStrategy(), { input -> input }))
+        return new BFSShortestPath<>(graph).getPath(sourceNode, targetNode)
     }
 }

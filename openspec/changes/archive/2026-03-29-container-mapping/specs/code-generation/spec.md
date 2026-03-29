@@ -1,10 +1,4 @@
-# Code Generation Spec
-
-## Purpose
-
-Defines the code generation stage including the AnalyzeStage for extracting mapper models and the GenerateStage for producing JavaPoet-based implementation classes by composing CodeTemplates from resolved GraphPath edges, with support for constructor-based and field-based target construction.
-
-## Requirements
+## MODIFIED Requirements
 
 ### Requirement: GenerateStage produces JavaFile from resolved model
 The `GenerateStage` SHALL consume a `ResolvedModel` and produce a `JavaFile` using Palantir JavaPoet. It SHALL walk each method's resolved mappings and emit code by composing the `CodeTemplate`s from the resolved `GraphPath`'s edge list. For each mapping, the stage SHALL start with the source read expression and apply each edge's `CodeTemplate` in path order to produce the final value expression. It SHALL support constructor-based and field-based target construction based on the `WriteAccessor` types present.
@@ -22,15 +16,15 @@ The `GenerateStage` SHALL consume a `ResolvedModel` and produce a `JavaFile` usi
 - **THEN** the generated code SHALL emit `mapAddress(source.getBillingAddress())` by applying the code template to the read expression
 
 #### Scenario: Container mapping emits composed code templates
-- **WHEN** a resolved mapping for `List<Person>` -> `Set<PersonDTO>` has a 3-edge path (StreamFromCollection, StreamMap, CollectToSet)
+- **WHEN** a resolved mapping for `List<Person>` → `Set<PersonDTO>` has a 3-edge path (StreamFromCollection, StreamMap, CollectToSet)
 - **THEN** the generated code SHALL compose templates left-to-right producing `source.getPersons().stream().map(e -> map(e)).collect(Collectors.toSet())`
 
 #### Scenario: Mixed DIRECT and container transforms in same method
-- **WHEN** method `map(Order): OrderDTO` has DIRECT transform for `name` and container transform for `items` (`List<Item>` -> `Set<ItemDTO>`)
+- **WHEN** method `map(Order): OrderDTO` has DIRECT transform for `name` and container transform for `items` (`List<Item>` → `Set<ItemDTO>`)
 - **THEN** the generated constructor call SHALL combine identity template for `name` and composed container templates for `items`
 
 #### Scenario: Optional mapping emits map call via CodeTemplate
-- **WHEN** a resolved mapping for `Optional<Person>` -> `Optional<PersonDTO>` has an `OptionalMapStrategy` edge
+- **WHEN** a resolved mapping for `Optional<Person>` → `Optional<PersonDTO>` has an `OptionalMapStrategy` edge
 - **THEN** the generated code SHALL emit `source.getPerson().map(e -> map(e))`
 
 ### Requirement: GenerateStage composes CodeTemplates by walking GraphPath
@@ -42,7 +36,7 @@ For each resolved mapping, the `GenerateStage` SHALL iterate over `graphPath.get
 
 #### Scenario: Multi-edge path composes templates left-to-right
 - **WHEN** the path has edges [StreamFromCollection, StreamMap, CollectToSet]
-- **THEN** the value expression SHALL be `collectToSet(streamMap(streamFromCollection(readExpr)))` -- each template applied in order
+- **THEN** the value expression SHALL be `collectToSet(streamMap(streamFromCollection(readExpr)))` — each template applied in order
 
 ### Requirement: Generated class naming and structure
 The generated class SHALL be named `<MapperName>Impl` in the same package as the mapper interface. It SHALL implement the mapper interface and be declared `public final`.
@@ -71,30 +65,3 @@ After producing the `JavaFile`, the `GenerateStage` SHALL write it to the annota
 #### Scenario: Generated file written to Filer
 - **WHEN** generation succeeds
 - **THEN** the `JavaFile` SHALL be written via `Filer` and the stage SHALL return success
-
-### Requirement: AnalyzeStage extracts mapper model
-The `AnalyzeStage` SHALL extract a `MapperModel` from the `@Mapper`-annotated `TypeElement`. It SHALL identify abstract methods, parse `@Map` and `@MapList` annotations into `MapDirective` instances, and extract source/target types from method signatures.
-
-#### Scenario: Interface with single mapping method
-- **WHEN** a `@Mapper` interface has one abstract method `Target map(Source s)` with `@Map` annotations
-- **THEN** the stage SHALL produce a `MapperModel` with one `MappingMethodModel` containing the method element, source type, target type, and parsed directives
-
-#### Scenario: Method without @Map annotations
-- **WHEN** an abstract method has no `@Map` annotations
-- **THEN** the stage SHALL produce a `MappingMethodModel` with an empty directives list
-
-#### Scenario: Method with multiple @Map annotations (via @MapList)
-- **WHEN** a method has multiple `@Map` annotations
-- **THEN** all SHALL be parsed into separate `MapDirective` instances
-
-#### Scenario: Non-abstract method ignored
-- **WHEN** the mapper interface has a default method
-- **THEN** it SHALL NOT appear in the `MapperModel`'s method list
-
-#### Scenario: Method with no parameters
-- **WHEN** an abstract method has no parameters
-- **THEN** the stage SHALL return a failure with a diagnostic indicating the method needs a source parameter
-
-#### Scenario: Method with void return type
-- **WHEN** an abstract method returns void
-- **THEN** the stage SHALL return a failure with a diagnostic indicating the method needs a return type
