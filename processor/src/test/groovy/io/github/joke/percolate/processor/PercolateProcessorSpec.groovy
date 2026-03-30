@@ -110,6 +110,50 @@ class PercolateProcessorSpec extends Specification {
         compilation.generatedSourceFiles().any { it.name.contains('FieldMapperImpl') }
     }
 
+    def 'generates mapper with auto-mapped same-name properties without any @Map directives'() {
+        given:
+        final source = JavaFileObjects.forSourceString('test.AutoSource', '''
+            package test;
+            public class AutoSource {
+                private final String name;
+                private final int age;
+                public AutoSource(String name, int age) {
+                    this.name = name;
+                    this.age = age;
+                }
+                public String getName() { return name; }
+                public int getAge() { return age; }
+            }
+        ''')
+        final target = JavaFileObjects.forSourceString('test.AutoTarget', '''
+            package test;
+            public class AutoTarget {
+                private final String name;
+                private final int age;
+                public AutoTarget(String name, int age) {
+                    this.name = name;
+                    this.age = age;
+                }
+            }
+        ''')
+        final mapper = JavaFileObjects.forSourceString('test.AutoMapper', '''
+            package test;
+            import io.github.joke.percolate.Mapper;
+
+            @Mapper
+            public interface AutoMapper {
+                AutoTarget map(AutoSource source);
+            }
+        ''')
+
+        expect:
+        final compilation = javac()
+                .withProcessors(new PercolateProcessor())
+                .compile(source, target, mapper)
+        compilation.status() == Compilation.Status.SUCCESS
+        compilation.generatedSourceFiles().any { it.name.contains('AutoMapperImpl') }
+    }
+
     def 'reports error for invalid source property in @Map directive'() {
         given:
         final source = JavaFileObjects.forSourceString('test.Src', '''

@@ -76,6 +76,14 @@ public final class BuildGraphStage {
                 graph.addEdge(sourceNode, targetNode, new MappingEdge(MappingEdge.Type.DIRECT));
             }
 
+            targetNodes.entrySet().stream()
+                    .filter(entry -> graph.inDegreeOf(entry.getValue()) == 0)
+                    .filter(entry -> sourceNodes.containsKey(entry.getKey()))
+                    .forEach(entry -> graph.addEdge(
+                            sourceNodes.get(entry.getKey()),
+                            entry.getValue(),
+                            new MappingEdge(MappingEdge.Type.DIRECT)));
+
             methodGraphs.put(method, graph);
         }
 

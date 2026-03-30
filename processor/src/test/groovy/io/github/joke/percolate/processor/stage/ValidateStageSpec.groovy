@@ -83,6 +83,28 @@ class ValidateStageSpec extends Specification {
         message.contains("Did you mean to map 'midleName' -> 'middleName'?")
     }
 
+    def 'succeeds when same-name target is mapped and extra source has no outgoing edge'() {
+        given:
+        final g = new DefaultDirectedGraph<PropertyNode, MappingEdge>(MappingEdge)
+        final s1 = new SourcePropertyNode('name', typeMirror,
+                new GetterAccessor('name', typeMirror, dummyMethod))
+        final s2 = new SourcePropertyNode('internalId', typeMirror,
+                new GetterAccessor('internalId', typeMirror, dummyMethod))
+        final t1 = new TargetPropertyNode('name', typeMirror,
+                new ConstructorParamAccessor('name', typeMirror, dummyMethod, 0))
+
+        g.addVertex(s1)
+        g.addVertex(s2)
+        g.addVertex(t1)
+        g.addEdge(s1, t1, new MappingEdge(MappingEdge.Type.DIRECT))
+
+        final method = Mock(DiscoveredMethod)
+        final mappingGraph = new MappingGraph(mapperType, [method], [(method): g])
+
+        expect:
+        stage.execute(mappingGraph).isSuccess()
+    }
+
     def 'fails when target has duplicate mappings with rich error message'() {
         given:
         final g = new DefaultDirectedGraph<PropertyNode, MappingEdge>(MappingEdge)

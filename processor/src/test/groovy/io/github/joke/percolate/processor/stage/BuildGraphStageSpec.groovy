@@ -118,6 +118,91 @@ class BuildGraphStageSpec extends Specification {
         targetNodes.size() == 2
     }
 
+    def 'auto-maps same-name source and target properties when no directive is declared'() {
+        given:
+        final typeMirror = Mock(TypeMirror)
+        final sourceAccessor = new GetterAccessor('name', typeMirror, Mock(ExecutableElement))
+        final targetAccessor = new ConstructorParamAccessor('name', typeMirror, Mock(ExecutableElement), 0)
+
+        final method = new MappingMethodModel(Mock(ExecutableElement), typeMirror, typeMirror, [])
+        final discovered = new DiscoveredMethod(method, [name: sourceAccessor], [name: targetAccessor])
+        final model = new DiscoveredModel(Mock(TypeElement), [discovered])
+
+        expect:
+        final result = stage.execute(model)
+        result.isSuccess()
+        final graph = result.value().methodGraphs[discovered]
+        graph.edgeSet().size() == 1
+        graph.edgeSet().first().type == MappingEdge.Type.DIRECT
+        graph.vertexSet().find { it instanceof SourcePropertyNode }.name == 'name'
+        graph.vertexSet().find { it instanceof TargetPropertyNode }.name == 'name'
+    }
+
+    def 'explicit directive takes priority and same-name source property is not auto-mapped onto already-mapped target'() {
+        given:
+        final typeMirror = Mock(TypeMirror)
+        final sourceFullName = new GetterAccessor('fullName', typeMirror, Mock(ExecutableElement))
+        final sourceName = new GetterAccessor('name', typeMirror, Mock(ExecutableElement))
+        final targetName = new ConstructorParamAccessor('name', typeMirror, Mock(ExecutableElement), 0)
+
+        final method = new MappingMethodModel(
+                Mock(ExecutableElement), typeMirror, typeMirror,
+                [new MapDirective('fullName', 'name')])
+        final discovered = new DiscoveredMethod(method,
+                [fullName: sourceFullName, name: sourceName],
+                [name: targetName])
+        final model = new DiscoveredModel(Mock(TypeElement), [discovered])
+
+        expect:
+        final result = stage.execute(model)
+        result.isSuccess()
+        final graph = result.value().methodGraphs[discovered]
+        graph.edgeSet().size() == 1
+        graph.getEdgeSource(graph.edgeSet().first()).name == 'fullName'
+        graph.getEdgeTarget(graph.edgeSet().first()).name == 'name'
+    }
+
+    def 'source property with no matching target name is silently ignored'() {
+        given:
+        final typeMirror = Mock(TypeMirror)
+        final sourceName = new GetterAccessor('name', typeMirror, Mock(ExecutableElement))
+        final sourceInternalId = new GetterAccessor('internalId', typeMirror, Mock(ExecutableElement))
+        final targetName = new ConstructorParamAccessor('name', typeMirror, Mock(ExecutableElement), 0)
+
+        final method = new MappingMethodModel(Mock(ExecutableElement), typeMirror, typeMirror, [])
+        final discovered = new DiscoveredMethod(method,
+                [name: sourceName, internalId: sourceInternalId],
+                [name: targetName])
+        final model = new DiscoveredModel(Mock(TypeElement), [discovered])
+
+        expect:
+        final result = stage.execute(model)
+        result.isSuccess()
+        result.value().methodGraphs[discovered].edgeSet().size() == 1
+    }
+
+    def 'mixes explicit directive edge with auto-mapped same-name edge'() {
+        given:
+        final typeMirror = Mock(TypeMirror)
+        final sourceFirstName = new GetterAccessor('firstName', typeMirror, Mock(ExecutableElement))
+        final sourceAge = new GetterAccessor('age', typeMirror, Mock(ExecutableElement))
+        final targetGivenName = new ConstructorParamAccessor('givenName', typeMirror, Mock(ExecutableElement), 0)
+        final targetAge = new ConstructorParamAccessor('age', typeMirror, Mock(ExecutableElement), 1)
+
+        final method = new MappingMethodModel(
+                Mock(ExecutableElement), typeMirror, typeMirror,
+                [new MapDirective('firstName', 'givenName')])
+        final discovered = new DiscoveredMethod(method,
+                [firstName: sourceFirstName, age: sourceAge],
+                [givenName: targetGivenName, age: targetAge])
+        final model = new DiscoveredModel(Mock(TypeElement), [discovered])
+
+        expect:
+        final result = stage.execute(model)
+        result.isSuccess()
+        result.value().methodGraphs[discovered].edgeSet().size() == 2
+    }
+
     def 'creates isolated graphs per method'() {
         given:
         final typeMirror = Mock(TypeMirror)
