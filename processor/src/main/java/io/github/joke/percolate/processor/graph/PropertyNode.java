@@ -1,6 +1,5 @@
 package io.github.joke.percolate.processor.graph;
 
-import javax.lang.model.type.TypeMirror;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 
@@ -9,7 +8,6 @@ import lombok.RequiredArgsConstructor;
 public abstract class PropertyNode {
 
     private final String name;
-    private final TypeMirror type;
 
     @Override
     public String toString() {

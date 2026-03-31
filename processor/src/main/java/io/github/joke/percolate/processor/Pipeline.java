@@ -3,10 +3,8 @@ package io.github.joke.percolate.processor;
 import com.palantir.javapoet.JavaFile;
 import io.github.joke.percolate.processor.stage.AnalyzeStage;
 import io.github.joke.percolate.processor.stage.BuildGraphStage;
-import io.github.joke.percolate.processor.stage.DiscoverStage;
 import io.github.joke.percolate.processor.stage.GenerateStage;
 import io.github.joke.percolate.processor.stage.ResolveTransformsStage;
-import io.github.joke.percolate.processor.stage.ValidateStage;
 import io.github.joke.percolate.processor.stage.ValidateTransformsStage;
 import jakarta.inject.Inject;
 import javax.annotation.processing.Messager;
@@ -18,9 +16,7 @@ import org.jspecify.annotations.Nullable;
 final class Pipeline {
 
     private final AnalyzeStage analyzeStage;
-    private final DiscoverStage discoverStage;
     private final BuildGraphStage buildGraphStage;
-    private final ValidateStage validateStage;
     private final ResolveTransformsStage resolveTransformsStage;
     private final ValidateTransformsStage validateTransformsStage;
     private final GenerateStage generateStage;
@@ -34,25 +30,13 @@ final class Pipeline {
             return null;
         }
 
-        final var discoverResult = discoverStage.execute(analyzeResult.value());
-        if (!discoverResult.isSuccess()) {
-            reportErrors(discoverResult);
-            return null;
-        }
-
-        final var graphResult = buildGraphStage.execute(discoverResult.value());
+        final var graphResult = buildGraphStage.execute(analyzeResult.value());
         if (!graphResult.isSuccess()) {
             reportErrors(graphResult);
             return null;
         }
 
-        final var validateResult = validateStage.execute(graphResult.value());
-        if (!validateResult.isSuccess()) {
-            reportErrors(validateResult);
-            return null;
-        }
-
-        final var resolveResult = resolveTransformsStage.execute(validateResult.value());
+        final var resolveResult = resolveTransformsStage.execute(graphResult.value());
         if (!resolveResult.isSuccess()) {
             reportErrors(resolveResult);
             return null;

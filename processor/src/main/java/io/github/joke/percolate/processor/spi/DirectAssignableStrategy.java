@@ -9,8 +9,8 @@ import javax.lang.model.type.TypeMirror;
 public final class DirectAssignableStrategy implements TypeTransformStrategy {
 
     @Override
-    public Optional<TransformProposal> canProduce(final TypeMirror sourceType, final TypeMirror targetType,
-            final ResolutionContext ctx) {
+    public Optional<TransformProposal> canProduce(
+            final TypeMirror sourceType, final TypeMirror targetType, final ResolutionContext ctx) {
         if (ctx.getTypes().isAssignable(sourceType, targetType)) {
             return Optional.of(new TransformProposal(sourceType, targetType, input -> input, this));
         }

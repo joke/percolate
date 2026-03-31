@@ -12,8 +12,8 @@ import javax.lang.model.type.TypeMirror;
 public final class StreamMapStrategy implements TypeTransformStrategy {
 
     @Override
-    public Optional<TransformProposal> canProduce(final TypeMirror sourceType, final TypeMirror targetType,
-            final ResolutionContext ctx) {
+    public Optional<TransformProposal> canProduce(
+            final TypeMirror sourceType, final TypeMirror targetType, final ResolutionContext ctx) {
         final var types = ctx.getTypes();
         final var elements = ctx.getElements();
 
@@ -55,6 +55,7 @@ public final class StreamMapStrategy implements TypeTransformStrategy {
                 input -> CodeBlock.of("$L.map(e -> e)", input),
                 this,
                 constraint,
-                innerTemplate -> input -> CodeBlock.of("$L.map(e -> $L)", input, innerTemplate.apply(CodeBlock.of("e")))));
+                innerTemplate ->
+                        input -> CodeBlock.of("$L.map(e -> $L)", input, innerTemplate.apply(CodeBlock.of("e")))));
     }
 }

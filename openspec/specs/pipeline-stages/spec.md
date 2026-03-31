@@ -29,7 +29,7 @@ Defines the stage-based processing pipeline architecture: `StageResult` modeling
 - **THEN** a `Diagnostic` with `Kind.ERROR`, the method element, and a descriptive message SHALL be created
 
 ### Requirement: Pipeline chains stages sequentially
-The `Pipeline` SHALL execute stages in order: analyze → discover → build graph → validate → resolve transforms → validate transforms → generate. If any stage returns a failure, the pipeline SHALL stop processing that mapper, report all diagnostics to `Messager`, and return `null`.
+The `Pipeline` SHALL execute stages in order: analyze → build graph → resolve transforms → validate transforms → generate. If any stage returns a failure, the pipeline SHALL stop processing that mapper, report all diagnostics to `Messager`, and return `null`. The `DiscoverStage` and `ValidateStage` are removed from the pipeline — property discovery is folded into `ResolveTransformsStage` and structural validation is folded into `ValidateTransformsStage`.
 
 #### Scenario: All stages succeed
 - **WHEN** all stages return success for a mapper
@@ -47,8 +47,8 @@ Each mapper type element SHALL flow through the pipeline independently. A failur
 - **THEN** `MapperB` SHALL still generate its implementation class and `MapperA`'s errors SHALL be reported via `Messager`
 
 ### Requirement: Stages are Dagger-injected
-All stages SHALL be constructor-injected by Dagger. The `Pipeline` SHALL receive all stages via its constructor. Stages SHALL declare dependencies on `Elements`, `Types`, `Messager`, or `Filer` as needed from the existing `ProcessorModule`.
+All stages SHALL be constructor-injected by Dagger. The `Pipeline` SHALL receive all stages via its constructor. Stages SHALL declare dependencies on `Elements`, `Types`, `Messager`, or `Filer` as needed from the existing `ProcessorModule`. The pipeline SHALL inject five stages: `AnalyzeStage`, `BuildGraphStage`, `ResolveTransformsStage`, `ValidateTransformsStage`, and `GenerateStage`.
 
 #### Scenario: Pipeline receives stages from Dagger
 - **WHEN** the `ProcessorComponent` is built
-- **THEN** the `Pipeline` SHALL have all seven stages injected and ready to execute
+- **THEN** the `Pipeline` SHALL have all five stages injected and ready to execute

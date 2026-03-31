@@ -17,8 +17,11 @@ public final class TransformProposal {
     private final @Nullable ElementConstraint elementConstraint;
     private final @Nullable Function<CodeTemplate, CodeTemplate> templateComposer;
 
-    public TransformProposal(final TypeMirror requiredInput, final TypeMirror producedOutput,
-            final CodeTemplate codeTemplate, final TypeTransformStrategy strategy) {
+    public TransformProposal(
+            final TypeMirror requiredInput,
+            final TypeMirror producedOutput,
+            final CodeTemplate codeTemplate,
+            final TypeTransformStrategy strategy) {
         this(requiredInput, producedOutput, codeTemplate, strategy, null, null);
     }
 }

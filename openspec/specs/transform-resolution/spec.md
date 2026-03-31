@@ -2,28 +2,41 @@
 
 ## Purpose
 
-Defines the ResolveTransforms stage that bridges type gaps between source and target properties by constructing a JGraphT type transformation graph per mapping edge, using BFS expansion with registered TypeTransformStrategy implementations to find a path from source type to target type, producing a ResolvedModel with per-method GraphPath chains for code generation.
+Defines the ResolveTransforms stage that accepts a symbolic property graph (name-only nodes) and produces a fully resolved model by sequentially resolving `AccessEdge` source chains via property discovery and bridging type gaps between source and target properties using BFS expansion with registered `TypeTransformStrategy` implementations, producing a `ResolvedModel` with per-method accessor chains and `GraphPath` chains for code generation.
 
 ## Requirements
 
 ### Requirement: ResolveTransforms stage resolves type-gap transforms
-The `ResolveTransforms` stage SHALL walk each mapping edge in the validated `MappingGraph` and determine the transformation needed to bridge the source property type to the target property type. For each edge, it SHALL construct a JGraphT `DefaultDirectedGraph<TypeNode, TransformEdge>` and populate it using a BFS expansion loop: each iteration asks all registered `TypeTransformStrategy` implementations (discovered via `ServiceLoader`) for proposals on open type gaps, adds resulting edges to the graph, and checks for a complete path using `BFSShortestPath.findPathBetween()`. Resolution SHALL succeed when a path from source type node to target type node exists. If no strategy contributes new edges in an iteration, the gap SHALL be marked as unresolved. The loop SHALL terminate after at most 30 iterations.
+The `ResolveTransforms` stage SHALL accept a symbolic property graph (name-only nodes with `AccessEdge` and `MappingEdge` connections) and produce a fully resolved model. For each method's symbolic graph, the stage SHALL:
+1. Resolve each `AccessEdge` by discovering the accessor (getter/field) on the parent node's resolved type, determining the child node's type
+2. Resolve each `MappingEdge` by constructing a JGraphT `DefaultDirectedGraph<TypeNode, TransformEdge>` and running BFS expansion with registered `TypeTransformStrategy` implementations to find a path from the resolved source type to the resolved target type
+3. Discover target property write accessors via `TargetPropertyDiscovery` SPI
 
-#### Scenario: Assignable types resolve via DirectAssignableStrategy
-- **WHEN** a mapping edge connects source property `name` (type `String`) to target property `name` (type `String`)
-- **THEN** `DirectAssignableStrategy` SHALL contribute an edge and `BFSShortestPath` SHALL find a single-edge path with identity code template
+The `ResolutionContext` passed to type transform strategies SHALL contain the mapper's `TypeElement`, the current method's `ExecutableElement`, and the `Types` and `Elements` utilities. The BFS loop SHALL terminate after at most 30 iterations. The stage SHALL annotate unresolved edges with failure context rather than producing errors directly.
+
+#### Scenario: Flat property resolves accessor and type transform
+- **WHEN** symbolic graph has `SourceRootNode("order") → AccessEdge → SourcePropertyNode("name") → MappingEdge → TargetPropertyNode("name")` and `Order` has getter `getName()` returning `String` and target property `name` is type `String`
+- **THEN** the stage SHALL resolve the access edge to a `GetterAccessor`, resolve the mapping edge via `DirectAssignableStrategy`, and produce a resolved mapping with the accessor and single-edge transform path
+
+#### Scenario: Nested chain resolves each segment sequentially
+- **WHEN** symbolic graph has chain `SourceRootNode → "customer" → "address"` and `Order.getCustomer()` returns `Customer` and `Customer.getAddress()` returns `Address`
+- **THEN** the stage SHALL resolve `"customer"` on `Order` yielding `Customer`, then resolve `"address"` on `Customer` yielding `Address`, producing an accessor chain `[GetterAccessor(customer), GetterAccessor(address)]`
 
 #### Scenario: Non-assignable types with sibling method resolve via MethodCallStrategy
-- **WHEN** a mapping edge connects source property `billingAddress` (type `Address`) to target property `address` (type `AddressDTO`), and the mapper has a sibling method `mapAddress(Address): AddressDTO`
-- **THEN** `MethodCallStrategy` SHALL contribute an edge and `BFSShortestPath` SHALL find a single-edge path with method call code template
+- **WHEN** a mapping edge connects resolved source type `Address` to target type `AddressDTO`, and the mapper has a sibling method `mapAddress(Address): AddressDTO`
+- **THEN** `MethodCallStrategy` SHALL discover the method and `BFSShortestPath` SHALL find a single-edge path with method call code template
 
 #### Scenario: Container types resolve via multi-step strategy chain
-- **WHEN** a mapping edge connects source property `persons` (type `List<Person>`) to target property `persons` (type `Set<PersonDTO>`), and the mapper has method `PersonDTO map(Person)`
-- **THEN** strategies SHALL contribute edges across iterations producing a path: `List<Person>` -> `Stream<Person>` -> `Stream<PersonDTO>` -> `Set<PersonDTO>`
+- **WHEN** a mapping edge connects resolved source type `List<Person>` to target type `Set<PersonDTO>`, and the mapper has method `PersonDTO map(Person)`
+- **THEN** strategies SHALL contribute edges producing a path: `List<Person>` → `Stream<Person>` → `Stream<PersonDTO>` → `Set<PersonDTO>`
 
-#### Scenario: Subtype assignability counts as DIRECT
-- **WHEN** a mapping edge connects source property `value` (type `String`) to target property `value` (type `Object`)
-- **THEN** `DirectAssignableStrategy` SHALL contribute an edge (since `String` is assignable to `Object`)
+#### Scenario: Unresolved access edge annotated with failure context
+- **WHEN** resolving access edge for segment `"adress"` on type `Customer` and no property `"adress"` exists
+- **THEN** the stage SHALL annotate the failure with segment name, segment index, full chain, searched type, and available property names — without producing an error
+
+#### Scenario: Unresolved type gap annotated for validation
+- **WHEN** no strategy can bridge source type `Foo` to target type `Bar`
+- **THEN** the mapping SHALL be marked unresolved with source and target types recorded
 
 ### Requirement: Transform chain model per mapping edge
 Each resolved mapping SHALL carry a `GraphPath<TypeNode, TransformEdge>` representing the ordered sequence of transformation steps from source type to target type. Each `TransformEdge` in the path SHALL carry a `CodeTemplate` for code generation. Paths MAY be single-edge (direct, method call) or multi-edge (container mapping).
@@ -37,7 +50,15 @@ Each resolved mapping SHALL carry a `GraphPath<TypeNode, TransformEdge>` represe
 - **THEN** the path SHALL contain three `TransformEdge`s: StreamFromCollection, StreamMap, CollectToSet
 
 ### Requirement: ResolveTransforms produces a ResolvedModel
-The `ResolveTransforms` stage SHALL produce a `ResolvedModel` containing per-method resolved mappings. Each resolved mapping SHALL associate a source property, target property, and resolved `GraphPath`. The `ResolvedModel` SHALL also carry the `TypeElement` mapper type and the list of `DiscoveredMethod` entries for use by downstream stages.
+The `ResolveTransforms` stage SHALL produce a `ResolvedModel` containing per-method resolved mappings. Each resolved mapping SHALL carry: the source accessor chain (`List<ReadAccessor>` for chain segments), the target `WriteAccessor`, and the resolved `GraphPath<TypeNode, TransformEdge>` for the type transform. The `ResolvedModel` SHALL also carry the `TypeElement` mapper type and method metadata.
+
+#### Scenario: Single-segment source produces single-element accessor chain
+- **WHEN** `@Map(source = "name", target = "name")` resolves with getter `getName()`
+- **THEN** the resolved mapping's source accessor chain SHALL contain one `GetterAccessor`
+
+#### Scenario: Multi-segment source produces multi-element accessor chain
+- **WHEN** `@Map(source = "customer.address", target = "addr")` resolves with `getCustomer()` and `getAddress()`
+- **THEN** the resolved mapping's source accessor chain SHALL contain `[GetterAccessor(customer), GetterAccessor(address)]`
 
 #### Scenario: Multi-method mapper produces per-method resolved mappings
 - **WHEN** a mapper has methods `map(Order): OrderDTO` and `mapAddress(Address): AddressDTO`
@@ -47,5 +68,5 @@ The `ResolveTransforms` stage SHALL produce a `ResolvedModel` containing per-met
 When no strategy contributes new edges and no path exists from source to target, the `ResolveTransforms` stage SHALL mark the mapping as unresolved rather than failing immediately. The `ValidateTransforms` stage is responsible for producing error diagnostics.
 
 #### Scenario: No strategy matches for type gap
-- **WHEN** source property `data` (type `Foo`) maps to target property `data` (type `Bar`) and no strategy can bridge the gap
+- **WHEN** resolved source type `Foo` maps to target type `Bar` and no strategy can bridge the gap
 - **THEN** the resolved mapping SHALL be marked unresolved with the source and target types recorded for diagnostic purposes

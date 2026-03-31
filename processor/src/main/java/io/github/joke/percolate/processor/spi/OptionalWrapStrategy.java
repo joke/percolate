@@ -11,8 +11,8 @@ import javax.lang.model.type.TypeMirror;
 public final class OptionalWrapStrategy implements TypeTransformStrategy {
 
     @Override
-    public Optional<TransformProposal> canProduce(final TypeMirror sourceType, final TypeMirror targetType,
-            final ResolutionContext ctx) {
+    public Optional<TransformProposal> canProduce(
+            final TypeMirror sourceType, final TypeMirror targetType, final ResolutionContext ctx) {
         final var types = ctx.getTypes();
         final var elements = ctx.getElements();
 
@@ -30,8 +30,7 @@ public final class OptionalWrapStrategy implements TypeTransformStrategy {
             return Optional.empty();
         }
 
-        if (sourceType instanceof DeclaredType
-                && types.isSameType(types.erasure(sourceType), erasedOptional)) {
+        if (sourceType instanceof DeclaredType && types.isSameType(types.erasure(sourceType), erasedOptional)) {
             return Optional.empty();
         }
 
@@ -43,9 +42,6 @@ public final class OptionalWrapStrategy implements TypeTransformStrategy {
         final var elementType = targetArgs.get(0);
 
         return Optional.of(new TransformProposal(
-                elementType,
-                targetType,
-                input -> CodeBlock.of("$T.of($L)", Optional.class, input),
-                this));
+                elementType, targetType, input -> CodeBlock.of("$T.of($L)", Optional.class, input), this));
     }
 }

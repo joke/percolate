@@ -7,26 +7,64 @@ Defines the SPI-based property discovery system for source and target types, inc
 ## Requirements
 
 ### Requirement: SourcePropertyDiscovery SPI interface
-`SourcePropertyDiscovery` SHALL be a public SPI interface with methods `int priority()` and `List<ReadAccessor> discover(TypeMirror type, Elements elements, Types types)`. Implementations SHALL be loaded via `ServiceLoader` using the processor's own classloader. Built-in implementations SHALL be registered using `@AutoService(SourcePropertyDiscovery.class)`.
+`SourcePropertyDiscovery` SHALL be a public SPI interface with methods `int priority()` and `List<ReadAccessor> discover(TypeMirror type, Elements elements, Types types)`. Implementations SHALL be loaded via `ServiceLoader` using the processor's own classloader. Built-in implementations SHALL be registered using `@AutoService(SourcePropertyDiscovery.class)`. `ResolveTransformsStage` loads and uses the SPI directly, applying priority-based merging when resolving access edges.
 
 #### Scenario: Custom source discovery on annotationProcessor classpath
 - **WHEN** a user provides a jar containing a `SourcePropertyDiscovery` implementation registered in `META-INF/services`
-- **THEN** the `DiscoverStage` SHALL load and invoke it alongside built-in strategies
+- **THEN** `ResolveTransformsStage` SHALL load and invoke it alongside built-in strategies
 
 #### Scenario: Built-in source strategies loaded in consumer project
 - **WHEN** the processor runs as an annotation processor in a consumer project
-- **THEN** `DiscoverStage` SHALL discover all built-in `SourcePropertyDiscovery` implementations (`GetterDiscovery`, `FieldDiscovery.Source`) via `ServiceLoader` using the processor's classloader
+- **THEN** `ResolveTransformsStage` SHALL discover all built-in `SourcePropertyDiscovery` implementations (`GetterDiscovery`, `FieldDiscovery.Source`) via `ServiceLoader` using the processor's classloader
 
 ### Requirement: TargetPropertyDiscovery SPI interface
-`TargetPropertyDiscovery` SHALL be a public SPI interface with methods `int priority()` and `List<WriteAccessor> discover(TypeMirror type, Elements elements, Types types)`. Implementations SHALL be loaded via `ServiceLoader` using the processor's own classloader. Built-in implementations SHALL be registered using `@AutoService(TargetPropertyDiscovery.class)`.
+`TargetPropertyDiscovery` SHALL be a public SPI interface with methods `int priority()` and `List<WriteAccessor> discover(TypeMirror type, Elements elements, Types types)`. Implementations SHALL be loaded via `ServiceLoader` using the processor's own classloader. Built-in implementations SHALL be registered using `@AutoService(TargetPropertyDiscovery.class)`. `ResolveTransformsStage` loads and uses the SPI directly, applying priority-based merging when resolving target properties.
 
 #### Scenario: Custom target discovery on annotationProcessor classpath
 - **WHEN** a user provides a jar containing a `TargetPropertyDiscovery` implementation registered in `META-INF/services`
-- **THEN** the `DiscoverStage` SHALL load and invoke it alongside built-in strategies
+- **THEN** `ResolveTransformsStage` SHALL load and invoke it alongside built-in strategies
 
 #### Scenario: Built-in target strategies loaded in consumer project
 - **WHEN** the processor runs as an annotation processor in a consumer project
-- **THEN** `DiscoverStage` SHALL discover all built-in `TargetPropertyDiscovery` implementations (`ConstructorDiscovery`, `FieldDiscovery.Target`) via `ServiceLoader` using the processor's classloader
+- **THEN** `ResolveTransformsStage` SHALL discover all built-in `TargetPropertyDiscovery` implementations (`ConstructorDiscovery`, `FieldDiscovery.Target`) via `ServiceLoader` using the processor's classloader
+
+### Requirement: BuildGraphStage performs lightweight property name scanning
+`BuildGraphStage` SHALL scan source and target types for property names using its own lightweight logic. The scan SHALL detect `getX()`/`isX()` public no-arg methods and public non-static fields, extracting property names from them. The scan SHALL return a `Set<String>` of property names — no `ReadAccessor`, no `WriteAccessor`, no `TypeMirror`. This scan is used solely for auto-mapping name matching.
+
+#### Scenario: Getter method produces property name
+- **WHEN** source type has public method `String getFirstName()`
+- **THEN** the name scan SHALL include `"firstName"`
+
+#### Scenario: Boolean getter produces property name
+- **WHEN** source type has public method `boolean isActive()`
+- **THEN** the name scan SHALL include `"active"`
+
+#### Scenario: Public field produces property name
+- **WHEN** source type has public field `String lastName`
+- **THEN** the name scan SHALL include `"lastName"`
+
+#### Scenario: Private field excluded
+- **WHEN** source type has private field `String secret`
+- **THEN** the name scan SHALL NOT include `"secret"`
+
+#### Scenario: Static field excluded
+- **WHEN** source type has public static field `String CONSTANT`
+- **THEN** the name scan SHALL NOT include `"CONSTANT"`
+
+### Requirement: ResolveTransformsStage performs full property discovery
+`ResolveTransformsStage` SHALL use the `SourcePropertyDiscovery` and `TargetPropertyDiscovery` SPI interfaces (loaded via `ServiceLoader`) to perform full property discovery when resolving symbolic graph edges. For each `AccessEdge`, the stage SHALL discover properties on the resolved type of the parent node and look up the child segment's property name. For target properties, the stage SHALL discover write accessors on the target type.
+
+#### Scenario: Resolve source property via getter discovery
+- **WHEN** resolving `AccessEdge` for segment `"firstName"` on type `Person` where `Person` has `getFirstName()` returning `String`
+- **THEN** the resolution SHALL discover a `GetterAccessor` and resolve the type as `String`
+
+#### Scenario: Resolve source property via field discovery
+- **WHEN** resolving `AccessEdge` for segment `"firstName"` on type `Person` where `Person` has public field `String firstName` and no getter
+- **THEN** the resolution SHALL discover a `FieldReadAccessor` and resolve the type as `String`
+
+#### Scenario: Priority-based resolution applies
+- **WHEN** resolving `AccessEdge` for segment `"name"` where both a getter and a field exist for `"name"`
+- **THEN** the higher-priority accessor (getter, priority 100) SHALL be used over the field (priority 50)
 
 ### Requirement: Priority-based property resolution
 When multiple strategies discover the same property name, the strategy with the highest `priority()` value SHALL win. If two strategies have equal priority for the same property name, the first one loaded SHALL win.

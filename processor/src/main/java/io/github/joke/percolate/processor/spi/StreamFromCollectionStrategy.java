@@ -13,8 +13,8 @@ import javax.lang.model.type.TypeMirror;
 public final class StreamFromCollectionStrategy implements TypeTransformStrategy {
 
     @Override
-    public Optional<TransformProposal> canProduce(final TypeMirror sourceType, final TypeMirror targetType,
-            final ResolutionContext ctx) {
+    public Optional<TransformProposal> canProduce(
+            final TypeMirror sourceType, final TypeMirror targetType, final ResolutionContext ctx) {
         final var types = ctx.getTypes();
         final var elements = ctx.getElements();
 
@@ -30,10 +30,10 @@ public final class StreamFromCollectionStrategy implements TypeTransformStrategy
         }
 
         final var erasedSource = types.erasure(sourceType);
-        final var isCollection = collectionType != null
-                && types.isAssignable(erasedSource, types.erasure(collectionType.asType()));
-        final var isIterable = iterableType != null
-                && types.isAssignable(erasedSource, types.erasure(iterableType.asType()));
+        final var isCollection =
+                collectionType != null && types.isAssignable(erasedSource, types.erasure(collectionType.asType()));
+        final var isIterable =
+                iterableType != null && types.isAssignable(erasedSource, types.erasure(iterableType.asType()));
 
         if (!isCollection && !isIterable) {
             return Optional.empty();
@@ -58,8 +58,8 @@ public final class StreamFromCollectionStrategy implements TypeTransformStrategy
         return Optional.of(new TransformProposal(sourceType, streamType, template, this));
     }
 
-    private static Optional<TypeMirror> extractElementType(final DeclaredType declaredType,
-            final ResolutionContext ctx) {
+    private static Optional<TypeMirror> extractElementType(
+            final DeclaredType declaredType, final ResolutionContext ctx) {
         final var typeArgs = declaredType.getTypeArguments();
         if (!typeArgs.isEmpty()) {
             return Optional.of(typeArgs.get(0));

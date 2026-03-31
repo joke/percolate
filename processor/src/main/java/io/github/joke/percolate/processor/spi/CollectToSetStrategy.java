@@ -12,8 +12,8 @@ import javax.lang.model.type.TypeMirror;
 public final class CollectToSetStrategy implements TypeTransformStrategy {
 
     @Override
-    public Optional<TransformProposal> canProduce(final TypeMirror sourceType, final TypeMirror targetType,
-            final ResolutionContext ctx) {
+    public Optional<TransformProposal> canProduce(
+            final TypeMirror sourceType, final TypeMirror targetType, final ResolutionContext ctx) {
         final var types = ctx.getTypes();
         final var elements = ctx.getElements();
 

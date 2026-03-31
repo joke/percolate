@@ -1,235 +1,163 @@
 package io.github.joke.percolate.processor.stage
 
+import io.github.joke.percolate.processor.graph.AccessEdge
 import io.github.joke.percolate.processor.graph.MappingEdge
 import io.github.joke.percolate.processor.graph.SourcePropertyNode
+import io.github.joke.percolate.processor.graph.SourceRootNode
 import io.github.joke.percolate.processor.graph.TargetPropertyNode
-import io.github.joke.percolate.processor.model.ConstructorParamAccessor
-import io.github.joke.percolate.processor.model.DiscoveredMethod
-import io.github.joke.percolate.processor.model.DiscoveredModel
-import io.github.joke.percolate.processor.model.GetterAccessor
 import io.github.joke.percolate.processor.model.MapDirective
+import io.github.joke.percolate.processor.model.MapperModel
 import io.github.joke.percolate.processor.model.MappingMethodModel
 import spock.lang.Specification
 import spock.lang.Tag
 
+import javax.lang.model.element.ElementKind
 import javax.lang.model.element.ExecutableElement
+import javax.lang.model.element.Modifier
+import javax.lang.model.element.Name
 import javax.lang.model.element.TypeElement
+import javax.lang.model.element.VariableElement
+import javax.lang.model.type.DeclaredType
+import javax.lang.model.type.TypeKind
 import javax.lang.model.type.TypeMirror
+import java.util.EnumSet
 
 @Tag('unit')
 class BuildGraphStageSpec extends Specification {
 
-    BuildGraphStage stage = new BuildGraphStage()
-
-    def 'builds per-method graph with source and target nodes connected by direct edge'() {
+    def 'directive creates source root, source property and target property connected by access and mapping edges'() {
         given:
-        final typeMirror = Mock(TypeMirror)
-        final sourceAccessor = new GetterAccessor('firstName', typeMirror, Mock(ExecutableElement))
-        final targetAccessor = new ConstructorParamAccessor('givenName', typeMirror, Mock(ExecutableElement), 0)
-
-        final method = new MappingMethodModel(
-                Mock(ExecutableElement), typeMirror, typeMirror,
-                [new MapDirective('firstName', 'givenName')])
-        final discovered = new DiscoveredMethod(method,
-                [firstName: sourceAccessor],
-                [givenName: targetAccessor])
-        final model = new DiscoveredModel(Mock(TypeElement), [discovered])
+        final method = methodWithDirective('src', emptyType(), emptyType(), 'firstName', 'givenName')
+        final model = new MapperModel(Mock(TypeElement), [method])
+        final stage = new BuildGraphStage()
 
         expect:
         final result = stage.execute(model)
         result.isSuccess()
-        final graph = result.value().methodGraphs[discovered]
-        graph.vertexSet().size() == 2
-        graph.edgeSet().size() == 1
-        graph.vertexSet().find { it instanceof SourcePropertyNode }.name == 'firstName'
-        graph.vertexSet().find { it instanceof TargetPropertyNode }.name == 'givenName'
-        graph.edgeSet().first().type == MappingEdge.Type.DIRECT
+        final graph = result.value().methodGraphs[method]
+        graph.vertexSet().any { it instanceof SourceRootNode && it.name == 'src' }
+        graph.vertexSet().any { it instanceof SourcePropertyNode && it.name == 'firstName' }
+        graph.vertexSet().any { it instanceof TargetPropertyNode && it.name == 'givenName' }
+        graph.edgeSet().any { it instanceof AccessEdge }
+        graph.edgeSet().any { it instanceof MappingEdge }
     }
 
-    def 'fails for unknown source property with rich error message'() {
+    def 'nested chain creates multi-hop access edge path from source root to leaf'() {
         given:
-        final typeMirror = Stub(TypeMirror) { toString() >> 'com.example.Source' }
-        final executableElement = Stub(ExecutableElement) { toString() >> 'toTarget(Source)' }
-        final targetAccessor = new ConstructorParamAccessor('givenName', typeMirror, Mock(ExecutableElement), 0)
-
-        final method = new MappingMethodModel(
-                executableElement, typeMirror, typeMirror,
-                [new MapDirective('nonexistent', 'givenName')])
-        final discovered = new DiscoveredMethod(method,
-                [:],
-                [givenName: targetAccessor])
-        final model = new DiscoveredModel(Mock(TypeElement), [discovered])
-
-        when:
-        final result = stage.execute(model)
-
-        then:
-        !result.isSuccess()
-        final message = result.errors().first().message
-        message.contains("Unknown source property 'nonexistent'")
-        message.contains('toTarget(Source)')
-        message.contains('Source type: com.example.Source')
-    }
-
-    def 'fails for unknown target property with rich error message'() {
-        given:
-        final typeMirror = Stub(TypeMirror) { toString() >> 'com.example.Target' }
-        final executableElement = Stub(ExecutableElement) { toString() >> 'toTarget(Source)' }
-        final sourceAccessor = new GetterAccessor('firstName', typeMirror, Mock(ExecutableElement))
-
-        final method = new MappingMethodModel(
-                executableElement, typeMirror, typeMirror,
-                [new MapDirective('firstName', 'nonexistent')])
-        final discovered = new DiscoveredMethod(method,
-                [firstName: sourceAccessor],
-                [:])
-        final model = new DiscoveredModel(Mock(TypeElement), [discovered])
-
-        when:
-        final result = stage.execute(model)
-
-        then:
-        !result.isSuccess()
-        final message = result.errors().first().message
-        message.contains("Unknown target property 'nonexistent'")
-        message.contains('toTarget(Source)')
-        message.contains('Target type: com.example.Target')
-    }
-
-    def 'adds all target properties as nodes even without mappings'() {
-        given:
-        final typeMirror = Mock(TypeMirror)
-        final sourceAccessor = new GetterAccessor('firstName', typeMirror, Mock(ExecutableElement))
-        final targetAccessor1 = new ConstructorParamAccessor('givenName', typeMirror, Mock(ExecutableElement), 0)
-        final targetAccessor2 = new ConstructorParamAccessor('familyName', typeMirror, Mock(ExecutableElement), 1)
-
-        final method = new MappingMethodModel(
-                Mock(ExecutableElement), typeMirror, typeMirror,
-                [new MapDirective('firstName', 'givenName')])
-        final discovered = new DiscoveredMethod(method,
-                [firstName: sourceAccessor],
-                [givenName: targetAccessor1, familyName: targetAccessor2])
-        final model = new DiscoveredModel(Mock(TypeElement), [discovered])
+        final method = methodWithDirective('src', emptyType(), emptyType(), 'address.street', 'street')
+        final model = new MapperModel(Mock(TypeElement), [method])
+        final stage = new BuildGraphStage()
 
         expect:
         final result = stage.execute(model)
         result.isSuccess()
-        final targetNodes = result.value().methodGraphs[discovered].vertexSet().findAll { it instanceof TargetPropertyNode }
-        targetNodes.size() == 2
+        final graph = result.value().methodGraphs[method]
+        final sourceNodes = graph.vertexSet().findAll { it instanceof SourcePropertyNode }*.name
+        sourceNodes.containsAll(['address', 'street'])
+        graph.edgeSet().count { it instanceof AccessEdge } == 2
+        graph.edgeSet().count { it instanceof MappingEdge } == 1
     }
 
-    def 'auto-maps same-name source and target properties when no directive is declared'() {
+    def 'shared prefix node is reused across two chains with same parent segment'() {
         given:
-        final typeMirror = Mock(TypeMirror)
-        final sourceAccessor = new GetterAccessor('name', typeMirror, Mock(ExecutableElement))
-        final targetAccessor = new ConstructorParamAccessor('name', typeMirror, Mock(ExecutableElement), 0)
-
-        final method = new MappingMethodModel(Mock(ExecutableElement), typeMirror, typeMirror, [])
-        final discovered = new DiscoveredMethod(method, [name: sourceAccessor], [name: targetAccessor])
-        final model = new DiscoveredModel(Mock(TypeElement), [discovered])
+        final directives = [new MapDirective('address.street', 'street'), new MapDirective('address.city', 'city')]
+        final method = new MappingMethodModel(methodElement('src'), emptyType(), emptyType(), directives)
+        final model = new MapperModel(Mock(TypeElement), [method])
+        final stage = new BuildGraphStage()
 
         expect:
         final result = stage.execute(model)
         result.isSuccess()
-        final graph = result.value().methodGraphs[discovered]
-        graph.edgeSet().size() == 1
-        graph.edgeSet().first().type == MappingEdge.Type.DIRECT
-        graph.vertexSet().find { it instanceof SourcePropertyNode }.name == 'name'
-        graph.vertexSet().find { it instanceof TargetPropertyNode }.name == 'name'
+        final graph = result.value().methodGraphs[method]
+        final addressNodes = graph.vertexSet().findAll { it instanceof SourcePropertyNode && it.name == 'address' }
+        addressNodes.size() == 1
+        graph.edgeSet().count { it instanceof AccessEdge } == 3
     }
 
-    def 'explicit directive takes priority and same-name source property is not auto-mapped onto already-mapped target'() {
+    def 'auto-maps same-name properties when no directive is declared'() {
         given:
-        final typeMirror = Mock(TypeMirror)
-        final sourceFullName = new GetterAccessor('fullName', typeMirror, Mock(ExecutableElement))
-        final sourceName = new GetterAccessor('name', typeMirror, Mock(ExecutableElement))
-        final targetName = new ConstructorParamAccessor('name', typeMirror, Mock(ExecutableElement), 0)
-
-        final method = new MappingMethodModel(
-                Mock(ExecutableElement), typeMirror, typeMirror,
-                [new MapDirective('fullName', 'name')])
-        final discovered = new DiscoveredMethod(method,
-                [fullName: sourceFullName, name: sourceName],
-                [name: targetName])
-        final model = new DiscoveredModel(Mock(TypeElement), [discovered])
+        final sourceType = declaredType('name')
+        final targetType = declaredType('name')
+        final method = new MappingMethodModel(methodElement('src'), sourceType, targetType, [])
+        final model = new MapperModel(Mock(TypeElement), [method])
+        final stage = new BuildGraphStage()
 
         expect:
         final result = stage.execute(model)
         result.isSuccess()
-        final graph = result.value().methodGraphs[discovered]
-        graph.edgeSet().size() == 1
-        graph.getEdgeSource(graph.edgeSet().first()).name == 'fullName'
-        graph.getEdgeTarget(graph.edgeSet().first()).name == 'name'
+        final graph = result.value().methodGraphs[method]
+        graph.edgeSet().any { it instanceof MappingEdge }
+        graph.vertexSet().any { it instanceof SourcePropertyNode && it.name == 'name' }
+        graph.vertexSet().any { it instanceof TargetPropertyNode && it.name == 'name' }
     }
 
-    def 'source property with no matching target name is silently ignored'() {
+    def 'explicit directive prevents auto-mapping of already-mapped target property'() {
         given:
-        final typeMirror = Mock(TypeMirror)
-        final sourceName = new GetterAccessor('name', typeMirror, Mock(ExecutableElement))
-        final sourceInternalId = new GetterAccessor('internalId', typeMirror, Mock(ExecutableElement))
-        final targetName = new ConstructorParamAccessor('name', typeMirror, Mock(ExecutableElement), 0)
-
-        final method = new MappingMethodModel(Mock(ExecutableElement), typeMirror, typeMirror, [])
-        final discovered = new DiscoveredMethod(method,
-                [name: sourceName, internalId: sourceInternalId],
-                [name: targetName])
-        final model = new DiscoveredModel(Mock(TypeElement), [discovered])
+        final targetType = declaredType('name')
+        final method = new MappingMethodModel(methodElement('src'), emptyType(), targetType, [new MapDirective('fullName', 'name')])
+        final model = new MapperModel(Mock(TypeElement), [method])
+        final stage = new BuildGraphStage()
 
         expect:
         final result = stage.execute(model)
         result.isSuccess()
-        result.value().methodGraphs[discovered].edgeSet().size() == 1
+        final graph = result.value().methodGraphs[method]
+        final targetNode = graph.vertexSet().find { it instanceof TargetPropertyNode && it.name == 'name' }
+        graph.inDegreeOf(targetNode) == 1
+        graph.edgeSet().count { it instanceof MappingEdge } == 1
+        (graph.getEdgeSource(graph.edgeSet().find { it instanceof MappingEdge }) as SourcePropertyNode).name == 'fullName'
     }
 
-    def 'mixes explicit directive edge with auto-mapped same-name edge'() {
+    def 'creates isolated graphs per method with no shared nodes'() {
         given:
-        final typeMirror = Mock(TypeMirror)
-        final sourceFirstName = new GetterAccessor('firstName', typeMirror, Mock(ExecutableElement))
-        final sourceAge = new GetterAccessor('age', typeMirror, Mock(ExecutableElement))
-        final targetGivenName = new ConstructorParamAccessor('givenName', typeMirror, Mock(ExecutableElement), 0)
-        final targetAge = new ConstructorParamAccessor('age', typeMirror, Mock(ExecutableElement), 1)
-
-        final method = new MappingMethodModel(
-                Mock(ExecutableElement), typeMirror, typeMirror,
-                [new MapDirective('firstName', 'givenName')])
-        final discovered = new DiscoveredMethod(method,
-                [firstName: sourceFirstName, age: sourceAge],
-                [givenName: targetGivenName, age: targetAge])
-        final model = new DiscoveredModel(Mock(TypeElement), [discovered])
-
-        expect:
-        final result = stage.execute(model)
-        result.isSuccess()
-        result.value().methodGraphs[discovered].edgeSet().size() == 2
-    }
-
-    def 'creates isolated graphs per method'() {
-        given:
-        final typeMirror = Mock(TypeMirror)
-        final sourceAccessor1 = new GetterAccessor('a', typeMirror, Mock(ExecutableElement))
-        final targetAccessor1 = new ConstructorParamAccessor('b', typeMirror, Mock(ExecutableElement), 0)
-        final sourceAccessor2 = new GetterAccessor('x', typeMirror, Mock(ExecutableElement))
-        final targetAccessor2 = new ConstructorParamAccessor('y', typeMirror, Mock(ExecutableElement), 0)
-
-        final method1 = new MappingMethodModel(
-                Mock(ExecutableElement), typeMirror, typeMirror,
-                [new MapDirective('a', 'b')])
-        final discovered1 = new DiscoveredMethod(method1, [a: sourceAccessor1], [b: targetAccessor1])
-
-        final method2 = new MappingMethodModel(
-                Mock(ExecutableElement), typeMirror, typeMirror,
-                [new MapDirective('x', 'y')])
-        final discovered2 = new DiscoveredMethod(method2, [x: sourceAccessor2], [y: targetAccessor2])
-
-        final model = new DiscoveredModel(Mock(TypeElement), [discovered1, discovered2])
+        final method1 = methodWithDirective('srcA', emptyType(), emptyType(), 'a', 'b')
+        final method2 = methodWithDirective('srcX', emptyType(), emptyType(), 'x', 'y')
+        final model = new MapperModel(Mock(TypeElement), [method1, method2])
+        final stage = new BuildGraphStage()
 
         expect:
         final result = stage.execute(model)
         result.isSuccess()
         result.value().methodGraphs.size() == 2
-        result.value().methodGraphs[discovered1].vertexSet().size() == 2
-        result.value().methodGraphs[discovered2].vertexSet().size() == 2
-        result.value().methodGraphs[discovered1].vertexSet().every { it.name in ['a', 'b'] }
-        result.value().methodGraphs[discovered2].vertexSet().every { it.name in ['x', 'y'] }
+        final graph1 = result.value().methodGraphs[method1]
+        final graph2 = result.value().methodGraphs[method2]
+        !graph1.vertexSet().any { v -> graph2.vertexSet().contains(v) }
+    }
+
+    private MappingMethodModel methodWithDirective(
+            final String paramName, final TypeMirror sourceType, final TypeMirror targetType,
+            final String source, final String target) {
+        return new MappingMethodModel(methodElement(paramName), sourceType, targetType, [new MapDirective(source, target)])
+    }
+
+    private ExecutableElement methodElement(final String paramName) {
+        final param = Stub(VariableElement) {
+            getSimpleName() >> Stub(Name) { toString() >> paramName }
+        }
+        return Stub(ExecutableElement) {
+            getParameters() >> [param]
+        }
+    }
+
+    private TypeMirror emptyType() {
+        final te = Stub(TypeElement) { getEnclosedElements() >> [] }
+        return Stub(DeclaredType) { asElement() >> te }
+    }
+
+    private TypeMirror declaredType(final String... propertyNames) {
+        final members = propertyNames.collect { name -> getterElement(name) }
+        final te = Stub(TypeElement) { getEnclosedElements() >> members }
+        return Stub(DeclaredType) { asElement() >> te }
+    }
+
+    private ExecutableElement getterElement(final String propertyName) {
+        final methodName = 'get' + propertyName.capitalize()
+        Stub(ExecutableElement) {
+            getKind() >> ElementKind.METHOD
+            getSimpleName() >> Stub(Name) { toString() >> methodName }
+            getModifiers() >> EnumSet.of(Modifier.PUBLIC)
+            getParameters() >> []
+            getReturnType() >> Stub(TypeMirror) { getKind() >> TypeKind.DECLARED }
+        }
     }
 }
