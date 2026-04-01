@@ -53,6 +53,7 @@ class ResolveTransformsStageSpec extends Specification {
         mappings[0].isResolved()
         mappings[0].sourceChain == [nameGetter]
         mappings[0].targetAccessor == nameWriter
+        mappings[0].edges.every { it.codeTemplate != null }
     }
 
     def 'resolves two-level accessor chain for nested source property'() {

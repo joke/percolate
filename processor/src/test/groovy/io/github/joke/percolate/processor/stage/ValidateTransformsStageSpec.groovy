@@ -6,6 +6,7 @@ import io.github.joke.percolate.processor.model.ConstructorParamAccessor
 import io.github.joke.percolate.processor.model.GetterAccessor
 import io.github.joke.percolate.processor.model.MappingMethodModel
 import io.github.joke.percolate.processor.spi.DirectAssignableStrategy
+import io.github.joke.percolate.processor.transform.TransformProposal
 import io.github.joke.percolate.processor.transform.AccessResolutionFailure
 import io.github.joke.percolate.processor.transform.ResolvedMapping
 import io.github.joke.percolate.processor.transform.ResolvedModel
@@ -161,13 +162,15 @@ class ValidateTransformsStageSpec extends Specification {
         result.errors().first().message.contains('MyMapper')
     }
 
-    private static singleEdgePath(final TypeMirror sourceType, final TypeMirror targetType) {
+    private singleEdgePath(final TypeMirror sourceType, final TypeMirror targetType) {
         final graph = new DefaultDirectedGraph<TypeNode, TransformEdge>(TransformEdge)
         final sourceNode = new TypeNode(sourceType, sourceType.toString())
         final targetNode = new TypeNode(targetType, targetType.toString())
         graph.addVertex(sourceNode)
         graph.addVertex(targetNode)
-        graph.addEdge(sourceNode, targetNode, new TransformEdge(new DirectAssignableStrategy(), { input -> input }))
+        final edge = new TransformEdge(new DirectAssignableStrategy(), Stub(TransformProposal))
+        edge.resolveTemplate({ input -> input })
+        graph.addEdge(sourceNode, targetNode, edge)
         return new BFSShortestPath<>(graph).getPath(sourceNode, targetNode)
     }
 }

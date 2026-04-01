@@ -8,6 +8,7 @@ import io.github.joke.percolate.processor.model.GetterAccessor
 import io.github.joke.percolate.processor.model.WriteAccessor
 import io.github.joke.percolate.processor.spi.TypeTransformStrategy
 import io.github.joke.percolate.processor.transform.CodeTemplate
+import io.github.joke.percolate.processor.transform.TransformProposal
 import io.github.joke.percolate.processor.transform.ResolvedMapping
 import org.jgrapht.GraphPath
 import spock.lang.Specification
@@ -96,7 +97,9 @@ class GenerateStageSpec extends Specification {
     }
 
     private TransformEdge edge(final CodeTemplate template) {
-        return new TransformEdge(Stub(TypeTransformStrategy), template)
+        final edge = new TransformEdge(Stub(TypeTransformStrategy), Stub(TransformProposal))
+        edge.resolveTemplate(template)
+        return edge
     }
 
     private TransformEdge stream() {

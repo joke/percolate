@@ -353,9 +353,9 @@ public final class ResolveTransformsStage {
                         final var inputNode = getOrCreateNode(graph, nodeIndex, prop.getRequiredInput());
                         final var outputNode = getOrCreateNode(graph, nodeIndex, prop.getProducedOutput());
 
-                        if (!graph.containsEdge(inputNode, outputNode)) {
-                            final var codeTemplate = resolveCodeTemplate(prop, ctx);
-                            graph.addEdge(inputNode, outputNode, new TransformEdge(strategy, codeTemplate));
+                        if (!graph.containsEdge(inputNode, outputNode)
+                                && canAddEdge(prop, ctx)) {
+                            graph.addEdge(inputNode, outputNode, new TransformEdge(strategy, prop));
                             expanded = true;
                         }
                     }
@@ -364,6 +364,7 @@ public final class ResolveTransformsStage {
 
             final var pathResult = new BFSShortestPath<>(graph).getPath(sourceNode, targetNode);
             if (pathResult != null) {
+                resolvePathTemplates(pathResult, ctx);
                 return pathResult;
             }
 
@@ -372,6 +373,21 @@ public final class ResolveTransformsStage {
             }
         }
         return null;
+    }
+
+    private void resolvePathTemplates(
+            final GraphPath<TypeNode, TransformEdge> path, final ResolutionContext ctx) {
+        for (final var edge : path.getEdgeList()) {
+            edge.resolveTemplate(resolveCodeTemplate(edge.getProposal(), ctx));
+        }
+    }
+
+    private boolean canAddEdge(final TransformProposal prop, final ResolutionContext ctx) {
+        final var constraint = prop.getElementConstraint();
+        if (constraint == null) {
+            return true;
+        }
+        return resolveTransformPath(constraint.getFromType(), constraint.getToType(), ctx) != null;
     }
 
     private CodeTemplate resolveCodeTemplate(final TransformProposal proposal, final ResolutionContext ctx) {
@@ -388,6 +404,7 @@ public final class ResolveTransformsStage {
         return proposal.getTemplateComposer().apply(innerTemplate);
     }
 
+    @SuppressWarnings("NullAway") // codeTemplate is set by resolvePathTemplates before edges are composed
     private static CodeTemplate composeTemplates(final List<TransformEdge> edges) {
         return input -> {
             var result = input;

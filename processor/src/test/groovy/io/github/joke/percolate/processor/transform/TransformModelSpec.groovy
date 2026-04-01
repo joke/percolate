@@ -4,6 +4,7 @@ import com.palantir.javapoet.CodeBlock
 import io.github.joke.percolate.processor.graph.TransformEdge
 import io.github.joke.percolate.processor.graph.TypeNode
 import io.github.joke.percolate.processor.spi.TypeTransformStrategy
+import io.github.joke.percolate.processor.transform.TransformProposal
 import spock.lang.Specification
 import spock.lang.Tag
 
@@ -60,16 +61,24 @@ class TransformModelSpec extends Specification {
         node.toString() == 'List<Person>'
     }
 
-    def 'TransformEdge holds strategy and template'() {
+    def 'TransformEdge holds strategy and proposal, resolves template lazily'() {
         given:
         final strategy = Mock(TypeTransformStrategy)
+        final proposal = Stub(TransformProposal)
         final CodeTemplate template = { CodeBlock input -> input }
 
         when:
-        final edge = new TransformEdge(strategy, template)
+        final edge = new TransformEdge(strategy, proposal)
 
         then:
         edge.strategy == strategy
+        edge.proposal == proposal
+        edge.codeTemplate == null
+
+        when:
+        edge.resolveTemplate(template)
+
+        then:
         edge.codeTemplate == template
     }
 }

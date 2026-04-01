@@ -133,6 +133,7 @@ public final class GenerateStage {
         methodBuilder.addStatement("return target");
     }
 
+    @SuppressWarnings("NullAway") // codeTemplate is set by resolvePathTemplates before edges reach GenerateStage
     private CodeBlock generateValueExpression(final ResolvedMapping mapping, final String sourceParamName) {
         var result = generateReadChainExpression(mapping.getSourceChain(), sourceParamName);
         for (final TransformEdge edge : mapping.getEdges()) {

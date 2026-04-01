@@ -48,15 +48,19 @@ The `CodeTemplate` interface SHALL define a single method `apply(CodeBlock inner
 - **THEN** `apply(input)` SHALL return `CodeBlock.of("$L.collect($T.toSet())", input, Collectors.class)`
 
 ### Requirement: Type transformation graph per property edge
-The resolver SHALL construct a JGraphT `DefaultDirectedGraph<TypeNode, TransformEdge>` for each property mapping edge. `TypeNode` SHALL wrap a `TypeMirror` and a label for debugging. `TransformEdge` SHALL carry the contributing `TypeTransformStrategy` and its `CodeTemplate`.
+The resolver SHALL construct a JGraphT `DefaultDirectedGraph<TypeNode, TransformEdge>` for each property mapping edge. `TypeNode` SHALL wrap a `TypeMirror` and a label for debugging. `TransformEdge` SHALL carry the contributing `TypeTransformStrategy` and its `TransformProposal`. The `CodeTemplate` on `TransformEdge` SHALL be resolved lazily after `BFSShortestPath` selects the final path, not at edge-creation time.
 
 #### Scenario: Simple direct mapping produces single-edge graph
 - **WHEN** source type `String` maps to target type `String` via `DirectAssignableStrategy`
-- **THEN** the type graph SHALL contain two `TypeNode`s (`String` -> `String`) connected by one `TransformEdge`
+- **THEN** the type graph SHALL contain two `TypeNode`s (`String` -> `String`) connected by one `TransformEdge` carrying the `TransformProposal`, with `CodeTemplate` resolved after path selection
 
 #### Scenario: Container mapping produces multi-edge graph
 - **WHEN** source type `List<Person>` maps to target type `Set<PersonDTO>` via stream expansion
-- **THEN** the type graph SHALL contain nodes for `List<Person>`, `Stream<Person>`, `Stream<PersonDTO>`, `Set<PersonDTO>` connected by three `TransformEdge`s
+- **THEN** the type graph SHALL contain nodes for `List<Person>`, `Stream<Person>`, `Stream<PersonDTO>`, `Set<PersonDTO>` connected by three `TransformEdge`s, each carrying a `TransformProposal` with `CodeTemplate` resolved only after path selection
+
+#### Scenario: TransformEdge exposes CodeTemplate after resolution
+- **WHEN** `resolvePathTemplates` has been called on the selected path
+- **THEN** each `TransformEdge` on the path SHALL have a non-null `CodeTemplate` accessible via `getCodeTemplate()`
 
 ### Requirement: BFS resolution algorithm
 The resolver SHALL use a BFS expansion loop: each iteration asks all registered strategies for proposals on open type gaps, adds resulting edges to the graph, and checks for a complete path using `BFSShortestPath.findPathBetween()`. Resolution SHALL succeed when a path from source type to target type exists, or fail when no strategy contributes new edges (unresolved). The loop SHALL terminate after at most 30 iterations.
