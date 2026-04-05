@@ -6,7 +6,9 @@ user-invocable: false
 
 **CRITICAL**: Before making any code changes ALWAYS load all convention skills!
 
-**Implement class changes (loop until done or blocked)**
+**CRITICAL**: Use sub-agents for implementation 
+
+**Implement class changes (loop until done or bslocked)**
 
 - Write main code or make changes to existing code
 - **CRITICAL**: Review the generated code thoroughly. Everything **MUST** align with the coding conventions.  
