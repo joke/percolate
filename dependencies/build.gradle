@@ -18,7 +18,7 @@ dependencies {
         api 'com.google.dagger:dagger:2.59.1'
         api 'com.google.testing.compile:compile-testing:0.23.0'
         api 'com.palantir.javapoet:javapoet:0.12.0'
-        api 'net.bytebuddy:byte-buddy:1.18.7'
+        api 'net.bytebuddy:byte-buddy:1.18.8'
         api 'org.jetbrains:annotations:26.1.0'
         api 'org.jgrapht:jgrapht-core:1.5.2'
         api 'org.jgrapht:jgrapht-io:1.5.2'
