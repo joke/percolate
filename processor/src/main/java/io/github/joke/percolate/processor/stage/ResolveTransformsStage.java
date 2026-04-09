@@ -353,8 +353,7 @@ public final class ResolveTransformsStage {
                         final var inputNode = getOrCreateNode(graph, nodeIndex, prop.getRequiredInput());
                         final var outputNode = getOrCreateNode(graph, nodeIndex, prop.getProducedOutput());
 
-                        if (!graph.containsEdge(inputNode, outputNode)
-                                && canAddEdge(prop, ctx)) {
+                        if (!graph.containsEdge(inputNode, outputNode) && canAddEdge(prop, ctx)) {
                             graph.addEdge(inputNode, outputNode, new TransformEdge(strategy, prop));
                             expanded = true;
                         }
@@ -375,8 +374,7 @@ public final class ResolveTransformsStage {
         return null;
     }
 
-    private void resolvePathTemplates(
-            final GraphPath<TypeNode, TransformEdge> path, final ResolutionContext ctx) {
+    private void resolvePathTemplates(final GraphPath<TypeNode, TransformEdge> path, final ResolutionContext ctx) {
         for (final var edge : path.getEdgeList()) {
             edge.resolveTemplate(resolveCodeTemplate(edge.getProposal(), ctx));
         }

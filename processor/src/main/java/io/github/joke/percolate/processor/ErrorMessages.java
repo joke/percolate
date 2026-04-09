@@ -9,14 +9,14 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.TreeSet;
 import javax.lang.model.element.TypeElement;
+import lombok.experimental.UtilityClass;
 
-public final class ErrorMessages {
+@UtilityClass
+public class ErrorMessages {
 
     private static final int MAX_DISPLAYED_PROPERTIES = 10;
     private static final int MAX_SUGGESTIONS = 3;
     private static final int MAX_DISTANCE = 4;
-
-    private ErrorMessages() {}
 
     public static String unresolvedTransform(
             final String sourceName,

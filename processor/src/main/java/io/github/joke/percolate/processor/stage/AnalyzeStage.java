@@ -19,11 +19,10 @@ import java.util.Arrays;
 import java.util.List;
 import javax.lang.model.element.ExecutableElement;
 import javax.lang.model.element.TypeElement;
+import lombok.NoArgsConstructor;
 
+@NoArgsConstructor(onConstructor_ = @Inject)
 public final class AnalyzeStage {
-
-    @Inject
-    AnalyzeStage() {}
 
     public StageResult<MapperModel> execute(final TypeElement mapperType) {
         final List<Diagnostic> errors = new ArrayList<>();

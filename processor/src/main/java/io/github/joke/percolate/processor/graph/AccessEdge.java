@@ -1,13 +1,10 @@
 package io.github.joke.percolate.processor.graph;
 
+import lombok.ToString;
+
 /**
  * Edge in the symbolic property graph representing access from a source node
  * to a nested property. Connects SourceRootNode or SourcePropertyNode to SourcePropertyNode.
  */
-public final class AccessEdge {
-
-    @Override
-    public String toString() {
-        return "AccessEdge";
-    }
-}
+@ToString
+public final class AccessEdge {}

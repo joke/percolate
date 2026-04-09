@@ -29,15 +29,12 @@ import java.util.List;
 import java.util.Objects;
 import javax.annotation.processing.Filer;
 import javax.lang.model.element.PackageElement;
+import lombok.RequiredArgsConstructor;
 
+@RequiredArgsConstructor(onConstructor_ = @Inject)
 public final class GenerateStage {
 
     private final Filer filer;
-
-    @Inject
-    GenerateStage(final Filer filer) {
-        this.filer = filer;
-    }
 
     @SuppressWarnings("NullAway")
     public StageResult<JavaFile> execute(final ResolvedModel resolvedModel) {

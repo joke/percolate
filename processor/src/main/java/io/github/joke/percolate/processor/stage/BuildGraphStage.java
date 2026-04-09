@@ -26,12 +26,11 @@ import javax.lang.model.element.VariableElement;
 import javax.lang.model.type.DeclaredType;
 import javax.lang.model.type.TypeKind;
 import javax.lang.model.type.TypeMirror;
+import lombok.NoArgsConstructor;
 import org.jgrapht.graph.DefaultDirectedGraph;
 
+@NoArgsConstructor(onConstructor_ = @Inject)
 public final class BuildGraphStage {
-
-    @Inject
-    BuildGraphStage() {}
 
     public StageResult<MappingGraph> execute(final MapperModel mapperModel) {
         final Map<MappingMethodModel, DefaultDirectedGraph<Object, Object>> methodGraphs = new LinkedHashMap<>();

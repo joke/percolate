@@ -17,10 +17,10 @@ import javax.lang.model.type.DeclaredType;
 import javax.lang.model.type.TypeMirror;
 import javax.lang.model.util.Elements;
 import javax.lang.model.util.Types;
+import lombok.experimental.UtilityClass;
 
-public final class FieldDiscovery {
-
-    private FieldDiscovery() {}
+@UtilityClass
+public class FieldDiscovery {
 
     static List<VariableElement> findPublicFields(final TypeMirror type) {
         if (!(type instanceof DeclaredType)) {

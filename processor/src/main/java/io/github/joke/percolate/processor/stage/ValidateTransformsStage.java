@@ -12,11 +12,10 @@ import jakarta.inject.Inject;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
+import lombok.NoArgsConstructor;
 
+@NoArgsConstructor(onConstructor_ = @Inject)
 public final class ValidateTransformsStage {
-
-    @Inject
-    ValidateTransformsStage() {}
 
     public StageResult<ResolvedModel> execute(final ResolvedModel resolvedModel) {
         final List<Diagnostic> errors = new ArrayList<>();
