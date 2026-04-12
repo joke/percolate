@@ -6,11 +6,13 @@ import javax.annotation.processing.AbstractProcessor;
 import javax.annotation.processing.Processor;
 import javax.annotation.processing.RoundEnvironment;
 import javax.annotation.processing.SupportedAnnotationTypes;
+import javax.annotation.processing.SupportedOptions;
 import javax.lang.model.SourceVersion;
 import javax.lang.model.element.TypeElement;
 
 @AutoService(Processor.class)
 @SupportedAnnotationTypes("io.github.joke.percolate.Mapper")
+@SupportedOptions({"percolate.debug.graphs", "percolate.debug.graphs.format"})
 public class PercolateProcessor extends AbstractProcessor {
 
     private Pipeline pipeline;

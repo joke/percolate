@@ -10,7 +10,9 @@ import io.github.joke.percolate.processor.spi.TypeTransformStrategy
 import io.github.joke.percolate.processor.transform.CodeTemplate
 import io.github.joke.percolate.processor.transform.TransformProposal
 import io.github.joke.percolate.processor.transform.ResolvedMapping
+import io.github.joke.percolate.processor.transform.TransformResolution
 import org.jgrapht.GraphPath
+import org.jgrapht.graph.DefaultDirectedGraph
 import spock.lang.Specification
 import spock.lang.Tag
 
@@ -92,8 +94,9 @@ class GenerateStageSpec extends Specification {
 
     private ResolvedMapping resolvedMapping(
             final List chain, final WriteAccessor writer, final List<TransformEdge> edges) {
-        return new ResolvedMapping(chain, 'prop', writer, writer.name,
-                Stub(GraphPath) { getEdgeList() >> edges }, null)
+        final path = Stub(GraphPath) { getEdgeList() >> edges }
+        final resolution = new TransformResolution(new DefaultDirectedGraph(TransformEdge), path)
+        return new ResolvedMapping(chain, 'prop', writer, writer.name, resolution, null)
     }
 
     private TransformEdge edge(final CodeTemplate template) {

@@ -725,6 +725,47 @@ class PercolateProcessorSpec extends Specification {
         compilation.generatedSourceFiles().any { it.name.contains('MixedMapperImpl') }
     }
 
+    def 'generates debug graph files when debug graphs option is enabled'() {
+        given:
+        final source = JavaFileObjects.forSourceString('test.DbgSource', '''
+            package test;
+            public class DbgSource {
+                private final String name;
+                public DbgSource(String name) { this.name = name; }
+                public String getName() { return name; }
+            }
+        ''')
+        final target = JavaFileObjects.forSourceString('test.DbgTarget', '''
+            package test;
+            public class DbgTarget {
+                private final String name;
+                public DbgTarget(String name) { this.name = name; }
+                public String getName() { return name; }
+            }
+        ''')
+        final mapper = JavaFileObjects.forSourceString('test.DbgMapper', '''
+            package test;
+            import io.github.joke.percolate.Mapper;
+            import io.github.joke.percolate.Map;
+
+            @Mapper
+            public interface DbgMapper {
+                @Map(source = "name", target = "name")
+                DbgTarget map(DbgSource source);
+            }
+        ''')
+
+        when:
+        final compilation = javac()
+                .withProcessors(new PercolateProcessor())
+                .withOptions('-Apercolate.debug.graphs=true')
+                .compile(source, target, mapper)
+
+        then:
+        compilation.status() == Compilation.Status.SUCCESS
+        compilation.generatedFiles().any { it.name.endsWith('.dot') }
+    }
+
     def 'reports error for container mapping without sibling method'() {
         given:
         final person = JavaFileObjects.forSourceString('test.ErrPerson', '''

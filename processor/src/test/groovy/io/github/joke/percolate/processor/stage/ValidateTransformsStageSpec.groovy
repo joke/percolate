@@ -10,6 +10,7 @@ import io.github.joke.percolate.processor.transform.TransformProposal
 import io.github.joke.percolate.processor.transform.AccessResolutionFailure
 import io.github.joke.percolate.processor.transform.ResolvedMapping
 import io.github.joke.percolate.processor.transform.ResolvedModel
+import io.github.joke.percolate.processor.transform.TransformResolution
 import org.jgrapht.alg.shortestpath.BFSShortestPath
 import org.jgrapht.graph.DefaultDirectedGraph
 import spock.lang.Specification
@@ -162,7 +163,7 @@ class ValidateTransformsStageSpec extends Specification {
         result.errors().first().message.contains('MyMapper')
     }
 
-    private singleEdgePath(final TypeMirror sourceType, final TypeMirror targetType) {
+    private TransformResolution singleEdgePath(final TypeMirror sourceType, final TypeMirror targetType) {
         final graph = new DefaultDirectedGraph<TypeNode, TransformEdge>(TransformEdge)
         final sourceNode = new TypeNode(sourceType, sourceType.toString())
         final targetNode = new TypeNode(targetType, targetType.toString())
@@ -171,6 +172,7 @@ class ValidateTransformsStageSpec extends Specification {
         final edge = new TransformEdge(new DirectAssignableStrategy(), Stub(TransformProposal))
         edge.resolveTemplate({ input -> input })
         graph.addEdge(sourceNode, targetNode, edge)
-        return new BFSShortestPath<>(graph).getPath(sourceNode, targetNode)
+        final path = new BFSShortestPath<>(graph).getPath(sourceNode, targetNode)
+        return new TransformResolution(graph, path)
     }
 }

@@ -34,4 +34,12 @@ final class ProcessorModule {
     Filer filer() {
         return processingEnvironment.getFiler();
     }
+
+    @Provides
+    ProcessorOptions processorOptions() {
+        final var options = processingEnvironment.getOptions();
+        final var debugGraphs = Boolean.parseBoolean(options.getOrDefault("percolate.debug.graphs", "false"));
+        final var format = options.getOrDefault("percolate.debug.graphs.format", "dot");
+        return new ProcessorOptions(debugGraphs, format);
+    }
 }

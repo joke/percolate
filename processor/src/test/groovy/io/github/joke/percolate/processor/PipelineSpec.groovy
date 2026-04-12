@@ -6,6 +6,9 @@ import io.github.joke.percolate.processor.graph.MappingGraph
 import io.github.joke.percolate.processor.model.MapperModel
 import io.github.joke.percolate.processor.stage.AnalyzeStage
 import io.github.joke.percolate.processor.stage.BuildGraphStage
+import io.github.joke.percolate.processor.stage.DumpPropertyGraphStage
+import io.github.joke.percolate.processor.stage.DumpResolvedOverlayStage
+import io.github.joke.percolate.processor.stage.DumpTransformGraphStage
 import io.github.joke.percolate.processor.stage.GenerateStage
 import io.github.joke.percolate.processor.stage.ResolveTransformsStage
 import io.github.joke.percolate.processor.stage.ValidateTransformsStage
@@ -23,12 +26,16 @@ class PipelineSpec extends Specification {
 
     AnalyzeStage analyzeStage = Mock()
     BuildGraphStage buildGraphStage = Mock()
+    DumpPropertyGraphStage dumpPropertyGraphStage = Stub()
     ResolveTransformsStage resolveTransformsStage = Mock()
+    DumpTransformGraphStage dumpTransformGraphStage = Stub()
+    DumpResolvedOverlayStage dumpResolvedOverlayStage = Stub()
     ValidateTransformsStage validateTransformsStage = Mock()
     GenerateStage generateStage = Mock()
     Messager messager = Mock()
 
-    Pipeline pipeline = new Pipeline(analyzeStage, buildGraphStage, resolveTransformsStage,
+    Pipeline pipeline = new Pipeline(analyzeStage, buildGraphStage, dumpPropertyGraphStage,
+            resolveTransformsStage, dumpTransformGraphStage, dumpResolvedOverlayStage,
             validateTransformsStage, generateStage, messager)
 
     def 'successful pipeline returns JavaFile'() {

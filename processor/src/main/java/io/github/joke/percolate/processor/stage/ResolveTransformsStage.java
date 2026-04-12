@@ -25,6 +25,7 @@ import io.github.joke.percolate.processor.transform.CodeTemplate;
 import io.github.joke.percolate.processor.transform.ResolvedMapping;
 import io.github.joke.percolate.processor.transform.ResolvedModel;
 import io.github.joke.percolate.processor.transform.TransformProposal;
+import io.github.joke.percolate.processor.transform.TransformResolution;
 import jakarta.inject.Inject;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -185,9 +186,9 @@ public final class ResolveTransformsStage {
         }
 
         @SuppressWarnings("NullAway") // resolvedType is non-null in success path
-        final var path = resolveTransformPath(chainResult.resolvedType, targetAccessor.getType(), ctx);
+        final var resolution = resolveTransformPath(chainResult.resolvedType, targetAccessor.getType(), ctx);
         mappings.add(new ResolvedMapping(
-                chainResult.accessors, sourceName, targetAccessor, targetNode.getName(), path, null));
+                chainResult.accessors, sourceName, targetAccessor, targetNode.getName(), resolution, null));
     }
 
     private AccessorChainResult buildAccessorChain(
@@ -321,9 +322,7 @@ public final class ResolveTransformsStage {
                 .orElse(null);
     }
 
-    @SuppressWarnings("NullAway")
-    @Nullable
-    private GraphPath<TypeNode, TransformEdge> resolveTransformPath(
+    private TransformResolution resolveTransformPath(
             final TypeMirror sourceType, final TypeMirror targetType, final ResolutionContext ctx) {
         final var graph = new DefaultDirectedGraph<TypeNode, TransformEdge>(TransformEdge.class);
         final var sourceNode = new TypeNode(sourceType, sourceType.toString());
@@ -364,14 +363,14 @@ public final class ResolveTransformsStage {
             final var pathResult = new BFSShortestPath<>(graph).getPath(sourceNode, targetNode);
             if (pathResult != null) {
                 resolvePathTemplates(pathResult, ctx);
-                return pathResult;
+                return new TransformResolution(graph, pathResult);
             }
 
             if (!expanded) {
                 break;
             }
         }
-        return null;
+        return new TransformResolution(graph, null);
     }
 
     private void resolvePathTemplates(final GraphPath<TypeNode, TransformEdge> path, final ResolutionContext ctx) {
@@ -385,7 +384,7 @@ public final class ResolveTransformsStage {
         if (constraint == null) {
             return true;
         }
-        return resolveTransformPath(constraint.getFromType(), constraint.getToType(), ctx) != null;
+        return resolveTransformPath(constraint.getFromType(), constraint.getToType(), ctx).getPath() != null;
     }
 
     private CodeTemplate resolveCodeTemplate(final TransformProposal proposal, final ResolutionContext ctx) {
@@ -393,7 +392,8 @@ public final class ResolveTransformsStage {
             return proposal.getCodeTemplate();
         }
         final var constraint = proposal.getElementConstraint();
-        final var innerPath = resolveTransformPath(constraint.getFromType(), constraint.getToType(), ctx);
+        final var innerPath =
+                resolveTransformPath(constraint.getFromType(), constraint.getToType(), ctx).getPath();
 
         if (innerPath == null) {
             return proposal.getCodeTemplate();

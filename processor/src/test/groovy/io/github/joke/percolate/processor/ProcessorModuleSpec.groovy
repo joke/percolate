@@ -50,4 +50,43 @@ class ProcessorModuleSpec extends Specification {
         expect:
         module.filer() == filer
     }
+
+    def 'processorOptions() defaults to debug graphs disabled and dot format'() {
+        given:
+        processingEnvironment.options >> [:]
+
+        when:
+        final opts = module.processorOptions()
+
+        then:
+        !opts.debugGraphs
+        opts.debugGraphsFormat == 'dot'
+    }
+
+    def 'processorOptions() enables debug graphs when option is set to true'() {
+        given:
+        processingEnvironment.options >> ['percolate.debug.graphs': 'true']
+
+        expect:
+        module.processorOptions().debugGraphs
+    }
+
+    def 'processorOptions() disables debug graphs when option is set to false'() {
+        given:
+        processingEnvironment.options >> ['percolate.debug.graphs': 'false']
+
+        expect:
+        !module.processorOptions().debugGraphs
+    }
+
+    def 'processorOptions() stores the configured format string'() {
+        given:
+        processingEnvironment.options >> ['percolate.debug.graphs.format': format]
+
+        expect:
+        module.processorOptions().debugGraphsFormat == format
+
+        where:
+        format << ['graphml', 'json', 'dot', 'unknown']
+    }
 }

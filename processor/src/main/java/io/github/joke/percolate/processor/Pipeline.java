@@ -3,6 +3,9 @@ package io.github.joke.percolate.processor;
 import com.palantir.javapoet.JavaFile;
 import io.github.joke.percolate.processor.stage.AnalyzeStage;
 import io.github.joke.percolate.processor.stage.BuildGraphStage;
+import io.github.joke.percolate.processor.stage.DumpPropertyGraphStage;
+import io.github.joke.percolate.processor.stage.DumpResolvedOverlayStage;
+import io.github.joke.percolate.processor.stage.DumpTransformGraphStage;
 import io.github.joke.percolate.processor.stage.GenerateStage;
 import io.github.joke.percolate.processor.stage.ResolveTransformsStage;
 import io.github.joke.percolate.processor.stage.ValidateTransformsStage;
@@ -17,7 +20,10 @@ final class Pipeline {
 
     private final AnalyzeStage analyzeStage;
     private final BuildGraphStage buildGraphStage;
+    private final DumpPropertyGraphStage dumpPropertyGraphStage;
     private final ResolveTransformsStage resolveTransformsStage;
+    private final DumpTransformGraphStage dumpTransformGraphStage;
+    private final DumpResolvedOverlayStage dumpResolvedOverlayStage;
     private final ValidateTransformsStage validateTransformsStage;
     private final GenerateStage generateStage;
     private final Messager messager;
@@ -35,12 +41,15 @@ final class Pipeline {
             reportErrors(graphResult);
             return null;
         }
+        dumpPropertyGraphStage.execute(graphResult.value());
 
         final var resolveResult = resolveTransformsStage.execute(graphResult.value());
         if (!resolveResult.isSuccess()) {
             reportErrors(resolveResult);
             return null;
         }
+        dumpTransformGraphStage.execute(resolveResult.value());
+        dumpResolvedOverlayStage.execute(graphResult.value(), resolveResult.value());
 
         final var validateTransformsResult = validateTransformsStage.execute(resolveResult.value());
         if (!validateTransformsResult.isSuccess()) {
