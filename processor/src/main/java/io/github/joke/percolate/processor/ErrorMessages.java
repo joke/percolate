@@ -71,6 +71,22 @@ public class ErrorMessages {
         return sb.toString().stripTrailing();
     }
 
+    public static String dateFormatOnNonStringMapping(
+            final String sourceName, final String targetName, final MappingMethodModel method) {
+        return "Option DATE_FORMAT on mapping '" + sourceName + "' → '" + targetName
+                + "' in method '" + method.getMethod()
+                + "': DATE_FORMAT requires the source or target to be java.lang.String";
+    }
+
+    public static String dateFormatOnTemporalWithoutAccessor(
+            final String sourceName, final String targetName, final String typeName,
+            final MappingMethodModel method) {
+        return "Option DATE_FORMAT on mapping '" + sourceName + "' → '" + targetName
+                + "' in method '" + method.getMethod()
+                + "': DATE_FORMAT is not supported for " + typeName
+                + " (Duration and Period cannot be formatted with DateTimeFormatter)";
+    }
+
     public static String conflictingMappings(
             final String name, final TypeElement mapperType, final Set<String> sourceNames) {
         final var sb = new StringBuilder();

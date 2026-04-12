@@ -8,6 +8,8 @@ import static javax.tools.Diagnostic.Kind.ERROR;
 
 import io.github.joke.percolate.Map;
 import io.github.joke.percolate.MapList;
+import io.github.joke.percolate.MapOpt;
+import io.github.joke.percolate.MapOptKey;
 import io.github.joke.percolate.processor.Diagnostic;
 import io.github.joke.percolate.processor.StageResult;
 import io.github.joke.percolate.processor.model.MapDirective;
@@ -16,6 +18,7 @@ import io.github.joke.percolate.processor.model.MappingMethodModel;
 import jakarta.inject.Inject;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.EnumMap;
 import java.util.List;
 import javax.lang.model.element.ExecutableElement;
 import javax.lang.model.element.TypeElement;
@@ -54,24 +57,41 @@ public final class AnalyzeStage {
                 ? method.getReturnType()
                 : method.getParameters().get(0).asType();
         final var targetType = method.getReturnType();
-        final var directives = parseDirectives(method);
+        final var directives = parseDirectives(method, errors);
 
         return new MappingMethodModel(method, sourceType, targetType, directives);
     }
 
-    private List<MapDirective> parseDirectives(final ExecutableElement method) {
+    private List<MapDirective> parseDirectives(final ExecutableElement method, final List<Diagnostic> errors) {
         final MapList mapList = method.getAnnotation(MapList.class);
         if (mapList != null) {
             return Arrays.stream(mapList.value())
-                    .map(map -> new MapDirective(map.source(), map.target()))
+                    .map(map -> parseDirective(map, method, errors))
                     .collect(toUnmodifiableList());
         }
 
         final Map map = method.getAnnotation(Map.class);
         if (map != null) {
-            return List.of(new MapDirective(map.source(), map.target()));
+            return List.of(parseDirective(map, method, errors));
         }
 
         return List.of();
+    }
+
+    private MapDirective parseDirective(
+            final Map map, final ExecutableElement method, final List<Diagnostic> errors) {
+        final java.util.Map<MapOptKey, String> options = new EnumMap<>(MapOptKey.class);
+        for (final MapOpt opt : map.options()) {
+            if (options.containsKey(opt.key())) {
+                errors.add(new Diagnostic(
+                        method,
+                        "Duplicate option key '" + opt.key() + "' on @Map(source=\""
+                                + map.source() + "\", target=\"" + map.target() + "\")",
+                        ERROR));
+            } else {
+                options.put(opt.key(), opt.value());
+            }
+        }
+        return new MapDirective(map.source(), map.target(), java.util.Collections.unmodifiableMap(options));
     }
 }

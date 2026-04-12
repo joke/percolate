@@ -6,6 +6,7 @@ import spock.lang.Specification
 import spock.lang.Tag
 
 import static com.google.testing.compile.Compiler.javac
+import static com.google.testing.compile.CompilationSubject.assertThat
 
 @Tag('integration')
 class PercolateProcessorSpec extends Specification {
@@ -820,5 +821,332 @@ class PercolateProcessorSpec extends Specification {
                 .compile(person, personDto, source, target, mapper)
         compilation.status() == Compilation.Status.FAILURE
         compilation.errors().any { it.getMessage(null).contains('no mapping method found') }
+    }
+
+    def 'generates LocalDate to String mapping using ISO toString()'() {
+        given:
+        final source = JavaFileObjects.forSourceString('test.DateSource', '''
+            package test;
+            import java.time.LocalDate;
+            public class DateSource {
+                private final LocalDate date;
+                public DateSource(LocalDate date) { this.date = date; }
+                public LocalDate getDate() { return date; }
+            }
+        ''')
+        final target = JavaFileObjects.forSourceString('test.DateTarget', '''
+            package test;
+            public class DateTarget {
+                private final String date;
+                public DateTarget(String date) { this.date = date; }
+                public String getDate() { return date; }
+            }
+        ''')
+        final mapper = JavaFileObjects.forSourceString('test.DateMapper', '''
+            package test;
+            import io.github.joke.percolate.Mapper;
+            import io.github.joke.percolate.Map;
+
+            @Mapper
+            public interface DateMapper {
+                @Map(source = "date", target = "date")
+                DateTarget map(DateSource source);
+            }
+        ''')
+
+        expect:
+        final compilation = javac()
+                .withProcessors(new PercolateProcessor())
+                .compile(source, target, mapper)
+        compilation.status() == Compilation.Status.SUCCESS
+        compilation.generatedSourceFiles().any { it.name.contains('DateMapperImpl') }
+    }
+
+    def 'generates String to LocalDate mapping using LocalDate.parse()'() {
+        given:
+        final source = JavaFileObjects.forSourceString('test.StringDateSource', '''
+            package test;
+            public class StringDateSource {
+                private final String date;
+                public StringDateSource(String date) { this.date = date; }
+                public String getDate() { return date; }
+            }
+        ''')
+        final target = JavaFileObjects.forSourceString('test.LocalDateTarget', '''
+            package test;
+            import java.time.LocalDate;
+            public class LocalDateTarget {
+                private final LocalDate date;
+                public LocalDateTarget(LocalDate date) { this.date = date; }
+                public LocalDate getDate() { return date; }
+            }
+        ''')
+        final mapper = JavaFileObjects.forSourceString('test.ParseDateMapper', '''
+            package test;
+            import io.github.joke.percolate.Mapper;
+            import io.github.joke.percolate.Map;
+
+            @Mapper
+            public interface ParseDateMapper {
+                @Map(source = "date", target = "date")
+                LocalDateTarget map(StringDateSource source);
+            }
+        ''')
+
+        expect:
+        final compilation = javac()
+                .withProcessors(new PercolateProcessor())
+                .compile(source, target, mapper)
+        compilation.status() == Compilation.Status.SUCCESS
+        compilation.generatedSourceFiles().any { it.name.contains('ParseDateMapperImpl') }
+    }
+
+    def 'generates LocalDate to String with custom DATE_FORMAT'() {
+        given:
+        final source = JavaFileObjects.forSourceString('test.FmtDateSource', '''
+            package test;
+            import java.time.LocalDate;
+            public class FmtDateSource {
+                private final LocalDate date;
+                public FmtDateSource(LocalDate date) { this.date = date; }
+                public LocalDate getDate() { return date; }
+            }
+        ''')
+        final target = JavaFileObjects.forSourceString('test.FmtDateTarget', '''
+            package test;
+            public class FmtDateTarget {
+                private final String date;
+                public FmtDateTarget(String date) { this.date = date; }
+                public String getDate() { return date; }
+            }
+        ''')
+        final mapper = JavaFileObjects.forSourceString('test.FmtDateMapper', '''
+            package test;
+            import io.github.joke.percolate.Mapper;
+            import io.github.joke.percolate.Map;
+            import io.github.joke.percolate.MapOpt;
+            import io.github.joke.percolate.MapOptKey;
+
+            @Mapper
+            public interface FmtDateMapper {
+                @Map(source = "date", target = "date",
+                     options = @MapOpt(key = MapOptKey.DATE_FORMAT, value = "dd.MM.yyyy"))
+                FmtDateTarget map(FmtDateSource source);
+            }
+        ''')
+
+        when:
+        final compilation = javac()
+                .withProcessors(new PercolateProcessor())
+                .compile(source, target, mapper)
+
+        then:
+        compilation.status() == Compilation.Status.SUCCESS
+        final implFiles = compilation.generatedSourceFiles().findAll { it.name.contains('FmtDateMapperImpl') }
+        !implFiles.isEmpty()
+        implFiles.first().getCharContent(false).contains('ofPattern')
+    }
+
+    def 'generates java.util.Date to String mapping via Instant hub'() {
+        given:
+        final source = JavaFileObjects.forSourceString('test.UtilDateSource', '''
+            package test;
+            import java.util.Date;
+            public class UtilDateSource {
+                private final Date createdAt;
+                public UtilDateSource(Date createdAt) { this.createdAt = createdAt; }
+                public Date getCreatedAt() { return createdAt; }
+            }
+        ''')
+        final target = JavaFileObjects.forSourceString('test.UtilDateTarget', '''
+            package test;
+            public class UtilDateTarget {
+                private final String createdAt;
+                public UtilDateTarget(String createdAt) { this.createdAt = createdAt; }
+                public String getCreatedAt() { return createdAt; }
+            }
+        ''')
+        final mapper = JavaFileObjects.forSourceString('test.UtilDateMapper', '''
+            package test;
+            import io.github.joke.percolate.Mapper;
+            import io.github.joke.percolate.Map;
+
+            @Mapper
+            public interface UtilDateMapper {
+                @Map(source = "createdAt", target = "createdAt")
+                UtilDateTarget map(UtilDateSource source);
+            }
+        ''')
+
+        expect:
+        final compilation = javac()
+                .withProcessors(new PercolateProcessor())
+                .compile(source, target, mapper)
+        compilation.status() == Compilation.Status.SUCCESS
+        compilation.generatedSourceFiles().any { it.name.contains('UtilDateMapperImpl') }
+    }
+
+    def 'generates java.sql.Date to String mapping via LocalDate hub'() {
+        given:
+        final source = JavaFileObjects.forSourceString('test.SqlDateSource', '''
+            package test;
+            import java.sql.Date;
+            public class SqlDateSource {
+                private final Date birthDate;
+                public SqlDateSource(Date birthDate) { this.birthDate = birthDate; }
+                public Date getBirthDate() { return birthDate; }
+            }
+        ''')
+        final target = JavaFileObjects.forSourceString('test.SqlDateTarget', '''
+            package test;
+            public class SqlDateTarget {
+                private final String birthDate;
+                public SqlDateTarget(String birthDate) { this.birthDate = birthDate; }
+                public String getBirthDate() { return birthDate; }
+            }
+        ''')
+        final mapper = JavaFileObjects.forSourceString('test.SqlDateMapper', '''
+            package test;
+            import io.github.joke.percolate.Mapper;
+            import io.github.joke.percolate.Map;
+
+            @Mapper
+            public interface SqlDateMapper {
+                @Map(source = "birthDate", target = "birthDate")
+                SqlDateTarget map(SqlDateSource source);
+            }
+        ''')
+
+        expect:
+        final compilation = javac()
+                .withProcessors(new PercolateProcessor())
+                .compile(source, target, mapper)
+        compilation.status() == Compilation.Status.SUCCESS
+        compilation.generatedSourceFiles().any { it.name.contains('SqlDateMapperImpl') }
+    }
+
+    def 'generates Optional<LocalDate> to Optional<String> mapping'() {
+        given:
+        final source = JavaFileObjects.forSourceString('test.OptDateSource', '''
+            package test;
+            import java.time.LocalDate;
+            import java.util.Optional;
+            public class OptDateSource {
+                private final Optional<LocalDate> date;
+                public OptDateSource(Optional<LocalDate> date) { this.date = date; }
+                public Optional<LocalDate> getDate() { return date; }
+            }
+        ''')
+        final target = JavaFileObjects.forSourceString('test.OptStringTarget', '''
+            package test;
+            import java.util.Optional;
+            public class OptStringTarget {
+                private final Optional<String> date;
+                public OptStringTarget(Optional<String> date) { this.date = date; }
+                public Optional<String> getDate() { return date; }
+            }
+        ''')
+        final mapper = JavaFileObjects.forSourceString('test.OptDateMapper', '''
+            package test;
+            import io.github.joke.percolate.Mapper;
+            import io.github.joke.percolate.Map;
+
+            @Mapper
+            public interface OptDateMapper {
+                @Map(source = "date", target = "date")
+                OptStringTarget map(OptDateSource source);
+            }
+        ''')
+
+        expect:
+        final compilation = javac()
+                .withProcessors(new PercolateProcessor())
+                .compile(source, target, mapper)
+        compilation.status() == Compilation.Status.SUCCESS
+        compilation.generatedSourceFiles().any { it.name.contains('OptDateMapperImpl') }
+    }
+
+    def 'generates List<LocalDate> to List<String> mapping'() {
+        given:
+        final source = JavaFileObjects.forSourceString('test.ListDateSource', '''
+            package test;
+            import java.time.LocalDate;
+            import java.util.List;
+            public class ListDateSource {
+                private final List<LocalDate> dates;
+                public ListDateSource(List<LocalDate> dates) { this.dates = dates; }
+                public List<LocalDate> getDates() { return dates; }
+            }
+        ''')
+        final target = JavaFileObjects.forSourceString('test.ListStringTarget', '''
+            package test;
+            import java.util.List;
+            public class ListStringTarget {
+                private final List<String> dates;
+                public ListStringTarget(List<String> dates) { this.dates = dates; }
+                public List<String> getDates() { return dates; }
+            }
+        ''')
+        final mapper = JavaFileObjects.forSourceString('test.ListDateMapper', '''
+            package test;
+            import io.github.joke.percolate.Mapper;
+            import io.github.joke.percolate.Map;
+
+            @Mapper
+            public interface ListDateMapper {
+                @Map(source = "dates", target = "dates")
+                ListStringTarget map(ListDateSource source);
+            }
+        ''')
+
+        expect:
+        final compilation = javac()
+                .withProcessors(new PercolateProcessor())
+                .compile(source, target, mapper)
+        compilation.status() == Compilation.Status.SUCCESS
+        compilation.generatedSourceFiles().any { it.name.contains('ListDateMapperImpl') }
+    }
+
+    def 'reports error for DATE_FORMAT on non-String target type'() {
+        given:
+        final source = JavaFileObjects.forSourceString('test.ErrFmtSource', '''
+            package test;
+            import java.time.LocalDate;
+            public class ErrFmtSource {
+                private final LocalDate date;
+                public ErrFmtSource(LocalDate date) { this.date = date; }
+                public LocalDate getDate() { return date; }
+            }
+        ''')
+        final target = JavaFileObjects.forSourceString('test.ErrFmtTarget', '''
+            package test;
+            import java.time.LocalDateTime;
+            public class ErrFmtTarget {
+                private final LocalDateTime date;
+                public ErrFmtTarget(LocalDateTime date) { this.date = date; }
+                public LocalDateTime getDate() { return date; }
+            }
+        ''')
+        final mapper = JavaFileObjects.forSourceString('test.ErrFmtMapper', '''
+            package test;
+            import io.github.joke.percolate.Mapper;
+            import io.github.joke.percolate.Map;
+            import io.github.joke.percolate.MapOpt;
+            import io.github.joke.percolate.MapOptKey;
+
+            @Mapper
+            public interface ErrFmtMapper {
+                @Map(source = "date", target = "date",
+                     options = @MapOpt(key = MapOptKey.DATE_FORMAT, value = "dd.MM.yyyy"))
+                ErrFmtTarget map(ErrFmtSource source);
+            }
+        ''')
+
+        expect:
+        final compilation = javac()
+                .withProcessors(new PercolateProcessor())
+                .compile(source, target, mapper)
+        compilation.status() == Compilation.Status.FAILURE
+        compilation.errors().any { it.getMessage(null).contains('DATE_FORMAT') }
     }
 }

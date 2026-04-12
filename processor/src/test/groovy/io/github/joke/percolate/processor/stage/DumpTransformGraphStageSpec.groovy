@@ -97,7 +97,7 @@ class DumpTransformGraphStageSpec extends Specification {
     def 'skips method when merged exploration graph is empty'() {
         given:
         final method = minimalMethod()
-        final mapping = new ResolvedMapping([], 'src', null, 'name', null, null)
+        final mapping = new ResolvedMapping([], 'src', null, 'name', null, null, [:])
         final resolvedModel = resolvedModel(method, [mapping])
 
         when:
@@ -129,7 +129,7 @@ class DumpTransformGraphStageSpec extends Specification {
         graph.addEdge(sourceNode, targetNode, edge)
         final path = new BFSShortestPath<>(graph).getPath(sourceNode, targetNode)
         final resolution = new TransformResolution(graph, path)
-        final mapping = new ResolvedMapping([], 'src', null, 'name', resolution, null)
+        final mapping = new ResolvedMapping([], 'src', null, 'name', resolution, null, [:])
         return resolvedModel(minimalMethod(), [mapping])
     }
 
@@ -142,7 +142,7 @@ class DumpTransformGraphStageSpec extends Specification {
         final edge = new TransformEdge(new DirectAssignableStrategy(), Stub(TransformProposal))
         graph.addEdge(sourceNode, targetNode, edge)
         final resolution = new TransformResolution(graph, null)
-        final mapping = new ResolvedMapping([], 'src', null, 'name', resolution, null)
+        final mapping = new ResolvedMapping([], 'src', null, 'name', resolution, null, [:])
         return resolvedModel(minimalMethod(), [mapping])
     }
 
@@ -160,8 +160,8 @@ class DumpTransformGraphStageSpec extends Specification {
         graph2.addVertex(stringNode2)
         graph2.addVertex(longNode)
 
-        final mapping1 = new ResolvedMapping([], 'src1', null, 'a', new TransformResolution(graph1, null), null)
-        final mapping2 = new ResolvedMapping([], 'src2', null, 'b', new TransformResolution(graph2, null), null)
+        final mapping1 = new ResolvedMapping([], 'src1', null, 'a', new TransformResolution(graph1, null), null, [:])
+        final mapping2 = new ResolvedMapping([], 'src2', null, 'b', new TransformResolution(graph2, null), null, [:])
         return resolvedModel(minimalMethod(), [mapping1, mapping2])
     }
 

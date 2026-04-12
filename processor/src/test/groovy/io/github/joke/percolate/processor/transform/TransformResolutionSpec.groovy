@@ -41,7 +41,7 @@ class TransformResolutionSpec extends Specification {
 
     def 'ResolvedMapping.isResolved() is false when transformResolution is null'() {
         given:
-        final mapping = new ResolvedMapping([], 'src', null, 'target', null, null)
+        final mapping = new ResolvedMapping([], 'src', null, 'target', null, null, [:])
 
         expect:
         !mapping.isResolved()
@@ -50,7 +50,7 @@ class TransformResolutionSpec extends Specification {
     def 'ResolvedMapping.isResolved() is false when path is null'() {
         given:
         final resolution = new TransformResolution(emptyGraph(), null)
-        final mapping = new ResolvedMapping([], 'src', null, 'target', resolution, null)
+        final mapping = new ResolvedMapping([], 'src', null, 'target', resolution, null, [:])
 
         expect:
         !mapping.isResolved()
@@ -60,7 +60,7 @@ class TransformResolutionSpec extends Specification {
         given:
         final result = graphWithPath()
         final resolution = new TransformResolution(result.graph, result.path)
-        final mapping = new ResolvedMapping([], 'src', null, 'target', resolution, null)
+        final mapping = new ResolvedMapping([], 'src', null, 'target', resolution, null, [:])
 
         expect:
         mapping.isResolved()
@@ -68,7 +68,7 @@ class TransformResolutionSpec extends Specification {
 
     def 'ResolvedMapping.getEdges() returns empty list when transformResolution is null'() {
         given:
-        final mapping = new ResolvedMapping([], 'src', null, 'target', null, null)
+        final mapping = new ResolvedMapping([], 'src', null, 'target', null, null, [:])
 
         expect:
         mapping.edges.isEmpty()
@@ -77,7 +77,7 @@ class TransformResolutionSpec extends Specification {
     def 'ResolvedMapping.getEdges() returns empty list when path is null'() {
         given:
         final resolution = new TransformResolution(emptyGraph(), null)
-        final mapping = new ResolvedMapping([], 'src', null, 'target', resolution, null)
+        final mapping = new ResolvedMapping([], 'src', null, 'target', resolution, null, [:])
 
         expect:
         mapping.edges.isEmpty()
@@ -87,7 +87,7 @@ class TransformResolutionSpec extends Specification {
         given:
         final result = graphWithPath()
         final resolution = new TransformResolution(result.graph, result.path)
-        final mapping = new ResolvedMapping([], 'src', null, 'target', resolution, null)
+        final mapping = new ResolvedMapping([], 'src', null, 'target', resolution, null, [:])
 
         expect:
         mapping.edges == result.path.edgeList

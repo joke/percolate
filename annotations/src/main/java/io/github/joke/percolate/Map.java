@@ -17,4 +17,6 @@ public @interface Map {
     String target();
 
     String source();
+
+    MapOpt[] options() default {};
 }

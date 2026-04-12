@@ -2,6 +2,7 @@ package io.github.joke.percolate.processor.stage;
 
 import static javax.tools.Diagnostic.Kind.ERROR;
 
+import io.github.joke.percolate.MapOptKey;
 import io.github.joke.percolate.processor.Diagnostic;
 import io.github.joke.percolate.processor.ErrorMessages;
 import io.github.joke.percolate.processor.StageResult;
@@ -52,6 +53,11 @@ public final class ValidateTransformsStage {
         return StageResult.success(resolvedModel);
     }
 
+    private static final Set<String> DURATION_PERIOD_TYPES =
+            Set.of("java.time.Duration", "java.time.Period");
+
+    private static final String JAVA_LANG_STRING = "java.lang.String";
+
     private static void validateMappings(
             final MappingMethodModel method,
             final List<ResolvedMapping> mappings,
@@ -63,6 +69,55 @@ public final class ValidateTransformsStage {
             } else if (!mapping.isResolved()) {
                 errors.add(buildUnresolvedTransformDiagnostic(method, mapping, resolvedModel));
             }
+            validateOptions(method, mapping, errors);
+        }
+    }
+
+    private static void validateOptions(
+            final MappingMethodModel method,
+            final ResolvedMapping mapping,
+            final List<Diagnostic> errors) {
+        if (!mapping.getOptions().containsKey(MapOptKey.DATE_FORMAT)) {
+            return;
+        }
+
+        // Need a target accessor to determine the target type; sourceChain can be empty
+        // (method-level source type is used as fallback). Run this check regardless of whether
+        // the transform path is resolved so that option errors are always surfaced.
+        if (mapping.getTargetAccessor() == null) {
+            return;
+        }
+
+        final var sourceType = mapping.getSourceChain().isEmpty()
+                ? method.getSourceType().toString()
+                : mapping.getSourceChain().get(mapping.getSourceChain().size() - 1).getType().toString();
+        final var targetType = mapping.getTargetAccessor().getType().toString();
+
+        // Validate Duration/Period — cannot use DateTimeFormatter
+        if (DURATION_PERIOD_TYPES.contains(sourceType)) {
+            errors.add(new Diagnostic(
+                    method.getMethod(),
+                    ErrorMessages.dateFormatOnTemporalWithoutAccessor(
+                            mapping.getSourceName(), mapping.getTargetName(), sourceType, method),
+                    ERROR));
+            return;
+        }
+        if (DURATION_PERIOD_TYPES.contains(targetType)) {
+            errors.add(new Diagnostic(
+                    method.getMethod(),
+                    ErrorMessages.dateFormatOnTemporalWithoutAccessor(
+                            mapping.getSourceName(), mapping.getTargetName(), targetType, method),
+                    ERROR));
+            return;
+        }
+
+        // Validate that one side is String
+        if (!JAVA_LANG_STRING.equals(sourceType) && !JAVA_LANG_STRING.equals(targetType)) {
+            errors.add(new Diagnostic(
+                    method.getMethod(),
+                    ErrorMessages.dateFormatOnNonStringMapping(
+                            mapping.getSourceName(), mapping.getTargetName(), method),
+                    ERROR));
         }
     }
 

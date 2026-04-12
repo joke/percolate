@@ -1,9 +1,12 @@
 package io.github.joke.percolate.processor.transform;
 
+import io.github.joke.percolate.MapOptKey;
 import io.github.joke.percolate.processor.graph.TransformEdge;
 import io.github.joke.percolate.processor.model.ReadAccessor;
 import io.github.joke.percolate.processor.model.WriteAccessor;
+import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import lombok.Value;
 import org.jspecify.annotations.Nullable;
 
@@ -22,6 +25,8 @@ public class ResolvedMapping {
 
     @Nullable
     AccessResolutionFailure failure;
+
+    Map<MapOptKey, String> options;
 
     public boolean isResolved() {
         return failure == null

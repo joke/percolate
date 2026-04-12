@@ -4,6 +4,7 @@ import static java.util.Comparator.comparingInt;
 import static java.util.stream.Collectors.toUnmodifiableList;
 import static java.util.stream.Collectors.toUnmodifiableSet;
 
+import io.github.joke.percolate.MapOptKey;
 import io.github.joke.percolate.processor.StageResult;
 import io.github.joke.percolate.processor.graph.AccessEdge;
 import io.github.joke.percolate.processor.graph.MappingEdge;
@@ -28,6 +29,7 @@ import io.github.joke.percolate.processor.transform.TransformProposal;
 import io.github.joke.percolate.processor.transform.TransformResolution;
 import jakarta.inject.Inject;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -86,7 +88,8 @@ public final class ResolveTransformsStage {
             final var method = (MappingMethodModel) entry.getKey();
             @SuppressWarnings("unchecked")
             final var graph = (DefaultDirectedGraph<Object, Object>) entry.getValue();
-            final var ctx = new ResolutionContext(types, elements, mappingGraph.getMapperType(), method.getMethod());
+            final var ctx = new ResolutionContext(
+                    types, elements, mappingGraph.getMapperType(), method.getMethod(), Collections.emptyMap());
 
             final var mappings = new ArrayList<ResolvedMapping>();
             final var unmapped = new LinkedHashSet<String>();
@@ -144,12 +147,18 @@ public final class ResolveTransformsStage {
                 continue;
             }
 
-            final var mappingEdge = incomingMappingEdges.get(0);
+            final var mappingEdge = (MappingEdge) incomingMappingEdges.get(0);
             final var sourceLeaf = (SourcePropertyNode) graph.getEdgeSource(mappingEdge);
             final var sourceName = buildChainPath(graph, sourceRoot, sourceLeaf);
+            final Map<MapOptKey, String> edgeOptions = mappingEdge.getOptions();
+            final var mappingCtx = edgeOptions.isEmpty()
+                    ? ctx
+                    : new ResolutionContext(ctx.getTypes(), ctx.getElements(), ctx.getMapperType(),
+                            ctx.getCurrentMethod(), edgeOptions);
 
             resolveMapping(
-                    method, graph, ctx, sourceRoot, sourceLeaf, sourceName, targetNode, targetWriteAccessors, mappings);
+                    method, graph, mappingCtx, sourceRoot, sourceLeaf, sourceName, targetNode,
+                    targetWriteAccessors, mappings);
         }
     }
 
@@ -168,7 +177,8 @@ public final class ResolveTransformsStage {
 
         if (chainResult.failure != null) {
             mappings.add(
-                    new ResolvedMapping(List.of(), sourceName, null, targetNode.getName(), null, chainResult.failure));
+                    new ResolvedMapping(List.of(), sourceName, null, targetNode.getName(), null, chainResult.failure,
+                            Collections.emptyMap()));
             return;
         }
 
@@ -181,14 +191,16 @@ public final class ResolveTransformsStage {
                     method.getTargetType(),
                     targetWriteAccessors.keySet());
             mappings.add(
-                    new ResolvedMapping(chainResult.accessors, sourceName, null, targetNode.getName(), null, failure));
+                    new ResolvedMapping(chainResult.accessors, sourceName, null, targetNode.getName(), null, failure,
+                            Collections.emptyMap()));
             return;
         }
 
         @SuppressWarnings("NullAway") // resolvedType is non-null in success path
         final var resolution = resolveTransformPath(chainResult.resolvedType, targetAccessor.getType(), ctx);
         mappings.add(new ResolvedMapping(
-                chainResult.accessors, sourceName, targetAccessor, targetNode.getName(), resolution, null));
+                chainResult.accessors, sourceName, targetAccessor, targetNode.getName(), resolution, null,
+                ctx.getOptions()));
     }
 
     private AccessorChainResult buildAccessorChain(
