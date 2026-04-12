@@ -182,6 +182,58 @@ class ResolveTransformsStageSpec extends Specification {
         result.value().duplicateTargets[method]['out'] == ['a', 'b'] as Set
     }
 
+    // Task 5.4: ResolveTransformsStage creates per-mapping ResolutionContext with using
+    def 'resolved mapping carries using value from MappingEdge'() {
+        given:
+        final nameType = Mock(TypeMirror)
+        final nameGetter = new GetterAccessor('name', nameType, Mock(ExecutableElement))
+        final nameWriter = new ConstructorParamAccessor('name', nameType, Mock(ExecutableElement), 0)
+
+        final graph = new DefaultDirectedGraph<>(Object)
+        final sourceRoot = new SourceRootNode('src')
+        final sourceProp = new SourcePropertyNode('name')
+        final targetProp = new TargetPropertyNode('name')
+        [sourceRoot, sourceProp, targetProp].each { graph.addVertex(it) }
+        graph.addEdge(sourceRoot, sourceProp, new AccessEdge())
+        graph.addEdge(sourceProp, targetProp, new MappingEdge([:], 'toName'))
+
+        final method = new MappingMethodModel(Mock(ExecutableElement), nameType, nameType, [])
+        final mappingGraph = new MappingGraph(mapperType, [method], [(method): graph])
+
+        types.isAssignable(nameType, nameType) >> true
+        final stage = stage(
+                source: [(nameType): [nameGetter]],
+                target: [(nameType): [nameWriter]])
+
+        expect:
+        final result = stage.execute(mappingGraph)
+        result.isSuccess()
+        final mappings = result.value().methodMappings[method]
+        mappings.size() == 1
+        mappings[0].using == 'toName'
+    }
+
+    def 'resolved mapping has empty using when MappingEdge has no using'() {
+        given:
+        final nameType = Mock(TypeMirror)
+        final nameGetter = new GetterAccessor('name', nameType, Mock(ExecutableElement))
+        final nameWriter = new ConstructorParamAccessor('name', nameType, Mock(ExecutableElement), 0)
+
+        final graph = symbolicGraph(sourceRoot: 'src', chain: ['name'], target: 'name')
+        final method = new MappingMethodModel(Mock(ExecutableElement), nameType, nameType, [])
+        final mappingGraph = new MappingGraph(mapperType, [method], [(method): graph])
+
+        types.isAssignable(nameType, nameType) >> true
+        final stage = stage(
+                source: [(nameType): [nameGetter]],
+                target: [(nameType): [nameWriter]])
+
+        expect:
+        final result = stage.execute(mappingGraph)
+        result.isSuccess()
+        result.value().methodMappings[method][0].using == ''
+    }
+
     def 'marks unresolvable transform as unresolved without failure'() {
         given:
         final fooType = Mock(TypeMirror)

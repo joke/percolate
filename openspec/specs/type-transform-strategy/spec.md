@@ -7,7 +7,7 @@ Defines the TypeTransformStrategy SPI interface, the TransformProposal and CodeT
 ## Requirements
 
 ### Requirement: TypeTransformStrategy SPI interface
-The processor SHALL provide a `TypeTransformStrategy` interface with a single method `canProduce(TypeMirror sourceType, TypeMirror targetType, ResolutionContext ctx)` that returns `Optional<TransformProposal>`. Implementations SHALL be discovered via `ServiceLoader` using `@AutoService`. Each strategy examines the source and target types and either proposes a transformation edge or returns empty. The `ResolutionContext` SHALL provide access to `Types`, `Elements`, the mapper's `TypeElement`, the current method's `ExecutableElement`, and per-mapping options as `Map<MapOptKey, String>`.
+The processor SHALL provide a `TypeTransformStrategy` interface with a single method `canProduce(TypeMirror sourceType, TypeMirror targetType, ResolutionContext ctx)` that returns `Optional<TransformProposal>`. Implementations SHALL be discovered via `ServiceLoader` using `@AutoService`. Each strategy examines the source and target types and either proposes a transformation edge or returns empty. The `ResolutionContext` SHALL provide access to `Types`, `Elements`, the mapper's `TypeElement`, the current method's `ExecutableElement`, per-mapping options as `Map<MapOptKey, String>`, and a String `using` field for method name routing.
 
 #### Scenario: Strategy matches and proposes a transformation
 - **WHEN** a `TypeTransformStrategy` implementation recognizes the source-target type pair
@@ -32,6 +32,14 @@ The processor SHALL provide a `TypeTransformStrategy` interface with a single me
 #### Scenario: Options are empty for auto-mapped properties
 - **WHEN** a strategy is invoked for an auto-mapped property (no explicit `@Map` directive)
 - **THEN** `ctx.getOptions()` SHALL return an empty map
+
+#### Scenario: Strategy reads using for method name routing
+- **WHEN** a strategy needs to check if a specific method name is requested for this mapping
+- **THEN** it SHALL read from `ctx.getUsing()` which returns a `String` (empty string means not set)
+
+#### Scenario: Using is empty for auto-mapped properties
+- **WHEN** a strategy is invoked for an auto-mapped property (no explicit `@Map` directive)
+- **THEN** `ctx.getUsing()` SHALL return an empty string
 
 ### Requirement: TransformProposal carries edge metadata
 A `TransformProposal` SHALL contain: the `TypeMirror` required as input, the `TypeMirror` produced as output, and a `CodeTemplate` for code generation. It SHALL also carry a reference to the contributing strategy for error reporting.

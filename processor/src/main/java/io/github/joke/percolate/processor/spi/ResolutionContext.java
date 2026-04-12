@@ -16,6 +16,7 @@ public class ResolutionContext {
     TypeElement mapperType;
     ExecutableElement currentMethod;
     Map<MapOptKey, String> options;
+    String using;
 
     public Optional<String> getOption(final MapOptKey key) {
         return Optional.ofNullable(options.get(key));

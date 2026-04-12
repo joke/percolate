@@ -136,6 +136,11 @@ public final class ValidateTransformsStage {
     @SuppressWarnings("NullAway") // targetAccessor is non-null when failure==null and path==null
     private static Diagnostic buildUnresolvedTransformDiagnostic(
             final MappingMethodModel method, final ResolvedMapping mapping, final ResolvedModel resolvedModel) {
+        // Task 4.2: ambiguity error takes priority over plain unresolved error
+        if (mapping.getAmbiguityDiagnostic() != null) {
+            return new Diagnostic(method.getMethod(), mapping.getAmbiguityDiagnostic(), ERROR);
+        }
+        // Task 4.1: include using in the unresolved transform error when set
         final var sourceType = mapping.getSourceChain().isEmpty()
                 ? method.getSourceType()
                 : mapping.getSourceChain()
@@ -150,7 +155,8 @@ public final class ValidateTransformsStage {
                         sourceType,
                         targetType,
                         method,
-                        resolvedModel.getMapperType()),
+                        resolvedModel.getMapperType(),
+                        mapping.getUsing()),
                 ERROR);
     }
 

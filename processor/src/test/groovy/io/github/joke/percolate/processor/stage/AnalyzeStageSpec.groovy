@@ -27,6 +27,7 @@ class AnalyzeStageSpec extends Specification {
         final mapAnnotation = Stub(Map) {
             source() >> 'firstName'
             target() >> 'givenName'
+            using() >> ''
         }
         final method = Stub(ExecutableElement) {
             kind >> ElementKind.METHOD
@@ -54,8 +55,8 @@ class AnalyzeStageSpec extends Specification {
         final sourceType = Mock(TypeMirror)
         final targetType = Stub(TypeMirror) { kind >> TypeKind.DECLARED }
         final param = Stub(VariableElement) { asType() >> sourceType }
-        final map1 = Stub(Map) { source() >> 'firstName'; target() >> 'givenName' }
-        final map2 = Stub(Map) { source() >> 'lastName'; target() >> 'familyName' }
+        final map1 = Stub(Map) { source() >> 'firstName'; target() >> 'givenName'; using() >> '' }
+        final map2 = Stub(Map) { source() >> 'lastName'; target() >> 'familyName'; using() >> '' }
         final mapList = Stub(MapList) { value() >> ([map1, map2] as Map[]) }
         final method = Stub(ExecutableElement) {
             kind >> ElementKind.METHOD
@@ -123,6 +124,59 @@ class AnalyzeStageSpec extends Specification {
         final result = stage.execute(mapperType)
         !result.isSuccess()
         result.errors().any { it.message.contains('non-void return type') }
+    }
+
+    // Task 5.2: AnalyzeStage reads using from @Map annotation
+    def 'reads using attribute from @Map annotation'() {
+        given:
+        final sourceType = Mock(TypeMirror)
+        final targetType = Stub(TypeMirror) { kind >> TypeKind.DECLARED }
+        final param = Stub(VariableElement) { asType() >> sourceType }
+        final mapAnnotation = Stub(Map) {
+            source() >> 'value'
+            target() >> 'result'
+            using() >> 'toResult'
+        }
+        final method = Stub(ExecutableElement) {
+            kind >> ElementKind.METHOD
+            modifiers >> ([Modifier.ABSTRACT] as Set)
+            parameters >> [param]
+            returnType >> targetType
+            getAnnotation(MapList) >> null
+            getAnnotation(Map) >> mapAnnotation
+        }
+        final mapperType = Stub(TypeElement) { enclosedElements >> [method] }
+
+        expect:
+        final result = stage.execute(mapperType)
+        result.isSuccess()
+        result.value().methods[0].directives[0].using == 'toResult'
+    }
+
+    def 'using defaults to empty string when not set on @Map annotation'() {
+        given:
+        final sourceType = Mock(TypeMirror)
+        final targetType = Stub(TypeMirror) { kind >> TypeKind.DECLARED }
+        final param = Stub(VariableElement) { asType() >> sourceType }
+        final mapAnnotation = Stub(Map) {
+            source() >> 'value'
+            target() >> 'result'
+            using() >> ''
+        }
+        final method = Stub(ExecutableElement) {
+            kind >> ElementKind.METHOD
+            modifiers >> ([Modifier.ABSTRACT] as Set)
+            parameters >> [param]
+            returnType >> targetType
+            getAnnotation(MapList) >> null
+            getAnnotation(Map) >> mapAnnotation
+        }
+        final mapperType = Stub(TypeElement) { enclosedElements >> [method] }
+
+        expect:
+        final result = stage.execute(mapperType)
+        result.isSuccess()
+        result.value().methods[0].directives[0].using == ''
     }
 
     def 'method without @Map annotations produces empty directives'() {

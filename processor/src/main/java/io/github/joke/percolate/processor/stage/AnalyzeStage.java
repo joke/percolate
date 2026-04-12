@@ -92,6 +92,6 @@ public final class AnalyzeStage {
                 options.put(opt.key(), opt.value());
             }
         }
-        return new MapDirective(map.source(), map.target(), java.util.Collections.unmodifiableMap(options));
+        return new MapDirective(map.source(), map.target(), map.using(), java.util.Collections.unmodifiableMap(options));
     }
 }

@@ -96,7 +96,7 @@ class GenerateStageSpec extends Specification {
             final List chain, final WriteAccessor writer, final List<TransformEdge> edges) {
         final path = Stub(GraphPath) { getEdgeList() >> edges }
         final resolution = new TransformResolution(new DefaultDirectedGraph(TransformEdge), path)
-        return new ResolvedMapping(chain, 'prop', writer, writer.name, resolution, null, [:])
+        return new ResolvedMapping(chain, 'prop', writer, writer.name, resolution, null, [:], '', null)
     }
 
     private TransformEdge edge(final CodeTemplate template) {

@@ -120,7 +120,7 @@ class DumpResolvedOverlayStageSpec extends Specification {
     }
 
     private ResolvedMapping mappingWithResolution(final TransformResolution resolution) {
-        return new ResolvedMapping([], 'src', null, 'name', resolution, null, [:])
+        return new ResolvedMapping([], 'src', null, 'name', resolution, null, [:], '', null)
     }
 
     private List pairFor(final ResolvedMapping mapping) {

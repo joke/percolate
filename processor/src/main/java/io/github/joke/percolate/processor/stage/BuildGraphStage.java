@@ -81,7 +81,7 @@ public final class BuildGraphStage {
 
         for (final MapDirective directive : method.getDirectives()) {
             final var targetNode = getOrCreateTargetNode(graph, targetNodes, directive.getTarget());
-            addSourceChain(graph, sourceRoot, chainNodes, directive.getSource(), targetNode, directive.getOptions());
+            addSourceChain(graph, sourceRoot, chainNodes, directive.getSource(), targetNode, directive.getOptions(), directive.getUsing());
         }
 
         return chainNodes;
@@ -104,7 +104,8 @@ public final class BuildGraphStage {
             final Map<String, SourcePropertyNode> chainNodes,
             final String sourceExpression,
             final TargetPropertyNode targetNode,
-            final Map<MapOptKey, String> options) {
+            final Map<MapOptKey, String> options,
+            final String using) {
         final var segments = sourceExpression.split("\\.", -1);
 
         Object parent = sourceRoot;
@@ -125,7 +126,7 @@ public final class BuildGraphStage {
             currentPath = path;
         }
 
-        graph.addEdge(parent, targetNode, new MappingEdge(options));
+        graph.addEdge(parent, targetNode, new MappingEdge(options, using));
     }
 
     private void autoMap(
@@ -140,7 +141,7 @@ public final class BuildGraphStage {
                 .filter(e -> graph.inDegreeOf(e.getValue()) == 0)
                 .filter(e -> sourceNames.contains(e.getKey()))
                 .forEach(e -> addSourceChain(
-                        graph, sourceRoot, chainNodes, e.getKey(), e.getValue(), java.util.Collections.emptyMap()));
+                        graph, sourceRoot, chainNodes, e.getKey(), e.getValue(), java.util.Collections.emptyMap(), ""));
     }
 
     private Set<String> scanTargetPropertyNames(final TypeMirror type) {

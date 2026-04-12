@@ -33,7 +33,7 @@ class ValidateTransformsStageSpec extends Specification {
         final getter = new GetterAccessor('name', sourceType, Mock(ExecutableElement))
         final writer = new ConstructorParamAccessor('name', targetType, Mock(ExecutableElement), 0)
 
-        final mapping = new ResolvedMapping([getter], 'name', writer, 'name', singleEdgePath(sourceType, targetType), null, [:])
+        final mapping = new ResolvedMapping([getter], 'name', writer, 'name', singleEdgePath(sourceType, targetType), null, [:], '', null)
         final method = new MappingMethodModel(Mock(ExecutableElement), sourceType, targetType, [])
         final model = new ResolvedModel(Mock(TypeElement), [method], [(method): [mapping]], [:], [:])
 
@@ -48,7 +48,7 @@ class ValidateTransformsStageSpec extends Specification {
         final exec = Stub(ExecutableElement) { toString() >> 'map(Source)' }
         final failure = new AccessResolutionFailure('unknown', 0, 'unknown', sourceType, ['name'] as Set)
 
-        final mapping = new ResolvedMapping([], 'unknown', null, 'name', null, failure, [:])
+        final mapping = new ResolvedMapping([], 'unknown', null, 'name', null, failure, [:], '', null)
         final method = new MappingMethodModel(exec, sourceType, targetType, [])
         final model = new ResolvedModel(Mock(TypeElement), [method], [(method): [mapping]], [:], [:])
 
@@ -70,7 +70,7 @@ class ValidateTransformsStageSpec extends Specification {
         final getter = new GetterAccessor('name', sourceType, Mock(ExecutableElement))
         final failure = new AccessResolutionFailure('missing', 0, 'missing', targetType, ['other'] as Set)
 
-        final mapping = new ResolvedMapping([getter], 'name', null, 'missing', null, failure, [:])
+        final mapping = new ResolvedMapping([getter], 'name', null, 'missing', null, failure, [:], '', null)
         final method = new MappingMethodModel(exec, sourceType, targetType, [])
         final model = new ResolvedModel(Mock(TypeElement), [method], [(method): [mapping]], [:], [:])
 
@@ -93,7 +93,7 @@ class ValidateTransformsStageSpec extends Specification {
         final getter = new GetterAccessor('data', fooType, Mock(ExecutableElement))
         final writer = new ConstructorParamAccessor('data', barType, Mock(ExecutableElement), 0)
 
-        final mapping = new ResolvedMapping([getter], 'data', writer, 'data', null, null, [:])
+        final mapping = new ResolvedMapping([getter], 'data', writer, 'data', null, null, [:], '', null)
         final method = new MappingMethodModel(exec, fooType, barType, [])
         final model = new ResolvedModel(mapperType, [method], [(method): [mapping]], [:], [:])
 
@@ -120,8 +120,8 @@ class ValidateTransformsStageSpec extends Specification {
         final wA = new ConstructorParamAccessor('a', barType, Mock(ExecutableElement), 0)
         final wB = new ConstructorParamAccessor('b', bazType, Mock(ExecutableElement), 1)
 
-        final mapping1 = new ResolvedMapping([gA], 'a', wA, 'a', null, null, [:])
-        final mapping2 = new ResolvedMapping([gB], 'b', wB, 'b', null, null, [:])
+        final mapping1 = new ResolvedMapping([gA], 'a', wA, 'a', null, null, [:], '', null)
+        final mapping2 = new ResolvedMapping([gB], 'b', wB, 'b', null, null, [:], '', null)
         final method = new MappingMethodModel(Mock(ExecutableElement), fooType, barType, [])
         final model = new ResolvedModel(Stub(TypeElement), [method], [(method): [mapping1, mapping2]], [:], [:])
 
@@ -164,6 +164,52 @@ class ValidateTransformsStageSpec extends Specification {
         result.errors().first().message.contains('MyMapper')
     }
 
+    // Task 4.1: unresolved error includes using method name when set
+    def 'unresolved transform error includes using method name when set'() {
+        given:
+        final fooType = Stub(TypeMirror) { toString() >> 'com.example.Foo' }
+        final barType = Stub(TypeMirror) { toString() >> 'com.example.Bar' }
+        final exec = Stub(ExecutableElement) { toString() >> 'map(Foo)' }
+        final mapperType = Stub(TypeElement) { toString() >> 'TestMapper' }
+        final getter = new GetterAccessor('data', fooType, Mock(ExecutableElement))
+        final writer = new ConstructorParamAccessor('data', barType, Mock(ExecutableElement), 0)
+
+        final mapping = new ResolvedMapping([getter], 'data', writer, 'data', null, null, [:], 'toBar', null)
+        final method = new MappingMethodModel(exec, fooType, barType, [])
+        final model = new ResolvedModel(mapperType, [method], [(method): [mapping]], [:], [:])
+
+        when:
+        final result = stage.execute(model)
+
+        then:
+        !result.isSuccess()
+        result.errors().first().message.contains('using = "toBar"')
+    }
+
+    // Task 4.2: ambiguity diagnostic takes priority and is emitted as compile error
+    def 'ambiguity diagnostic is emitted as compile error instead of unresolved error'() {
+        given:
+        final fooType = Stub(TypeMirror) { toString() >> 'com.example.Foo' }
+        final barType = Stub(TypeMirror) { toString() >> 'com.example.Bar' }
+        final exec = Stub(ExecutableElement) { toString() >> 'map(Foo)' }
+        final mapperType = Stub(TypeElement) { toString() >> 'TestMapper' }
+        final getter = new GetterAccessor('data', fooType, Mock(ExecutableElement))
+        final writer = new ConstructorParamAccessor('data', barType, Mock(ExecutableElement), 0)
+        final ambiguityMsg = "Ambiguous mapping for 'data' → 'data'.\n  Multiple methods match and none is more specific:\n    - mapA(Foo) → Bar\n    - mapB(Foo) → Bar"
+
+        final mapping = new ResolvedMapping([getter], 'data', writer, 'data', null, null, [:], '', ambiguityMsg)
+        final method = new MappingMethodModel(exec, fooType, barType, [])
+        final model = new ResolvedModel(mapperType, [method], [(method): [mapping]], [:], [:])
+
+        when:
+        final result = stage.execute(model)
+
+        then:
+        !result.isSuccess()
+        result.errors().first().message.contains('Ambiguous mapping')
+        !result.errors().first().message.contains('no mapping method found')
+    }
+
     def 'DATE_FORMAT on non-String mapping produces error'() {
         given:
         final fooType = Stub(TypeMirror) { toString() >> 'com.example.Foo' }
@@ -173,7 +219,7 @@ class ValidateTransformsStageSpec extends Specification {
         final writer = new ConstructorParamAccessor('data', barType, Mock(ExecutableElement), 0)
         final mapping = new ResolvedMapping([getter], 'data', writer, 'data',
                 singleEdgePath(fooType, barType), null,
-                [(MapOptKey.DATE_FORMAT): 'dd.MM.yyyy'])
+                [(MapOptKey.DATE_FORMAT): 'dd.MM.yyyy'], '', null)
         final method = new MappingMethodModel(exec, fooType, barType, [])
         final model = new ResolvedModel(Mock(TypeElement), [method], [(method): [mapping]], [:], [:])
 
@@ -194,7 +240,7 @@ class ValidateTransformsStageSpec extends Specification {
         final writer = new ConstructorParamAccessor('dur', durationType, Mock(ExecutableElement), 0)
         final mapping = new ResolvedMapping([getter], 'dur', writer, 'dur',
                 singleEdgePath(stringType, durationType), null,
-                [(MapOptKey.DATE_FORMAT): 'yyyy'])
+                [(MapOptKey.DATE_FORMAT): 'yyyy'], '', null)
         final method = new MappingMethodModel(exec, stringType, durationType, [])
         final model = new ResolvedModel(Mock(TypeElement), [method], [(method): [mapping]], [:], [:])
 
@@ -215,7 +261,7 @@ class ValidateTransformsStageSpec extends Specification {
         final writer = new ConstructorParamAccessor('period', periodType, Mock(ExecutableElement), 0)
         final mapping = new ResolvedMapping([getter], 'period', writer, 'period',
                 singleEdgePath(stringType, periodType), null,
-                [(MapOptKey.DATE_FORMAT): 'yyyy'])
+                [(MapOptKey.DATE_FORMAT): 'yyyy'], '', null)
         final method = new MappingMethodModel(exec, stringType, periodType, [])
         final model = new ResolvedModel(Mock(TypeElement), [method], [(method): [mapping]], [:], [:])
 
@@ -235,7 +281,7 @@ class ValidateTransformsStageSpec extends Specification {
         final writer = new ConstructorParamAccessor('date', localDateType, Mock(ExecutableElement), 0)
         final mapping = new ResolvedMapping([getter], 'date', writer, 'date',
                 singleEdgePath(stringType, localDateType), null,
-                [(MapOptKey.DATE_FORMAT): 'dd.MM.yyyy'])
+                [(MapOptKey.DATE_FORMAT): 'dd.MM.yyyy'], '', null)
         final method = new MappingMethodModel(Mock(ExecutableElement), stringType, localDateType, [])
         final model = new ResolvedModel(Mock(TypeElement), [method], [(method): [mapping]], [:], [:])
 
@@ -251,7 +297,7 @@ class ValidateTransformsStageSpec extends Specification {
         final writer = new ConstructorParamAccessor('date', stringType, Mock(ExecutableElement), 0)
         final mapping = new ResolvedMapping([getter], 'date', writer, 'date',
                 singleEdgePath(localDateType, stringType), null,
-                [(MapOptKey.DATE_FORMAT): 'dd.MM.yyyy'])
+                [(MapOptKey.DATE_FORMAT): 'dd.MM.yyyy'], '', null)
         final method = new MappingMethodModel(Mock(ExecutableElement), localDateType, stringType, [])
         final model = new ResolvedModel(Mock(TypeElement), [method], [(method): [mapping]], [:], [:])
 

@@ -60,7 +60,7 @@ class BuildGraphStageSpec extends Specification {
 
     def 'shared prefix node is reused across two chains with same parent segment'() {
         given:
-        final directives = [new MapDirective('address.street', 'street', [:]), new MapDirective('address.city', 'city', [:])]
+        final directives = [new MapDirective('address.street', 'street', '', [:]), new MapDirective('address.city', 'city', '', [:])]
         final method = new MappingMethodModel(methodElement('src'), emptyType(), emptyType(), directives)
         final model = new MapperModel(Mock(TypeElement), [method])
         final stage = new BuildGraphStage()
@@ -94,7 +94,7 @@ class BuildGraphStageSpec extends Specification {
     def 'explicit directive prevents auto-mapping of already-mapped target property'() {
         given:
         final targetType = declaredType('name')
-        final method = new MappingMethodModel(methodElement('src'), emptyType(), targetType, [new MapDirective('fullName', 'name', [:])])
+        final method = new MappingMethodModel(methodElement('src'), emptyType(), targetType, [new MapDirective('fullName', 'name', '', [:])])
         final model = new MapperModel(Mock(TypeElement), [method])
         final stage = new BuildGraphStage()
 
@@ -124,10 +124,56 @@ class BuildGraphStageSpec extends Specification {
         !graph1.vertexSet().any { v -> graph2.vertexSet().contains(v) }
     }
 
+    // Task 5.3: BuildGraphStage propagates using from directive to MappingEdge
+    def 'directive with using propagates it to the MappingEdge'() {
+        given:
+        final directive = new MapDirective('firstName', 'givenName', 'toGivenName', [:])
+        final method = new MappingMethodModel(methodElement('src'), emptyType(), emptyType(), [directive])
+        final model = new MapperModel(Mock(TypeElement), [method])
+        final stage = new BuildGraphStage()
+
+        expect:
+        final result = stage.execute(model)
+        result.isSuccess()
+        final graph = result.value().methodGraphs[method]
+        final mappingEdge = graph.edgeSet().find { it instanceof MappingEdge } as MappingEdge
+        mappingEdge.using == 'toGivenName'
+    }
+
+    def 'auto-mapped edge has empty using'() {
+        given:
+        final sourceType = declaredType('name')
+        final targetType = declaredType('name')
+        final method = new MappingMethodModel(methodElement('src'), sourceType, targetType, [])
+        final model = new MapperModel(Mock(TypeElement), [method])
+        final stage = new BuildGraphStage()
+
+        expect:
+        final result = stage.execute(model)
+        result.isSuccess()
+        final graph = result.value().methodGraphs[method]
+        final mappingEdge = graph.edgeSet().find { it instanceof MappingEdge } as MappingEdge
+        mappingEdge.using == ''
+    }
+
+    def 'directive without using produces MappingEdge with empty using'() {
+        given:
+        final method = methodWithDirective('src', emptyType(), emptyType(), 'firstName', 'givenName')
+        final model = new MapperModel(Mock(TypeElement), [method])
+        final stage = new BuildGraphStage()
+
+        expect:
+        final result = stage.execute(model)
+        result.isSuccess()
+        final graph = result.value().methodGraphs[method]
+        final mappingEdge = graph.edgeSet().find { it instanceof MappingEdge } as MappingEdge
+        mappingEdge.using == ''
+    }
+
     private MappingMethodModel methodWithDirective(
             final String paramName, final TypeMirror sourceType, final TypeMirror targetType,
             final String source, final String target) {
-        return new MappingMethodModel(methodElement(paramName), sourceType, targetType, [new MapDirective(source, target, [:])])
+        return new MappingMethodModel(methodElement(paramName), sourceType, targetType, [new MapDirective(source, target, '', [:])])
     }
 
     private ExecutableElement methodElement(final String paramName) {

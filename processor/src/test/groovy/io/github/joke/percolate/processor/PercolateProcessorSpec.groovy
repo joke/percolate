@@ -1149,4 +1149,435 @@ class PercolateProcessorSpec extends Specification {
         compilation.status() == Compilation.Status.FAILURE
         compilation.errors().any { it.getMessage(null).contains('DATE_FORMAT') }
     }
+
+    // Task 7.1: using routes to specific method for same-type-pair mappings
+    def 'using routes to specific sibling method for same source-target type pair'() {
+        given:
+        final value = JavaFileObjects.forSourceString('test.ValueObj', '''
+            package test;
+            public class ValueObj {
+                private final String data;
+                public ValueObj(String data) { this.data = data; }
+                public String getData() { return data; }
+            }
+        ''')
+        final dto = JavaFileObjects.forSourceString('test.ValueDTO', '''
+            package test;
+            public class ValueDTO {
+                private final String data;
+                public ValueDTO(String data) { this.data = data; }
+            }
+        ''')
+        final wrapper = JavaFileObjects.forSourceString('test.Wrapper', '''
+            package test;
+            public class Wrapper {
+                private final ValueObj primary;
+                private final ValueObj secondary;
+                public Wrapper(ValueObj primary, ValueObj secondary) {
+                    this.primary = primary;
+                    this.secondary = secondary;
+                }
+                public ValueObj getPrimary() { return primary; }
+                public ValueObj getSecondary() { return secondary; }
+            }
+        ''')
+        final wrapperDto = JavaFileObjects.forSourceString('test.WrapperDTO', '''
+            package test;
+            public class WrapperDTO {
+                private final ValueDTO primary;
+                private final ValueDTO secondary;
+                public WrapperDTO(ValueDTO primary, ValueDTO secondary) {
+                    this.primary = primary;
+                    this.secondary = secondary;
+                }
+            }
+        ''')
+        final mapper = JavaFileObjects.forSourceString('test.UsingMapper', '''
+            package test;
+            import io.github.joke.percolate.Mapper;
+            import io.github.joke.percolate.Map;
+
+            @Mapper
+            public interface UsingMapper {
+                @Map(source = "primary", target = "primary", using = "toPrimary")
+                @Map(source = "secondary", target = "secondary", using = "toSecondary")
+                WrapperDTO map(Wrapper source);
+
+                @Map(source = "data", target = "data")
+                ValueDTO toPrimary(ValueObj v);
+
+                @Map(source = "data", target = "data")
+                ValueDTO toSecondary(ValueObj v);
+            }
+        ''')
+
+        expect:
+        final compilation = javac()
+                .withProcessors(new PercolateProcessor())
+                .compile(value, dto, wrapper, wrapperDto, mapper)
+        compilation.status() == Compilation.Status.SUCCESS
+        compilation.generatedSourceFiles().any { it.name.contains('UsingMapperImpl') }
+    }
+
+    // Task 7.2: using composes with OptionalMapStrategy (element-level routing)
+    def 'using with Optional mapping routes element conversion through named method'() {
+        given:
+        final inner = JavaFileObjects.forSourceString('test.OptInner', '''
+            package test;
+            public class OptInner {
+                private final String value;
+                public OptInner(String value) { this.value = value; }
+                public String getValue() { return value; }
+            }
+        ''')
+        final innerDto = JavaFileObjects.forSourceString('test.OptInnerDTO', '''
+            package test;
+            public class OptInnerDTO {
+                private final String value;
+                public OptInnerDTO(String value) { this.value = value; }
+            }
+        ''')
+        final source = JavaFileObjects.forSourceString('test.OptContainerSrc', '''
+            package test;
+            import java.util.Optional;
+            public class OptContainerSrc {
+                private final Optional<OptInner> item;
+                public OptContainerSrc(Optional<OptInner> item) { this.item = item; }
+                public Optional<OptInner> getItem() { return item; }
+            }
+        ''')
+        final target = JavaFileObjects.forSourceString('test.OptContainerTgt', '''
+            package test;
+            import java.util.Optional;
+            public class OptContainerTgt {
+                private final Optional<OptInnerDTO> item;
+                public OptContainerTgt(Optional<OptInnerDTO> item) { this.item = item; }
+            }
+        ''')
+        final mapper = JavaFileObjects.forSourceString('test.OptUsingMapper', '''
+            package test;
+            import io.github.joke.percolate.Mapper;
+            import io.github.joke.percolate.Map;
+
+            @Mapper
+            public interface OptUsingMapper {
+                @Map(source = "item", target = "item", using = "toDto")
+                OptContainerTgt map(OptContainerSrc source);
+
+                @Map(source = "value", target = "value")
+                OptInnerDTO toDto(OptInner inner);
+            }
+        ''')
+
+        expect:
+        final compilation = javac()
+                .withProcessors(new PercolateProcessor())
+                .compile(inner, innerDto, source, target, mapper)
+        compilation.status() == Compilation.Status.SUCCESS
+        compilation.generatedSourceFiles().any { it.name.contains('OptUsingMapperImpl') }
+    }
+
+    // Task 7.3: using composes with collection strategies
+    def 'using with List mapping routes element conversion through named method'() {
+        given:
+        final item = JavaFileObjects.forSourceString('test.ListItem', '''
+            package test;
+            public class ListItem {
+                private final String name;
+                public ListItem(String name) { this.name = name; }
+                public String getName() { return name; }
+            }
+        ''')
+        final itemDto = JavaFileObjects.forSourceString('test.ListItemDTO', '''
+            package test;
+            public class ListItemDTO {
+                private final String name;
+                public ListItemDTO(String name) { this.name = name; }
+            }
+        ''')
+        final source = JavaFileObjects.forSourceString('test.ListContainerSrc', '''
+            package test;
+            import java.util.List;
+            public class ListContainerSrc {
+                private final List<ListItem> items;
+                public ListContainerSrc(List<ListItem> items) { this.items = items; }
+                public List<ListItem> getItems() { return items; }
+            }
+        ''')
+        final target = JavaFileObjects.forSourceString('test.ListContainerTgt', '''
+            package test;
+            import java.util.List;
+            public class ListContainerTgt {
+                private final List<ListItemDTO> items;
+                public ListContainerTgt(List<ListItemDTO> items) { this.items = items; }
+            }
+        ''')
+        final mapper = JavaFileObjects.forSourceString('test.ListUsingMapper', '''
+            package test;
+            import io.github.joke.percolate.Mapper;
+            import io.github.joke.percolate.Map;
+
+            @Mapper
+            public interface ListUsingMapper {
+                @Map(source = "items", target = "items", using = "toItemDto")
+                ListContainerTgt map(ListContainerSrc source);
+
+                @Map(source = "name", target = "name")
+                ListItemDTO toItemDto(ListItem item);
+            }
+        ''')
+
+        expect:
+        final compilation = javac()
+                .withProcessors(new PercolateProcessor())
+                .compile(item, itemDto, source, target, mapper)
+        compilation.status() == Compilation.Status.SUCCESS
+        compilation.generatedSourceFiles().any { it.name.contains('ListUsingMapperImpl') }
+    }
+
+    // Task 7.4: using method not found produces compile error
+    def 'using with nonexistent method name produces compile error'() {
+        given:
+        final source = JavaFileObjects.forSourceString('test.UsingErrSrc', '''
+            package test;
+            public class UsingErrSrc {
+                private final String name;
+                public UsingErrSrc(String name) { this.name = name; }
+                public String getName() { return name; }
+            }
+        ''')
+        final target = JavaFileObjects.forSourceString('test.UsingErrTgt', '''
+            package test;
+            public class UsingErrTgt {
+                private final String name;
+                public UsingErrTgt(String name) { this.name = name; }
+            }
+        ''')
+        final wrapper = JavaFileObjects.forSourceString('test.UsingErrWrapper', '''
+            package test;
+            public class UsingErrWrapper {
+                private final UsingErrSrc inner;
+                public UsingErrWrapper(UsingErrSrc inner) { this.inner = inner; }
+                public UsingErrSrc getInner() { return inner; }
+            }
+        ''')
+        final wrapperTgt = JavaFileObjects.forSourceString('test.UsingErrWrapperTgt', '''
+            package test;
+            public class UsingErrWrapperTgt {
+                private final UsingErrTgt inner;
+                public UsingErrWrapperTgt(UsingErrTgt inner) { this.inner = inner; }
+            }
+        ''')
+        final mapper = JavaFileObjects.forSourceString('test.UsingErrMapper', '''
+            package test;
+            import io.github.joke.percolate.Mapper;
+            import io.github.joke.percolate.Map;
+
+            @Mapper
+            public interface UsingErrMapper {
+                @Map(source = "inner", target = "inner", using = "nonexistentMethod")
+                UsingErrWrapperTgt map(UsingErrWrapper source);
+            }
+        ''')
+
+        expect:
+        final compilation = javac()
+                .withProcessors(new PercolateProcessor())
+                .compile(source, target, wrapper, wrapperTgt, mapper)
+        compilation.status() == Compilation.Status.FAILURE
+        compilation.errors().any { it.getMessage(null).contains('using = "nonexistentMethod"') }
+    }
+
+    // Task 7.5: using method with wrong signature produces compile error
+    def 'using method with incompatible signature produces compile error'() {
+        given:
+        final source = JavaFileObjects.forSourceString('test.WrongSigSrc', '''
+            package test;
+            public class WrongSigSrc {
+                private final String name;
+                public WrongSigSrc(String name) { this.name = name; }
+                public String getName() { return name; }
+            }
+        ''')
+        final target = JavaFileObjects.forSourceString('test.WrongSigTgt', '''
+            package test;
+            public class WrongSigTgt {
+                private final String name;
+                public WrongSigTgt(String name) { this.name = name; }
+            }
+        ''')
+        final wrapper = JavaFileObjects.forSourceString('test.WrongSigWrapper', '''
+            package test;
+            public class WrongSigWrapper {
+                private final WrongSigSrc inner;
+                public WrongSigWrapper(WrongSigSrc inner) { this.inner = inner; }
+                public WrongSigSrc getInner() { return inner; }
+            }
+        ''')
+        final wrapperTgt = JavaFileObjects.forSourceString('test.WrongSigWrapperTgt', '''
+            package test;
+            public class WrongSigWrapperTgt {
+                private final WrongSigTgt inner;
+                public WrongSigWrapperTgt(WrongSigTgt inner) { this.inner = inner; }
+            }
+        ''')
+        final mapper = JavaFileObjects.forSourceString('test.WrongSigMapper', '''
+            package test;
+            import io.github.joke.percolate.Mapper;
+            import io.github.joke.percolate.Map;
+
+            @Mapper
+            public interface WrongSigMapper {
+                @Map(source = "inner", target = "inner", using = "toTarget")
+                WrongSigWrapperTgt map(WrongSigWrapper source);
+
+                // Wrong: takes Integer not WrongSigSrc
+                WrongSigTgt toTarget(Integer x);
+            }
+        ''')
+
+        expect:
+        final compilation = javac()
+                .withProcessors(new PercolateProcessor())
+                .compile(source, target, wrapper, wrapperTgt, mapper)
+        compilation.status() == Compilation.Status.FAILURE
+        // Named method found but wrong signature → unresolved or using error
+        compilation.errors().any {
+            it.getMessage(null).contains('using = "toTarget"') ||
+            it.getMessage(null).contains('no mapping method found')
+        }
+    }
+
+    // Task 7.6: most-specific-match selects correct overload without using
+    def 'most-specific-match selects narrowest overload without using'() {
+        given:
+        final base = JavaFileObjects.forSourceString('test.BaseThing', '''
+            package test;
+            public class BaseThing {
+                private final String label;
+                public BaseThing(String label) { this.label = label; }
+                public String getLabel() { return label; }
+            }
+        ''')
+        final sub = JavaFileObjects.forSourceString('test.SubThing', '''
+            package test;
+            public class SubThing extends BaseThing {
+                public SubThing(String label) { super(label); }
+                @Override public String getLabel() { return super.getLabel(); }
+            }
+        ''')
+        final dto = JavaFileObjects.forSourceString('test.ThingDTO', '''
+            package test;
+            public class ThingDTO {
+                private final String label;
+                public ThingDTO(String label) { this.label = label; }
+            }
+        ''')
+        final wrapper = JavaFileObjects.forSourceString('test.ThingWrapper', '''
+            package test;
+            public class ThingWrapper {
+                private final SubThing thing;
+                public ThingWrapper(SubThing thing) { this.thing = thing; }
+                public SubThing getThing() { return thing; }
+            }
+        ''')
+        final wrapperDto = JavaFileObjects.forSourceString('test.ThingWrapperDTO', '''
+            package test;
+            public class ThingWrapperDTO {
+                private final ThingDTO thing;
+                public ThingWrapperDTO(ThingDTO thing) { this.thing = thing; }
+            }
+        ''')
+        final mapper = JavaFileObjects.forSourceString('test.ThingMapper', '''
+            package test;
+            import io.github.joke.percolate.Mapper;
+            import io.github.joke.percolate.Map;
+
+            @Mapper
+            public interface ThingMapper {
+                @Map(source = "thing", target = "thing")
+                ThingWrapperDTO map(ThingWrapper source);
+
+                // More specific: SubThing → ThingDTO
+                @Map(source = "label", target = "label")
+                ThingDTO mapSub(SubThing t);
+
+                // Less specific: BaseThing → ThingDTO
+                @Map(source = "label", target = "label")
+                ThingDTO mapBase(BaseThing t);
+            }
+        ''')
+
+        expect:
+        final compilation = javac()
+                .withProcessors(new PercolateProcessor())
+                .compile(base, sub, dto, wrapper, wrapperDto, mapper)
+        compilation.status() == Compilation.Status.SUCCESS
+        compilation.generatedSourceFiles().any { it.name.contains('ThingMapperImpl') }
+        // Generated code should call mapSub, not mapBase
+        final implSource = compilation.generatedSourceFiles()
+                .find { it.name.contains('ThingMapperImpl') }
+                ?.getCharContent(true)?.toString()
+        implSource?.contains('mapSub(') == true
+    }
+
+    // Task 7.7: ambiguous overloads produce compile error
+    def 'ambiguous overloads produce compile error'() {
+        given:
+        final src = JavaFileObjects.forSourceString('test.AmbigSrc', '''
+            package test;
+            public class AmbigSrc {
+                private final String name;
+                public AmbigSrc(String name) { this.name = name; }
+                public String getName() { return name; }
+            }
+        ''')
+        final tgt = JavaFileObjects.forSourceString('test.AmbigTgt', '''
+            package test;
+            public class AmbigTgt {
+                private final String name;
+                public AmbigTgt(String name) { this.name = name; }
+            }
+        ''')
+        final wrapper = JavaFileObjects.forSourceString('test.AmbigWrapper', '''
+            package test;
+            public class AmbigWrapper {
+                private final AmbigSrc inner;
+                public AmbigWrapper(AmbigSrc inner) { this.inner = inner; }
+                public AmbigSrc getInner() { return inner; }
+            }
+        ''')
+        final wrapperTgt = JavaFileObjects.forSourceString('test.AmbigWrapperTgt', '''
+            package test;
+            public class AmbigWrapperTgt {
+                private final AmbigTgt inner;
+                public AmbigWrapperTgt(AmbigTgt inner) { this.inner = inner; }
+            }
+        ''')
+        final mapper = JavaFileObjects.forSourceString('test.AmbigMapper', '''
+            package test;
+            import io.github.joke.percolate.Mapper;
+            import io.github.joke.percolate.Map;
+
+            @Mapper
+            public interface AmbigMapper {
+                @Map(source = "inner", target = "inner")
+                AmbigWrapperTgt map(AmbigWrapper source);
+
+                // Two methods with identical param type — ambiguous
+                @Map(source = "name", target = "name")
+                AmbigTgt mapA(AmbigSrc s);
+
+                @Map(source = "name", target = "name")
+                AmbigTgt mapB(AmbigSrc s);
+            }
+        ''')
+
+        expect:
+        final compilation = javac()
+                .withProcessors(new PercolateProcessor())
+                .compile(src, tgt, wrapper, wrapperTgt, mapper)
+        compilation.status() == Compilation.Status.FAILURE
+        compilation.errors().any { it.getMessage(null).contains('Ambiguous mapping') }
+    }
 }

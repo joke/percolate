@@ -25,9 +25,39 @@ public class ErrorMessages {
             final javax.lang.model.type.TypeMirror targetType,
             final MappingMethodModel method,
             final TypeElement mapperType) {
-        return "Cannot map '" + sourceName + "' (" + sourceType + ") → '" + targetName + "' (" + targetType + ")"
-                + " in method '" + method.getMethod() + "' of " + mapperType
-                + ": no mapping method found for " + sourceType + " → " + targetType;
+        return unresolvedTransform(sourceName, targetName, sourceType, targetType, method, mapperType, "");
+    }
+
+    public static String unresolvedTransform(
+            final String sourceName,
+            final String targetName,
+            final javax.lang.model.type.TypeMirror sourceType,
+            final javax.lang.model.type.TypeMirror targetType,
+            final MappingMethodModel method,
+            final TypeElement mapperType,
+            final String using) {
+        final var sb = new StringBuilder();
+        sb.append("Cannot map '").append(sourceName).append("' (").append(sourceType)
+                .append(") → '").append(targetName).append("' (").append(targetType).append(")")
+                .append(" in method '").append(method.getMethod()).append("' of ").append(mapperType)
+                .append(": no mapping method found for ").append(sourceType).append(" → ").append(targetType);
+        if (!using.isEmpty()) {
+            sb.append(" (using = \"").append(using).append("\")");
+        }
+        return sb.toString();
+    }
+
+    public static String ambiguousMethodCandidates(
+            final String sourceName,
+            final String targetName,
+            final List<String> candidateDescriptions) {
+        final var sb = new StringBuilder();
+        sb.append("Ambiguous mapping for '").append(sourceName).append("' → '").append(targetName).append("'.\n");
+        sb.append("  Multiple methods match and none is more specific:\n");
+        for (final var desc : candidateDescriptions) {
+            sb.append("    - ").append(desc).append('\n');
+        }
+        return sb.toString().stripTrailing();
     }
 
     public static String unknownSourceProperty(

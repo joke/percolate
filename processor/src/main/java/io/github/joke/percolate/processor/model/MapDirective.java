@@ -8,5 +8,6 @@ import lombok.Value;
 public class MapDirective {
     String source;
     String target;
+    String using;
     Map<MapOptKey, String> options;
 }

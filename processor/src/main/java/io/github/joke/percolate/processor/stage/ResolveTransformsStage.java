@@ -5,6 +5,7 @@ import static java.util.stream.Collectors.toUnmodifiableList;
 import static java.util.stream.Collectors.toUnmodifiableSet;
 
 import io.github.joke.percolate.MapOptKey;
+import io.github.joke.percolate.processor.ErrorMessages;
 import io.github.joke.percolate.processor.StageResult;
 import io.github.joke.percolate.processor.graph.AccessEdge;
 import io.github.joke.percolate.processor.graph.MappingEdge;
@@ -34,9 +35,13 @@ import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.ServiceLoader;
 import java.util.Set;
 import java.util.function.ToIntFunction;
+import javax.lang.model.element.ElementKind;
+import javax.lang.model.element.ExecutableElement;
+import javax.lang.model.type.TypeKind;
 import javax.lang.model.type.TypeMirror;
 import javax.lang.model.util.Elements;
 import javax.lang.model.util.Types;
@@ -89,7 +94,7 @@ public final class ResolveTransformsStage {
             @SuppressWarnings("unchecked")
             final var graph = (DefaultDirectedGraph<Object, Object>) entry.getValue();
             final var ctx = new ResolutionContext(
-                    types, elements, mappingGraph.getMapperType(), method.getMethod(), Collections.emptyMap());
+                    types, elements, mappingGraph.getMapperType(), method.getMethod(), Collections.emptyMap(), "");
 
             final var mappings = new ArrayList<ResolvedMapping>();
             final var unmapped = new LinkedHashSet<String>();
@@ -151,10 +156,11 @@ public final class ResolveTransformsStage {
             final var sourceLeaf = (SourcePropertyNode) graph.getEdgeSource(mappingEdge);
             final var sourceName = buildChainPath(graph, sourceRoot, sourceLeaf);
             final Map<MapOptKey, String> edgeOptions = mappingEdge.getOptions();
-            final var mappingCtx = edgeOptions.isEmpty()
+            final String edgeUsing = mappingEdge.getUsing();
+            final var mappingCtx = (edgeOptions.isEmpty() && edgeUsing.isEmpty())
                     ? ctx
                     : new ResolutionContext(ctx.getTypes(), ctx.getElements(), ctx.getMapperType(),
-                            ctx.getCurrentMethod(), edgeOptions);
+                            ctx.getCurrentMethod(), edgeOptions, edgeUsing);
 
             resolveMapping(
                     method, graph, mappingCtx, sourceRoot, sourceLeaf, sourceName, targetNode,
@@ -162,6 +168,7 @@ public final class ResolveTransformsStage {
         }
     }
 
+    @SuppressWarnings("NullAway") // resolvedType and targetAccessor are non-null in the success paths where they're used
     private void resolveMapping(
             final MappingMethodModel method,
             final DefaultDirectedGraph<Object, Object> graph,
@@ -178,7 +185,7 @@ public final class ResolveTransformsStage {
         if (chainResult.failure != null) {
             mappings.add(
                     new ResolvedMapping(List.of(), sourceName, null, targetNode.getName(), null, chainResult.failure,
-                            Collections.emptyMap()));
+                            Collections.emptyMap(), "", null));
             return;
         }
 
@@ -192,15 +199,21 @@ public final class ResolveTransformsStage {
                     targetWriteAccessors.keySet());
             mappings.add(
                     new ResolvedMapping(chainResult.accessors, sourceName, null, targetNode.getName(), null, failure,
-                            Collections.emptyMap()));
+                            Collections.emptyMap(), "", null));
             return;
         }
 
-        @SuppressWarnings("NullAway") // resolvedType is non-null in success path
-        final var resolution = resolveTransformPath(chainResult.resolvedType, targetAccessor.getType(), ctx);
+        final TypeMirror resolvedSourceType = chainResult.resolvedType;
+        final var resolution = resolveTransformPath(resolvedSourceType, targetAccessor.getType(), ctx);
+
+        @Nullable final String ambiguityDiagnostic = resolution.getPath() == null
+                ? detectMethodAmbiguity(sourceName, targetNode.getName(), resolvedSourceType,
+                        targetAccessor.getType(), ctx)
+                : null;
+
         mappings.add(new ResolvedMapping(
                 chainResult.accessors, sourceName, targetAccessor, targetNode.getName(), resolution, null,
-                ctx.getOptions()));
+                ctx.getOptions(), ctx.getUsing(), ambiguityDiagnostic));
     }
 
     private AccessorChainResult buildAccessorChain(
@@ -332,6 +345,63 @@ public final class ResolveTransformsStage {
                 .map(v -> (SourceRootNode) v)
                 .findFirst()
                 .orElse(null);
+    }
+
+    /**
+     * Checks whether multiple method candidates are ambiguous (incomparable param types) for the
+     * given source→target pair, after applying the same most-specific-match logic as
+     * {@link io.github.joke.percolate.processor.spi.MethodCallStrategy}. Returns an error message
+     * string when ambiguity is detected, or {@code null} when the candidates can be ranked.
+     */
+    @Nullable
+    private String detectMethodAmbiguity(
+            final String sourceName,
+            final String targetName,
+            final TypeMirror sourceType,
+            final TypeMirror targetType,
+            final ResolutionContext ctx) {
+        final var using = ctx.getUsing();
+        final List<ExecutableElement> candidates = ctx.getElements().getAllMembers(ctx.getMapperType()).stream()
+                .filter(e -> e.getKind() == ElementKind.METHOD)
+                .map(e -> (ExecutableElement) e)
+                .filter(m -> m.getParameters().size() == 1)
+                .filter(m -> m.getReturnType().getKind() != TypeKind.VOID)
+                .filter(m -> !Objects.equals(m, ctx.getCurrentMethod()))
+                .filter(m -> using.isEmpty() || m.getSimpleName().toString().equals(using))
+                .filter(m -> types.isAssignable(sourceType, m.getParameters().get(0).asType()))
+                .filter(m -> types.isAssignable(m.getReturnType(), targetType))
+                .collect(toUnmodifiableList());
+
+        if (candidates.size() < 2) {
+            return null;
+        }
+
+        // Find candidates not dominated in param specificity
+        final List<ExecutableElement> bestByParam = candidates.stream()
+                .filter(a -> candidates.stream().noneMatch(b ->
+                        b != a
+                        && types.isAssignable(b.getParameters().get(0).asType(), a.getParameters().get(0).asType())
+                        && !types.isAssignable(a.getParameters().get(0).asType(), b.getParameters().get(0).asType())))
+                .collect(toUnmodifiableList());
+
+        // Apply return type tiebreaker
+        final List<ExecutableElement> best = bestByParam.size() > 1
+                ? bestByParam.stream()
+                        .filter(a -> bestByParam.stream().noneMatch(b ->
+                                b != a
+                                && types.isAssignable(b.getReturnType(), a.getReturnType())
+                                && !types.isAssignable(a.getReturnType(), b.getReturnType())))
+                        .collect(toUnmodifiableList())
+                : bestByParam;
+
+        if (best.size() <= 1) {
+            return null; // resolved by most-specific-match
+        }
+
+        final List<String> candidateDescs = best.stream()
+                .map(m -> m.getSimpleName() + "(" + m.getParameters().get(0).asType() + ") → " + m.getReturnType())
+                .collect(toUnmodifiableList());
+        return ErrorMessages.ambiguousMethodCandidates(sourceName, targetName, candidateDescs);
     }
 
     private TransformResolution resolveTransformPath(

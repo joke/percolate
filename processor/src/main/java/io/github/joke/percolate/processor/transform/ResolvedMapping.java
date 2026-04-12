@@ -28,6 +28,13 @@ public class ResolvedMapping {
 
     Map<MapOptKey, String> options;
 
+    /** The value of {@code @Map(using = "...")} for this mapping; empty string when not set. */
+    String using;
+
+    /** Non-null when ambiguous method candidates were found during resolution. */
+    @Nullable
+    String ambiguityDiagnostic;
+
     public boolean isResolved() {
         return failure == null
                 && transformResolution != null
