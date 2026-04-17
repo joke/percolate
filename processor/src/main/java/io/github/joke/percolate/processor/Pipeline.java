@@ -2,13 +2,15 @@ package io.github.joke.percolate.processor;
 
 import com.palantir.javapoet.JavaFile;
 import io.github.joke.percolate.processor.stage.AnalyzeStage;
-import io.github.joke.percolate.processor.stage.BuildGraphStage;
-import io.github.joke.percolate.processor.stage.DumpPropertyGraphStage;
-import io.github.joke.percolate.processor.stage.DumpResolvedOverlayStage;
-import io.github.joke.percolate.processor.stage.DumpTransformGraphStage;
+import io.github.joke.percolate.processor.stage.BuildValueGraphStage;
+import io.github.joke.percolate.processor.stage.DumpResolvedPathsStage;
+import io.github.joke.percolate.processor.stage.DumpValueGraphStage;
 import io.github.joke.percolate.processor.stage.GenerateStage;
-import io.github.joke.percolate.processor.stage.ResolveTransformsStage;
-import io.github.joke.percolate.processor.stage.ValidateTransformsStage;
+import io.github.joke.percolate.processor.stage.MatchMappingsStage;
+import io.github.joke.percolate.processor.stage.OptimizePathStage;
+import io.github.joke.percolate.processor.stage.ResolvePathStage;
+import io.github.joke.percolate.processor.stage.ValidateMatchingStage;
+import io.github.joke.percolate.processor.stage.ValidateResolutionStage;
 import jakarta.inject.Inject;
 import javax.annotation.processing.Messager;
 import javax.lang.model.element.TypeElement;
@@ -19,12 +21,14 @@ import org.jspecify.annotations.Nullable;
 final class Pipeline {
 
     private final AnalyzeStage analyzeStage;
-    private final BuildGraphStage buildGraphStage;
-    private final DumpPropertyGraphStage dumpPropertyGraphStage;
-    private final ResolveTransformsStage resolveTransformsStage;
-    private final DumpTransformGraphStage dumpTransformGraphStage;
-    private final DumpResolvedOverlayStage dumpResolvedOverlayStage;
-    private final ValidateTransformsStage validateTransformsStage;
+    private final MatchMappingsStage matchMappingsStage;
+    private final ValidateMatchingStage validateMatchingStage;
+    private final BuildValueGraphStage buildValueGraphStage;
+    private final DumpValueGraphStage dumpValueGraphStage;
+    private final ResolvePathStage resolvePathStage;
+    private final OptimizePathStage optimizePathStage;
+    private final DumpResolvedPathsStage dumpResolvedPathsStage;
+    private final ValidateResolutionStage validateResolutionStage;
     private final GenerateStage generateStage;
     private final Messager messager;
 
@@ -36,28 +40,49 @@ final class Pipeline {
             return null;
         }
 
-        final var graphResult = buildGraphStage.execute(analyzeResult.value());
-        if (!graphResult.isSuccess()) {
-            reportErrors(graphResult);
+        final var matchResult = matchMappingsStage.execute(analyzeResult.value());
+        if (!matchResult.isSuccess()) {
+            reportErrors(matchResult);
             return null;
         }
-        dumpPropertyGraphStage.execute(graphResult.value());
 
-        final var resolveResult = resolveTransformsStage.execute(graphResult.value());
+        final var validateMatchResult = validateMatchingStage.execute(matchResult.value());
+        if (!validateMatchResult.isSuccess()) {
+            reportErrors(validateMatchResult);
+            return null;
+        }
+
+        final var mapperType = validateMatchResult.value().getMapperType();
+
+        final var valueGraphResult = buildValueGraphStage.execute(validateMatchResult.value());
+        if (!valueGraphResult.isSuccess()) {
+            reportErrors(valueGraphResult);
+            return null;
+        }
+
+        dumpValueGraphStage.execute(mapperType, valueGraphResult.value());
+
+        final var resolveResult = resolvePathStage.execute(valueGraphResult.value());
         if (!resolveResult.isSuccess()) {
             reportErrors(resolveResult);
             return null;
         }
-        dumpTransformGraphStage.execute(resolveResult.value());
-        dumpResolvedOverlayStage.execute(graphResult.value(), resolveResult.value());
 
-        final var validateTransformsResult = validateTransformsStage.execute(resolveResult.value());
-        if (!validateTransformsResult.isSuccess()) {
-            reportErrors(validateTransformsResult);
+        final var optimizeResult = optimizePathStage.execute(resolveResult.value());
+        if (!optimizeResult.isSuccess()) {
+            reportErrors(optimizeResult);
             return null;
         }
 
-        final var generateResult = generateStage.execute(validateTransformsResult.value());
+        dumpResolvedPathsStage.execute(mapperType, valueGraphResult.value(), optimizeResult.value());
+
+        final var validateResolutionResult = validateResolutionStage.execute(mapperType, optimizeResult.value());
+        if (!validateResolutionResult.isSuccess()) {
+            reportErrors(validateResolutionResult);
+            return null;
+        }
+
+        final var generateResult = generateStage.execute(mapperType, validateResolutionResult.value());
         if (!generateResult.isSuccess()) {
             reportErrors(generateResult);
             return null;

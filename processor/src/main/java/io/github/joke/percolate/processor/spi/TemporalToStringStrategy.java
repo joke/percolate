@@ -5,14 +5,7 @@ import com.palantir.javapoet.CodeBlock;
 import io.github.joke.percolate.MapOptKey;
 import io.github.joke.percolate.processor.transform.CodeTemplate;
 import io.github.joke.percolate.processor.transform.TransformProposal;
-import java.time.DateTimeException;
-import java.time.Duration;
-import java.time.Instant;
-import java.time.OffsetDateTime;
-import java.time.OffsetTime;
-import java.time.Period;
 import java.time.ZoneId;
-import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.Optional;
 import java.util.Set;
@@ -22,8 +15,7 @@ import javax.lang.model.type.TypeMirror;
 @AutoService(TypeTransformStrategy.class)
 public final class TemporalToStringStrategy implements TypeTransformStrategy {
 
-    private static final Set<String> ZONE_REQUIRED_TYPES = Set.of(
-            "java.time.Instant");
+    private static final Set<String> ZONE_REQUIRED_TYPES = Set.of("java.time.Instant");
 
     private static final Set<String> SUPPORTED_TYPES = Set.of(
             "java.time.LocalDate",
@@ -60,10 +52,13 @@ public final class TemporalToStringStrategy implements TypeTransformStrategy {
             if (ZONE_REQUIRED_TYPES.contains(sourceTypeName)) {
                 template = input -> CodeBlock.of(
                         "$L.atZone($T.systemDefault()).format($T.ofPattern($S))",
-                        input, ZoneId.class, DateTimeFormatter.class, pattern);
+                        input,
+                        ZoneId.class,
+                        DateTimeFormatter.class,
+                        pattern);
             } else {
-                template = input -> CodeBlock.of(
-                        "$L.format($T.ofPattern($S))", input, DateTimeFormatter.class, pattern);
+                template =
+                        input -> CodeBlock.of("$L.format($T.ofPattern($S))", input, DateTimeFormatter.class, pattern);
             }
         } else {
             template = input -> CodeBlock.of("$L.toString()", input);

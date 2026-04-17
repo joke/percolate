@@ -1,6 +1,7 @@
 package io.github.joke.percolate.processor.spi
 
 import com.palantir.javapoet.CodeBlock
+import io.github.joke.percolate.processor.graph.LiftKind
 import io.github.joke.percolate.processor.transform.CodeTemplate
 import spock.lang.Specification
 import spock.lang.Tag
@@ -103,12 +104,30 @@ class CollectionStrategySpec extends Specification {
         new StreamMapStrategy().canProduce(sourceType, targetType, ctx).isEmpty()
     }
 
-    def 'StreamMapStrategy template composer wraps inner template in map call'() {
+    def 'StreamMapStrategy returns proposal with liftKind STREAM for different element types'() {
         given:
-        final CodeTemplate innerTemplate = { CodeBlock input -> CodeBlock.of('mapPerson($L)', input) }
-        final CodeTemplate composed = { CodeBlock input -> CodeBlock.of('$L.map(e -> $L)', input, innerTemplate.apply(CodeBlock.of('e'))) }
+        final personType = Mock(TypeMirror) { toString() >> 'test.Person' }
+        final dtoType = Mock(TypeMirror) { toString() >> 'test.PersonDTO' }
+        final erasedStream = Mock(TypeMirror)
+        final streamPerson = Mock(DeclaredType) { getTypeArguments() >> [personType] }
+        final streamDto = Mock(DeclaredType) { getTypeArguments() >> [dtoType] }
+        final streamElement = Mock(TypeElement) { asType() >> Mock(TypeMirror) }
+        final ctx = Stub(ResolutionContext) {
+            getTypes() >> types
+            getElements() >> elements
+        }
 
-        expect:
-        composed.apply(CodeBlock.of('stream')).toString() == 'stream.map(e -> mapPerson(e))'
+        elements.getTypeElement('java.util.stream.Stream') >> streamElement
+        types.erasure(_) >> erasedStream
+        types.isSameType(erasedStream, erasedStream) >> true
+
+        when:
+        final result = new StreamMapStrategy().canProduce(streamPerson, streamDto, ctx)
+
+        then:
+        result.present
+        result.get().liftKind == LiftKind.STREAM
+        result.get().liftInnerInput == personType
+        result.get().liftInnerOutput == dtoType
     }
 }

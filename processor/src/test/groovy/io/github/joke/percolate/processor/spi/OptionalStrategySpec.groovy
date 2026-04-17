@@ -1,6 +1,7 @@
 package io.github.joke.percolate.processor.spi
 
 import com.palantir.javapoet.CodeBlock
+import io.github.joke.percolate.processor.graph.LiftKind
 import io.github.joke.percolate.processor.transform.CodeTemplate
 import spock.lang.Specification
 import spock.lang.Tag
@@ -90,12 +91,30 @@ class OptionalStrategySpec extends Specification {
         template.apply(CodeBlock.of('source.getName()')).toString() == 'source.getName().get()'
     }
 
-    def 'OptionalMap template composer wraps inner template'() {
+    def 'OptionalMapStrategy returns proposal with liftKind OPTIONAL for different element types'() {
         given:
-        final CodeTemplate innerTemplate = { CodeBlock input -> CodeBlock.of('mapPerson($L)', input) }
-        final CodeTemplate composed = { CodeBlock input -> CodeBlock.of('$L.map(e -> $L)', input, innerTemplate.apply(CodeBlock.of('e'))) }
+        final fooType = Mock(TypeMirror) { toString() >> 'test.Foo' }
+        final barType = Mock(TypeMirror) { toString() >> 'test.Bar' }
+        final erasedOptional = Mock(TypeMirror)
+        final optionalFoo = Mock(DeclaredType) { getTypeArguments() >> [fooType] }
+        final optionalBar = Mock(DeclaredType) { getTypeArguments() >> [barType] }
+        final optionalElement = Mock(TypeElement) { asType() >> Mock(TypeMirror) }
+        final ctx = Stub(ResolutionContext) {
+            getTypes() >> types
+            getElements() >> elements
+        }
 
-        expect:
-        composed.apply(CodeBlock.of('source.getPerson()')).toString() == 'source.getPerson().map(e -> mapPerson(e))'
+        elements.getTypeElement('java.util.Optional') >> optionalElement
+        types.erasure(_) >> erasedOptional
+        types.isSameType(erasedOptional, erasedOptional) >> true
+
+        when:
+        final result = new OptionalMapStrategy().canProduce(optionalFoo, optionalBar, ctx)
+
+        then:
+        result.present
+        result.get().liftKind == LiftKind.OPTIONAL
+        result.get().liftInnerInput == fooType
+        result.get().liftInnerOutput == barType
     }
 }

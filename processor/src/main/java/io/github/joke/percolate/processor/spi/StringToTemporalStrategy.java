@@ -8,7 +8,6 @@ import io.github.joke.percolate.processor.transform.TransformProposal;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
-import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import javax.lang.model.type.TypeKind;
@@ -55,12 +54,15 @@ public final class StringToTemporalStrategy implements TypeTransformStrategy {
             if (ZONE_BRIDGED_TYPES.contains(targetTypeName)) {
                 template = input -> CodeBlock.of(
                         "$T.parse($L, $T.ofPattern($S)).atZone($T.systemDefault()).toInstant()",
-                        LocalDateTime.class, input, DateTimeFormatter.class, pattern, ZoneId.class);
+                        LocalDateTime.class,
+                        input,
+                        DateTimeFormatter.class,
+                        pattern,
+                        ZoneId.class);
             } else {
                 final var targetClass = resolveClass(targetTypeName);
                 template = input -> CodeBlock.of(
-                        "$T.parse($L, $T.ofPattern($S))",
-                        targetClass, input, DateTimeFormatter.class, pattern);
+                        "$T.parse($L, $T.ofPattern($S))", targetClass, input, DateTimeFormatter.class, pattern);
             }
         } else {
             final var targetClass = resolveClass(targetTypeName);
@@ -72,16 +74,26 @@ public final class StringToTemporalStrategy implements TypeTransformStrategy {
 
     private static Class<?> resolveClass(final String typeName) {
         switch (typeName) {
-            case "java.time.LocalDate": return java.time.LocalDate.class;
-            case "java.time.LocalTime": return java.time.LocalTime.class;
-            case "java.time.LocalDateTime": return java.time.LocalDateTime.class;
-            case "java.time.Instant": return java.time.Instant.class;
-            case "java.time.ZonedDateTime": return java.time.ZonedDateTime.class;
-            case "java.time.OffsetDateTime": return java.time.OffsetDateTime.class;
-            case "java.time.OffsetTime": return java.time.OffsetTime.class;
-            case "java.time.Duration": return java.time.Duration.class;
-            case "java.time.Period": return java.time.Period.class;
-            default: throw new IllegalArgumentException("Unsupported temporal type: " + typeName);
+            case "java.time.LocalDate":
+                return java.time.LocalDate.class;
+            case "java.time.LocalTime":
+                return java.time.LocalTime.class;
+            case "java.time.LocalDateTime":
+                return java.time.LocalDateTime.class;
+            case "java.time.Instant":
+                return java.time.Instant.class;
+            case "java.time.ZonedDateTime":
+                return java.time.ZonedDateTime.class;
+            case "java.time.OffsetDateTime":
+                return java.time.OffsetDateTime.class;
+            case "java.time.OffsetTime":
+                return java.time.OffsetTime.class;
+            case "java.time.Duration":
+                return java.time.Duration.class;
+            case "java.time.Period":
+                return java.time.Period.class;
+            default:
+                throw new IllegalArgumentException("Unsupported temporal type: " + typeName);
         }
     }
 }

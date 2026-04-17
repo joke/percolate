@@ -78,20 +78,20 @@ public final class AnalyzeStage {
         return List.of();
     }
 
-    private MapDirective parseDirective(
-            final Map map, final ExecutableElement method, final List<Diagnostic> errors) {
+    private MapDirective parseDirective(final Map map, final ExecutableElement method, final List<Diagnostic> errors) {
         final java.util.Map<MapOptKey, String> options = new EnumMap<>(MapOptKey.class);
         for (final MapOpt opt : map.options()) {
             if (options.containsKey(opt.key())) {
                 errors.add(new Diagnostic(
                         method,
-                        "Duplicate option key '" + opt.key() + "' on @Map(source=\""
-                                + map.source() + "\", target=\"" + map.target() + "\")",
+                        "Duplicate option key '" + opt.key() + "' on @Map(source=\"" + map.source() + "\", target=\""
+                                + map.target() + "\")",
                         ERROR));
             } else {
                 options.put(opt.key(), opt.value());
             }
         }
-        return new MapDirective(map.source(), map.target(), map.using(), java.util.Collections.unmodifiableMap(options));
+        return new MapDirective(
+                map.source(), map.target(), map.using(), java.util.Collections.unmodifiableMap(options));
     }
 }

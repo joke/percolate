@@ -13,23 +13,33 @@ import com.palantir.javapoet.TypeName;
 import com.palantir.javapoet.TypeSpec;
 import io.github.joke.percolate.processor.Diagnostic;
 import io.github.joke.percolate.processor.StageResult;
-import io.github.joke.percolate.processor.graph.TransformEdge;
+import io.github.joke.percolate.processor.graph.LiftEdge;
+import io.github.joke.percolate.processor.graph.LiftKind;
+import io.github.joke.percolate.processor.graph.NullWidenEdge;
+import io.github.joke.percolate.processor.graph.PropertyNode;
+import io.github.joke.percolate.processor.graph.PropertyReadEdge;
+import io.github.joke.percolate.processor.graph.TargetSlotNode;
+import io.github.joke.percolate.processor.graph.TypeTransformEdge;
+import io.github.joke.percolate.processor.graph.ValueEdge;
+import io.github.joke.percolate.processor.graph.ValueEdgeVisitor;
+import io.github.joke.percolate.processor.graph.ValueNode;
+import io.github.joke.percolate.processor.match.MethodMatching;
+import io.github.joke.percolate.processor.match.ResolvedAssignment;
 import io.github.joke.percolate.processor.model.ConstructorParamAccessor;
 import io.github.joke.percolate.processor.model.FieldReadAccessor;
 import io.github.joke.percolate.processor.model.FieldWriteAccessor;
 import io.github.joke.percolate.processor.model.GetterAccessor;
-import io.github.joke.percolate.processor.model.MappingMethodModel;
 import io.github.joke.percolate.processor.model.ReadAccessor;
-import io.github.joke.percolate.processor.transform.ResolvedMapping;
-import io.github.joke.percolate.processor.transform.ResolvedModel;
 import jakarta.inject.Inject;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Objects;
+import java.util.Map;
 import javax.annotation.processing.Filer;
 import javax.lang.model.element.PackageElement;
+import javax.lang.model.element.TypeElement;
 import lombok.RequiredArgsConstructor;
+import org.jgrapht.GraphPath;
 
 @RequiredArgsConstructor(onConstructor_ = @Inject)
 public final class GenerateStage {
@@ -37,8 +47,8 @@ public final class GenerateStage {
     private final Filer filer;
 
     @SuppressWarnings("NullAway")
-    public StageResult<JavaFile> execute(final ResolvedModel resolvedModel) {
-        final var mapperType = resolvedModel.getMapperType();
+    public StageResult<JavaFile> execute(
+            final TypeElement mapperType, final Map<MethodMatching, List<ResolvedAssignment>> resolvedAssignments) {
         final PackageElement packageElement = (PackageElement) mapperType.getEnclosingElement();
         final var packageName = packageElement.getQualifiedName().toString();
         final var simpleName = mapperType.getSimpleName().toString();
@@ -48,10 +58,10 @@ public final class GenerateStage {
         final TypeSpec.Builder classBuilder =
                 TypeSpec.classBuilder(implName).addModifiers(PUBLIC, FINAL).addSuperinterface(mapperName);
 
-        for (final MappingMethodModel method : resolvedModel.getMethods()) {
-            final var mappings =
-                    Objects.requireNonNull(resolvedModel.getMethodMappings().get(method));
-            classBuilder.addMethod(generateMethod(method, mappings));
+        for (final var entry : resolvedAssignments.entrySet()) {
+            final var matching = entry.getKey();
+            final var assignments = entry.getValue();
+            classBuilder.addMethod(generateMethod(matching, assignments));
         }
 
         final JavaFile javaFile =
@@ -67,7 +77,8 @@ public final class GenerateStage {
         return StageResult.success(javaFile);
     }
 
-    private MethodSpec generateMethod(final MappingMethodModel method, final List<ResolvedMapping> mappings) {
+    private MethodSpec generateMethod(final MethodMatching matching, final List<ResolvedAssignment> assignments) {
+        final var method = matching.getModel();
         final var executableElement = method.getMethod();
         final var sourceParam = executableElement.getParameters().get(0);
         final var sourceParamName = sourceParam.getSimpleName().toString();
@@ -80,71 +91,106 @@ public final class GenerateStage {
                 .returns(returnType)
                 .addParameter(TypeName.get(method.getSourceType()), sourceParamName);
 
-        final boolean allConstructor =
-                mappings.stream().allMatch(m -> m.getTargetAccessor() instanceof ConstructorParamAccessor);
+        final boolean allConstructor = assignments.stream()
+                .allMatch(ra -> targetSlot(ra).getWriteAccessor() instanceof ConstructorParamAccessor);
 
         if (allConstructor) {
-            generateConstructorBody(methodBuilder, mappings, sourceParamName, returnType);
+            generateConstructorBody(methodBuilder, assignments, sourceParamName, returnType);
         } else {
-            generateFieldBody(methodBuilder, mappings, sourceParamName, returnType);
+            generateFieldBody(methodBuilder, assignments, sourceParamName, returnType);
         }
 
         return methodBuilder.build();
     }
 
+    @SuppressWarnings("NullAway")
     private void generateConstructorBody(
             final MethodSpec.Builder methodBuilder,
-            final List<ResolvedMapping> mappings,
+            final List<ResolvedAssignment> assignments,
             final String sourceParamName,
             final TypeName returnType) {
 
-        final List<ResolvedMapping> sorted = new ArrayList<>(mappings);
-        @SuppressWarnings("NullAway") // targetAccessor is ConstructorParamAccessor in allConstructor branch
-        final var comparator =
-                comparingInt((ResolvedMapping m) -> ((ConstructorParamAccessor) m.getTargetAccessor()).getParamIndex());
+        final List<ResolvedAssignment> sorted = new ArrayList<>(assignments);
+        final var comparator = comparingInt((ResolvedAssignment ra) ->
+                ((ConstructorParamAccessor) targetSlot(ra).getWriteAccessor()).getParamIndex());
         sorted.sort(comparator);
 
         final List<CodeBlock> args = new ArrayList<>();
-        for (final ResolvedMapping mapping : sorted) {
-            args.add(generateValueExpression(mapping, sourceParamName));
+        for (final ResolvedAssignment ra : sorted) {
+            args.add(generateValueExpression(ra, sourceParamName));
         }
 
         methodBuilder.addStatement("return new $T($L)", returnType, CodeBlock.join(args, ", "));
     }
 
+    @SuppressWarnings("NullAway")
     private void generateFieldBody(
             final MethodSpec.Builder methodBuilder,
-            final List<ResolvedMapping> mappings,
+            final List<ResolvedAssignment> assignments,
             final String sourceParamName,
             final TypeName returnType) {
 
         methodBuilder.addStatement("$T target = new $T()", returnType, returnType);
 
-        for (final ResolvedMapping mapping : mappings) {
-            if (mapping.getTargetAccessor() instanceof FieldWriteAccessor) {
-                final var valueExpr = generateValueExpression(mapping, sourceParamName);
-                methodBuilder.addStatement("target.$L = $L", mapping.getTargetName(), valueExpr);
+        for (final ResolvedAssignment ra : assignments) {
+            if (targetSlot(ra).getWriteAccessor() instanceof FieldWriteAccessor) {
+                final var targetName = ra.getAssignment().getTargetName();
+                final var valueExpr = generateValueExpression(ra, sourceParamName);
+                methodBuilder.addStatement("target.$L = $L", targetName, valueExpr);
             }
         }
 
         methodBuilder.addStatement("return target");
     }
 
-    @SuppressWarnings("NullAway") // codeTemplate is set by resolvePathTemplates before edges reach GenerateStage
-    private CodeBlock generateValueExpression(final ResolvedMapping mapping, final String sourceParamName) {
-        var result = generateReadChainExpression(mapping.getSourceChain(), sourceParamName);
-        for (final TransformEdge edge : mapping.getEdges()) {
-            result = edge.getCodeTemplate().apply(result);
+    @SuppressWarnings("NullAway") // codeTemplate is set by OptimizePathStage before edges reach GenerateStage
+    private CodeBlock generateValueExpression(final ResolvedAssignment ra, final String sourceParamName) {
+        final GraphPath<ValueNode, ValueEdge> path = ra.getPath();
+        final List<ValueNode> vertices = path.getVertexList();
+        final List<ValueEdge> edges = path.getEdgeList();
+
+        var result = CodeBlock.of("$L", sourceParamName);
+        for (int i = 0; i < edges.size(); i++) {
+            final var nextVertex = vertices.get(i + 1);
+            result = edges.get(i).accept(new EmitVisitor(result, nextVertex));
         }
         return result;
     }
 
-    private static CodeBlock generateReadChainExpression(final List<ReadAccessor> chain, final String sourceParamName) {
-        var expr = CodeBlock.of("$L", sourceParamName);
-        for (final ReadAccessor accessor : chain) {
-            expr = appendAccessor(expr, accessor);
+    /**
+     * Compile-time exhaustive dispatch over {@link ValueEdge} subtypes — adding a fifth subtype
+     * forces a method here, replacing the old {@code instanceof} ladder and its default branch.
+     */
+    @RequiredArgsConstructor
+    private static final class EmitVisitor implements ValueEdgeVisitor<CodeBlock> {
+
+        private final CodeBlock input;
+        private final ValueNode nextVertex;
+
+        @Override
+        public CodeBlock visitPropertyRead(final PropertyReadEdge edge) {
+            return appendAccessor(input, ((PropertyNode) nextVertex).getReadAccessor());
         }
-        return expr;
+
+        @Override
+        @SuppressWarnings("NullAway") // codeTemplate is set by OptimizePathStage before edges reach GenerateStage
+        public CodeBlock visitTypeTransform(final TypeTransformEdge edge) {
+            return edge.getCodeTemplate().apply(input);
+        }
+
+        @Override
+        @SuppressWarnings("NullAway") // codeTemplate is set by OptimizePathStage before edges reach GenerateStage
+        public CodeBlock visitLift(final LiftEdge edge) {
+            if (edge.getKind() == LiftKind.NULL_CHECK) {
+                throw new IllegalStateException("LiftEdge(NULL_CHECK) is not constructed by this refactor: " + edge);
+            }
+            return edge.getCodeTemplate().apply(input);
+        }
+
+        @Override
+        public CodeBlock visitNullWiden(final NullWidenEdge edge) {
+            throw new IllegalStateException("NullWidenEdge is not constructed by this refactor: " + edge);
+        }
     }
 
     private static CodeBlock appendAccessor(final CodeBlock base, final ReadAccessor accessor) {
@@ -156,5 +202,12 @@ public final class GenerateStage {
             return CodeBlock.of("$L.$L", base, accessor.getName());
         }
         return base;
+    }
+
+    @SuppressWarnings("NullAway")
+    private static TargetSlotNode targetSlot(final ResolvedAssignment ra) {
+        final GraphPath<ValueNode, ValueEdge> path = ra.getPath();
+        final List<ValueNode> vertices = path.getVertexList();
+        return (TargetSlotNode) vertices.get(vertices.size() - 1);
     }
 }

@@ -1,17 +1,30 @@
 package io.github.joke.percolate.processor.stage
 
+import com.palantir.javapoet.ClassName
 import com.palantir.javapoet.CodeBlock
-import io.github.joke.percolate.processor.graph.TransformEdge
+import io.github.joke.percolate.processor.graph.LiftEdge
+import io.github.joke.percolate.processor.graph.LiftKind
+import io.github.joke.percolate.processor.graph.NullWidenEdge
+import io.github.joke.percolate.processor.graph.PropertyNode
+import io.github.joke.percolate.processor.graph.PropertyReadEdge
+import io.github.joke.percolate.processor.graph.SourceParamNode
+import io.github.joke.percolate.processor.graph.TargetSlotNode
+import io.github.joke.percolate.processor.graph.TypeTransformEdge
+import io.github.joke.percolate.processor.graph.TypedValueNode
+import io.github.joke.percolate.processor.graph.ValueEdge
+import io.github.joke.percolate.processor.graph.ValueNode
+import io.github.joke.percolate.processor.match.AssignmentOrigin
+import io.github.joke.percolate.processor.match.MappingAssignment
+import io.github.joke.percolate.processor.match.MethodMatching
+import io.github.joke.percolate.processor.match.ResolvedAssignment
 import io.github.joke.percolate.processor.model.ConstructorParamAccessor
 import io.github.joke.percolate.processor.model.FieldReadAccessor
+import io.github.joke.percolate.processor.model.FieldWriteAccessor
 import io.github.joke.percolate.processor.model.GetterAccessor
+import io.github.joke.percolate.processor.model.MappingMethodModel
 import io.github.joke.percolate.processor.model.WriteAccessor
 import io.github.joke.percolate.processor.spi.TypeTransformStrategy
-import io.github.joke.percolate.processor.transform.CodeTemplate
-import io.github.joke.percolate.processor.transform.TransformProposal
-import io.github.joke.percolate.processor.transform.ResolvedMapping
-import io.github.joke.percolate.processor.transform.TransformResolution
-import org.jgrapht.GraphPath
+import org.jgrapht.alg.shortestpath.BFSShortestPath
 import org.jgrapht.graph.DefaultDirectedGraph
 import spock.lang.Specification
 import spock.lang.Tag
@@ -19,121 +32,243 @@ import spock.lang.Tag
 import javax.annotation.processing.Filer
 import javax.lang.model.element.ExecutableElement
 import javax.lang.model.element.Name
+import javax.lang.model.element.PackageElement
+import javax.lang.model.element.TypeElement
 import javax.lang.model.element.VariableElement
 import javax.lang.model.type.TypeMirror
-import java.util.stream.Collectors
+import javax.tools.JavaFileObject
 
 @Tag('unit')
 class GenerateStageSpec extends Specification {
 
-    final filer = Stub(Filer)
+    final filer = Mock(Filer)
     final stage = new GenerateStage(filer)
 
-    def 'stage can be instantiated with Filer'() {
-        expect:
-        stage != null
-    }
-
-    def 'generates value expression by composing code templates from path edges'() {
+    def 'NullWidenEdge on resolved path triggers IllegalStateException'() {
         given:
-        final mapping = resolvedMapping([getterAccessor(getter)], constructorWriter('prop', 0), edges)
+        final stringType = typeMirror('java.lang.String')
+        final orderType  = typeMirror('test.Order')
+        final paramElem  = makeParam('order', orderType)
+        final getter     = new GetterAccessor('name', stringType, methodElement('getName'))
+        final writer     = new ConstructorParamAccessor('name', stringType, Stub(ExecutableElement), 0)
 
-        expect:
-        stage.generateValueExpression(mapping, 'source').toString() == expected
+        final graph = new DefaultDirectedGraph<ValueNode, ValueEdge>(ValueEdge)
+        final src   = new SourceParamNode(paramElem, orderType)
+        final prop  = new PropertyNode('name', stringType, getter)
+        final slot  = new TargetSlotNode('name', stringType, writer)
+        graph.addVertex(src); graph.addVertex(prop); graph.addVertex(slot)
+        graph.addEdge(src, prop, new PropertyReadEdge())
+        graph.addEdge(prop, slot, new NullWidenEdge())
 
-        where:
-        getter       | edges                                   || expected
-        'getMembers' | [stream(), streamMap(), collectToSet()] || 'source.getMembers().stream().map(e -> mapPerson(e)).collect(java.util.stream.Collectors.toSet())'
-        'getPerson'  | [optionalMap()]                         || 'source.getPerson().map(e -> mapPerson(e))'
-        'getName'    | [identity()]                            || 'source.getName()'
-        'getAddress' | [methodCall('mapAddress')]              || 'mapAddress(source.getAddress())'
-        'getValue'   | [optionalWrap()]                        || 'java.util.Optional.of(source.getValue())'
-        'getValue'   | [optionalUnwrap()]                      || 'source.getValue().get()'
+        final path = new BFSShortestPath<>(graph).getPath(src, slot)
+        final assignment = MappingAssignment.of(['name'], 'name', [:], null, AssignmentOrigin.AUTO_MAPPED)
+        final ra = new ResolvedAssignment(assignment, path, null)
+        final matching = methodMatching(orderType, stringType, [paramElem], [assignment])
+
+        when:
+        stage.execute(mapperType('com.example', 'OrderMapper'), [(matching): [ra]])
+
+        then:
+        thrown(IllegalStateException)
     }
 
-    def 'generates field read expression for FieldReadAccessor source'() {
+    def 'LiftEdge(NULL_CHECK) on resolved path triggers IllegalStateException'() {
         given:
-        final accessor = new FieldReadAccessor('firstName', Stub(TypeMirror), Stub(VariableElement))
-        final mapping = resolvedMapping([accessor], constructorWriter('firstName', 0), [identity()])
+        final stringType = typeMirror('java.lang.String')
+        final orderType  = typeMirror('test.Order')
+        final paramElem  = makeParam('order', orderType)
+        final getter     = new GetterAccessor('name', stringType, methodElement('getName'))
+        final writer     = new ConstructorParamAccessor('name', stringType, Stub(ExecutableElement), 0)
 
-        expect:
-        stage.generateValueExpression(mapping, 'source').toString() == 'source.firstName'
+        final graph = new DefaultDirectedGraph<ValueNode, ValueEdge>(ValueEdge)
+        final src   = new SourceParamNode(paramElem, orderType)
+        final prop  = new PropertyNode('name', stringType, getter)
+        final slot  = new TargetSlotNode('name', stringType, writer)
+        graph.addVertex(src); graph.addVertex(prop); graph.addVertex(slot)
+        graph.addEdge(src, prop, new PropertyReadEdge())
+
+        final innerGraph = new DefaultDirectedGraph<ValueNode, ValueEdge>(ValueEdge)
+        final innerA = new TypedValueNode(stringType, 'A')
+        final innerB = new TypedValueNode(stringType, 'B')
+        innerGraph.addVertex(innerA); innerGraph.addVertex(innerB)
+        innerGraph.addEdge(innerA, innerB,
+                new TypeTransformEdge(Stub(TypeTransformStrategy), stringType, stringType, { it }))
+        final innerPath = new BFSShortestPath<>(innerGraph).getPath(innerA, innerB)
+        final liftEdge = new LiftEdge(LiftKind.NULL_CHECK, innerPath)
+        liftEdge.codeTemplate = { it }
+        graph.addEdge(prop, slot, liftEdge)
+
+        final path = new BFSShortestPath<>(graph).getPath(src, slot)
+        final assignment = MappingAssignment.of(['name'], 'name', [:], null, AssignmentOrigin.AUTO_MAPPED)
+        final ra = new ResolvedAssignment(assignment, path, null)
+        final matching = methodMatching(orderType, stringType, [paramElem], [assignment])
+
+        when:
+        stage.execute(mapperType('com.example', 'OrderMapper'), [(matching): [ra]])
+
+        then:
+        thrown(IllegalStateException)
     }
 
-    def 'generates chained read expression for nested accessor chain'() {
+    def 'constructor body is generated for all-ConstructorParamAccessor assignments'() {
         given:
-        final addressGetter = getterAccessor('getAddress')
-        final streetGetter = getterAccessor('getStreet')
-        final mapping = resolvedMapping([addressGetter, streetGetter], constructorWriter('street', 0), [identity()])
+        final stringType = typeMirror('java.lang.String')
+        final orderType  = typeMirror('test.Order')
+        final paramElem  = makeParam('order', orderType)
+        final getter     = new GetterAccessor('name', stringType, methodElement('getName'))
+        final writer     = new ConstructorParamAccessor('name', stringType, Stub(ExecutableElement), 0)
 
-        expect:
-        stage.generateValueExpression(mapping, 'src').toString() == 'src.getAddress().getStreet()'
-    }
+        final graph = new DefaultDirectedGraph<ValueNode, ValueEdge>(ValueEdge)
+        final src   = new SourceParamNode(paramElem, orderType)
+        final prop  = new PropertyNode('name', stringType, getter)
+        final slot  = new TargetSlotNode('name', stringType, writer)
+        graph.addVertex(src); graph.addVertex(prop); graph.addVertex(slot)
+        graph.addEdge(src, prop, new PropertyReadEdge())
+        final xfm = new TypeTransformEdge(
+                Stub(TypeTransformStrategy), stringType, stringType, { input -> input })
+        xfm.resolveTemplate()
+        graph.addEdge(prop, slot, xfm)
 
-    def 'applies transform edges sequentially after building full chain expression'() {
-        given:
-        final streetGetter = getterAccessor('getStreet')
-        final addressGetter = getterAccessor('getAddress')
-        final mapping = resolvedMapping([addressGetter, streetGetter], constructorWriter('out', 0),
-                [methodCall('normalize')])
+        final path = new BFSShortestPath<>(graph).getPath(src, slot)
+        final assignment = MappingAssignment.of(['name'], 'name', [:], null, AssignmentOrigin.AUTO_MAPPED)
+        final ra = new ResolvedAssignment(assignment, path, null)
+        final matching = methodMatching(orderType, stringType, [paramElem], [assignment])
 
-        expect:
-        stage.generateValueExpression(mapping, 'src').toString() == 'normalize(src.getAddress().getStreet())'
-    }
-
-    private GetterAccessor getterAccessor(final String methodName) {
-        final method = Stub(ExecutableElement) {
-            getSimpleName() >> Stub(Name) { toString() >> methodName }
+        and:
+        final captured = new StringWriter()
+        final fileObj = Stub(JavaFileObject) {
+            openWriter() >> captured
         }
-        return new GetterAccessor(methodName, Stub(TypeMirror), method)
+        filer.createSourceFile(_, _) >> fileObj
+
+        when:
+        final result = stage.execute(mapperType('com.example', 'OrderMapper'), [(matching): [ra]])
+
+        then:
+        result.isSuccess()
+        captured.toString().contains('return new')
+        captured.toString().contains('order.getName()')
     }
 
-    private WriteAccessor constructorWriter(final String name, final int paramIndex) {
-        return new ConstructorParamAccessor(name, Stub(TypeMirror), Stub(ExecutableElement), paramIndex)
+    def 'field body is generated when target slot is FieldWriteAccessor'() {
+        given:
+        final stringType = typeMirror('java.lang.String')
+        final orderType  = typeMirror('test.Order')
+        final paramElem  = makeParam('order', orderType)
+        final getter     = new GetterAccessor('name', stringType, methodElement('getName'))
+        final writer     = new FieldWriteAccessor('name', stringType, Stub(VariableElement))
+
+        final graph = new DefaultDirectedGraph<ValueNode, ValueEdge>(ValueEdge)
+        final src   = new SourceParamNode(paramElem, orderType)
+        final prop  = new PropertyNode('name', stringType, getter)
+        final slot  = new TargetSlotNode('name', stringType, writer)
+        graph.addVertex(src); graph.addVertex(prop); graph.addVertex(slot)
+        graph.addEdge(src, prop, new PropertyReadEdge())
+        final xfm = new TypeTransformEdge(
+                Stub(TypeTransformStrategy), stringType, stringType, { input -> input })
+        xfm.resolveTemplate()
+        graph.addEdge(prop, slot, xfm)
+
+        final path = new BFSShortestPath<>(graph).getPath(src, slot)
+        final assignment = MappingAssignment.of(['name'], 'name', [:], null, AssignmentOrigin.AUTO_MAPPED)
+        final ra = new ResolvedAssignment(assignment, path, null)
+        final matching = methodMatching(orderType, stringType, [paramElem], [assignment])
+
+        and:
+        final captured = new StringWriter()
+        final fileObj = Stub(JavaFileObject) {
+            openWriter() >> captured
+        }
+        filer.createSourceFile(_, _) >> fileObj
+
+        when:
+        final result = stage.execute(mapperType('com.example', 'OrderMapper'), [(matching): [ra]])
+
+        then:
+        result.isSuccess()
+        captured.toString().contains('target.name = order.getName()')
+        captured.toString().contains('return target')
     }
 
-    private ResolvedMapping resolvedMapping(
-            final List chain, final WriteAccessor writer, final List<TransformEdge> edges) {
-        final path = Stub(GraphPath) { getEdgeList() >> edges }
-        final resolution = new TransformResolution(new DefaultDirectedGraph(TransformEdge), path)
-        return new ResolvedMapping(chain, 'prop', writer, writer.name, resolution, null, [:], '', null)
+    def 'FieldReadAccessor in chain emits field-access syntax'() {
+        given:
+        final stringType = typeMirror('java.lang.String')
+        final orderType  = typeMirror('test.Order')
+        final paramElem  = makeParam('order', orderType)
+        final reader     = new FieldReadAccessor('name', stringType, Stub(VariableElement))
+        final writer     = new ConstructorParamAccessor('name', stringType, Stub(ExecutableElement), 0)
+
+        final graph = new DefaultDirectedGraph<ValueNode, ValueEdge>(ValueEdge)
+        final src   = new SourceParamNode(paramElem, orderType)
+        final prop  = new PropertyNode('name', stringType, reader)
+        final slot  = new TargetSlotNode('name', stringType, writer)
+        graph.addVertex(src); graph.addVertex(prop); graph.addVertex(slot)
+        graph.addEdge(src, prop, new PropertyReadEdge())
+        final xfm = new TypeTransformEdge(
+                Stub(TypeTransformStrategy), stringType, stringType, { input -> input })
+        xfm.resolveTemplate()
+        graph.addEdge(prop, slot, xfm)
+
+        final path = new BFSShortestPath<>(graph).getPath(src, slot)
+        final assignment = MappingAssignment.of(['name'], 'name', [:], null, AssignmentOrigin.AUTO_MAPPED)
+        final ra = new ResolvedAssignment(assignment, path, null)
+        final matching = methodMatching(orderType, stringType, [paramElem], [assignment])
+
+        and:
+        final captured = new StringWriter()
+        final fileObj = Stub(JavaFileObject) {
+            openWriter() >> captured
+        }
+        filer.createSourceFile(_, _) >> fileObj
+
+        when:
+        stage.execute(mapperType('com.example', 'OrderMapper'), [(matching): [ra]])
+
+        then:
+        captured.toString().contains('order.name')
     }
 
-    private TransformEdge edge(final CodeTemplate template) {
-        final edge = new TransformEdge(Stub(TypeTransformStrategy), Stub(TransformProposal))
-        edge.resolveTemplate(template)
-        return edge
+    private MethodMatching methodMatching(
+            final TypeMirror sourceType,
+            final TypeMirror targetType,
+            final List<VariableElement> params,
+            final List<MappingAssignment> assignments) {
+        final method = Stub(ExecutableElement) {
+            getSimpleName() >> Stub(Name) { toString() >> 'map' }
+            getParameters() >> params
+        }
+        final model = new MappingMethodModel(method, sourceType, targetType, [])
+        new MethodMatching(method, model, assignments)
     }
 
-    private TransformEdge stream() {
-        return edge({ CodeBlock input -> CodeBlock.of('$L.stream()', input) })
+    private VariableElement makeParam(final String name, final TypeMirror type) {
+        Stub(VariableElement) {
+            getSimpleName() >> Stub(Name) { toString() >> name }
+            asType() >> type
+        }
     }
 
-    private TransformEdge streamMap() {
-        return edge({ CodeBlock input -> CodeBlock.of('$L.map(e -> mapPerson(e))', input) })
+    private ExecutableElement methodElement(final String name) {
+        Stub(ExecutableElement) {
+            getSimpleName() >> Stub(Name) { toString() >> name }
+        }
     }
 
-    private TransformEdge collectToSet() {
-        return edge({ CodeBlock input -> CodeBlock.of('$L.collect($T.toSet())', input, Collectors) })
+    private TypeElement mapperType(final String packageName, final String simpleName) {
+        final pkg = Stub(PackageElement) {
+            getQualifiedName() >> Stub(Name) { toString() >> packageName }
+        }
+        Stub(TypeElement) {
+            getEnclosingElement() >> pkg
+            getSimpleName() >> Stub(Name) { toString() >> simpleName }
+            getQualifiedName() >> Stub(Name) { toString() >> "${packageName}.${simpleName}".toString() }
+        }
     }
 
-    private TransformEdge optionalMap() {
-        return edge({ CodeBlock input -> CodeBlock.of('$L.map(e -> mapPerson(e))', input) })
-    }
-
-    private TransformEdge identity() {
-        return edge({ CodeBlock input -> input })
-    }
-
-    private TransformEdge optionalWrap() {
-        return edge({ CodeBlock input -> CodeBlock.of('$T.of($L)', Optional, input) })
-    }
-
-    private TransformEdge optionalUnwrap() {
-        return edge({ CodeBlock input -> CodeBlock.of('$L.get()', input) })
-    }
-
-    private TransformEdge methodCall(final String method) {
-        return edge({ CodeBlock input -> CodeBlock.of(method + '($L)', input) })
+    private TypeMirror typeMirror(final String name) {
+        Stub(TypeMirror) {
+            toString() >> name
+            accept(_, _) >> ClassName.get('java.lang', 'Object')
+        }
     }
 }

@@ -37,10 +37,23 @@ public class ErrorMessages {
             final TypeElement mapperType,
             final String using) {
         final var sb = new StringBuilder();
-        sb.append("Cannot map '").append(sourceName).append("' (").append(sourceType)
-                .append(") → '").append(targetName).append("' (").append(targetType).append(")")
-                .append(" in method '").append(method.getMethod()).append("' of ").append(mapperType)
-                .append(": no mapping method found for ").append(sourceType).append(" → ").append(targetType);
+        sb.append("Cannot map '")
+                .append(sourceName)
+                .append("' (")
+                .append(sourceType)
+                .append(") → '")
+                .append(targetName)
+                .append("' (")
+                .append(targetType)
+                .append(")")
+                .append(" in method '")
+                .append(method.getMethod())
+                .append("' of ")
+                .append(mapperType)
+                .append(": no mapping method found for ")
+                .append(sourceType)
+                .append(" → ")
+                .append(targetType);
         if (!using.isEmpty()) {
             sb.append(" (using = \"").append(using).append("\")");
         }
@@ -48,11 +61,13 @@ public class ErrorMessages {
     }
 
     public static String ambiguousMethodCandidates(
-            final String sourceName,
-            final String targetName,
-            final List<String> candidateDescriptions) {
+            final String sourceName, final String targetName, final List<String> candidateDescriptions) {
         final var sb = new StringBuilder();
-        sb.append("Ambiguous mapping for '").append(sourceName).append("' → '").append(targetName).append("'.\n");
+        sb.append("Ambiguous mapping for '")
+                .append(sourceName)
+                .append("' → '")
+                .append(targetName)
+                .append("'.\n");
         sb.append("  Multiple methods match and none is more specific:\n");
         for (final var desc : candidateDescriptions) {
             sb.append("    - ").append(desc).append('\n');
@@ -109,8 +124,7 @@ public class ErrorMessages {
     }
 
     public static String dateFormatOnTemporalWithoutAccessor(
-            final String sourceName, final String targetName, final String typeName,
-            final MappingMethodModel method) {
+            final String sourceName, final String targetName, final String typeName, final MappingMethodModel method) {
         return "Option DATE_FORMAT on mapping '" + sourceName + "' → '" + targetName
                 + "' in method '" + method.getMethod()
                 + "': DATE_FORMAT is not supported for " + typeName
@@ -161,7 +175,7 @@ public class ErrorMessages {
         return Optional.of(String.join(", ", suggestions));
     }
 
-    static int levenshtein(final String a, final String b) {
+    public static int levenshtein(final String a, final String b) {
         final int m = a.length();
         final int n = b.length();
         final int[] prev = new int[n + 1];

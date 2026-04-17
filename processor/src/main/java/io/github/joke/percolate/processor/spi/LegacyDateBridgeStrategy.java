@@ -38,57 +38,44 @@ public final class LegacyDateBridgeStrategy implements TypeTransformStrategy {
             final var instantType = resolveType(JAVA_TIME_INSTANT, ctx);
             if (instantType == null) return Optional.empty();
             return Optional.of(new TransformProposal(
-                    sourceType, instantType,
-                    input -> CodeBlock.of("$L.toInstant()", input),
-                    this));
+                    sourceType, instantType, input -> CodeBlock.of("$L.toInstant()", input), this));
         }
         if (JAVA_SQL_DATE.equals(src)) {
             final var localDateType = resolveType(JAVA_TIME_LOCAL_DATE, ctx);
             if (localDateType == null) return Optional.empty();
             return Optional.of(new TransformProposal(
-                    sourceType, localDateType,
-                    input -> CodeBlock.of("$L.toLocalDate()", input),
-                    this));
+                    sourceType, localDateType, input -> CodeBlock.of("$L.toLocalDate()", input), this));
         }
         if (JAVA_SQL_TIME.equals(src)) {
             final var localTimeType = resolveType(JAVA_TIME_LOCAL_TIME, ctx);
             if (localTimeType == null) return Optional.empty();
             return Optional.of(new TransformProposal(
-                    sourceType, localTimeType,
-                    input -> CodeBlock.of("$L.toLocalTime()", input),
-                    this));
+                    sourceType, localTimeType, input -> CodeBlock.of("$L.toLocalTime()", input), this));
         }
         if (JAVA_SQL_TIMESTAMP.equals(src)) {
             final var instantType = resolveType(JAVA_TIME_INSTANT, ctx);
             if (instantType == null) return Optional.empty();
             return Optional.of(new TransformProposal(
-                    sourceType, instantType,
-                    input -> CodeBlock.of("$L.toInstant()", input),
-                    this));
+                    sourceType, instantType, input -> CodeBlock.of("$L.toInstant()", input), this));
         }
 
         // Modern → legacy: strict pair matching to avoid speculatively adding legacy type nodes.
         if (JAVA_TIME_INSTANT.equals(src) && JAVA_UTIL_DATE.equals(tgt)) {
             return Optional.of(new TransformProposal(
-                    sourceType, targetType,
-                    input -> CodeBlock.of("$T.from($L)", Date.class, input),
-                    this));
+                    sourceType, targetType, input -> CodeBlock.of("$T.from($L)", Date.class, input), this));
         }
         if (JAVA_TIME_LOCAL_DATE.equals(src) && JAVA_SQL_DATE.equals(tgt)) {
             return Optional.of(new TransformProposal(
-                    sourceType, targetType,
-                    input -> CodeBlock.of("$T.valueOf($L)", java.sql.Date.class, input),
-                    this));
+                    sourceType, targetType, input -> CodeBlock.of("$T.valueOf($L)", java.sql.Date.class, input), this));
         }
         if (JAVA_TIME_LOCAL_TIME.equals(src) && JAVA_SQL_TIME.equals(tgt)) {
             return Optional.of(new TransformProposal(
-                    sourceType, targetType,
-                    input -> CodeBlock.of("$T.valueOf($L)", java.sql.Time.class, input),
-                    this));
+                    sourceType, targetType, input -> CodeBlock.of("$T.valueOf($L)", java.sql.Time.class, input), this));
         }
         if (JAVA_TIME_INSTANT.equals(src) && JAVA_SQL_TIMESTAMP.equals(tgt)) {
             return Optional.of(new TransformProposal(
-                    sourceType, targetType,
+                    sourceType,
+                    targetType,
                     input -> CodeBlock.of("$T.from($L)", java.sql.Timestamp.class, input),
                     this));
         }

@@ -32,7 +32,8 @@ public final class MethodCallStrategy implements TypeTransformStrategy {
                 .filter(m -> m.getReturnType().getKind() != TypeKind.VOID)
                 .filter(m -> !Objects.equals(m, ctx.getCurrentMethod()))
                 .filter(m -> using.isEmpty() || m.getSimpleName().toString().equals(using))
-                .filter(m -> types.isAssignable(sourceType, m.getParameters().get(0).asType()))
+                .filter(m ->
+                        types.isAssignable(sourceType, m.getParameters().get(0).asType()))
                 .filter(m -> types.isAssignable(m.getReturnType(), targetType))
                 .collect(toUnmodifiableList());
 
@@ -44,9 +45,8 @@ public final class MethodCallStrategy implements TypeTransformStrategy {
         final List<ExecutableElement> bestByParam = findMostSpecificByParam(candidates, types);
 
         // 3.3 Return type tiebreaker when param specificity is equal
-        final List<ExecutableElement> best = bestByParam.size() > 1
-                ? findMostSpecificByReturn(bestByParam, types)
-                : bestByParam;
+        final List<ExecutableElement> best =
+                bestByParam.size() > 1 ? findMostSpecificByReturn(bestByParam, types) : bestByParam;
 
         // 3.4 Single winner found
         if (best.size() == 1) {
@@ -55,7 +55,7 @@ public final class MethodCallStrategy implements TypeTransformStrategy {
                     sourceType, targetType, input -> CodeBlock.of("$L($L)", m.getSimpleName(), input), this));
         }
 
-        // 3.4 Ambiguous (incomparable param types) — return empty; ambiguity detected by ResolveTransformsStage
+        // 3.4 Ambiguous (incomparable param types) — return empty; ambiguity detected by ValidateMatchingStage
         return Optional.empty();
     }
 
@@ -67,12 +67,14 @@ public final class MethodCallStrategy implements TypeTransformStrategy {
     private static List<ExecutableElement> findMostSpecificByParam(
             final List<ExecutableElement> candidates, final Types types) {
         return candidates.stream()
-                .filter(a -> candidates.stream().noneMatch(b ->
-                        b != a
-                        && types.isAssignable(
-                                b.getParameters().get(0).asType(), a.getParameters().get(0).asType())
-                        && !types.isAssignable(
-                                a.getParameters().get(0).asType(), b.getParameters().get(0).asType())))
+                .filter(a -> candidates.stream()
+                        .noneMatch(b -> b != a
+                                && types.isAssignable(
+                                        b.getParameters().get(0).asType(),
+                                        a.getParameters().get(0).asType())
+                                && !types.isAssignable(
+                                        a.getParameters().get(0).asType(),
+                                        b.getParameters().get(0).asType())))
                 .collect(toUnmodifiableList());
     }
 
@@ -83,10 +85,10 @@ public final class MethodCallStrategy implements TypeTransformStrategy {
     private static List<ExecutableElement> findMostSpecificByReturn(
             final List<ExecutableElement> candidates, final Types types) {
         return candidates.stream()
-                .filter(a -> candidates.stream().noneMatch(b ->
-                        b != a
-                        && types.isAssignable(b.getReturnType(), a.getReturnType())
-                        && !types.isAssignable(a.getReturnType(), b.getReturnType())))
+                .filter(a -> candidates.stream()
+                        .noneMatch(b -> b != a
+                                && types.isAssignable(b.getReturnType(), a.getReturnType())
+                                && !types.isAssignable(a.getReturnType(), b.getReturnType())))
                 .collect(toUnmodifiableList());
     }
 }

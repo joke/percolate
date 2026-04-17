@@ -3,100 +3,88 @@
 ## Purpose
 
 Defines the ResolveTransforms stage that accepts a symbolic property graph (name-only nodes) and produces a fully resolved model by sequentially resolving `AccessEdge` source chains via property discovery and bridging type gaps between source and target properties using BFS expansion with registered `TypeTransformStrategy` implementations, producing a `ResolvedModel` with per-method accessor chains and `GraphPath` chains for code generation.
-
 ## Requirements
+### Requirement: ResolvePathStage finds a GraphPath per assignment
 
-### Requirement: ResolveTransforms stage resolves type-gap transforms
-The `ResolveTransforms` stage SHALL accept a symbolic property graph (name-only nodes with `AccessEdge` and `MappingEdge` connections) and produce a fully resolved model. For each method's symbolic graph, the stage SHALL:
-1. Resolve each `AccessEdge` by discovering the accessor (getter/field) on the parent node's resolved type, determining the child node's type
-2. Resolve each `MappingEdge` by constructing a JGraphT `DefaultDirectedGraph<TypeNode, TransformEdge>` and running BFS expansion with registered `TypeTransformStrategy` implementations to find a path from the resolved source type to the resolved target type. During BFS expansion, `TransformEdge` instances SHALL carry the raw `TransformProposal` without resolving code templates. After `BFSShortestPath` selects the shortest path, the stage SHALL resolve code templates only for edges on the selected path.
-3. Discover target property write accessors via `TargetPropertyDiscovery` SPI
+The `ResolvePathStage` (renamed from `ResolveTransformsStage`) SHALL accept the `Map<MethodMatching, ValueGraph>` produced by `BuildValueGraphStage` and produce `Map<MethodMatching, List<ResolvedAssignment>>`. For each `MappingAssignment` on each `MethodMatching`, the stage SHALL run `BFSShortestPath` (or equivalent) over that method's `ValueGraph` from the `SourceParamNode` for the assignment's source parameter to the `TargetSlotNode` for the assignment's target name. The result for each assignment SHALL be a `ResolvedAssignment` carrying:
 
-The `ResolutionContext` passed to type transform strategies SHALL contain the mapper's `TypeElement`, the current method's `ExecutableElement`, and the `Types` and `Elements` utilities. The BFS loop SHALL terminate after at most 30 iterations. The stage SHALL annotate unresolved edges with failure context rather than producing errors directly.
+- `assignment: MappingAssignment` — the source decision
+- `path: @Nullable GraphPath<ValueNode, ValueEdge>` — the shortest path, or `null` if no path was found
+- `failure: @Nullable ResolutionFailure` — populated when `path` is null, with context for `ValidateResolutionStage`
 
-#### Scenario: Flat property resolves accessor and type transform
-- **WHEN** symbolic graph has `SourceRootNode("order") → AccessEdge → SourcePropertyNode("name") → MappingEdge → TargetPropertyNode("name")` and `Order` has getter `getName()` returning `String` and target property `name` is type `String`
-- **THEN** the stage SHALL resolve the access edge to a `GetterAccessor`, resolve the mapping edge via `DirectAssignableStrategy`, and produce a resolved mapping with the accessor and single-edge transform path with resolved `CodeTemplate`
+The stage SHALL NOT walk access chains on source types, construct `ReadAccessor`s, or resolve code templates — those responsibilities live in `BuildValueGraphStage` (chain walking) and `OptimizePathStage` (templates). The stage SHALL NOT emit `Diagnostic`s; resolution failures are annotated on the `ResolvedAssignment` and surface via `ValidateResolutionStage`.
 
-#### Scenario: Nested chain resolves each segment sequentially
-- **WHEN** symbolic graph has chain `SourceRootNode → "customer" → "address"` and `Order.getCustomer()` returns `Customer` and `Customer.getAddress()` returns `Address`
-- **THEN** the stage SHALL resolve `"customer"` on `Order` yielding `Customer`, then resolve `"address"` on `Customer` yielding `Address`, producing an accessor chain `[GetterAccessor(customer), GetterAccessor(address)]`
+#### Scenario: Flat property resolves to a short path
 
-#### Scenario: Non-assignable types with sibling method resolve via MethodCallStrategy
-- **WHEN** a mapping edge connects resolved source type `Address` to target type `AddressDTO`, and the mapper has a sibling method `mapAddress(Address): AddressDTO`
-- **THEN** `MethodCallStrategy` SHALL discover the method and `BFSShortestPath` SHALL find a single-edge path with method call code template resolved after path selection
+- **WHEN** a `ValueGraph` has `SourceParamNode("order") --PropertyReadEdge--> PropertyNode("name", String) --TypeTransformEdge(DirectAssignable)--> TargetSlotNode("name", String)`
+- **THEN** `ResolvePathStage` SHALL emit a `ResolvedAssignment` whose `path.getEdgeList()` contains exactly `[PropertyReadEdge, TypeTransformEdge]` in that order
 
-#### Scenario: Container types resolve via multi-step strategy chain
-- **WHEN** a mapping edge connects resolved source type `List<Person>` to target type `Set<PersonDTO>`, and the mapper has method `PersonDTO map(Person)`
-- **THEN** strategies SHALL contribute edges producing a path: `List<Person>` → `Stream<Person>` → `Stream<PersonDTO>` → `Set<PersonDTO>`, with code templates resolved only for these path edges after BFS completes
+#### Scenario: Nested chain resolves through reused PropertyNodes
 
-#### Scenario: Dead-end edges do not trigger code template resolution
-- **WHEN** BFS expansion adds edges that do not appear on the final shortest path
-- **THEN** the stage SHALL NOT invoke `resolveCodeTemplate` for those edges
+- **WHEN** two assignments in the same method read `customer.name` and `customer.age`, and the `ValueGraph` shares one `PropertyNode("customer")`
+- **THEN** each assignment's `path.getEdgeList()` SHALL begin with the shared `PropertyReadEdge` to the `customer` node, followed by the assignment-specific segments
 
-#### Scenario: Unresolved access edge annotated with failure context
-- **WHEN** resolving access edge for segment `"adress"` on type `Customer` and no property `"adress"` exists
-- **THEN** the stage SHALL annotate the failure with segment name, segment index, full chain, searched type, and available property names — without producing an error
+#### Scenario: Container mapping produces multi-edge path through TypedValueNodes
 
-#### Scenario: Unresolved type gap annotated for validation
-- **WHEN** no strategy can bridge source type `Foo` to target type `Bar`
-- **THEN** the mapping SHALL be marked unresolved with source and target types recorded
+- **WHEN** a mapping resolves `List<Person>` to `Set<PersonDTO>` via stream expansion
+- **THEN** `ResolvePathStage` SHALL emit a path whose edges are `[..., TypeTransformEdge(StreamFromCollection), TypeTransformEdge(StreamMap), TypeTransformEdge(CollectToSet)]` routed through `TypedValueNode(Stream<Person>)` and `TypedValueNode(Stream<PersonDTO>)`
 
-### Requirement: Transform chain model per mapping edge
-Each resolved mapping SHALL carry a `GraphPath<TypeNode, TransformEdge>` representing the ordered sequence of transformation steps from source type to target type. Each `TransformEdge` in the path SHALL carry a `CodeTemplate` for code generation. Paths MAY be single-edge (direct, method call) or multi-edge (container mapping).
+#### Scenario: No path produces ResolvedAssignment with null path and failure context
 
-#### Scenario: DIRECT transform produces single-edge path
-- **WHEN** a mapping resolves via `DirectAssignableStrategy`
-- **THEN** the path SHALL contain one `TransformEdge` with identity code template
+- **WHEN** no path exists between the source and target for an assignment
+- **THEN** `ResolvePathStage` SHALL emit a `ResolvedAssignment` with `path = null` and a `ResolutionFailure` carrying the source `TypeMirror`, target `TypeMirror`, and assignment identity — but SHALL NOT emit a `Diagnostic` itself
 
-#### Scenario: Container transform produces multi-edge path
-- **WHEN** `List<Person>` -> `Set<PersonDTO>` resolves via stream expansion
-- **THEN** the path SHALL contain three `TransformEdge`s: StreamFromCollection, StreamMap, CollectToSet
+#### Scenario: Code templates remain null after ResolvePathStage
 
-### Requirement: ResolveTransforms produces a ResolvedModel
-The `ResolveTransforms` stage SHALL produce a `ResolvedModel` containing per-method resolved mappings. Each resolved mapping SHALL carry: the source accessor chain (`List<ReadAccessor>` for chain segments), the target `WriteAccessor`, and the resolved `GraphPath<TypeNode, TransformEdge>` for the type transform. The `ResolvedModel` SHALL also carry the `TypeElement` mapper type and method metadata.
+- **WHEN** `ResolvePathStage` emits a `ResolvedAssignment` with a non-null `path`
+- **THEN** every `TypeTransformEdge` and `LiftEdge` on `path` SHALL still have `codeTemplate == null` until `OptimizePathStage` runs
 
-#### Scenario: Single-segment source produces single-element accessor chain
-- **WHEN** `@Map(source = "name", target = "name")` resolves with getter `getName()`
-- **THEN** the resolved mapping's source accessor chain SHALL contain one `GetterAccessor`
+### Requirement: ResolvedAssignment replaces ResolvedMapping
 
-#### Scenario: Multi-segment source produces multi-element accessor chain
-- **WHEN** `@Map(source = "customer.address", target = "addr")` resolves with `getCustomer()` and `getAddress()`
-- **THEN** the resolved mapping's source accessor chain SHALL contain `[GetterAccessor(customer), GetterAccessor(address)]`
+`ResolvedAssignment` SHALL be the per-assignment output of `ResolvePathStage`. It SHALL carry the `MappingAssignment` (for origin, options, `using`), a `@Nullable GraphPath<ValueNode, ValueEdge>` path, and a `@Nullable ResolutionFailure`. It SHALL NOT carry separate `List<ReadAccessor> sourceChain` fields — the read chain is recoverable from the `path` by filtering for `PropertyReadEdge`s.
 
-#### Scenario: Multi-method mapper produces per-method resolved mappings
-- **WHEN** a mapper has methods `map(Order): OrderDTO` and `mapAddress(Address): AddressDTO`
-- **THEN** the `ResolvedModel` SHALL contain resolved mappings for each method independently
+- `isResolved()` SHALL return `true` iff `failure == null && path != null`.
+- `getReadChainEdges()` SHALL return the sub-list of `path.getEdgeList()` whose edges are `PropertyReadEdge`, preserving order — provided as a convenience for `GenerateStage`.
 
-### Requirement: TransformResolution captures full exploration graph alongside winning path
-A `TransformResolution` value class SHALL hold:
-- `explorationGraph`: the complete `DefaultDirectedGraph<TypeNode, TransformEdge>` built during BFS expansion, including all candidate edges
-- `path`: `@Nullable GraphPath<TypeNode, TransformEdge>` — the shortest path found by `BFSShortestPath`, or `null` if no path was found
+#### Scenario: isResolved mirrors path presence
 
-`ResolveTransformsStage.resolveTransformPath()` SHALL return `@Nullable TransformResolution` instead of `@Nullable GraphPath`. When no path is found the method SHALL still return a `TransformResolution` with `path = null` and the exploration graph as-is, so that debug output can show what was explored even for failed resolutions. When no edges were explored at all (e.g., identical types handled before BFS), the method SHALL return `null`.
+- **WHEN** a `ResolvedAssignment` has `path != null` and `failure == null`
+- **THEN** `isResolved()` SHALL return `true`
 
-#### Scenario: Successful resolution includes full graph
-- **WHEN** BFS expansion explores 5 edges and finds a 2-edge shortest path
-- **THEN** `TransformResolution.getExplorationGraph()` SHALL contain all 5 edges and `getPath()` SHALL contain the 2-edge path
+#### Scenario: Read chain is derived from PropertyReadEdges
 
-#### Scenario: Failed resolution preserves exploration graph
-- **WHEN** BFS expansion explores 3 edges but no path connects source to target
-- **THEN** `resolveTransformPath` SHALL return a `TransformResolution` with `path = null` and `explorationGraph` containing all 3 explored edges
+- **WHEN** a `ResolvedAssignment`'s path has edges `[PropertyReadEdge(customer), PropertyReadEdge(name), TypeTransformEdge(DirectAssignable)]`
+- **THEN** `getReadChainEdges()` SHALL return the first two edges in order
 
-### Requirement: ResolvedMapping carries transform resolution context
-`ResolvedMapping` SHALL hold a `@Nullable TransformResolution` field instead of (or in addition to) the bare `@Nullable GraphPath<TypeNode, TransformEdge>`. The `getEdges()` method SHALL continue to return the edge list from the path (via `TransformResolution.getPath()`) for backward compatibility with `ValidateTransformsStage` and `GenerateStage`. The `isResolved()` method SHALL check that `failure == null` and `transformResolution != null` and `transformResolution.getPath() != null`.
+### Requirement: TransformResolution retains exploration graph for debug, but is per-assignment
 
-#### Scenario: ResolvedMapping exposes edges from TransformResolution
-- **WHEN** a `ResolvedMapping` has a `TransformResolution` with a 2-edge path
-- **THEN** `getEdges()` SHALL return the 2 edges from the path
+The previous `TransformResolution` type carried a per-mapping exploration graph alongside the winning path; with a single shared `ValueGraph` per method, the exploration "graph" for each assignment is simply the reachable sub-graph from its `SourceParamNode`. `TransformResolution` SHALL be either:
 
-#### Scenario: ResolvedMapping exposes exploration graph for debug
-- **WHEN** a debug stage accesses `ResolvedMapping.getTransformResolution()`
-- **THEN** it SHALL obtain the full `TransformResolution` including the exploration graph
+- removed (replaced by the combination of `ResolvedAssignment.path` and the method's `ValueGraph`), **or**
+- retained as a thin accessor record exposing `(methodValueGraph, assignmentPath)` for `DumpResolvedPathsStage`.
 
-### Requirement: Unresolvable type gaps are left unresolved for ValidateTransforms
-When no strategy contributes new edges and no path exists from source to target, the `ResolveTransforms` stage SHALL mark the mapping as unresolved rather than failing immediately. The `ValidateTransforms` stage is responsible for producing error diagnostics.
+The decision SHALL NOT surface in `GenerateStage`. `GenerateStage` SHALL consume `ResolvedAssignment` directly without needing `TransformResolution`.
 
-#### Scenario: No strategy matches for type gap
-- **WHEN** resolved source type `Foo` maps to target type `Bar` and no strategy can bridge the gap
-- **THEN** the resolved mapping SHALL be marked unresolved with the source and target types recorded for diagnostic purposes
+#### Scenario: GenerateStage does not reference TransformResolution
+
+- **WHEN** `GenerateStage` emits code for a resolved assignment
+- **THEN** it SHALL read the path and edges from `ResolvedAssignment.getPath()` without going through `TransformResolution`
+
+#### Scenario: Debug dump stage surfaces exploration context
+
+- **WHEN** `DumpResolvedPathsStage` writes a debug artifact for a resolved assignment
+- **THEN** it SHALL have access to both the `ValueGraph` (for exploration context) and the resolved `GraphPath` (for the winning trace)
+
+### Requirement: 30-iteration exploration budget moves to BuildValueGraphStage
+
+The 30-iteration budget that previously lived in `ResolveTransformsStage` BFS expansion SHALL now live in `BuildValueGraphStage`'s edge-proposal loop (the loop that asks registered strategies for new edges until fixpoint). `ResolvePathStage` SHALL NOT have an iteration budget — shortest-path search over a finite graph terminates naturally.
+
+#### Scenario: Edge proposal fixpoint bounded to 30 iterations
+
+- **WHEN** strategies keep contributing new edges to the `ValueGraph`
+- **THEN** `BuildValueGraphStage` SHALL stop after 30 iterations and treat any remaining gaps as unresolved-for-validation
+
+#### Scenario: ResolvePathStage has no iteration cap
+
+- **WHEN** `ResolvePathStage` runs `BFSShortestPath` on a large `ValueGraph`
+- **THEN** it SHALL run the algorithm to completion without applying an external iteration cap
