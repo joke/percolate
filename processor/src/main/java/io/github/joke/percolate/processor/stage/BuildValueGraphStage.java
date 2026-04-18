@@ -38,7 +38,6 @@ import javax.lang.model.type.TypeMirror;
 import javax.lang.model.util.Elements;
 import javax.lang.model.util.Types;
 import lombok.RequiredArgsConstructor;
-import org.jgrapht.alg.cycle.CycleDetector;
 import org.jgrapht.alg.shortestpath.BFSShortestPath;
 import org.jgrapht.graph.DefaultDirectedGraph;
 
@@ -53,8 +52,13 @@ import org.jgrapht.graph.DefaultDirectedGraph;
  *       {@link PropertyNode}s via {@link SourcePropertyDiscovery}.</li>
  *   <li>Create one {@link TargetSlotNode} per assignment via {@link TargetPropertyDiscovery}.</li>
  *   <li>Run the 30-iteration strategy fixpoint loop to propose {@link TypeTransformEdge}s.</li>
- *   <li>Assert graph invariants (DAG, target-slot leaves, edge type constraints).</li>
+ *   <li>Assert graph invariants (target-slot leaves, edge type constraints).</li>
  * </ol>
+ *
+ * <p>The graph may contain directed cycles. Inverse strategy pairs (e.g. {@code OptionalWrap}
+ * /{@code OptionalUnwrap}, {@code TemporalToString}/{@code StringToTemporal}) coexist as
+ * 2-cycles between the same two typed nodes. {@link BFSShortestPath} traverses cyclic graphs
+ * correctly via a visited set, and downstream stages walk only resolved {@code GraphPath}s.
  *
  * <p>BFS path search is NOT performed here — that is {@code ResolvePathStage}'s job.
  */
@@ -269,9 +273,7 @@ public final class BuildValueGraphStage {
                                 && prop.getLiftInnerInput() != null
                                 && prop.getLiftInnerOutput() != null) {
                             // Lift proposal: ensure inner type nodes exist so subsequent fixpoint
-                            // iterations can populate inner edges. Reverse direction is blocked
-                            // — if the forward pending lift was already queued, the reverse lift
-                            // would create an X↔Y cycle once both LiftEdges are materialised.
+                            // iterations can populate inner edges.
                             final var innerIn = getOrCreateTypedNode(graph, typeIndex, prop.getLiftInnerInput());
                             final var innerOut = getOrCreateTypedNode(graph, typeIndex, prop.getLiftInnerOutput());
                             final boolean alreadyPending = pendingLifts.stream()
@@ -282,8 +284,7 @@ public final class BuildValueGraphStage {
                                         new PendingLift(inputNode, outputNode, prop.getLiftKind(), innerIn, innerOut));
                                 expanded = true;
                             }
-                        } else if (!graph.containsEdge(inputNode, outputNode)
-                                && !wouldCreateCycle(graph, inputNode, outputNode)) {
+                        } else if (!graph.containsEdge(inputNode, outputNode)) {
                             graph.addEdge(
                                     inputNode,
                                     outputNode,
@@ -305,10 +306,9 @@ public final class BuildValueGraphStage {
 
         // Post-fixpoint: resolve inner paths for lift proposals and create LiftEdges.
         // The inner type nodes were added to the graph during the fixpoint, so inner edges
-        // are already present. Skip any lift that would close a cycle through the outer graph.
+        // are already present.
         for (final var lift : pendingLifts) {
-            if (graph.containsEdge(lift.inputNode, lift.outputNode)
-                    || wouldCreateCycle(graph, lift.inputNode, lift.outputNode)) {
+            if (graph.containsEdge(lift.inputNode, lift.outputNode)) {
                 continue;
             }
             final var innerPath = new BFSShortestPath<>(graph).getPath(lift.innerInputNode, lift.innerOutputNode);
@@ -385,27 +385,13 @@ public final class BuildValueGraphStage {
     }
 
     /**
-     * Returns true if adding {@code from → to} would close a directed cycle (i.e. {@code to}
-     * already reaches {@code from}). Bidirectional strategies (e.g. {@code TemporalToString}
-     * and {@code StringToTemporal}) would otherwise produce X↔Y cycles; the DAG invariant
-     * declared in {@code value-graph/spec.md} forbids those.
-     */
-    private static boolean wouldCreateCycle(
-            final DefaultDirectedGraph<ValueNode, ValueEdge> graph, final ValueNode from, final ValueNode to) {
-        if (from.equals(to)) {
-            return true;
-        }
-        if (!graph.containsVertex(from) || !graph.containsVertex(to)) {
-            return false;
-        }
-        return new BFSShortestPath<>(graph).getPath(to, from) != null;
-    }
-
-    /**
      * Returns the vertex set in source-then-target-reachability order, so that forward-direction
-     * edges are proposed before their reverse counterparts during the fixpoint double-loop. This
-     * guarantees the {@link #wouldCreateCycle} check blocks <em>reverse</em> edges, not forward
-     * ones, and preserves source → target flow in the DAG.
+     * edges are proposed before their reverse counterparts during the fixpoint double-loop.
+     *
+     * <p>This is a proposal-ordering heuristic, not a correctness guarantee: cycles between
+     * inverse strategy pairs are allowed, and downstream stages traverse only resolved
+     * {@code GraphPath}s. The ordering still tends to produce shorter resolved paths by
+     * proposing forward edges before reverse ones.
      *
      * <p>Ordering is a stable partition over three classes:
      * <ol>
@@ -456,10 +442,6 @@ public final class BuildValueGraphStage {
      * {@link IllegalStateException} on any violation.
      */
     private static void assertInvariants(final DefaultDirectedGraph<ValueNode, ValueEdge> graph) {
-
-        if (new CycleDetector<>(graph).detectCycles()) {
-            throw new IllegalStateException("ValueGraph contains a directed cycle — DAG invariant violated");
-        }
 
         for (final var vertex : graph.vertexSet()) {
             if (vertex instanceof TargetSlotNode

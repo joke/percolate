@@ -4,7 +4,6 @@ import com.google.testing.compile.Compilation
 import com.google.testing.compile.JavaFileObjects
 import io.github.joke.percolate.processor.model.ReadAccessor
 import io.github.joke.percolate.processor.model.WriteAccessor
-import org.jgrapht.alg.cycle.CycleDetector
 import org.jgrapht.graph.DefaultDirectedGraph
 import spock.lang.Specification
 import spock.lang.Tag
@@ -147,31 +146,6 @@ class ValueGraphSpec extends Specification {
 
         then:
         graph.outgoingEdgesOf(slot).isEmpty()
-    }
-
-    // -------------------------------------------------------------------------
-    // 5.9 — graph invariants: DAG (no cycles)
-    // -------------------------------------------------------------------------
-
-    def 'well-formed ValueGraph is acyclic'() {
-        given:
-        final graph = new DefaultDirectedGraph<ValueNode, ValueEdge>(ValueEdge)
-        final paramType = typeMirror('test.Order')
-        final propType  = typeMirror('java.lang.String')
-        final source    = new SourceParamNode(Stub(javax.lang.model.element.VariableElement) {
-            getSimpleName() >> Stub(javax.lang.model.element.Name) { toString() >> 'order' }
-        }, paramType)
-        final prop      = new PropertyNode('name', propType, Stub(ReadAccessor))
-        final slot      = new TargetSlotNode('name', propType, Stub(WriteAccessor))
-
-        graph.addVertex(source)
-        graph.addVertex(prop)
-        graph.addVertex(slot)
-        graph.addEdge(source, prop, new PropertyReadEdge())
-        graph.addEdge(prop, slot, new PropertyReadEdge())
-
-        expect:
-        !new CycleDetector<>(graph).detectCycles()
     }
 
     // -------------------------------------------------------------------------
