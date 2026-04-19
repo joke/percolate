@@ -1,5 +1,6 @@
 package io.github.joke.percolate.processor.stage
 
+import com.palantir.javapoet.CodeBlock
 import io.github.joke.percolate.processor.ProcessorOptions
 import io.github.joke.percolate.processor.graph.PropertyNode
 import io.github.joke.percolate.processor.graph.PropertyReadEdge
@@ -13,9 +14,8 @@ import io.github.joke.percolate.processor.match.MappingAssignment
 import io.github.joke.percolate.processor.match.MethodMatching
 import io.github.joke.percolate.processor.match.ResolvedAssignment
 import io.github.joke.percolate.processor.model.MappingMethodModel
-import io.github.joke.percolate.processor.model.ReadAccessor
 import io.github.joke.percolate.processor.model.WriteAccessor
-import org.jgrapht.GraphPath
+import org.jgrapht.alg.shortestpath.BFSShortestPath
 import org.jgrapht.graph.DefaultDirectedGraph
 import spock.lang.Specification
 import spock.lang.Tag
@@ -33,53 +33,29 @@ import javax.tools.FileObject
 import static javax.tools.Diagnostic.Kind.WARNING
 
 @Tag('unit')
-class DumpResolvedPathsStageSpec extends Specification {
+class DumpGraphStageSpec extends Specification {
 
     Filer filer = Mock()
     Messager messager = Mock()
-    DumpResolvedPathsStage stage = new DumpResolvedPathsStage(new ProcessorOptions(true, 'dot'), filer, messager)
+    MethodMatching matching = matching()
+    DefaultDirectedGraph<ValueNode, ValueEdge> graph = buildGraph()
+    ValueGraphResult result = new ValueGraphResult([(matching): graph], [:])
+    Map<MethodMatching, List<ResolvedAssignment>> resolvedAssignments = buildResolvedAssignments(matching, graph)
 
     def 'is a no-op when debug graphs are disabled'() {
         given:
-        final stage = new DumpResolvedPathsStage(new ProcessorOptions(false, 'dot'), filer, messager)
+        final stage = new DumpGraphStage(new ProcessorOptions(false, 'dot'), filer, messager)
 
         when:
-        stage.execute(mapperType(), minimalResult(), [:])
+        stage.execute(mapperType(), result, resolvedAssignments)
 
         then:
         0 * filer._
     }
 
-    def 'produces DOT output with bold style on winning edges'() {
+    def 'output file name uses resolved suffix and mapper + method name'() {
         given:
-        final data = graphWithWinningPath()
-        final writer = new StringWriter()
-        filer.createResource(_, _, _) >> Stub(FileObject) { openWriter() >> writer }
-
-        when:
-        stage.execute(mapperType(), data.result, data.resolved)
-
-        then:
-        writer.toString().contains('style="bold"')
-        writer.toString().contains('label="read"')
-    }
-
-    def 'non-dot formats flag winning edges via winning attribute'() {
-        given:
-        final data = graphWithWinningPath()
-        final stage = new DumpResolvedPathsStage(new ProcessorOptions(true, 'graphml'), filer, messager)
-        final writer = new StringWriter()
-        filer.createResource(_, _, _) >> Stub(FileObject) { openWriter() >> writer }
-
-        when:
-        stage.execute(mapperType(), data.result, data.resolved)
-
-        then:
-        writer.toString().contains('winning')
-    }
-
-    def 'output file name uses resolved suffix'() {
-        given:
+        final stage = new DumpGraphStage(new ProcessorOptions(true, 'dot'), filer, messager)
         String capturedName = null
         filer.createResource(_, _, _) >> { args ->
             capturedName = args[2]
@@ -87,18 +63,69 @@ class DumpResolvedPathsStageSpec extends Specification {
         }
 
         when:
-        stage.execute(mapperType(), minimalResult(), [:])
+        stage.execute(mapperType(), result, resolvedAssignments)
 
         then:
         capturedName == 'TestMapper_map_resolved.dot'
     }
 
+    def 'DOT output bolds edges on the resolved path'() {
+        given:
+        final stage = new DumpGraphStage(new ProcessorOptions(true, 'dot'), filer, messager)
+        final writer = new StringWriter()
+        filer.createResource(_, _, _) >> Stub(FileObject) { openWriter() >> writer }
+
+        when:
+        stage.execute(mapperType(), result, resolvedAssignments)
+
+        then:
+        final dot = writer.toString()
+        dot.contains('style="bold"')
+    }
+
+    def 'DOT output does not bold any edge when no winning path exists'() {
+        given:
+        final stage = new DumpGraphStage(new ProcessorOptions(true, 'dot'), filer, messager)
+        final writer = new StringWriter()
+        filer.createResource(_, _, _) >> Stub(FileObject) { openWriter() >> writer }
+
+        when:
+        stage.execute(mapperType(), result, [(matching): []])
+
+        then:
+        !writer.toString().contains('style="bold"')
+    }
+
+    def 'output file extension matches the configured format'() {
+        given:
+        final stage = new DumpGraphStage(new ProcessorOptions(true, format), filer, messager)
+        String capturedName = null
+        filer.createResource(_, _, _) >> { args ->
+            capturedName = args[2]
+            Stub(FileObject) { openWriter() >> new StringWriter() }
+        }
+
+        when:
+        stage.execute(mapperType(), result, resolvedAssignments)
+
+        then:
+        capturedName == "TestMapper_map_resolved.${expectedExt}"
+
+        where:
+        format      || expectedExt
+        'dot'       || 'dot'
+        'graphml'   || 'graphml'
+        'json'      || 'json'
+        'unknown'   || 'dot'
+    }
+
     def 'catches IOException from filer and logs warning without aborting'() {
         given:
+        final stage = new DumpGraphStage(new ProcessorOptions(true, 'dot'), filer, messager)
         filer.createResource(_, _, _) >> { throw new IOException('disk full') }
 
         when:
-        stage.execute(mapperType(), minimalResult(), [:])
+        stage.execute(mapperType(), result, resolvedAssignments)
 
         then:
         1 * messager.printMessage(WARNING, { it.contains('TestMapper_map_resolved') })
@@ -106,65 +133,46 @@ class DumpResolvedPathsStageSpec extends Specification {
 
     def 'skips methods whose graph has no vertices'() {
         given:
+        final stage = new DumpGraphStage(new ProcessorOptions(true, 'dot'), filer, messager)
         final emptyGraph = new DefaultDirectedGraph<ValueNode, ValueEdge>(ValueEdge)
-        final result = new ValueGraphResult([(matching()): emptyGraph], [:])
+        final emptyResult = new ValueGraphResult([(matching): emptyGraph], [:])
 
         when:
-        stage.execute(mapperType(), result, [:])
+        stage.execute(mapperType(), emptyResult, [(matching): []])
 
         then:
         0 * filer._
     }
 
-    private static class GraphData {
-        ValueGraphResult result
-        Map<MethodMatching, List<ResolvedAssignment>> resolved
-    }
+    // -------------------------------------------------------------------------
+    // Helpers
+    // -------------------------------------------------------------------------
 
-    private GraphData graphWithWinningPath() {
-        final orderType  = typeMirror('test.Order')
-        final stringType = typeMirror('java.lang.String')
-
-        final graph = new DefaultDirectedGraph<ValueNode, ValueEdge>(ValueEdge)
-        final paramEl = Stub(VariableElement) { getSimpleName() >> Stub(Name) { toString() >> 'order' } }
-        final paramNode = new SourceParamNode(paramEl, orderType)
-        final propNode = new PropertyNode('name', stringType, Stub(ReadAccessor))
-        final slotNode = new TargetSlotNode('name', stringType, Stub(WriteAccessor))
-        graph.addVertex(paramNode)
-        graph.addVertex(propNode)
-        graph.addVertex(slotNode)
-        final readEdge = new PropertyReadEdge()
-        final writeEdge = new PropertyReadEdge()
-        graph.addEdge(paramNode, propNode, readEdge)
-        graph.addEdge(propNode, slotNode, writeEdge)
-
-        final path = Stub(GraphPath) { getEdgeList() >> [readEdge, writeEdge] }
+    private Map<MethodMatching, List<ResolvedAssignment>> buildResolvedAssignments(
+            final MethodMatching matching,
+            final DefaultDirectedGraph<ValueNode, ValueEdge> graph) {
+        final src  = graph.vertexSet().find { it instanceof SourceParamNode }
+        final slot = graph.vertexSet().find { it instanceof TargetSlotNode }
+        final path = new BFSShortestPath<>(graph).getPath(src, slot)
         final assignment = MappingAssignment.of(['name'], 'name', [:], null, AssignmentOrigin.AUTO_MAPPED)
-        final ra = new ResolvedAssignment(assignment, path, null)
-        final m = matching()
-
-        final data = new GraphData()
-        data.result = new ValueGraphResult([(m): graph], [:])
-        data.resolved = [(m): [ra]]
-        return data
+        return [(matching): [new ResolvedAssignment(assignment, path, null)]]
     }
 
-    private ValueGraphResult minimalResult() {
+    private DefaultDirectedGraph<ValueNode, ValueEdge> buildGraph() {
         final orderType  = typeMirror('test.Order')
         final stringType = typeMirror('java.lang.String')
 
         final graph = new DefaultDirectedGraph<ValueNode, ValueEdge>(ValueEdge)
         final paramEl = Stub(VariableElement) { getSimpleName() >> Stub(Name) { toString() >> 'order' } }
         final paramNode = new SourceParamNode(paramEl, orderType)
-        final propNode = new PropertyNode('name', stringType, Stub(ReadAccessor))
+        final propNode = new PropertyNode('name', stringType)
         final slotNode = new TargetSlotNode('name', stringType, Stub(WriteAccessor))
         graph.addVertex(paramNode)
         graph.addVertex(propNode)
         graph.addVertex(slotNode)
-        graph.addEdge(paramNode, propNode, new PropertyReadEdge())
-        graph.addEdge(propNode, slotNode, new PropertyReadEdge())
-
-        return new ValueGraphResult([(matching()): graph], [:])
+        graph.addEdge(paramNode, propNode, new PropertyReadEdge({ input -> CodeBlock.of('$L.getName()', input) }))
+        graph.addEdge(propNode, slotNode, new PropertyReadEdge({ input -> CodeBlock.of('$L', input) }))
+        return graph
     }
 
     private MethodMatching matching() {

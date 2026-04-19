@@ -1,21 +1,56 @@
-# value-graph Specification
+## ADDED Requirements
 
-## Purpose
-TBD - created by archiving change value-graph-refactor. Update Purpose after archive.
-## Requirements
-### Requirement: ValueGraph is a single typed per-method graph
+### Requirement: ValueNode exposes a uniform compose contract
 
-For each method in the `MatchedModel`, `BuildValueGraphStage` SHALL produce exactly one `ValueGraph` — a JGraphT `DefaultDirectedGraph<ValueNode, ValueEdge>` — covering every `MappingAssignment` of that method. There SHALL NOT be a separate per-assignment graph; assignments share nodes when their paths converge (e.g. reading `customer` once for `customer.name` and `customer.age`).
+Every `ValueNode` SHALL expose a method `CodeBlock compose(Map<ValueEdge, CodeBlock> inputs, ComposeKind kind)`. The method takes the expressions produced by the node's incoming winning edges (keyed by edge identity) and returns the `CodeBlock` that represents the value at that node. `ComposeKind` SHALL be an enum with values `EXPRESSION` and `STATEMENT_LIST`; in this slice only `EXPRESSION` is used by `GenerateStage`. `STATEMENT_LIST` is scaffolding for slice 2 (bean-update sinks) and MAY be unused this slice but SHALL exist.
 
-#### Scenario: One ValueGraph per method
+Per-subtype contracts:
 
-- **WHEN** a mapper has methods `map(Order): OrderDTO` and `mapAddress(Address): AddressDTO`
-- **THEN** `BuildValueGraphStage` SHALL produce two distinct `ValueGraph` instances — one per method
+- `SourceParamNode.compose(...)` SHALL ignore `inputs` (always empty) and return a `CodeBlock` referencing the parameter name.
+- `PropertyNode.compose(...)` SHALL require exactly one entry in `inputs` and return that entry's value unchanged — the read has already been applied by the inbound `PropertyReadEdge`.
+- `TypedValueNode.compose(...)` SHALL require exactly one entry in `inputs` and return it unchanged.
+- `TargetSlotNode.compose(...)` SHALL require exactly one entry in `inputs` and return it unchanged — the slot is a passive sink in this slice (it gains real behaviour in slice 2).
 
-#### Scenario: Shared source path reuses PropertyNode
+#### Scenario: SourceParamNode composes to parameter reference
 
-- **WHEN** a method has `@Map(source="customer.name", target="customerName")` and `@Map(source="customer.age", target="customerAge")`
-- **THEN** the `ValueGraph` SHALL contain exactly one `PropertyNode` for `customer`, with two outgoing `PropertyReadEdge`s (to `name` and `age`)
+- **WHEN** `compose(Map.of(), EXPRESSION)` is called on a `SourceParamNode` for parameter `order`
+- **THEN** the returned `CodeBlock` SHALL render as `order`
+
+#### Scenario: PropertyNode forwards the single incoming expression
+
+- **WHEN** `compose(Map.of(readEdge, CodeBlock.of("order.getCustomer()")), EXPRESSION)` is called on a `PropertyNode`
+- **THEN** the returned `CodeBlock` SHALL render as `order.getCustomer()`
+
+#### Scenario: TypedValueNode forwards the single incoming expression
+
+- **WHEN** `compose(Map.of(transformEdge, CodeBlock.of("order.getItems().stream()")), EXPRESSION)` is called on a `TypedValueNode`
+- **THEN** the returned `CodeBlock` SHALL render as `order.getItems().stream()`
+
+#### Scenario: TargetSlotNode forwards the single incoming expression
+
+- **WHEN** `compose(Map.of(transformEdge, CodeBlock.of("mapAddress(order.getAddress())")), EXPRESSION)` is called on a `TargetSlotNode`
+- **THEN** the returned `CodeBlock` SHALL render as `mapAddress(order.getAddress())`
+
+#### Scenario: Unexpected input arity is an invariant violation
+
+- **WHEN** `PropertyNode.compose(...)` is called with zero or two-plus entries
+- **THEN** an `IllegalStateException` SHALL be thrown; the error SHALL NOT be reported as a user `Diagnostic`
+
+### Requirement: ComposeKind enumerates expression and statement-list modes
+
+`ComposeKind` SHALL be a public enum with exactly two values: `EXPRESSION` and `STATEMENT_LIST`. `EXPRESSION` indicates the composed `CodeBlock` is a Java expression suitable for use inside a larger expression. `STATEMENT_LIST` indicates the composed `CodeBlock` is a sequence of statements (scaffolding for slice 2's bean-update sinks). In this slice only `EXPRESSION` SHALL be passed to any `compose(...)` call.
+
+#### Scenario: ComposeKind has exactly two values
+
+- **WHEN** `ComposeKind.values()` is read
+- **THEN** it SHALL return exactly `[EXPRESSION, STATEMENT_LIST]`
+
+#### Scenario: GenerateStage uses only EXPRESSION in this slice
+
+- **WHEN** `GenerateStage` composes a method body in this slice
+- **THEN** every `compose(...)` call SHALL pass `ComposeKind.EXPRESSION`
+
+## MODIFIED Requirements
 
 ### Requirement: ValueNode is a sealed hierarchy with four subtypes
 
@@ -155,82 +190,3 @@ Unresolvable access segments (property not found) SHALL be recorded on the `Meth
 
 - **WHEN** `BuildValueGraphStage` completes for a mapper
 - **THEN** every `TypeTransformEdge` in every produced `ValueGraph` SHALL have a non-null `codeTemplate` — including edges not on any winning path
-
-### Requirement: ValueGraph invariants
-
-Every `ValueGraph` produced by `BuildValueGraphStage` and held through the remaining stages SHALL satisfy:
-
-- Exactly one `SourceParamNode` per method parameter of the matched method.
-- Every `PropertyReadEdge` has source ∈ `{SourceParamNode, PropertyNode}` and target ∈ `PropertyNode`.
-- Every `TypeTransformEdge` has source ∈ `{PropertyNode, TypedValueNode}` and target ∈ `{TypedValueNode, TargetSlotNode}`.
-- Every `LiftEdge.innerPath` is a `GraphPath` whose vertices and edges are all present in the same `ValueGraph`.
-- `TargetSlotNode`s have no outgoing edges.
-
-The graph MAY contain directed cycles. In particular, inverse `TypeTransformStrategy` pairs (such as `OptionalWrap` / `OptionalUnwrap` and `TemporalToString` / `StringToTemporal`) coexist as 2-cycles between the same two `TypedValueNode`s when both directions are reachable. Downstream consumers (`ResolvePathStage`, `OptimizePathStage`, `GenerateStage`) walk only resolved `GraphPath`s, and `BFSShortestPath` is cycle-safe by construction, so cycles in the graph do not affect correctness.
-
-These invariants SHALL be enforced by `BuildValueGraphStage` construction and MAY be checked assertively by `DumpValueGraphStage` in debug mode.
-
-#### Scenario: Target slot has no outgoing edges
-
-- **WHEN** a `ValueGraph` is inspected after `BuildValueGraphStage`
-- **THEN** no `TargetSlotNode` SHALL have any outgoing edge
-
-#### Scenario: LiftEdge innerPath edges all belong to the parent graph
-
-- **WHEN** a `LiftEdge` with non-empty `innerPath` is on the graph
-- **THEN** every vertex and every edge in `innerPath` SHALL be present in the parent `ValueGraph` (checked by vertex/edge identity)
-
-#### Scenario: Inverse strategy pair forms a 2-cycle
-
-- **WHEN** a method's `ValueGraph` contains a typed node `Optional<X>` and a typed node `X`, and both `OptionalWrapStrategy` and `OptionalUnwrapStrategy` propose edges between them
-- **THEN** the graph SHALL contain both edges `X → Optional<X>` and `Optional<X> → X`, and `BuildValueGraphStage` SHALL NOT reject either edge as a cycle violation
-
-### Requirement: ValueNode exposes a uniform compose contract
-
-Every `ValueNode` SHALL expose a method `CodeBlock compose(Map<ValueEdge, CodeBlock> inputs, ComposeKind kind)`. The method takes the expressions produced by the node's incoming winning edges (keyed by edge identity) and returns the `CodeBlock` that represents the value at that node. `ComposeKind` SHALL be an enum with values `EXPRESSION` and `STATEMENT_LIST`; in this slice only `EXPRESSION` is used by `GenerateStage`. `STATEMENT_LIST` is scaffolding for slice 2 (bean-update sinks) and MAY be unused this slice but SHALL exist.
-
-Per-subtype contracts:
-
-- `SourceParamNode.compose(...)` SHALL ignore `inputs` (always empty) and return a `CodeBlock` referencing the parameter name.
-- `PropertyNode.compose(...)` SHALL require exactly one entry in `inputs` and return that entry's value unchanged — the read has already been applied by the inbound `PropertyReadEdge`.
-- `TypedValueNode.compose(...)` SHALL require exactly one entry in `inputs` and return it unchanged.
-- `TargetSlotNode.compose(...)` SHALL require exactly one entry in `inputs` and return it unchanged — the slot is a passive sink in this slice (it gains real behaviour in slice 2).
-
-#### Scenario: SourceParamNode composes to parameter reference
-
-- **WHEN** `compose(Map.of(), EXPRESSION)` is called on a `SourceParamNode` for parameter `order`
-- **THEN** the returned `CodeBlock` SHALL render as `order`
-
-#### Scenario: PropertyNode forwards the single incoming expression
-
-- **WHEN** `compose(Map.of(readEdge, CodeBlock.of("order.getCustomer()")), EXPRESSION)` is called on a `PropertyNode`
-- **THEN** the returned `CodeBlock` SHALL render as `order.getCustomer()`
-
-#### Scenario: TypedValueNode forwards the single incoming expression
-
-- **WHEN** `compose(Map.of(transformEdge, CodeBlock.of("order.getItems().stream()")), EXPRESSION)` is called on a `TypedValueNode`
-- **THEN** the returned `CodeBlock` SHALL render as `order.getItems().stream()`
-
-#### Scenario: TargetSlotNode forwards the single incoming expression
-
-- **WHEN** `compose(Map.of(transformEdge, CodeBlock.of("mapAddress(order.getAddress())")), EXPRESSION)` is called on a `TargetSlotNode`
-- **THEN** the returned `CodeBlock` SHALL render as `mapAddress(order.getAddress())`
-
-#### Scenario: Unexpected input arity is an invariant violation
-
-- **WHEN** `PropertyNode.compose(...)` is called with zero or two-plus entries
-- **THEN** an `IllegalStateException` SHALL be thrown; the error SHALL NOT be reported as a user `Diagnostic`
-
-### Requirement: ComposeKind enumerates expression and statement-list modes
-
-`ComposeKind` SHALL be a public enum with exactly two values: `EXPRESSION` and `STATEMENT_LIST`. `EXPRESSION` indicates the composed `CodeBlock` is a Java expression suitable for use inside a larger expression. `STATEMENT_LIST` indicates the composed `CodeBlock` is a sequence of statements (scaffolding for slice 2's bean-update sinks). In this slice only `EXPRESSION` SHALL be passed to any `compose(...)` call.
-
-#### Scenario: ComposeKind has exactly two values
-
-- **WHEN** `ComposeKind.values()` is read
-- **THEN** it SHALL return exactly `[EXPRESSION, STATEMENT_LIST]`
-
-#### Scenario: GenerateStage uses only EXPRESSION in this slice
-
-- **WHEN** `GenerateStage` composes a method body in this slice
-- **THEN** every `compose(...)` call SHALL pass `ComposeKind.EXPRESSION`

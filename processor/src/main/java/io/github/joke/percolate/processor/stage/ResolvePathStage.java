@@ -25,10 +25,11 @@ import org.jspecify.annotations.Nullable;
  * path from the source {@link SourceParamNode} to the target {@link TargetSlotNode} for every
  * {@link MappingAssignment}.
  *
- * <p>This stage does NOT walk access chains, construct {@code ReadAccessor}s, or resolve code
- * templates. It consumes the graph built by {@code BuildValueGraphStage} and emits one
- * {@link ResolvedAssignment} per assignment. Code templates remain {@code null} until
- * {@code OptimizePathStage} runs.
+ * <p>This stage does NOT walk access chains or construct {@code ReadAccessor}s. It consumes the
+ * graph built by {@code BuildValueGraphStage} and emits one {@link ResolvedAssignment} per
+ * assignment. Code templates for non-{@code LiftEdge} edges are materialised at construction in
+ * {@code BuildValueGraphStage}; {@code LiftEdge} templates compose on demand inside
+ * {@code GenerateStage}.
  */
 @NoArgsConstructor(onConstructor_ = @Inject)
 public final class ResolvePathStage {

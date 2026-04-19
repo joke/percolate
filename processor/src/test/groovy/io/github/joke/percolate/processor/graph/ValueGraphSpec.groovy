@@ -109,11 +109,9 @@ class ValueGraphSpec extends Specification {
     def 'PropertyNode with same name and type are equal'() {
         given:
         final type = typeMirror('test.Customer')
-        final accessor1 = Stub(ReadAccessor)
-        final accessor2 = Stub(ReadAccessor)
 
         expect:
-        new PropertyNode('customer', type, accessor1) == new PropertyNode('customer', type, accessor2)
+        new PropertyNode('customer', type) == new PropertyNode('customer', type)
     }
 
     def 'PropertyNode with different names are not equal'() {
@@ -121,8 +119,7 @@ class ValueGraphSpec extends Specification {
         final type = typeMirror('test.Customer')
 
         expect:
-        new PropertyNode('customer', type, Stub(ReadAccessor)) !=
-                new PropertyNode('address', type, Stub(ReadAccessor))
+        new PropertyNode('customer', type) != new PropertyNode('address', type)
     }
 
     // -------------------------------------------------------------------------

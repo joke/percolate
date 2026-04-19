@@ -46,12 +46,12 @@ class ResolvePathStageSpec extends Specification {
 
         final graph = new DefaultDirectedGraph<ValueNode, ValueEdge>(ValueEdge)
         final srcNode  = new SourceParamNode(param, orderType)
-        final propNode = new PropertyNode('name', stringType, nameGetter)
+        final propNode = new PropertyNode('name', stringType)
         final slotNode = new TargetSlotNode('name', stringType, nameWriter)
         graph.addVertex(srcNode)
         graph.addVertex(propNode)
         graph.addVertex(slotNode)
-        final readEdge      = new PropertyReadEdge()
+        final readEdge      = new PropertyReadEdge({ input -> input })
         final transformEdge = new TypeTransformEdge(strategy, stringType, stringType, { it })
         graph.addEdge(srcNode, propNode, readEdge)
         graph.addEdge(propNode, slotNode, transformEdge)
@@ -94,16 +94,16 @@ class ResolvePathStageSpec extends Specification {
 
         final graph      = new DefaultDirectedGraph<ValueNode, ValueEdge>(ValueEdge)
         final srcNode    = new SourceParamNode(param, orderType)
-        final custNode   = new PropertyNode('customer', customerType, custGetter)
-        final nameNode   = new PropertyNode('name', stringType, nameGetter)
-        final ageNode    = new PropertyNode('age', intType, ageGetter)
+        final custNode   = new PropertyNode('customer', customerType)
+        final nameNode   = new PropertyNode('name', stringType)
+        final ageNode    = new PropertyNode('age', intType)
         final nameSlot   = new TargetSlotNode('customerName', stringType, custNameWriter)
         final ageSlot    = new TargetSlotNode('customerAge', intType, custAgeWriter)
         [srcNode, custNode, nameNode, ageNode, nameSlot, ageSlot].each { graph.addVertex(it) }
 
-        final srcCustEdge  = new PropertyReadEdge()
-        final custNameEdge = new PropertyReadEdge()
-        final custAgeEdge  = new PropertyReadEdge()
+        final srcCustEdge  = new PropertyReadEdge({ input -> input })
+        final custNameEdge = new PropertyReadEdge({ input -> input })
+        final custAgeEdge  = new PropertyReadEdge({ input -> input })
         final nameXfm      = new TypeTransformEdge(strategy, stringType, stringType, { it })
         final ageXfm       = new TypeTransformEdge(strategy, intType, intType, { it })
         graph.addEdge(srcNode, custNode, srcCustEdge)
@@ -135,36 +135,17 @@ class ResolvePathStageSpec extends Specification {
     }
 
     // -------------------------------------------------------------------------
-    // 8.5 — code templates remain null
+    // 8.5 — code templates are eagerly set at edge construction
     // -------------------------------------------------------------------------
 
-    def 'TypeTransformEdge codeTemplate is null after ResolvePathStage'() {
+    def 'TypeTransformEdge codeTemplate is non-null after construction'() {
         given:
         final stringType = typeMirror('java.lang.String')
-        final orderType  = typeMirror('test.Order')
         final strategy   = Stub(TypeTransformStrategy)
+        final xfmEdge    = new TypeTransformEdge(strategy, stringType, stringType, { it })
 
-        final param   = makeParam('order', orderType)
-        final getter  = readAccessor('name', stringType)
-        final writer  = writeAccessor('name', stringType)
-
-        final graph   = new DefaultDirectedGraph<ValueNode, ValueEdge>(ValueEdge)
-        final src     = new SourceParamNode(param, orderType)
-        final prop    = new PropertyNode('name', stringType, getter)
-        final slot    = new TargetSlotNode('name', stringType, writer)
-        final xfmEdge = new TypeTransformEdge(strategy, stringType, stringType, { it })
-        graph.addVertex(src); graph.addVertex(prop); graph.addVertex(slot)
-        graph.addEdge(src, prop, new PropertyReadEdge())
-        graph.addEdge(prop, slot, xfmEdge)
-
-        final assignment = MappingAssignment.of(['name'], 'name', [:], null, AssignmentOrigin.AUTO_MAPPED)
-        final matching   = methodMatching(orderType, stringType, [param], [assignment])
-
-        when:
-        new ResolvePathStage().execute(new ValueGraphResult([(matching): graph], [:]))
-
-        then:
-        xfmEdge.codeTemplate == null
+        expect:
+        xfmEdge.codeTemplate != null
     }
 
     // -------------------------------------------------------------------------
@@ -213,11 +194,11 @@ class ResolvePathStageSpec extends Specification {
 
         final graph   = new DefaultDirectedGraph<ValueNode, ValueEdge>(ValueEdge)
         final src     = new SourceParamNode(param, orderType)
-        final prop    = new PropertyNode('foo', fooType, getter)
+        final prop    = new PropertyNode('foo', fooType)
         final slot    = new TargetSlotNode('bar', stringType, writer)
         // No edge connecting prop to slot — intentional gap
         graph.addVertex(src); graph.addVertex(prop); graph.addVertex(slot)
-        graph.addEdge(src, prop, new PropertyReadEdge())
+        graph.addEdge(src, prop, new PropertyReadEdge({ input -> input }))
 
         final assignment = MappingAssignment.of(['foo'], 'bar', [:], null, AssignmentOrigin.EXPLICIT_MAP)
         final matching   = methodMatching(orderType, stringType, [param], [assignment])

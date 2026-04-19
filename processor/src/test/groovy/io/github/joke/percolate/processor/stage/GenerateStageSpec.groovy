@@ -54,10 +54,10 @@ class GenerateStageSpec extends Specification {
 
         final graph = new DefaultDirectedGraph<ValueNode, ValueEdge>(ValueEdge)
         final src   = new SourceParamNode(paramElem, orderType)
-        final prop  = new PropertyNode('name', stringType, getter)
+        final prop  = new PropertyNode('name', stringType)
         final slot  = new TargetSlotNode('name', stringType, writer)
         graph.addVertex(src); graph.addVertex(prop); graph.addVertex(slot)
-        graph.addEdge(src, prop, new PropertyReadEdge())
+        graph.addEdge(src, prop, new PropertyReadEdge(getter.template()))
         graph.addEdge(prop, slot, new NullWidenEdge())
 
         final path = new BFSShortestPath<>(graph).getPath(src, slot)
@@ -82,20 +82,16 @@ class GenerateStageSpec extends Specification {
 
         final graph = new DefaultDirectedGraph<ValueNode, ValueEdge>(ValueEdge)
         final src   = new SourceParamNode(paramElem, orderType)
-        final prop  = new PropertyNode('name', stringType, getter)
+        final prop  = new PropertyNode('name', stringType)
         final slot  = new TargetSlotNode('name', stringType, writer)
-        graph.addVertex(src); graph.addVertex(prop); graph.addVertex(slot)
-        graph.addEdge(src, prop, new PropertyReadEdge())
-
-        final innerGraph = new DefaultDirectedGraph<ValueNode, ValueEdge>(ValueEdge)
         final innerA = new TypedValueNode(stringType, 'A')
         final innerB = new TypedValueNode(stringType, 'B')
-        innerGraph.addVertex(innerA); innerGraph.addVertex(innerB)
-        innerGraph.addEdge(innerA, innerB,
+        graph.addVertex(src); graph.addVertex(prop); graph.addVertex(slot)
+        graph.addVertex(innerA); graph.addVertex(innerB)
+        graph.addEdge(src, prop, new PropertyReadEdge(getter.template()))
+        graph.addEdge(innerA, innerB,
                 new TypeTransformEdge(Stub(TypeTransformStrategy), stringType, stringType, { it }))
-        final innerPath = new BFSShortestPath<>(innerGraph).getPath(innerA, innerB)
-        final liftEdge = new LiftEdge(LiftKind.NULL_CHECK, innerPath)
-        liftEdge.codeTemplate = { it }
+        final liftEdge = new LiftEdge(LiftKind.NULL_CHECK, innerA, innerB)
         graph.addEdge(prop, slot, liftEdge)
 
         final path = new BFSShortestPath<>(graph).getPath(src, slot)
@@ -120,13 +116,12 @@ class GenerateStageSpec extends Specification {
 
         final graph = new DefaultDirectedGraph<ValueNode, ValueEdge>(ValueEdge)
         final src   = new SourceParamNode(paramElem, orderType)
-        final prop  = new PropertyNode('name', stringType, getter)
+        final prop  = new PropertyNode('name', stringType)
         final slot  = new TargetSlotNode('name', stringType, writer)
         graph.addVertex(src); graph.addVertex(prop); graph.addVertex(slot)
-        graph.addEdge(src, prop, new PropertyReadEdge())
+        graph.addEdge(src, prop, new PropertyReadEdge(getter.template()))
         final xfm = new TypeTransformEdge(
                 Stub(TypeTransformStrategy), stringType, stringType, { input -> input })
-        xfm.resolveTemplate()
         graph.addEdge(prop, slot, xfm)
 
         final path = new BFSShortestPath<>(graph).getPath(src, slot)
@@ -160,13 +155,12 @@ class GenerateStageSpec extends Specification {
 
         final graph = new DefaultDirectedGraph<ValueNode, ValueEdge>(ValueEdge)
         final src   = new SourceParamNode(paramElem, orderType)
-        final prop  = new PropertyNode('name', stringType, getter)
+        final prop  = new PropertyNode('name', stringType)
         final slot  = new TargetSlotNode('name', stringType, writer)
         graph.addVertex(src); graph.addVertex(prop); graph.addVertex(slot)
-        graph.addEdge(src, prop, new PropertyReadEdge())
+        graph.addEdge(src, prop, new PropertyReadEdge(getter.template()))
         final xfm = new TypeTransformEdge(
                 Stub(TypeTransformStrategy), stringType, stringType, { input -> input })
-        xfm.resolveTemplate()
         graph.addEdge(prop, slot, xfm)
 
         final path = new BFSShortestPath<>(graph).getPath(src, slot)
@@ -200,13 +194,12 @@ class GenerateStageSpec extends Specification {
 
         final graph = new DefaultDirectedGraph<ValueNode, ValueEdge>(ValueEdge)
         final src   = new SourceParamNode(paramElem, orderType)
-        final prop  = new PropertyNode('name', stringType, reader)
+        final prop  = new PropertyNode('name', stringType)
         final slot  = new TargetSlotNode('name', stringType, writer)
         graph.addVertex(src); graph.addVertex(prop); graph.addVertex(slot)
-        graph.addEdge(src, prop, new PropertyReadEdge())
+        graph.addEdge(src, prop, new PropertyReadEdge(reader.template()))
         final xfm = new TypeTransformEdge(
                 Stub(TypeTransformStrategy), stringType, stringType, { input -> input })
-        xfm.resolveTemplate()
         graph.addEdge(prop, slot, xfm)
 
         final path = new BFSShortestPath<>(graph).getPath(src, slot)

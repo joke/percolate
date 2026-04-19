@@ -3,11 +3,9 @@ package io.github.joke.percolate.processor;
 import com.palantir.javapoet.JavaFile;
 import io.github.joke.percolate.processor.stage.AnalyzeStage;
 import io.github.joke.percolate.processor.stage.BuildValueGraphStage;
-import io.github.joke.percolate.processor.stage.DumpResolvedPathsStage;
-import io.github.joke.percolate.processor.stage.DumpValueGraphStage;
+import io.github.joke.percolate.processor.stage.DumpGraphStage;
 import io.github.joke.percolate.processor.stage.GenerateStage;
 import io.github.joke.percolate.processor.stage.MatchMappingsStage;
-import io.github.joke.percolate.processor.stage.OptimizePathStage;
 import io.github.joke.percolate.processor.stage.ResolvePathStage;
 import io.github.joke.percolate.processor.stage.ValidateMatchingStage;
 import io.github.joke.percolate.processor.stage.ValidateResolutionStage;
@@ -24,10 +22,8 @@ final class Pipeline {
     private final MatchMappingsStage matchMappingsStage;
     private final ValidateMatchingStage validateMatchingStage;
     private final BuildValueGraphStage buildValueGraphStage;
-    private final DumpValueGraphStage dumpValueGraphStage;
     private final ResolvePathStage resolvePathStage;
-    private final OptimizePathStage optimizePathStage;
-    private final DumpResolvedPathsStage dumpResolvedPathsStage;
+    private final DumpGraphStage dumpGraphStage;
     private final ValidateResolutionStage validateResolutionStage;
     private final GenerateStage generateStage;
     private final Messager messager;
@@ -60,23 +56,15 @@ final class Pipeline {
             return null;
         }
 
-        dumpValueGraphStage.execute(mapperType, valueGraphResult.value());
-
         final var resolveResult = resolvePathStage.execute(valueGraphResult.value());
         if (!resolveResult.isSuccess()) {
             reportErrors(resolveResult);
             return null;
         }
 
-        final var optimizeResult = optimizePathStage.execute(resolveResult.value());
-        if (!optimizeResult.isSuccess()) {
-            reportErrors(optimizeResult);
-            return null;
-        }
+        dumpGraphStage.execute(mapperType, valueGraphResult.value(), resolveResult.value());
 
-        dumpResolvedPathsStage.execute(mapperType, valueGraphResult.value(), optimizeResult.value());
-
-        final var validateResolutionResult = validateResolutionStage.execute(mapperType, optimizeResult.value());
+        final var validateResolutionResult = validateResolutionStage.execute(mapperType, resolveResult.value());
         if (!validateResolutionResult.isSuccess()) {
             reportErrors(validateResolutionResult);
             return null;

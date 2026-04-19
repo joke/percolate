@@ -9,11 +9,9 @@ import io.github.joke.percolate.processor.match.ResolvedAssignment
 import io.github.joke.percolate.processor.model.MapperModel
 import io.github.joke.percolate.processor.stage.AnalyzeStage
 import io.github.joke.percolate.processor.stage.BuildValueGraphStage
-import io.github.joke.percolate.processor.stage.DumpResolvedPathsStage
-import io.github.joke.percolate.processor.stage.DumpValueGraphStage
+import io.github.joke.percolate.processor.stage.DumpGraphStage
 import io.github.joke.percolate.processor.stage.GenerateStage
 import io.github.joke.percolate.processor.stage.MatchMappingsStage
-import io.github.joke.percolate.processor.stage.OptimizePathStage
 import io.github.joke.percolate.processor.stage.ResolvePathStage
 import io.github.joke.percolate.processor.stage.ValidateMatchingStage
 import io.github.joke.percolate.processor.stage.ValidateResolutionStage
@@ -32,10 +30,8 @@ class PipelineSpec extends Specification {
     MatchMappingsStage matchMappingsStage = Mock()
     ValidateMatchingStage validateMatchingStage = Mock()
     BuildValueGraphStage buildValueGraphStage = Mock()
-    DumpValueGraphStage dumpValueGraphStage = Mock()
     ResolvePathStage resolvePathStage = Mock()
-    OptimizePathStage optimizePathStage = Mock()
-    DumpResolvedPathsStage dumpResolvedPathsStage = Mock()
+    DumpGraphStage dumpGraphStage = Mock()
     ValidateResolutionStage validateResolutionStage = Mock()
     GenerateStage generateStage = Mock()
     Messager messager = Mock()
@@ -45,15 +41,13 @@ class PipelineSpec extends Specification {
             matchMappingsStage,
             validateMatchingStage,
             buildValueGraphStage,
-            dumpValueGraphStage,
             resolvePathStage,
-            optimizePathStage,
-            dumpResolvedPathsStage,
+            dumpGraphStage,
             validateResolutionStage,
             generateStage,
             messager)
 
-    def 'successful pipeline invokes the 10 stages in order and returns JavaFile'() {
+    def 'successful pipeline invokes the 8 stages in order and returns JavaFile'() {
         given:
         final element = Mock(TypeElement)
         final mapperType = Mock(TypeElement)
@@ -61,7 +55,6 @@ class PipelineSpec extends Specification {
         final matchedModel = Stub(MatchedModel) { getMapperType() >> mapperType }
         final valueGraphResult = Mock(ValueGraphResult)
         final resolveMap = [:] as Map<MethodMatching, List<ResolvedAssignment>>
-        final optimizeMap = [:] as Map<MethodMatching, List<ResolvedAssignment>>
         final validatedMap = [:] as Map<MethodMatching, List<ResolvedAssignment>>
         final javaFile = JavaFile.builder('com.example', TypeSpec.classBuilder('Test').build()).build()
 
@@ -81,19 +74,13 @@ class PipelineSpec extends Specification {
         1 * buildValueGraphStage.execute(matchedModel) >> StageResult.success(valueGraphResult)
 
         then:
-        1 * dumpValueGraphStage.execute(mapperType, valueGraphResult)
-
-        then:
         1 * resolvePathStage.execute(valueGraphResult) >> StageResult.success(resolveMap)
 
         then:
-        1 * optimizePathStage.execute(resolveMap) >> StageResult.success(optimizeMap)
+        1 * dumpGraphStage.execute(mapperType, valueGraphResult, resolveMap)
 
         then:
-        1 * dumpResolvedPathsStage.execute(mapperType, valueGraphResult, optimizeMap)
-
-        then:
-        1 * validateResolutionStage.execute(mapperType, optimizeMap) >> StageResult.success(validatedMap)
+        1 * validateResolutionStage.execute(mapperType, resolveMap) >> StageResult.success(validatedMap)
 
         then:
         1 * generateStage.execute(mapperType, validatedMap) >> StageResult.success(javaFile)
@@ -168,7 +155,6 @@ class PipelineSpec extends Specification {
         final matchedModel = Stub(MatchedModel) { getMapperType() >> mapperType }
         final valueGraphResult = Mock(ValueGraphResult)
         final resolveMap = [:] as Map<MethodMatching, List<ResolvedAssignment>>
-        final optimizeMap = [:] as Map<MethodMatching, List<ResolvedAssignment>>
         final diagnostic = new Diagnostic(Mock(Element), 'unresolved transform', Kind.ERROR)
 
         when:
@@ -179,11 +165,9 @@ class PipelineSpec extends Specification {
         1 * matchMappingsStage.execute(mapperModel) >> StageResult.success(matchedModel)
         1 * validateMatchingStage.execute(matchedModel) >> StageResult.success(matchedModel)
         1 * buildValueGraphStage.execute(matchedModel) >> StageResult.success(valueGraphResult)
-        1 * dumpValueGraphStage.execute(mapperType, valueGraphResult)
         1 * resolvePathStage.execute(valueGraphResult) >> StageResult.success(resolveMap)
-        1 * optimizePathStage.execute(resolveMap) >> StageResult.success(optimizeMap)
-        1 * dumpResolvedPathsStage.execute(mapperType, valueGraphResult, optimizeMap)
-        1 * validateResolutionStage.execute(mapperType, optimizeMap) >> StageResult.failure([diagnostic])
+        1 * dumpGraphStage.execute(mapperType, valueGraphResult, resolveMap)
+        1 * validateResolutionStage.execute(mapperType, resolveMap) >> StageResult.failure([diagnostic])
         1 * messager.printMessage(Kind.ERROR, 'unresolved transform', _)
         0 * _
 

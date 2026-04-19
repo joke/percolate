@@ -304,17 +304,25 @@ public final class BuildValueGraphStage {
             }
         }
 
-        // Post-fixpoint: resolve inner paths for lift proposals and create LiftEdges.
+        // Post-fixpoint: create LiftEdges carrying (kind, innerInputNode, innerOutputNode).
         // The inner type nodes were added to the graph during the fixpoint, so inner edges
-        // are already present.
+        // are already present. The inner path is resolved lazily by LiftEdge.composeTemplate(...)
+        // at generation time — but we guard here by probing the inner BFS, so a lift without
+        // a reachable inner path is dropped rather than producing a dangling outer edge that
+        // would later crash GenerateStage.
         for (final var lift : pendingLifts) {
             if (graph.containsEdge(lift.inputNode, lift.outputNode)) {
                 continue;
             }
-            final var innerPath = new BFSShortestPath<>(graph).getPath(lift.innerInputNode, lift.innerOutputNode);
-            if (innerPath != null) {
-                graph.addEdge(lift.inputNode, lift.outputNode, new LiftEdge(lift.kind, innerPath));
+            final var innerProbe = new org.jgrapht.alg.shortestpath.BFSShortestPath<>(graph)
+                    .getPath(lift.innerInputNode, lift.innerOutputNode);
+            if (innerProbe == null) {
+                continue;
             }
+            graph.addEdge(
+                    lift.inputNode,
+                    lift.outputNode,
+                    new LiftEdge(lift.kind, lift.innerInputNode, lift.innerOutputNode));
         }
     }
 
@@ -349,12 +357,12 @@ public final class BuildValueGraphStage {
             final String name,
             final ReadAccessor accessor) {
 
-        final var candidate = new PropertyNode(name, accessor.getType(), accessor);
+        final var candidate = new PropertyNode(name, accessor.getType());
         if (!graph.containsVertex(candidate)) {
             graph.addVertex(candidate);
         }
         if (!graph.containsEdge(parent, candidate)) {
-            graph.addEdge(parent, candidate, new PropertyReadEdge());
+            graph.addEdge(parent, candidate, new PropertyReadEdge(accessor.template()));
         }
         return candidate;
     }
@@ -465,17 +473,19 @@ public final class BuildValueGraphStage {
             }
             if (edge instanceof LiftEdge) {
                 final var liftEdge = (LiftEdge) edge;
-                for (final var v : liftEdge.getInnerPath().getVertexList()) {
-                    if (!graph.containsVertex(v)) {
-                        throw new IllegalStateException(
-                                "LiftEdge innerPath vertex " + v + " not present in parent ValueGraph");
-                    }
+                if (!graph.containsVertex(liftEdge.getInnerInputNode())) {
+                    throw new IllegalStateException("LiftEdge innerInputNode " + liftEdge.getInnerInputNode()
+                            + " not present in parent ValueGraph");
                 }
-                for (final var e : liftEdge.getInnerPath().getEdgeList()) {
-                    if (!graph.containsEdge(e)) {
-                        throw new IllegalStateException(
-                                "LiftEdge innerPath edge " + e + " not present in parent ValueGraph");
-                    }
+                if (!graph.containsVertex(liftEdge.getInnerOutputNode())) {
+                    throw new IllegalStateException("LiftEdge innerOutputNode " + liftEdge.getInnerOutputNode()
+                            + " not present in parent ValueGraph");
+                }
+            }
+            if (edge instanceof TypeTransformEdge) {
+                if (((TypeTransformEdge) edge).getCodeTemplate() == null) {
+                    throw new IllegalStateException(
+                            "TypeTransformEdge must carry a non-null codeTemplate at construction: " + edge);
                 }
             }
         }

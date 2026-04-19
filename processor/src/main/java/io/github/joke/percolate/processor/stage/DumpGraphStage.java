@@ -34,13 +34,14 @@ import org.jgrapht.nio.DefaultAttribute;
 
 /**
  * Debug stage: exports one {@code DefaultDirectedGraph<ValueNode, ValueEdge>} per mapper method,
- * with winning-path edges highlighted, to a DOT / GraphML / JSON file.
+ * with winning-path edges highlighted, to a DOT / GraphML / JSON file named
+ * {@code <mapper>_<method>_resolved.{ext}}.
  *
- * <p>Fires after {@code OptimizePathStage}. Fails-soft: any {@link IOException} is logged via
+ * <p>Fires after {@code ResolvePathStage}. Fails-soft: any {@link IOException} is logged via
  * {@link Messager} and the pipeline continues.
  */
 @RequiredArgsConstructor(onConstructor_ = @Inject)
-public final class DumpResolvedPathsStage {
+public final class DumpGraphStage {
 
     private final ProcessorOptions options;
     private final Filer filer;
@@ -71,7 +72,7 @@ public final class DumpResolvedPathsStage {
             try {
                 GraphExportSupport.writeGraph(
                         graph,
-                        DumpResolvedPathsStage::nodeLabel,
+                        DumpGraphStage::nodeLabel,
                         edge -> edgeAttributes(edge, winningEdges, format),
                         filer,
                         packageName,

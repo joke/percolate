@@ -1,5 +1,6 @@
 package io.github.joke.percolate.processor.stage
 
+import com.palantir.javapoet.CodeBlock
 import io.github.joke.percolate.processor.graph.PropertyNode
 import io.github.joke.percolate.processor.graph.PropertyReadEdge
 import io.github.joke.percolate.processor.graph.SourceParamNode
@@ -194,10 +195,72 @@ class BuildValueGraphStageSpec extends Specification {
 
         then:
         result.isSuccess()
-        // TypeTransformEdges have null codeTemplate — OptimizePathStage hasn't run
-        result.value().graphs[matching].edgeSet()
-                .findAll { it instanceof TypeTransformEdge }
-                .every { it.codeTemplate == null }
+        // ResolvedAssignment list is empty — ResolvePathStage hasn't run
+        result.value().graphs[matching].vertexSet().any { it instanceof PropertyNode }
+    }
+
+    // -------------------------------------------------------------------------
+    // Template materialisation at construction (rehomed from OptimizePathStageSpec)
+    // -------------------------------------------------------------------------
+
+    def 'every TypeTransformEdge has a non-null codeTemplate after BuildValueGraphStage'() {
+        given:
+        final sourceType = typeMirror('test.Foo')
+        final targetType = typeMirror('test.Bar')
+
+        final getter = readAccessor('value', sourceType)
+        final writer = writeAccessor('value', targetType)
+        final matching = methodMatching(sourceType, targetType, [param('src', sourceType)],
+                [MappingAssignment.of(['value'], 'value', [:], null, AssignmentOrigin.EXPLICIT_MAP)])
+
+        final innerStrategy = Stub(TypeTransformStrategy)
+        final expectedTemplate = { input -> CodeBlock.of('xf($L)', input) }
+        final strategy = Stub(TypeTransformStrategy) {
+            canProduce(_, _, _) >> { TypeMirror from, TypeMirror to, ctx ->
+                if (from.toString() == 'test.Foo' && to.toString() == 'test.Bar') {
+                    return Optional.of(new TransformProposal(sourceType, targetType, expectedTemplate, innerStrategy))
+                }
+                return Optional.empty()
+            }
+        }
+
+        final stage = new BuildValueGraphStage(types, elements,
+                [strategy],
+                [sourceDisco([(sourceType): [getter]])],
+                [targetDisco([(targetType): [writer]])])
+
+        when:
+        final result = stage.execute(new MatchedModel(mapperType, [matching]))
+
+        then:
+        result.isSuccess()
+        final graph = result.value().graphs[matching]
+        final xfmEdges = graph.edgeSet().findAll { it instanceof TypeTransformEdge }
+        !xfmEdges.isEmpty()
+        xfmEdges.every { it.codeTemplate != null }
+        xfmEdges[0].codeTemplate.apply(CodeBlock.of('x')).toString() == 'xf(x)'
+    }
+
+    def 'every PropertyReadEdge has a non-null template after BuildValueGraphStage'() {
+        given:
+        final sourceType = typeMirror('test.Order')
+        final targetType = typeMirror('test.OrderDTO')
+        final stringType = typeMirror('java.lang.String')
+        final matching   = methodMatching(sourceType, targetType, [param('order', sourceType)],
+                [MappingAssignment.of(['name'], 'name', [:], null, AssignmentOrigin.AUTO_MAPPED)])
+
+        final stage = stage(
+                source: [(sourceType): [readAccessor('name', stringType)]],
+                target: [(targetType): [writeAccessor('name', stringType)]])
+
+        when:
+        final result = stage.execute(new MatchedModel(mapperType, [matching]))
+
+        then:
+        result.isSuccess()
+        final edges = result.value().graphs[matching].edgeSet().findAll { it instanceof PropertyReadEdge }
+        !edges.isEmpty()
+        edges.every { it.template != null }
     }
 
     // -------------------------------------------------------------------------

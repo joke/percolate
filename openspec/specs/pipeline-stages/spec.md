@@ -28,7 +28,7 @@ Defines the stage-based processing pipeline architecture: `StageResult` modeling
 
 ### Requirement: Pipeline executes stages sequentially with early exit on failure
 
-`Pipeline.process()` SHALL execute stages in this order: `AnalyzeStage`, `MatchMappingsStage`, `ValidateMatchingStage`, `BuildValueGraphStage`, `DumpValueGraphStage`, `ResolvePathStage`, `OptimizePathStage`, `DumpResolvedPathsStage`, `ValidateResolutionStage`, `GenerateStage`. After each real stage, if the `StageResult` is not successful, `Pipeline` SHALL report errors via `Messager` and return `null`. Debug dump stages SHALL be called unconditionally (they internally check `ProcessorOptions` to decide whether to act). Debug dump stages SHALL NOT produce `StageResult` — they are fire-and-forget side effects that SHALL NOT abort the pipeline on failure.
+`Pipeline.process()` SHALL execute stages in this order: `AnalyzeStage`, `MatchMappingsStage`, `ValidateMatchingStage`, `BuildValueGraphStage`, `ResolvePathStage`, `DumpGraphStage`, `ValidateResolutionStage`, `GenerateStage`. After each real stage, if the `StageResult` is not successful, `Pipeline` SHALL report errors via `Messager` and return `null`. The debug dump stage (`DumpGraphStage`) SHALL be called unconditionally (it internally checks `ProcessorOptions` to decide whether to act). The debug dump stage SHALL NOT produce `StageResult` — it is a fire-and-forget side effect that SHALL NOT abort the pipeline on failure.
 
 #### Scenario: All stages succeed
 
@@ -40,25 +40,25 @@ Defines the stage-based processing pipeline architecture: `StageResult` modeling
 - **WHEN** a stage returns failure
 - **THEN** the pipeline SHALL report all diagnostics from that failure to `Messager` and skip remaining stages for that mapper
 
-#### Scenario: Debug stages called between real stages
+#### Scenario: Debug stage called after resolution
 
-- **WHEN** `BuildValueGraphStage` succeeds
-- **THEN** `Pipeline` SHALL call `DumpValueGraphStage.execute(valueGraphs)` before calling `ResolvePathStage`
+- **WHEN** `ResolvePathStage` succeeds
+- **THEN** `Pipeline` SHALL call `DumpGraphStage.execute(valueGraphs, resolvedPaths)` before calling `ValidateResolutionStage`
 
 #### Scenario: Debug stage failure does not abort pipeline
 
-- **WHEN** `DumpValueGraphStage` throws an `IOException` writing a file
-- **THEN** `Pipeline` SHALL log a warning via `Messager` and continue to `ResolvePathStage`
+- **WHEN** `DumpGraphStage` throws an `IOException` writing a file
+- **THEN** `Pipeline` SHALL log a warning via `Messager` and continue to `ValidateResolutionStage`
 
 #### Scenario: Pipeline routes MatchedModel through matching validation before graph build
 
 - **WHEN** `MatchMappingsStage` succeeds
 - **THEN** `Pipeline` SHALL call `ValidateMatchingStage.execute(matchedModel)` before `BuildValueGraphStage`; on matching-validation failure `Pipeline` SHALL NOT call `BuildValueGraphStage`
 
-#### Scenario: Pipeline routes resolved paths through optimize before validation
+#### Scenario: Pipeline routes resolved paths through dump before validation
 
 - **WHEN** `ResolvePathStage` succeeds
-- **THEN** `Pipeline` SHALL call `OptimizePathStage.execute(resolvedPaths)` before `ValidateResolutionStage`
+- **THEN** `Pipeline` SHALL call `DumpGraphStage.execute(...)` before `ValidateResolutionStage` (fire-and-forget) and proceed directly to `ValidateResolutionStage` on its result
 
 ### Requirement: Per-mapper error isolation
 Each mapper type element SHALL flow through the pipeline independently. A failure in one mapper SHALL NOT prevent other mappers from being processed.
@@ -69,12 +69,12 @@ Each mapper type element SHALL flow through the pipeline independently. A failur
 
 ### Requirement: Stages are Dagger-injected
 
-All stages SHALL be constructor-injected by Dagger. The `Pipeline` SHALL receive all stages via its constructor. Stages SHALL declare dependencies on `Elements`, `Types`, `Messager`, or `Filer` as needed from the existing `ProcessorModule`. The pipeline SHALL inject ten stages: `AnalyzeStage`, `MatchMappingsStage`, `ValidateMatchingStage`, `BuildValueGraphStage`, `DumpValueGraphStage`, `ResolvePathStage`, `OptimizePathStage`, `DumpResolvedPathsStage`, `ValidateResolutionStage`, and `GenerateStage`.
+All stages SHALL be constructor-injected by Dagger. The `Pipeline` SHALL receive all stages via its constructor. Stages SHALL declare dependencies on `Elements`, `Types`, `Messager`, or `Filer` as needed from the existing `ProcessorModule`. The pipeline SHALL inject eight stages: `AnalyzeStage`, `MatchMappingsStage`, `ValidateMatchingStage`, `BuildValueGraphStage`, `ResolvePathStage`, `DumpGraphStage`, `ValidateResolutionStage`, and `GenerateStage`.
 
 #### Scenario: Pipeline receives stages from Dagger
 
 - **WHEN** the `ProcessorComponent` is built
-- **THEN** the `Pipeline` SHALL have all ten stages injected and ready to execute
+- **THEN** the `Pipeline` SHALL have all eight stages injected and ready to execute
 
 ### Requirement: MatchMappingsStage produces MatchedModel from parsed methods
 
@@ -107,26 +107,17 @@ The stage SHALL NOT resolve types, discover accessors, or validate that referenc
 
 ### Requirement: ResolvePathStage replaces ResolveTransformsStage
 
-`ResolvePathStage` SHALL replace the previous `ResolveTransformsStage`. Its responsibility is narrowed to: for each `(MethodMatching, MappingAssignment)` pair, find the shortest `GraphPath<ValueNode, ValueEdge>` through the method's `ValueGraph` from the `SourceParamNode` to the `TargetSlotNode` for that assignment, using `BFSShortestPath` or equivalent. No accessor chain construction (done in build); no code template materialization (done in optimize).
+`ResolvePathStage` SHALL replace the previous `ResolveTransformsStage`. Its responsibility is narrowed to: for each `(MethodMatching, MappingAssignment)` pair, find the shortest `GraphPath<ValueNode, ValueEdge>` through the method's `ValueGraph` from the `SourceParamNode` to the `TargetSlotNode` for that assignment, using `BFSShortestPath` or equivalent. No accessor chain construction (done in build); no code template materialization (templates are materialised at edge construction in `BuildValueGraphStage`, except `LiftEdge` which composes lazily at generation time).
 
 #### Scenario: ResolvePathStage returns per-assignment GraphPaths
 
 - **WHEN** a method has 3 `MappingAssignment`s and all resolve successfully
 - **THEN** `ResolvePathStage` SHALL emit 3 `ResolvedAssignment`s, each carrying a `GraphPath<ValueNode, ValueEdge>` from `SourceParamNode` to the assignment's `TargetSlotNode`
 
-#### Scenario: ResolvePathStage does not resolve code templates
+#### Scenario: ResolvePathStage does not touch code templates
 
 - **WHEN** `ResolvePathStage` completes
-- **THEN** `TypeTransformEdge.codeTemplate` on any resolved-path edge SHALL still be `null` (template materialization is `OptimizePathStage`'s job)
-
-### Requirement: OptimizePathStage runs template materialization
-
-`OptimizePathStage` SHALL run between `ResolvePathStage` and `ValidateResolutionStage`. In this refactor it performs one pass — code-template materialization on every `TypeTransformEdge` and `LiftEdge` on a resolved path, as specified in the `path-optimization` capability.
-
-#### Scenario: OptimizePathStage runs exactly once per pipeline pass
-
-- **WHEN** `Pipeline.process()` executes for a mapper
-- **THEN** `OptimizePathStage.execute(...)` SHALL be invoked exactly once after `ResolvePathStage` and before `ValidateResolutionStage`
+- **THEN** the stage SHALL NOT read, write, or re-derive any `CodeTemplate` on any edge — templates are the responsibility of edge construction (`BuildValueGraphStage`) and lazy composition (`LiftEdge`)
 
 ### Requirement: ValidateMatchingStage separates matching-layer diagnostics
 

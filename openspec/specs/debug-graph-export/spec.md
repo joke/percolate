@@ -3,52 +3,54 @@
 ## Purpose
 
 Defines the three optional debug dump stages that export intermediate processor graphs to files for developer inspection. Debug output is gated by processor options and uses jgrapht-io exporters in configurable formats (DOT, GraphML, JSON).
-
 ## Requirements
-
-### Requirement: DumpPropertyGraphStage exports property graphs after BuildGraphStage
-The `DumpPropertyGraphStage` SHALL accept a `MappingGraph` and, when `ProcessorOptions.isDebugGraphs()` is `true`, export each method's `DefaultDirectedGraph<Object, Object>` to a file via `Filer.createResource(SOURCE_OUTPUT, packageName, fileName)`. The file SHALL be named `{MapperSimpleName}_{methodName}_property.{ext}` where `{ext}` matches the configured format. Node labels SHALL use `toString()` of each graph node. Edge labels SHALL be `"access"` for `AccessEdge` and `"mapping"` for `MappingEdge`. When `isDebugGraphs()` is `false`, the stage SHALL be a no-op.
-
-#### Scenario: Property graph exported as DOT
-- **WHEN** `ProcessorOptions.isDebugGraphs()` returns `true` and format is `"dot"`
-- **THEN** a file `MyMapper_mapToFoo_property.dot` SHALL be written to `SOURCE_OUTPUT` in the mapper's package containing a valid DOT digraph with labeled nodes and edges
-
-#### Scenario: Debug disabled skips export
-- **WHEN** `ProcessorOptions.isDebugGraphs()` returns `false`
-- **THEN** no files SHALL be written by `DumpPropertyGraphStage`
-
-### Requirement: DumpTransformGraphStage exports transform exploration graphs after ResolveTransformsStage
-The `DumpTransformGraphStage` SHALL accept a `ResolvedModel` and, when debug is enabled, export one transform exploration graph per mapping method. For each method, the stage SHALL merge all `TransformResolution.getExplorationGraph()` instances from the method's `ResolvedMapping` list into a single `DefaultDirectedGraph<TypeNode, TransformEdge>`. The merged graph SHALL be written to `{MapperSimpleName}_{methodName}_transform.{ext}`. Node labels SHALL use `TypeNode.getLabel()`. Edge labels SHALL use the strategy's simple class name. Edges that appear on a winning `GraphPath` SHALL be marked as bold (DOT: `style=bold`, GraphML/JSON: attribute `winning=true`).
-
-#### Scenario: Transform graph includes roads not taken
-- **WHEN** `resolveTransformPath` explored edges A→B via `DirectAssignable` and A→C via `OptionalUnwrap` but only A→B was on the shortest path
-- **THEN** the exported transform graph SHALL contain both edges, with A→B marked as bold/winning and A→C as normal
-
-#### Scenario: One transform file per method
-- **WHEN** a mapping method has three resolved mappings each with their own transform exploration graph
-- **THEN** the stage SHALL produce one merged transform graph file for the method, not three separate files
-
-### Requirement: DumpResolvedOverlayStage exports combined property-plus-transform graphs
-The `DumpResolvedOverlayStage` SHALL accept both a `MappingGraph` and a `ResolvedModel` and, when debug is enabled, produce one overlay graph per mapping method. The overlay SHALL combine the property graph structure with resolved transform information: each `MappingEdge` SHALL be annotated with the transform path summary (e.g., `"String→String (DirectAssignable)"`). The file SHALL be named `{MapperSimpleName}_{methodName}_resolved.{ext}`.
-
-#### Scenario: Overlay shows full mapping story
-- **WHEN** a property graph maps `source.address.street` to `target.street` and the transform path is `String→String` via `DirectAssignable`
-- **THEN** the overlay graph SHALL contain access edges from source root through the source chain, a mapping edge from `source.address.street` to `target.street` labeled with the transform summary, and access edges to the target root
-
 ### Requirement: Graph export supports configurable formats
-All debug stages SHALL use the format specified by `ProcessorOptions.getDebugGraphsFormat()` to select the jgrapht-io exporter. Supported formats SHALL be `"dot"` (using `DOTExporter`), `"graphml"` (using `GraphMLExporter`), and `"json"` (using `JSONExporter`). The file extension SHALL match the format: `.dot`, `.graphml`, `.json`. An unrecognized format value SHALL fall back to `"dot"`.
+
+`DumpGraphStage` SHALL use the format specified by `ProcessorOptions.getDebugGraphsFormat()` to select the jgrapht-io exporter. Supported formats SHALL be `"dot"` (using `DOTExporter`), `"graphml"` (using `GraphMLExporter`), and `"json"` (using `JSONExporter`). The file extension SHALL match the format: `.dot`, `.graphml`, `.json`. An unrecognized format value SHALL fall back to `"dot"`.
 
 #### Scenario: GraphML format selected
+
 - **WHEN** `-Apercolate.debug.graphs.format=graphml` is passed
-- **THEN** all debug stage output files SHALL use `.graphml` extension and valid GraphML content
+- **THEN** `DumpGraphStage` output files SHALL use `.graphml` extension and valid GraphML content with a `winning` boolean attribute on bold edges
 
 #### Scenario: Unknown format falls back to DOT
+
 - **WHEN** `-Apercolate.debug.graphs.format=unsupported` is passed
-- **THEN** all debug stage output files SHALL use `.dot` extension and valid DOT content
+- **THEN** `DumpGraphStage` output files SHALL use `.dot` extension and valid DOT content
 
-### Requirement: Debug stages are Dagger-injectable
-Each debug stage (`DumpPropertyGraphStage`, `DumpTransformGraphStage`, `DumpResolvedOverlayStage`) SHALL be a `final` class with `@RequiredArgsConstructor(onConstructor_ = @Inject)` and SHALL receive `ProcessorOptions` and `Filer` via constructor injection.
+### Requirement: DumpGraphStage exports method value graphs after ResolvePathStage
 
-#### Scenario: Debug stage injection
+The `DumpGraphStage` SHALL accept `Map<MethodMatching, ValueGraph>` (from `BuildValueGraphStage`) and the resolved-path output (from `ResolvePathStage`) and, when `ProcessorOptions.isDebugGraphs()` is `true`, export one file per method.
+
+For each method the stage SHALL write `{MapperSimpleName}_{methodName}_resolved.{ext}` via `Filer.createResource(SOURCE_OUTPUT, packageName, fileName)`, rendering the complete `ValueGraph` for that method. Every `ValueEdge` that appears on at least one winning `GraphPath` SHALL be marked bold (DOT: `style=bold`; GraphML/JSON: attribute `winning=true`). Edges not on any winning path SHALL be rendered unmarked. Node labels SHALL use `ValueNode.toString()`. Edge labels SHALL use a short discriminator (`"read"` for `PropertyReadEdge`, the strategy simple name for `TypeTransformEdge`, `"lift({KIND})"` for `LiftEdge`).
+
+Resolution failures SHALL be representable by producing a dump with zero bold edges for the affected method; `DumpGraphStage` SHALL NOT itself emit diagnostics. When `isDebugGraphs()` is `false`, the stage SHALL be a no-op.
+
+#### Scenario: Resolved graph exported as DOT
+
+- **WHEN** `ProcessorOptions.isDebugGraphs()` returns `true` and format is `"dot"`
+- **THEN** a file `MyMapper_mapToFoo_resolved.dot` SHALL be written to `SOURCE_OUTPUT` in the mapper's package containing a valid DOT digraph with bold edges on the winning paths and plain edges elsewhere
+
+#### Scenario: Resolution failure dump has zero bold edges
+
+- **WHEN** a method has at least one `MappingAssignment` whose resolved `GraphPath` is `null`
+- **THEN** `DumpGraphStage` SHALL still produce `{MapperSimpleName}_{methodName}_resolved.{ext}`, with bold styling applied only to edges on assignments that did resolve; unresolved assignments contribute no bold edges
+
+#### Scenario: Roads not taken remain in the dump
+
+- **WHEN** the `ValueGraph` contains both `OptionalWrapStrategy` and `OptionalUnwrapStrategy` edges between two typed nodes, and only one direction lies on a winning path
+- **THEN** both edges SHALL appear in the dump; the winning-direction edge SHALL be bold, the other plain
+
+#### Scenario: Debug disabled skips export
+
+- **WHEN** `ProcessorOptions.isDebugGraphs()` returns `false`
+- **THEN** no files SHALL be written by `DumpGraphStage`
+
+### Requirement: DumpGraphStage is Dagger-injectable
+
+`DumpGraphStage` SHALL be a `final` class with `@RequiredArgsConstructor(onConstructor_ = @Inject)` and SHALL receive `ProcessorOptions` and `Filer` via constructor injection. The pipeline SHALL hold a single injected `DumpGraphStage` instance.
+
+#### Scenario: DumpGraphStage injection
+
 - **WHEN** the Dagger component is built
-- **THEN** `Pipeline` SHALL receive all three debug stages via constructor injection
+- **THEN** `Pipeline` SHALL receive exactly one `DumpGraphStage` via constructor injection

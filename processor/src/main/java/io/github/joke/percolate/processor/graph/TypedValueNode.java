@@ -1,5 +1,7 @@
 package io.github.joke.percolate.processor.graph;
 
+import com.palantir.javapoet.CodeBlock;
+import java.util.Map;
 import javax.lang.model.type.TypeMirror;
 import lombok.EqualsAndHashCode;
 import lombok.Getter;
@@ -30,5 +32,16 @@ public final class TypedValueNode extends ValueNode {
         this.typeString = type.toString();
         this.type = type;
         this.label = label;
+    }
+
+    @Override
+    public CodeBlock compose(final Map<ValueEdge, CodeBlock> inputs, final ComposeKind kind) {
+        if (kind != ComposeKind.EXPRESSION) {
+            throw new IllegalStateException("TypedValueNode supports EXPRESSION only, got: " + kind);
+        }
+        if (inputs.size() != 1) {
+            throw new IllegalStateException("TypedValueNode expects exactly one incoming edge, got: " + inputs.size());
+        }
+        return inputs.values().iterator().next();
     }
 }
