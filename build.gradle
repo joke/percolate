@@ -106,7 +106,7 @@ subprojects { project ->
 
     pluginManager.withPlugin('net.ltgt.nullaway') {
         dependencies {
-            errorprone('com.uber.nullaway:nullaway:0.13.1')
+            errorprone('com.uber.nullaway:nullaway:0.13.4')
         }
         tasks.withType(JavaCompile).configureEach {
             options.errorprone {
