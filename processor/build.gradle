@@ -20,6 +20,7 @@ dependencies {
     implementation project(':annotations')
     implementation 'org.jgrapht:jgrapht-core'
     implementation 'org.jgrapht:jgrapht-io'
+    implementation 'com.google.auto:auto-common'
     implementation 'com.google.dagger:dagger'
     implementation 'com.palantir.javapoet:javapoet'
 

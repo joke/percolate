@@ -1,19 +1,18 @@
 package io.github.joke.percolate.processor;
 
+import com.google.auto.common.BasicAnnotationProcessor;
+import com.google.auto.common.BasicAnnotationProcessor.Step;
 import com.google.auto.service.AutoService;
-import java.util.Set;
-import javax.annotation.processing.AbstractProcessor;
+import java.util.List;
+import java.util.Objects;
 import javax.annotation.processing.Processor;
-import javax.annotation.processing.RoundEnvironment;
-import javax.annotation.processing.SupportedAnnotationTypes;
 import javax.lang.model.SourceVersion;
-import javax.lang.model.element.TypeElement;
+import org.jspecify.annotations.Nullable;
 
 @AutoService(Processor.class)
-@SupportedAnnotationTypes("io.github.joke.percolate.Mapper")
-public class PercolateProcessor extends AbstractProcessor {
+public final class PercolateProcessor extends BasicAnnotationProcessor {
 
-    private Pipeline pipeline;
+    private @Nullable ProcessorComponent component;
 
     @Override
     public SourceVersion getSupportedSourceVersion() {
@@ -21,21 +20,10 @@ public class PercolateProcessor extends AbstractProcessor {
     }
 
     @Override
-    public synchronized void init(final javax.annotation.processing.ProcessingEnvironment processingEnv) {
-        super.init(processingEnv);
-        final ProcessorComponent component = DaggerProcessorComponent.builder()
-                .processorModule(new ProcessorModule(processingEnv))
-                .build();
-        pipeline = component.pipeline();
-    }
-
-    @Override
-    public boolean process(final Set<? extends TypeElement> annotations, final RoundEnvironment roundEnv) {
-        annotations.stream()
-                .flatMap(annotation -> roundEnv.getElementsAnnotatedWith(annotation).stream())
-                .filter(TypeElement.class::isInstance)
-                .map(TypeElement.class::cast)
-                .forEach(pipeline::process);
-        return false;
+    protected Iterable<? extends Step> steps() {
+        if (component == null) {
+            component = DaggerProcessorComponent.factory().create(new ProcessorModule(processingEnv));
+        }
+        return List.of(Objects.requireNonNull(component).mapperStep());
     }
 }

@@ -7,5 +7,10 @@ import jakarta.inject.Singleton;
 @Component(modules = ProcessorModule.class)
 interface ProcessorComponent {
 
-    Pipeline pipeline();
+    MapperStep mapperStep();
+
+    @Component.Factory
+    interface Factory {
+        ProcessorComponent create(ProcessorModule processorModule);
+    }
 }

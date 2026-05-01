@@ -1,26 +1,4 @@
-# Unit Testing Spec
-
-### Requirement: Every processor class SHALL have a unit test
-Each class in the processor module SHALL have a corresponding Spock specification file tagged with `@Tag('unit')` that tests the class in isolation using mocked dependencies.
-
-#### Scenario: PercolateProcessor unit test exists
-- **WHEN** the unit test suite runs
-- **THEN** `PercolateProcessorUnitSpec` verifies that `getSupportedSourceVersion()` returns the latest supported source version and that `steps()` returns the configured `MapperStep` from the Dagger component
-
-#### Scenario: Pipeline unit test exists
-- **WHEN** the unit test suite runs
-- **THEN** `PipelineSpec` verifies that `process(typeElement)` calls the three stages in order, threading the output of each stage into the next, and returns `null`
-
-#### Scenario: ProcessorModule unit test exists
-- **WHEN** the unit test suite runs
-- **THEN** `ProcessorModuleSpec` verifies each `@Provides` method returns the correct utility extracted from a mocked `ProcessingEnvironment`
-
-### Requirement: Unit tests SHALL use Spock mocking
-Unit tests SHALL use Spock's built-in `Mock()` and `Stub()` for dependency isolation. No real annotation processing infrastructure SHALL be used in unit tests.
-
-#### Scenario: Mocked ProcessingEnvironment
-- **WHEN** `ProcessorModuleSpec` tests the `elements()` provider
-- **THEN** a `Mock(ProcessingEnvironment)` is used and `getElementUtils()` interaction is verified
+## ADDED Requirements
 
 ### Requirement: New processor classes SHALL have unit specs
 The classes introduced by the discovery-stages change SHALL each have a corresponding Spock specification under `processor/src/test/groovy/...`, tagged `@Tag('unit')`, that tests the class in isolation using Spock mocks for collaborators.
@@ -44,3 +22,7 @@ The classes introduced by the discovery-stages change SHALL each have a correspo
 #### Scenario: ValidateNoDuplicateTargets unit spec exists
 - **WHEN** the unit test suite runs
 - **THEN** `ValidateNoDuplicateTargetsSpec` verifies that two directives with the same `target` cause one error to be emitted via a mocked `Diagnostics` (with the offending `targetValue`), that three duplicates cause two errors, that distinct targets cause no errors, and that the validator does not throw
+
+#### Scenario: Pipeline unit spec is updated
+- **WHEN** the unit test suite runs
+- **THEN** `PipelineSpec` verifies that `process(typeElement)` calls the three stages in order, threading the output of each stage into the next, and returns `null`

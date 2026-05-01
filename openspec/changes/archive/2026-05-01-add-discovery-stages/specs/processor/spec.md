@@ -1,6 +1,6 @@
-# Processor Framework Spec
+## MODIFIED Requirements
 
-### Requirement: PercolateProcessor
+### Requirement: PercolateProcessor SHALL extend BasicAnnotationProcessor
 `PercolateProcessor` SHALL extend `com.google.auto.common.BasicAnnotationProcessor` (not `javax.annotation.processing.AbstractProcessor`). It SHALL be registered via `@AutoService(Processor.class)` and declare the latest supported source version via `getSupportedSourceVersion()`. It SHALL NOT use `@SupportedAnnotationTypes`; supported annotations are derived from its `Step`s.
 
 #### Scenario: Class extends BasicAnnotationProcessor
@@ -18,7 +18,7 @@
 - **WHEN** `steps()` is invoked after `init()`
 - **THEN** the returned iterable contains exactly one `Step`: a `MapperStep` obtained from the Dagger component
 
-### Requirement: ProcessorComponent
+### Requirement: ProcessorComponent SHALL expose MapperStep
 `ProcessorComponent` SHALL be a Dagger `@Component` with `modules = ProcessorModule.class`. It SHALL expose `MapperStep mapperStep()`. The factory SHALL accept a `ProcessingEnvironment` (via `@Component.Factory` or `@BindsInstance`).
 
 #### Scenario: Component exposes MapperStep
@@ -26,21 +26,7 @@
 - **THEN** it declares `MapperStep mapperStep();` as a provision method
 - **AND** it does not declare `Pipeline pipeline();` as a provision method (the pipeline is no longer obtained directly from the component)
 
-### Requirement: ProcessorModule
-- Dagger `@Module`
-- `@Provides` methods extracting from `ProcessingEnvironment`:
-  - `Elements` via `getElementUtils()`
-  - `Types` via `getTypeUtils()`
-  - `Messager` via `getMessager()`
-  - `Filer` via `getFiler()`
-
-The `ProcessorModule` class SHALL use `@RequiredArgsConstructor` to replace its manual constructor. The `processingEnvironment` field SHALL be `private final` with no explicit constructor.
-
-#### Scenario: ProcessorModule uses Lombok constructor
-- **WHEN** `ProcessorModule` is instantiated
-- **THEN** Lombok generates the constructor accepting `ProcessingEnvironment` and the `@Provides` methods continue to work identically
-
-### Requirement: Pipeline
+### Requirement: Pipeline SHALL compose the discovery stages
 `Pipeline` SHALL be constructor-injected by Dagger. It SHALL declare dependencies on `DiscoverAbstractMethods`, `DiscoverMappings`, and `ValidateNoDuplicateTargets`. Its `process(TypeElement)` method SHALL invoke the three stages in order and return `null` (no code generation in this change). The `Pipeline` class SHALL use `@RequiredArgsConstructor(onConstructor_ = @Inject)`.
 
 #### Scenario: Pipeline declares stage dependencies
@@ -55,7 +41,9 @@ The `ProcessorModule` class SHALL use `@RequiredArgsConstructor` to replace its 
 - **AND** `ValidateNoDuplicateTargets.validate(...)` is called next with the result of stage 2
 - **AND** `process` returns `null`
 
-### Requirement: MapperStep
+## ADDED Requirements
+
+### Requirement: MapperStep SHALL implement auto-common's Step
 `MapperStep` SHALL implement `com.google.auto.common.BasicAnnotationProcessor.Step`. It SHALL be `@Inject`-constructed by Dagger. It SHALL declare exactly one annotation (`io.github.joke.percolate.Mapper`) via `annotations()`. Its `process(elementsByAnnotation)` SHALL reset `Diagnostics`, dispatch each `@Mapper`-annotated `TypeElement` to `Pipeline.process(...)`, and return an empty `Set<Element>` (no deferral in this change).
 
 #### Scenario: MapperStep declares the @Mapper annotation
