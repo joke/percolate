@@ -1,0 +1,22 @@
+digraph "com.example.PerMethodClusters" {
+  subgraph "cluster_method1()" {
+    label="method1()";
+    "method1()::src[a]::String" [label="src[a]", shape=box];
+    "method1()::src[a]::?" [label="src[a]", shape=box];
+    "method1()::tgt[]::void" [label="tgt[]", shape=oval];
+    "method1()::tgt[a]::?" [label="tgt[a]", shape=oval];
+  }
+  subgraph "cluster_method2()" {
+    label="method2()";
+    "method2()::src[b]::String" [label="src[b]", shape=box];
+    "method2()::src[b]::?" [label="src[b]", shape=box];
+    "method2()::tgt[]::void" [label="tgt[]", shape=oval];
+    "method2()::tgt[b]::?" [label="tgt[b]", shape=oval];
+  }
+    "method1()::src[a]::String" -> "method1()::src[a]::?" [label="1", style=bold];
+    "method2()::src[b]::String" -> "method2()::src[b]::?" [label="1", style=bold];
+    "method1()::src[a]::?" -> "method1()::tgt[a]::?" [label="1", style=bold];
+    "method2()::src[b]::?" -> "method2()::tgt[b]::?" [label="1", style=bold];
+    "method1()::tgt[a]::?" -> "method1()::tgt[]::void" [label="1"];
+    "method2()::tgt[b]::?" -> "method2()::tgt[]::void" [label="1"];
+}

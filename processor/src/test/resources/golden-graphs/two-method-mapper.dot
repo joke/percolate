@@ -1,0 +1,22 @@
+digraph "com.example.TwoMethodMapper" {
+  subgraph "cluster_map(Person)" {
+    label="map(Person)";
+    "map(Person)::src[person]::Person" [label="src[person]", shape=box];
+    "map(Person)::src[person]::?" [label="src[person]", shape=box];
+    "map(Person)::tgt[]::Human" [label="tgt[]", shape=oval];
+    "map(Person)::tgt[name]::?" [label="tgt[name]", shape=oval];
+  }
+  subgraph "cluster_map2(Address)" {
+    label="map2(Address)";
+    "map2(Address)::src[address]::Address" [label="src[address]", shape=box];
+    "map2(Address)::src[address]::?" [label="src[address]", shape=box];
+    "map2(Address)::tgt[]::Address" [label="tgt[]", shape=oval];
+    "map2(Address)::tgt[name]::?" [label="tgt[name]", shape=oval];
+  }
+    "map(Person)::src[person]::Person" -> "map(Person)::src[person]::?" [label="1", style=bold];
+    "map2(Address)::src[address]::Address" -> "map2(Address)::src[address]::?" [label="1", style=bold];
+    "map(Person)::src[person]::?" -> "map(Person)::tgt[name]::?" [label="1", style=bold];
+    "map2(Address)::src[address]::?" -> "map2(Address)::tgt[name]::?" [label="1", style=bold];
+    "map(Person)::tgt[name]::?" -> "map(Person)::tgt[]::Human" [label="1"];
+    "map2(Address)::tgt[name]::?" -> "map2(Address)::tgt[]::Address" [label="1"];
+}

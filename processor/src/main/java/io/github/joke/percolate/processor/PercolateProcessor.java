@@ -5,6 +5,7 @@ import com.google.auto.common.BasicAnnotationProcessor.Step;
 import com.google.auto.service.AutoService;
 import java.util.List;
 import java.util.Objects;
+import java.util.Set;
 import javax.annotation.processing.Processor;
 import javax.lang.model.SourceVersion;
 import org.jspecify.annotations.Nullable;
@@ -17,6 +18,11 @@ public final class PercolateProcessor extends BasicAnnotationProcessor {
     @Override
     public SourceVersion getSupportedSourceVersion() {
         return SourceVersion.latestSupported();
+    }
+
+    @Override
+    public Set<String> getSupportedOptions() {
+        return Set.of("percolate.debug.graphs");
     }
 
     @Override

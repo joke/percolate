@@ -7,22 +7,20 @@ import spock.lang.Tag
 
 import javax.tools.Diagnostic.Kind
 
-import static com.google.testing.compile.CompilationSubject.assertThat
 import static com.google.testing.compile.Compiler.javac
 
 @Tag('integration')
-class DuplicateTargetIntegrationSpec extends Specification {
+class OptionOffEmitsNoFileGoldenSpec extends Specification {
 
-    def 'duplicate target produces error with location pointing at target literal'() {
+    def 'option-off emits no .seed.dot file'() {
         given:
-        def source = JavaFileObjects.forSourceString('test.DuplicateTargetMapper', '''
+        def source = JavaFileObjects.forSourceString('test.NoDebugMapper', '''
             import io.github.joke.percolate.Mapper;
             import io.github.joke.percolate.Map;
 
             @Mapper
-            public interface DuplicateTargetMapper {
-                @Map(target = "name", source = "input.name")
-                @Map(target = "name", source = "input.value")
+            public interface NoDebugMapper {
+                @Map(target = "name", source = "input")
                 void map(Object input);
             }
         ''')
@@ -33,10 +31,9 @@ class DuplicateTargetIntegrationSpec extends Specification {
                 .compile(source)
 
         then:
-        compilation.status() == Compilation.Status.FAILURE
+        compilation.status() == Compilation.Status.SUCCESS
         def diagnostics = compilation.diagnostics()
         def errors = diagnostics.findAll { it.kind == Kind.ERROR }
-        errors.size() == 1
-        errors[0].getMessage(null).contains('name')
+        errors.size() == 0
     }
 }

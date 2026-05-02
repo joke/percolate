@@ -2,15 +2,18 @@ package io.github.joke.percolate.processor;
 
 import dagger.Module;
 import dagger.Provides;
+import io.github.joke.percolate.processor.graph.DotRenderer;
 import javax.annotation.processing.Filer;
 import javax.annotation.processing.Messager;
 import javax.annotation.processing.ProcessingEnvironment;
 import javax.lang.model.util.Elements;
 import javax.lang.model.util.Types;
+import lombok.EqualsAndHashCode;
 import lombok.RequiredArgsConstructor;
 
 @Module
 @RequiredArgsConstructor
+@EqualsAndHashCode
 final class ProcessorModule {
 
     private final ProcessingEnvironment processingEnvironment;
@@ -33,5 +36,15 @@ final class ProcessorModule {
     @Provides
     Filer filer() {
         return processingEnvironment.getFiler();
+    }
+
+    @Provides
+    ProcessorOptions processorOptions() {
+        return ProcessorOptions.from(processingEnvironment.getOptions());
+    }
+
+    @Provides
+    DotRenderer dotRenderer() {
+        return new DotRenderer();
     }
 }

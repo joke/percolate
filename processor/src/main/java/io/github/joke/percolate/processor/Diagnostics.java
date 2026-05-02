@@ -11,15 +11,21 @@ import javax.lang.model.element.AnnotationMirror;
 import javax.lang.model.element.AnnotationValue;
 import javax.lang.model.element.Element;
 import javax.tools.Diagnostic;
+import lombok.EqualsAndHashCode;
 import lombok.RequiredArgsConstructor;
 import org.jspecify.annotations.Nullable;
 
 @Singleton
 @RequiredArgsConstructor(onConstructor_ = @Inject)
+@EqualsAndHashCode(onlyExplicitlyIncluded = true)
 final class Diagnostics {
 
     private final Messager messager;
+
+    @EqualsAndHashCode.Include
     private final Set<Element> scarred = new HashSet<>();
+
+    @EqualsAndHashCode.Include
     private final Map<Element, Element> scarredWithEnclosing = new HashMap<>();
 
     void error(
@@ -34,6 +40,18 @@ final class Diagnostics {
 
     void error(final Element element, final String message) {
         error(element, null, null, message);
+    }
+
+    void warning(final Element element, final String message) {
+        messager.printMessage(Diagnostic.Kind.WARNING, message, element);
+    }
+
+    void warning(
+            final Element element,
+            final @Nullable AnnotationMirror mirror,
+            final @Nullable AnnotationValue value,
+            final String message) {
+        messager.printMessage(Diagnostic.Kind.WARNING, message, element, mirror, value);
     }
 
     boolean hasErrorsFor(final Element element) {

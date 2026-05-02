@@ -1,4 +1,4 @@
-# Processor Framework Spec
+## MODIFIED Requirements
 
 ### Requirement: PercolateProcessor
 `PercolateProcessor` SHALL extend `com.google.auto.common.BasicAnnotationProcessor` (not `javax.annotation.processing.AbstractProcessor`). It SHALL be registered via `@AutoService(Processor.class)` and declare the latest supported source version via `getSupportedSourceVersion()`. It SHALL NOT use `@SupportedAnnotationTypes`; supported annotations are derived from its `Step`s.
@@ -23,14 +23,6 @@
 #### Scenario: getSupportedOptions declares percolate.debug.graphs
 - **WHEN** `getSupportedOptions()` is invoked
 - **THEN** the returned `Set<String>` contains the value `"percolate.debug.graphs"`
-
-### Requirement: ProcessorComponent
-`ProcessorComponent` SHALL be a Dagger `@Component` with `modules = ProcessorModule.class`. It SHALL expose `MapperStep mapperStep()`. The factory SHALL accept a `ProcessingEnvironment` (via `@Component.Factory` or `@BindsInstance`).
-
-#### Scenario: Component exposes MapperStep
-- **WHEN** the source of `ProcessorComponent` is inspected
-- **THEN** it declares `MapperStep mapperStep();` as a provision method
-- **AND** it does not declare `Pipeline pipeline();` as a provision method (the pipeline is no longer obtained directly from the component)
 
 ### Requirement: ProcessorModule
 `ProcessorModule` SHALL be a Dagger `@Module` exposing `@Provides` methods that extract collaborators from `ProcessingEnvironment`:
@@ -73,20 +65,3 @@ The `ProcessorModule` class SHALL use `@RequiredArgsConstructor` to replace its 
 - **WHEN** `Pipeline.process(typeElement)` is invoked twice with two different `TypeElement`s
 - **THEN** the `MapperGraph` instance passed to `DumpGraph.apply(...)` on the second invocation is not the same instance as the first
 - **AND** no node or edge from the first invocation appears in the second graph
-
-### Requirement: MapperStep
-`MapperStep` SHALL implement `com.google.auto.common.BasicAnnotationProcessor.Step`. It SHALL be `@Inject`-constructed by Dagger. It SHALL declare exactly one annotation (`io.github.joke.percolate.Mapper`) via `annotations()`. Its `process(elementsByAnnotation)` SHALL reset `Diagnostics`, dispatch each `@Mapper`-annotated `TypeElement` to `Pipeline.process(...)`, and return an empty `Set<Element>` (no deferral in this change).
-
-#### Scenario: MapperStep declares the @Mapper annotation
-- **WHEN** `MapperStep.annotations()` is invoked
-- **THEN** it returns a `Set` containing exactly the FQN `"io.github.joke.percolate.Mapper"`
-
-#### Scenario: process() resets Diagnostics before dispatching
-- **WHEN** `MapperStep.process(elementsByAnnotation)` is invoked
-- **THEN** `Diagnostics.reset()` is called before any element is dispatched to `Pipeline`
-
-#### Scenario: process() dispatches each @Mapper TypeElement to Pipeline
-- **WHEN** `MapperStep.process(elementsByAnnotation)` is invoked with a multimap containing two `@Mapper`-annotated `TypeElement`s
-- **THEN** `Pipeline.process(typeElement)` is called once for each `TypeElement`
-- **AND** non-`TypeElement` entries are ignored
-- **AND** the method returns an empty `Set<Element>`

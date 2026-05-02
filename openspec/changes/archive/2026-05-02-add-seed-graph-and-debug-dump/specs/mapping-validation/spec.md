@@ -55,7 +55,7 @@ Validator implementations SHALL route all error reporting through the `Diagnosti
 
 ## ValidateSourceParameters
 
-### Requirement: Every @Map directive's source first segment SHALL name a method parameter
+### ADDED Requirement: Every @Map directive's source first segment SHALL name a method parameter
 
 On a single abstract method, the first segment of every `@Map` directive's `source` value MUST match the simple name of one of the method's parameters. The first segment is the portion of the source string before the first `.` (or the entire string if there is no `.`). `ValidateSourceParameters` SHALL emit one error for each directive whose source first segment does not match any parameter name.
 
