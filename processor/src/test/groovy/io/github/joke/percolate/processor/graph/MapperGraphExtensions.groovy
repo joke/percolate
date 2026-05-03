@@ -33,8 +33,8 @@ class MapperGraphExtensions {
         graph.edgeCount()
     }
 
-    static void isForest(MapperGraph graph) {
-        assert graph.isForest() : "graph is a forest"
+    static void isAcyclic(MapperGraph graph) {
+        assert graph.isAcyclic() : "graph is acyclic"
     }
 
     static List<String> nodeIds(MapperGraph graph) {

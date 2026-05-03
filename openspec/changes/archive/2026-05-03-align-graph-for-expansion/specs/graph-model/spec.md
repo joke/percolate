@@ -1,10 +1,4 @@
-# Graph Model Spec
-
-## Purpose
-
-This spec defines the core graph model value types (`Node`, `Edge`, `Location`, `AccessPath`, `TargetPath`, `Scope`) and the `MapperGraph` wrapper used by the seed-graph and debug-output stages.
-
-## Requirements
+## ADDED Requirements
 
 ### Requirement: EdgeKind enum
 The processor SHALL define an enum `EdgeKind` in `io.github.joke.percolate.processor.graph` with exactly four values:
@@ -134,6 +128,8 @@ In this change `MapperGraph.realisedSubgraph()` always returns an empty subgraph
 - **WHEN** a `MapperGraph` is constructed with a `REALISED` edge between nodes A and B, plus a third unconnected node C (via direct construction in tests)
 - **THEN** `realisedSubgraph().nodes()` contains A and B and SHALL NOT contain C
 
+## MODIFIED Requirements
+
 ### Requirement: Node value type
 The processor SHALL define a Lombok `@Value` class `Node` in the `io.github.joke.percolate.processor.graph` package with the following fields and contract:
 - `Optional<TypeMirror> type` — the type of the value the node represents; empty when the type is not yet known (directive-seeded source/target nodes at seed time).
@@ -202,35 +198,6 @@ interface Location {
 #### Scenario: ElementLocation segment is "elem"
 - **WHEN** `ElementLocation.segment()` is invoked
 - **THEN** the returned string is exactly `"elem"`
-
-### Requirement: AccessPath and TargetPath value types
-The processor SHALL define `AccessPath` and `TargetPath` Lombok `@Value` classes wrapping `List<String>` of segments. Each SHALL expose:
-- a `segments()` accessor returning an immutable list,
-- an `append(String segment)` factory returning a new path with the additional segment,
-- equality and `hashCode` by segment-list content,
-- a deterministic `toString()` encoding (e.g. dot-joined).
-
-`AccessPath` and `TargetPath` SHALL be distinct types so that source and target paths cannot be assigned to each other by accident.
-
-#### Scenario: Append produces a new path
-- **WHEN** an `AccessPath` of `["person"]` has `append("address")` invoked
-- **THEN** a new `AccessPath` of `["person", "address"]` is returned
-- **AND** the original `AccessPath` is unchanged
-
-#### Scenario: AccessPath and TargetPath are not interchangeable
-- **WHEN** an `AccessPath` value is supplied where a `TargetPath` is required
-- **THEN** the code SHALL not compile (different types)
-
-### Requirement: Scope interface and cases
-The processor SHALL define a `Scope` interface with two implementations:
-- `MethodScope(ExecutableElement method)` — the scope produced by the seed stage for every node and edge.
-- `MapperScope` — reserved for future mapper-shared elements (e.g., routable methods); not produced by the seed stage in this change.
-
-`Scope` SHALL produce a stable text-encoding suitable for embedding into `Node.id()` and DOT cluster names.
-
-#### Scenario: Method scope encodes the method signature
-- **WHEN** a `MethodScope` is constructed for an `ExecutableElement` representing `Human map(Person person)`
-- **THEN** its text-encoding is a stable string derived from the method name and erased parameter types (e.g., `map(Person)`) and is identical for repeated invocations
 
 ### Requirement: Edge value type
 The processor SHALL define a Lombok `@Value` class `Edge` in `io.github.joke.percolate.processor.graph` with the following fields:

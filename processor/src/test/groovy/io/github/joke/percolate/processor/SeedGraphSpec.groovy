@@ -261,4 +261,91 @@ class SeedGraphSpec extends Specification {
         def edges = graph.edges().toList()
         edges.findAll { it.directive.isPresent() }.size() == edges.size()
     }
+
+    def 'all emitted edges have kind SEED'() {
+        given:
+        def seedGraph = new SeedGraph()
+        def param = param('person', 'Person')
+        def method = method('map', [param])
+        def d = directive('name', 'person')
+        def mappings = mapperMappings([methodMappings(method, [d])])
+
+        when:
+        def graph = seedGraph.apply(mappings)
+
+        then:
+        graph.edges().allMatch { it.getKind() == EdgeKind.SEED }
+    }
+
+    def 'all emitted edges have sentinel weight'() {
+        given:
+        def seedGraph = new SeedGraph()
+        def param = param('person', 'Person')
+        def method = method('map', [param])
+        def d = directive('name', 'person')
+        def mappings = mapperMappings([methodMappings(method, [d])])
+
+        when:
+        def graph = seedGraph.apply(mappings)
+
+        then:
+        graph.edges().allMatch { it.getWeight() == Weights.SENTINEL_UNREALISED }
+    }
+
+    def 'no realised, marker, or sub-seed edges are emitted'() {
+        given:
+        def seedGraph = new SeedGraph()
+        def param = param('person', 'Person')
+        def method = method('map', [param])
+        def d = directive('name', 'person')
+        def mappings = mapperMappings([methodMappings(method, [d])])
+
+        when:
+        def graph = seedGraph.apply(mappings)
+        def edges = graph.edges().toList()
+
+        then:
+        edges.findAll { it.getKind() == EdgeKind.REALISED }.isEmpty()
+        edges.findAll { it.getKind() == EdgeKind.MARKER }.isEmpty()
+        edges.findAll { it.getKind() == EdgeKind.SUB_SEED }.isEmpty()
+    }
+
+    def 'seed edges have empty codegen, groupId, and strategyClassFqn'() {
+        given:
+        def seedGraph = new SeedGraph()
+        def param = param('person', 'Person')
+        def method = method('map', [param])
+        def d = directive('name', 'person')
+        def mappings = mapperMappings([methodMappings(method, [d])])
+
+        when:
+        def graph = seedGraph.apply(mappings)
+        def edges = graph.edges().toList()
+
+        then:
+        edges.findResults { edge ->
+            if (edge.getCodegen().isPresent()) return 'codegen not empty'
+            if (edge.getGroupId().isPresent()) return 'groupId not empty'
+            if (edge.getStrategyClassFqn().isPresent()) return 'strategyClassFqn not empty'
+            null
+        }.isEmpty()
+    }
+
+    def 'seed graph is a forest'() {
+        given:
+        def seedGraph = new SeedGraph()
+        def param = param('person', 'Person')
+        def method = method('map', [param])
+        def d1 = directive('name', 'person.firstName')
+        def d2 = directive('age', 'person.age')
+        def mappings = mapperMappings([methodMappings(method, [d1, d2])])
+
+        when:
+        def graph = seedGraph.apply(mappings)
+
+        then:
+        graph.edgeCount() > 0
+        graph.nodeCount() > 0
+        graph.isAcyclic()
+    }
 }

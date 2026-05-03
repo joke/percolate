@@ -10,4 +10,9 @@ public final class SourceLocation implements Location {
     public String encode() {
         return "src[" + path + "]";
     }
+
+    @Override
+    public String segment() {
+        return "src[" + path + "]";
+    }
 }

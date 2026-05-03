@@ -3,16 +3,15 @@ package io.github.joke.percolate.processor.graph;
 import lombok.Value;
 
 @Value
-public final class TargetLocation implements Location {
-    TargetPath path;
+public final class ElementLocation implements Location {
 
     @Override
     public String encode() {
-        return "tgt[" + path + "]";
+        return "elem";
     }
 
     @Override
     public String segment() {
-        return "tgt[" + path + "]";
+        return "elem";
     }
 }

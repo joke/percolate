@@ -1,10 +1,4 @@
-# Seed Graph Spec
-
-## Purpose
-
-This spec defines the SeedGraph stage that constructs an initial `MapperGraph` from discovered mapper method mappings, producing nodes and edges that represent source parameters, return types, and directive-seeded paths.
-
-## Requirements
+## ADDED Requirements
 
 ### Requirement: SeedGraph emits only SEED-kind edges
 For every `MapperGraph` produced by `SeedGraph`, every `Edge` in the graph SHALL have `kind == EdgeKind.SEED`. `SeedGraph` SHALL NOT emit `REALISED`, `MARKER`, or `SUB_SEED` edges in this change. This is a pinned invariant of the seed stage that distinguishes Phase 1 output from Phase 2 expansion output.
@@ -13,8 +7,6 @@ For every edge emitted by `SeedGraph`, the following metadata fields SHALL be em
 - `groupId == Optional.empty()`,
 - `codegen == Optional.empty()`,
 - `strategyClassFqn == Optional.empty()` (`SeedGraph` is not a strategy).
-
-`SeedGraph` SHALL produce a fresh `MapperGraph` per invocation. It SHALL NOT mutate any state outside the returned graph.
 
 #### Scenario: All seed-emitted edges have kind SEED
 - **WHEN** `SeedGraph.apply(...)` produces a graph for any non-empty mapper
@@ -28,38 +20,7 @@ For every edge emitted by `SeedGraph`, the following metadata fields SHALL be em
 - **WHEN** `SeedGraph.apply(...)` produces a graph for any non-empty mapper
 - **THEN** every edge has `codegen.isEmpty()`, `groupId.isEmpty()`, and `strategyClassFqn.isEmpty()`
 
-#### Scenario: Empty mapper produces an empty graph
-- **WHEN** `SeedGraph.apply(...)` is invoked with a `MapperMappings` whose `methods` list is empty
-- **THEN** the returned `MapperGraph` contains zero nodes and zero edges
-
-#### Scenario: Each method seeds its own scope
-- **WHEN** `SeedGraph.apply(...)` is invoked with a `MapperMappings` containing two methods `map(Person)` and `map(Address)`
-- **THEN** every node and every edge in the returned graph has `Scope = MethodScope(<that method>)`
-- **AND** no node or edge has scope `MapperScope` (this is reserved for future use)
-
-### Requirement: Parameter root nodes
-For every parameter `p` of every method `M` in the input `MapperMappings`, `SeedGraph` SHALL emit exactly one parameter-root node:
-- `loc = SourceLocation([<paramName>])`
-- `type = Optional.of(<param type>)`
-- `scope = MethodScope(<M>)`
-
-#### Scenario: Single-parameter method seeds one parameter-root node
-- **WHEN** `SeedGraph.apply(...)` is invoked for a method `Human map(Person person)`
-- **THEN** the returned graph contains a node with `loc = SourceLocation(["person"])`, non-empty `type`, and `scope = MethodScope(<map(Person)>)`
-
-#### Scenario: Multi-parameter method seeds one node per parameter
-- **WHEN** `SeedGraph.apply(...)` is invoked for a method `Foo combine(Bar bar, Baz baz)`
-- **THEN** the returned graph contains exactly two parameter-root nodes, one with `loc = SourceLocation(["bar"])` and one with `loc = SourceLocation(["baz"])`, both scoped to `MethodScope(<combine(Bar,Baz)>)`
-
-### Requirement: Return-type root node
-For every method `M` in the input `MapperMappings`, `SeedGraph` SHALL emit exactly one return-type root node:
-- `loc = TargetLocation([])`
-- `type = Optional.of(<M's return type>)`
-- `scope = MethodScope(<M>)`
-
-#### Scenario: Return-type root is emitted
-- **WHEN** `SeedGraph.apply(...)` is invoked for a method `Human map(Person person)`
-- **THEN** the returned graph contains a node with `loc = TargetLocation([])`, `type` equal to `<Human>`, and `scope = MethodScope(<map(Person)>)`
+## MODIFIED Requirements
 
 ### Requirement: Directive-seeded source chains
 For every `MappingDirective` on every method `M`, `SeedGraph` SHALL split the directive's `source` string on `.` to produce segments `s1, s2, ..., sk`. It SHALL emit (idempotently):
@@ -123,11 +84,3 @@ Note: the seed graph is not necessarily a forest in the undirected sense — mul
 - **THEN** `MapperGraph.isAcyclic()` returns `true`
 - **AND** all edges have `kind == EdgeKind.SEED`
 - **AND** all edges have `weight == Weights.SENTINEL_UNREALISED`
-
-### Requirement: Idempotent node and edge addition
-When two `MappingDirective`s on the same method share path prefixes, `SeedGraph` SHALL NOT emit duplicate nodes or duplicate edges for those prefixes. Equality is structural (per `Node.equals` and `Edge.equals`).
-
-#### Scenario: Shared prefix is not duplicated
-- **WHEN** `SeedGraph.apply(...)` is invoked for two directives both targeting paths under `address.*` (e.g., `address.street` and `address.city`)
-- **THEN** exactly one node exists for `TargetLocation(["address"])` in the resulting graph
-- **AND** exactly one edge connects that node to the return-type root

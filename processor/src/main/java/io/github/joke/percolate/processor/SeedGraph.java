@@ -22,8 +22,6 @@ import lombok.RequiredArgsConstructor;
 @RequiredArgsConstructor(onConstructor_ = @Inject)
 public final class SeedGraph {
 
-    private static final int EDGE_WEIGHT = 1;
-
     MapperGraph apply(final MapperMappings mappings) {
         final var graph = new MapperGraph();
         for (final var methodMappings : mappings.getMethods()) {
@@ -43,14 +41,14 @@ public final class SeedGraph {
             final var paramName = param.getSimpleName().toString();
             final var paramType = param.asType();
             final var loc = new SourceLocation(io.github.joke.percolate.processor.graph.AccessPath.of(paramName));
-            final var node = new Node(Optional.of(paramType), loc, scope);
+            final var node = new Node(Optional.of(paramType), loc, scope, Optional.empty());
             graph.addNode(node);
             paramRoots.put(paramName, node);
         }
 
         // Emit return-type root node
         final var returnRootLoc = new TargetLocation(TargetPath.of(""));
-        final var returnRoot = new Node(Optional.of(returnType), returnRootLoc, scope);
+        final var returnRoot = new Node(Optional.of(returnType), returnRootLoc, scope, Optional.empty());
         graph.addNode(returnRoot);
 
         // Process directives
@@ -76,11 +74,11 @@ public final class SeedGraph {
             // Single-segment: spec requires a separate empty-typed source node
             final var loc =
                     new SourceLocation(io.github.joke.percolate.processor.graph.AccessPath.of(firstSourceSegment));
-            sourceChainStart = new Node(Optional.empty(), loc, scope);
+            sourceChainStart = new Node(Optional.empty(), loc, scope, Optional.empty());
             graph.addNode(sourceChainStart);
             final var paramRoot = paramRoots.get(firstSourceSegment);
             if (paramRoot != null) {
-                graph.addEdge(new Edge(paramRoot, sourceChainStart, EDGE_WEIGHT, Optional.of(directive.getMirror())));
+                graph.addEdge(Edge.seed(paramRoot, sourceChainStart, directive.getMirror()));
             }
         } else {
             // Multi-segment: MAY reuse parameter-root as chain start
@@ -88,7 +86,7 @@ public final class SeedGraph {
             if (sourceChainStart == null) {
                 final var loc =
                         new SourceLocation(io.github.joke.percolate.processor.graph.AccessPath.of(firstSourceSegment));
-                sourceChainStart = new Node(Optional.empty(), loc, scope);
+                sourceChainStart = new Node(Optional.empty(), loc, scope, Optional.empty());
                 graph.addNode(sourceChainStart);
             }
         }
@@ -100,9 +98,9 @@ public final class SeedGraph {
             final var prevNode = sourceNodes.peekLast();
             final var prevPath = ((SourceLocation) prevNode.getLoc()).getPath();
             final var newPath = prevPath.append(seg);
-            final var newNode = new Node(Optional.empty(), new SourceLocation(newPath), scope);
+            final var newNode = new Node(Optional.empty(), new SourceLocation(newPath), scope, Optional.empty());
             graph.addNode(newNode);
-            graph.addEdge(new Edge(prevNode, newNode, EDGE_WEIGHT, Optional.of(directive.getMirror())));
+            graph.addEdge(Edge.seed(prevNode, newNode, directive.getMirror()));
             sourceNodes.add(newNode);
         }
 
@@ -113,9 +111,9 @@ public final class SeedGraph {
         for (final var seg : targetSegments) {
             final var prevPath = ((TargetLocation) currentTarget.getLoc()).getPath();
             final var newPath = prevPath.append(seg);
-            final var newNode = new Node(Optional.empty(), new TargetLocation(newPath), scope);
+            final var newNode = new Node(Optional.empty(), new TargetLocation(newPath), scope, Optional.empty());
             graph.addNode(newNode);
-            graph.addEdge(new Edge(newNode, currentTarget, EDGE_WEIGHT, Optional.of(directive.getMirror())));
+            graph.addEdge(Edge.seed(newNode, currentTarget, directive.getMirror()));
             currentTarget = newNode;
         }
 
@@ -123,7 +121,7 @@ public final class SeedGraph {
         final var deepestSource = sourceNodes.peekLast();
         final var deepestTarget = currentTarget;
         if (deepestSource != null && deepestTarget != null) {
-            graph.addEdge(new Edge(deepestSource, deepestTarget, EDGE_WEIGHT, Optional.of(directive.getMirror())));
+            graph.addEdge(Edge.seed(deepestSource, deepestTarget, directive.getMirror()));
         }
     }
 

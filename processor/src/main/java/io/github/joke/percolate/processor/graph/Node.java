@@ -10,11 +10,18 @@ public final class Node implements Comparable<Node> {
     Optional<TypeMirror> type;
     Location loc;
     Scope scope;
+    Optional<Node> parent;
+
+    private String typeEncode() {
+        return type.map(TypeMirror::toString).orElse("?");
+    }
 
     public String id() {
-        final var typeStr = type.map(TypeMirror::toString).orElse("?");
-        final var locStr = loc != null ? loc.encode() : "none";
-        return scope.encode() + "::" + locStr + "::" + typeStr;
+        if (loc instanceof ElementLocation) {
+            return parent.orElseThrow().id() + "::elem";
+        }
+        final var seg = loc != null ? loc.segment() : "none";
+        return scope.encode() + "::" + seg + "::" + typeEncode();
     }
 
     @Override
@@ -31,11 +38,22 @@ public final class Node implements Comparable<Node> {
             return false;
         }
         final var other = (Node) o;
-        return Objects.equals(this.id(), other.id());
+        try {
+            return Objects.equals(this.id(), other.id());
+        } catch (Exception e) {
+            return Objects.equals(this.parent, other.parent)
+                    && Objects.equals(this.type, other.type)
+                    && Objects.equals(this.loc, other.loc)
+                    && Objects.equals(this.scope, other.scope);
+        }
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(id());
+        try {
+            return Objects.hash(id());
+        } catch (Exception e) {
+            return Objects.hash(type, loc, scope, parent);
+        }
     }
 }

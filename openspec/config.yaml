@@ -4,6 +4,7 @@ context: |
   Tech stack: Java 11, Google Dagger 2.59.1, Java Poet 0.12.0, Lombok, JGraphT 1.5.2, Gradle 9.3
   We use conventional commits
   Testing: Spock 2.4, Groovy 5.0, Google Compile Testing
+  Programming paradigms: ALWAYS Prefer functional and reactive other object orientatied    
 
 rules:
   proposal:

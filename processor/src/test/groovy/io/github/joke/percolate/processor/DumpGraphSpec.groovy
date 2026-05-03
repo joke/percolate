@@ -51,7 +51,7 @@ class DumpGraphSpec extends Specification {
         loc.encode() >> 'src[x]'
         def typeMirror = Mock(javax.lang.model.type.TypeMirror)
         typeMirror.toString() >> 'String'
-        def node = new io.github.joke.percolate.processor.graph.Node(Optional.of(typeMirror), loc, scope)
+        def node = new io.github.joke.percolate.processor.graph.Node(Optional.of(typeMirror), loc, scope, Optional.empty())
         graph.addNode(node)
         def typeElement = Mock(TypeElement)
         typeElement.getQualifiedName() >> name('com.example.TestMapper')
@@ -101,7 +101,7 @@ class DumpGraphSpec extends Specification {
         loc.encode() >> 'src[x]'
         def typeMirror = Mock(javax.lang.model.type.TypeMirror)
         typeMirror.toString() >> 'String'
-        def node = new io.github.joke.percolate.processor.graph.Node(Optional.of(typeMirror), loc, scope)
+        def node = new io.github.joke.percolate.processor.graph.Node(Optional.of(typeMirror), loc, scope, Optional.empty())
         graph.addNode(node)
         def typeElement = Mock(TypeElement)
         typeElement.getQualifiedName() >> name('com.example.FailingMapper')
@@ -131,7 +131,7 @@ class DumpGraphSpec extends Specification {
         loc.encode() >> 'src[x]'
         def typeMirror = Mock(javax.lang.model.type.TypeMirror)
         typeMirror.toString() >> 'String'
-        def node = new io.github.joke.percolate.processor.graph.Node(Optional.of(typeMirror), loc, scope)
+        def node = new io.github.joke.percolate.processor.graph.Node(Optional.of(typeMirror), loc, scope, Optional.empty())
         graph.addNode(node)
         def typeElement = Mock(TypeElement)
         typeElement.getQualifiedName() >> name('com.example.MyMapper')

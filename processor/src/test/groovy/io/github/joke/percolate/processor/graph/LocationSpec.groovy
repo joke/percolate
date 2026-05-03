@@ -41,4 +41,31 @@ class LocationSpec extends Specification {
         expect:
         loc.encode() == 'tgt[]'
     }
+
+    def 'SourceLocation segment preserves segment order'() {
+        given:
+        def path = AccessPath.of('person').append('address').append('street')
+        def loc = new SourceLocation(path)
+
+        expect:
+        loc.segment() == 'src[person.address.street]'
+    }
+
+    def 'TargetLocation segment preserves segment order'() {
+        given:
+        def path = TargetPath.of('address').append('line1')
+        def loc = new TargetLocation(path)
+
+        expect:
+        loc.segment() == 'tgt[address.line1]'
+    }
+
+    def 'TargetLocation segment for empty path'() {
+        given:
+        def path = TargetPath.of('')
+        def loc = new TargetLocation(path)
+
+        expect:
+        loc.segment() == 'tgt[]'
+    }
 }

@@ -12,22 +12,48 @@ public final class DotRenderer {
 
     private static final String SOURCE_SHAPE = "box";
     private static final String TARGET_SHAPE = "oval";
+    private static final String PHANTOM_SHAPE = "diamond";
+    private static final String SENTINEL_LABEL = "\u221E";
+
+    private static final Map<EdgeKind, String> KIND_STYLE = new LinkedHashMap<>();
+
+    static {
+        KIND_STYLE.put(EdgeKind.SEED, "solid");
+        KIND_STYLE.put(EdgeKind.REALISED, "dashed");
+        KIND_STYLE.put(EdgeKind.MARKER, "dotted");
+        KIND_STYLE.put(EdgeKind.SUB_SEED, "bold");
+    }
 
     public String render(final MapperGraph graph, final TypeElement mapperType) {
         final var sb = new StringBuilder();
         final var digraphName = escapeDot(mapperType.getQualifiedName().toString());
         sb.append("digraph \"").append(digraphName).append("\" {\n");
 
-        // Collect sorted nodes
         final var sortedNodes = graph.nodes().collect(Collectors.toList());
         final var sortedEdges = graph.edges().collect(Collectors.toList());
 
-        // Group nodes by scope
+        // Group nodes by scope for cluster placement
         final var nodesByScope = new LinkedHashMap<Scope, List<Node>>();
         for (final var node : sortedNodes) {
             nodesByScope
                     .computeIfAbsent(node.getScope(), k -> new ArrayList<>())
                     .add(node);
+        }
+
+        // Separate phantom nodes and group them by parent scope
+        final var phantomNodesByParentScope = new LinkedHashMap<Scope, List<Node>>();
+        for (final var node : sortedNodes) {
+            if (node.getLoc() instanceof ElementLocation) {
+                final var parent = node.getParent();
+                if (parent.isEmpty()) {
+                    throw new IllegalStateException(
+                            "Phantom node without parent: " + node.id());
+                }
+                final var parentScope = parent.get().getScope();
+                phantomNodesByParentScope
+                        .computeIfAbsent(parentScope, k -> new ArrayList<>())
+                        .add(node);
+            }
         }
 
         // Render clusters sorted by scope encoding
@@ -45,6 +71,14 @@ public final class DotRenderer {
             for (final var node : scopeNodes) {
                 renderNode(sb, node);
             }
+
+            // Render phantom nodes belonging to this scope's cluster
+            if (phantomNodesByParentScope.containsKey(scope)) {
+                for (final var phantom : phantomNodesByParentScope.get(scope)) {
+                    renderNode(sb, phantom);
+                }
+            }
+
             sb.append("  }\n");
         }
 
@@ -66,6 +100,8 @@ public final class DotRenderer {
             attrs.put("shape", SOURCE_SHAPE);
         } else if (node.getLoc() instanceof TargetLocation) {
             attrs.put("shape", TARGET_SHAPE);
+        } else if (node.getLoc() instanceof ElementLocation) {
+            attrs.put("shape", PHANTOM_SHAPE);
         }
 
         sb.append("    \"").append(nodeId).append("\" [");
@@ -77,11 +113,27 @@ public final class DotRenderer {
         final var fromId = escapeDot(edge.getFrom().id());
         final var toId = escapeDot(edge.getTo().id());
         final var attrs = new TreeMap<String, String>();
-        attrs.put("label", String.valueOf(edge.getWeight()));
 
+        // Weight label: ∞ for sentinel, numeric value otherwise
+        final var weightLabel = edge.getWeight() == Weights.SENTINEL_UNREALISED
+                ? SENTINEL_LABEL
+                : String.valueOf(edge.getWeight());
+
+        // Build label with kind marker, weight, and optional strategy FQN
+        final var labelParts = new ArrayList<String>();
+        labelParts.add(edge.getKind().name());
+        labelParts.add(weightLabel);
         if (edge.getDirective().isPresent()) {
-            attrs.put("style", "bold");
+            labelParts.add("directive");
         }
+        if (edge.getStrategyClassFqn().isPresent()) {
+            labelParts.add(edge.getStrategyClassFqn().get());
+        }
+        attrs.put("label", escapeDot(String.join(" | ", labelParts)));
+
+        // Style keyed off EdgeKind
+        final var style = KIND_STYLE.getOrDefault(edge.getKind(), "solid");
+        attrs.put("style", style);
 
         sb.append("    \"").append(fromId).append("\" -> \"").append(toId).append("\" [");
         appendAttributes(sb, attrs);
@@ -109,6 +161,9 @@ public final class DotRenderer {
         }
         if (loc instanceof TargetLocation) {
             return "tgt[" + ((TargetLocation) loc).getPath() + "]";
+        }
+        if (loc instanceof ElementLocation) {
+            return "elem";
         }
         return "?";
     }
