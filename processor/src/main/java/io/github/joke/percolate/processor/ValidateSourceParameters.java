@@ -1,18 +1,29 @@
 package io.github.joke.percolate.processor;
 
+import static java.util.stream.Collectors.joining;
+import static java.util.stream.Collectors.toUnmodifiableSet;
+
 import io.github.joke.percolate.processor.model.MapperMappings;
 import io.github.joke.percolate.processor.model.MethodMappings;
 import jakarta.inject.Inject;
-import java.util.stream.Collectors;
 import javax.lang.model.element.ExecutableElement;
 import javax.lang.model.element.TypeElement;
 import javax.lang.model.type.TypeKind;
 import lombok.RequiredArgsConstructor;
 
 @RequiredArgsConstructor(onConstructor_ = @Inject)
-final class ValidateSourceParameters {
+final class ValidateSourceParameters implements Stage {
 
     private final Diagnostics diagnostics;
+
+    @Override
+    public void run(MapperContext ctx) {
+        final var mappings = ctx.getMappings();
+        if (mappings == null) {
+            return;
+        }
+        validate(mappings);
+    }
 
     void validate(final MapperMappings mappings) {
         for (final var methodMappings : mappings.getMethods()) {
@@ -24,7 +35,7 @@ final class ValidateSourceParameters {
         final var method = methodMappings.getMethod();
         final var paramNames = method.getParameters().stream()
                 .map(p -> p.getSimpleName().toString())
-                .collect(Collectors.toUnmodifiableSet());
+                .collect(toUnmodifiableSet());
         final var methodSig = formatMethodSig(method);
 
         for (final var directive : methodMappings.getDirectives()) {
@@ -51,7 +62,7 @@ final class ValidateSourceParameters {
         final var name = method.getSimpleName().toString();
         final var paramTypes = method.getParameters().stream()
                 .map(p -> simpleTypeName(p.asType()))
-                .collect(Collectors.joining(","));
+                .collect(joining(","));
         return name + "(" + paramTypes + ")";
     }
 

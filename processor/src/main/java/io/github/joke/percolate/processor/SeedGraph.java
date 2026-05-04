@@ -20,7 +20,17 @@ import java.util.Optional;
 import lombok.RequiredArgsConstructor;
 
 @RequiredArgsConstructor(onConstructor_ = @Inject)
-public final class SeedGraph {
+public final class SeedGraph implements Stage {
+
+    @Override
+    public void run(MapperContext ctx) {
+        final var mappings = ctx.getMappings();
+        if (mappings == null) {
+            return;
+        }
+        MapperGraph graph = apply(mappings);
+        ctx.setGraph(graph);
+    }
 
     MapperGraph apply(final MapperMappings mappings) {
         final var graph = new MapperGraph();

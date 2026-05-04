@@ -1,4 +1,3 @@
 package io.github.joke.percolate.processor.graph;
 
-public interface VarNames {
-}
+public interface VarNames {}

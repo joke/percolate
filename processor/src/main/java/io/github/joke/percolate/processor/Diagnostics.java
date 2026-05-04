@@ -18,7 +18,7 @@ import org.jspecify.annotations.Nullable;
 @Singleton
 @RequiredArgsConstructor(onConstructor_ = @Inject)
 @EqualsAndHashCode(onlyExplicitlyIncluded = true)
-final class Diagnostics {
+public final class Diagnostics {
 
     private final Messager messager;
 
@@ -28,7 +28,7 @@ final class Diagnostics {
     @EqualsAndHashCode.Include
     private final Map<Element, Element> scarredWithEnclosing = new HashMap<>();
 
-    void error(
+    public void error(
             final Element element,
             final @Nullable AnnotationMirror mirror,
             final @Nullable AnnotationValue value,
@@ -38,15 +38,15 @@ final class Diagnostics {
         scarredWithEnclosing.put(element, element.getEnclosingElement());
     }
 
-    void error(final Element element, final String message) {
+    public void error(final Element element, final String message) {
         error(element, null, null, message);
     }
 
-    void warning(final Element element, final String message) {
+    public void warning(final Element element, final String message) {
         messager.printMessage(Diagnostic.Kind.WARNING, message, element);
     }
 
-    void warning(
+    public void warning(
             final Element element,
             final @Nullable AnnotationMirror mirror,
             final @Nullable AnnotationValue value,
@@ -54,7 +54,7 @@ final class Diagnostics {
         messager.printMessage(Diagnostic.Kind.WARNING, message, element, mirror, value);
     }
 
-    boolean hasErrorsFor(final Element element) {
+    public boolean hasErrorsFor(final Element element) {
         if (scarred.contains(element)) {
             return true;
         }

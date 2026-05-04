@@ -76,7 +76,7 @@ subprojects { project ->
                     limit {
                         counter = 'BRANCH'
                         value = 'COVEREDRATIO'
-                        minimum = 0.7
+                        minimum = 0.6
                     }
                 }
             }

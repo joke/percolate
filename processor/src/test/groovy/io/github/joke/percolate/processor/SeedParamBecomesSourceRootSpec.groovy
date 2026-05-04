@@ -7,8 +7,6 @@ import spock.lang.Tag
 
 import javax.tools.Diagnostic.Kind
 
-import static com.google.testing.compile.Compiler.javac
-
 @Tag('integration')
 class SeedParamBecomesSourceRootSpec extends Specification {
 
@@ -18,20 +16,32 @@ class SeedParamBecomesSourceRootSpec extends Specification {
             import io.github.joke.percolate.Mapper;
             import io.github.joke.percolate.Map;
 
+            class Input {
+                String getValue() { return "test"; }
+            }
+
+            class Output {
+                final String name;
+                Output(String name) { this.name = name; }
+            }
+
             @Mapper
             public interface ParamSourceRootMapper {
-                @Map(target = "name", source = "input")
-                Object map(Object input);
+                @Map(target = "name", source = "input.value")
+                Output map(Input input);
             }
         ''')
 
         when:
-        Compilation compilation = javac()
+        Compilation compilation = TestCompilers.compiler()
                 .withProcessors(new PercolateProcessor())
                 .withOptions('-Apercolate.debug.graphs=true')
                 .compile(source)
 
         then:
+        if (compilation.status() != Compilation.Status.SUCCESS) {
+            println "Compilation failed: " + compilation.diagnostics().findAll { it.kind == Kind.ERROR || it.kind == Kind.WARNING }
+        }
         compilation.status() == Compilation.Status.SUCCESS
         def diagnostics = compilation.diagnostics()
         def errors = diagnostics.findAll { it.kind == Kind.ERROR }

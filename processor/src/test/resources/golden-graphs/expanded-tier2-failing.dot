@@ -1,0 +1,19 @@
+digraph "com.example.expanded.tier2.DottedTargetMapper" {
+  subgraph "cluster_map(Person)" {
+    label="map(Person)";
+    "map(Person)::src[person]::Person" [label="src[person]", shape="box"];
+    "map(Person)::src[person.name]::?" [label="src[person.name]", shape="box"];
+    "map(Person)::src[person.address]::?" [label="src[person.address]", shape="box"];
+    "map(Person)::src[person.address.street]::?" [label="src[person.address.street]", shape="box"];
+    "map(Person)::tgt[address]::?" [label="tgt[address]", shape="oval"];
+    "map(Person)::tgt[address.street]::?" [label="tgt[address.street]", shape="oval"];
+    "map(Person)::tgt[]::Human" [label="tgt[]", shape="oval"];
+  }
+    "map(Person)::src[person]::Person" -> "map(Person)::src[person.name]::?" [label="SEED | ∞ | directive", style="solid"];
+    "map(Person)::src[person.name]::?" -> "map(Person)::src[person.address]::?" [label="SEED | ∞ | directive", style="solid"];
+    "map(Person)::src[person.address]::?" -> "map(Person)::src[person.address.street]::?" [label="SEED | ∞ | directive", style="solid"];
+    "map(Person)::src[person.address.street]::?" -> "map(Person)::tgt[address.street]::?" [label="SEED | ∞ | directive", style="solid"];
+    "map(Person)::tgt[address.street]::?" -> "map(Person)::tgt[]::Human" [label="SEED | ∞", style="solid"];
+    "map(Person)::src[person]::Person" -> "map(Person)::src[person→getName()]::String" [label="REALISED | 1 | GetterRead", style="dashed"];
+    "map(Person)::src[person.name]::?" -> "map(Person)::src[person→getName()]::String" [label="MARKER | 0", style="dotted"];
+}

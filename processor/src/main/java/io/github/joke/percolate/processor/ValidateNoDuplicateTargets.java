@@ -13,9 +13,18 @@ import javax.lang.model.element.ExecutableElement;
 import lombok.RequiredArgsConstructor;
 
 @RequiredArgsConstructor(onConstructor_ = @Inject)
-final class ValidateNoDuplicateTargets {
+final class ValidateNoDuplicateTargets implements Stage {
 
     private final Diagnostics diagnostics;
+
+    @Override
+    public void run(MapperContext ctx) {
+        final var mappings = ctx.getMappings();
+        if (mappings == null) {
+            return;
+        }
+        validate(mappings);
+    }
 
     void validate(final MapperMappings mappings) {
         for (final var method : mappings.getMethods()) {

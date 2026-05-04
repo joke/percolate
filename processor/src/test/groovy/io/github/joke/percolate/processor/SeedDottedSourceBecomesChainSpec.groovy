@@ -7,8 +7,6 @@ import spock.lang.Tag
 
 import javax.tools.Diagnostic.Kind
 
-import static com.google.testing.compile.Compiler.javac
-
 @Tag('integration')
 class SeedDottedSourceBecomesChainSpec extends Specification {
 
@@ -18,15 +16,28 @@ class SeedDottedSourceBecomesChainSpec extends Specification {
             import io.github.joke.percolate.Mapper;
             import io.github.joke.percolate.Map;
 
+            class Address {
+                String getStreet() { return "Main St"; }
+            }
+
+            class Input {
+                Address getAddress() { return new Address(); }
+            }
+
+            class Output {
+                final String street;
+                Output(String street) { this.street = street; }
+            }
+
             @Mapper
             public interface DottedSourceChainMapper {
                 @Map(target = "street", source = "input.address.street")
-                Object map(Object input);
+                Output map(Input input);
             }
         ''')
 
         when:
-        Compilation compilation = javac()
+        Compilation compilation = TestCompilers.compiler()
                 .withProcessors(new PercolateProcessor())
                 .withOptions('-Apercolate.debug.graphs=true')
                 .compile(source)

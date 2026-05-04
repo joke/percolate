@@ -7,8 +7,6 @@ import spock.lang.Tag
 
 import javax.tools.Diagnostic.Kind
 
-import static com.google.testing.compile.Compiler.javac
-
 @Tag('integration')
 class OptionOnEmitsFileGoldenSpec extends Specification {
 
@@ -18,18 +16,27 @@ class OptionOnEmitsFileGoldenSpec extends Specification {
             import io.github.joke.percolate.Mapper;
             import io.github.joke.percolate.Map;
 
+            class Input {
+                String getValue() { return "test"; }
+            }
+
+            class Output {
+                final String name;
+                Output(String name) { this.name = name; }
+            }
+
             @Mapper
             public interface TwoMethodMapper {
-                @Map(target = "name", source = "input1")
-                Object map(Object input1);
+                @Map(target = "name", source = "input1.value")
+                Output map(Input input1);
 
-                @Map(target = "name", source = "input2")
-                Object map2(Object input2);
+                @Map(target = "name", source = "input2.value")
+                Output map2(Input input2);
             }
         ''')
 
         when:
-        Compilation compilation = javac()
+        Compilation compilation = TestCompilers.compiler()
                 .withProcessors(new PercolateProcessor())
                 .withOptions('-Apercolate.debug.graphs=true')
                 .compile(source)

@@ -28,12 +28,22 @@ import lombok.RequiredArgsConstructor;
  * Use {@link com.google.auto.common.AnnotationMirrors} utilities instead (see design decision D6).
  */
 @RequiredArgsConstructor(onConstructor_ = @Inject)
-final class DiscoverMappings {
+final class DiscoverMappings implements Stage {
 
     private static final String MAP_FQN = Map.class.getCanonicalName();
     private static final String MAP_LIST_FQN = MapList.class.getCanonicalName();
 
     private final Elements elements;
+
+    @Override
+    public void run(MapperContext ctx) {
+        final var shape = ctx.getShape();
+        if (shape == null) {
+            return;
+        }
+        MapperMappings mappings = apply(shape);
+        ctx.setMappings(mappings);
+    }
 
     MapperMappings apply(final MapperShape shape) {
         final var methods =

@@ -7,8 +7,6 @@ import spock.lang.Tag
 
 import javax.tools.Diagnostic.Kind
 
-import static com.google.testing.compile.Compiler.javac
-
 @Tag('integration')
 class OptionOffEmitsNoFileGoldenSpec extends Specification {
 
@@ -18,15 +16,24 @@ class OptionOffEmitsNoFileGoldenSpec extends Specification {
             import io.github.joke.percolate.Mapper;
             import io.github.joke.percolate.Map;
 
+            class Input {
+                String getValue() { return "test"; }
+            }
+
+            class Output {
+                final String name;
+                Output(String name) { this.name = name; }
+            }
+
             @Mapper
             public interface NoDebugMapper {
-                @Map(target = "name", source = "input")
-                void map(Object input);
+                @Map(target = "name", source = "input.value")
+                Output map(Input input);
             }
         ''')
 
         when:
-        Compilation compilation = javac()
+        Compilation compilation = TestCompilers.compiler()
                 .withProcessors(new PercolateProcessor())
                 .compile(source)
 

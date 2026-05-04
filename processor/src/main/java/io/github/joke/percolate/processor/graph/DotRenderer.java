@@ -1,11 +1,12 @@
 package io.github.joke.percolate.processor.graph;
 
+import static java.util.stream.Collectors.toList;
+
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
-import java.util.stream.Collectors;
 import javax.lang.model.element.TypeElement;
 
 public final class DotRenderer {
@@ -29,8 +30,8 @@ public final class DotRenderer {
         final var digraphName = escapeDot(mapperType.getQualifiedName().toString());
         sb.append("digraph \"").append(digraphName).append("\" {\n");
 
-        final var sortedNodes = graph.nodes().collect(Collectors.toList());
-        final var sortedEdges = graph.edges().collect(Collectors.toList());
+        final var sortedNodes = graph.nodes().collect(toList());
+        final var sortedEdges = graph.edges().collect(toList());
 
         // Group nodes by scope for cluster placement
         final var nodesByScope = new LinkedHashMap<Scope, List<Node>>();
@@ -46,8 +47,7 @@ public final class DotRenderer {
             if (node.getLoc() instanceof ElementLocation) {
                 final var parent = node.getParent();
                 if (parent.isEmpty()) {
-                    throw new IllegalStateException(
-                            "Phantom node without parent: " + node.id());
+                    throw new IllegalStateException("Phantom node without parent: " + node.id());
                 }
                 final var parentScope = parent.get().getScope();
                 phantomNodesByParentScope
@@ -59,7 +59,7 @@ public final class DotRenderer {
         // Render clusters sorted by scope encoding
         final var sortedEntries = nodesByScope.entrySet().stream()
                 .sorted((a, b) -> a.getKey().encode().compareTo(b.getKey().encode()))
-                .collect(Collectors.toList());
+                .collect(toList());
 
         for (final var entry : sortedEntries) {
             final var scope = entry.getKey();
@@ -115,9 +115,8 @@ public final class DotRenderer {
         final var attrs = new TreeMap<String, String>();
 
         // Weight label: ∞ for sentinel, numeric value otherwise
-        final var weightLabel = edge.getWeight() == Weights.SENTINEL_UNREALISED
-                ? SENTINEL_LABEL
-                : String.valueOf(edge.getWeight());
+        final var weightLabel =
+                edge.getWeight() == Weights.SENTINEL_UNREALISED ? SENTINEL_LABEL : String.valueOf(edge.getWeight());
 
         // Build label with kind marker, weight, and optional strategy FQN
         final var labelParts = new ArrayList<String>();
@@ -131,6 +130,10 @@ public final class DotRenderer {
         }
         attrs.put("label", escapeDot(String.join(" | ", labelParts)));
 
+        if (edge.getGroupId().isPresent()) {
+            attrs.put("group", escapeDot(edge.getGroupId().get()));
+        }
+
         // Style keyed off EdgeKind
         final var style = KIND_STYLE.getOrDefault(edge.getKind(), "solid");
         attrs.put("style", style);
@@ -141,13 +144,13 @@ public final class DotRenderer {
     }
 
     private void appendAttributes(final StringBuilder sb, final Map<String, String> attrs) {
-        var first = true;
+        final var first = new boolean[] {true};
         for (final var entry : attrs.entrySet()) {
-            if (!first) {
+            if (!first[0]) {
                 sb.append(", ");
             }
             sb.append(entry.getKey()).append("=\"").append(entry.getValue()).append("\"");
-            first = false;
+            first[0] = false;
         }
     }
 

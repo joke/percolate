@@ -1,13 +1,12 @@
 package io.github.joke.percolate.processor.graph;
 
-import java.util.Objects;
 import java.util.Optional;
 import javax.lang.model.element.AnnotationMirror;
 import lombok.EqualsAndHashCode;
 import lombok.Value;
 
 @Value
-@EqualsAndHashCode(exclude = {"codegen", "strategyClassFqn"})
+@EqualsAndHashCode(exclude = {"codegen"})
 public final class Edge implements Comparable<Edge> {
     Node from;
     Node to;
@@ -18,9 +17,15 @@ public final class Edge implements Comparable<Edge> {
     Optional<EdgeCodegen> codegen;
     Optional<String> strategyClassFqn;
 
-    Edge(Node from, Node to, int weight, EdgeKind kind,
-         Optional<AnnotationMirror> directive, Optional<String> groupId,
-         Optional<EdgeCodegen> codegen, Optional<String> strategyClassFqn) {
+    Edge(
+            Node from,
+            Node to,
+            int weight,
+            EdgeKind kind,
+            Optional<AnnotationMirror> directive,
+            Optional<String> groupId,
+            Optional<EdgeCodegen> codegen,
+            Optional<String> strategyClassFqn) {
         this.from = from;
         this.to = to;
         this.weight = weight;
@@ -32,30 +37,52 @@ public final class Edge implements Comparable<Edge> {
     }
 
     public static Edge seed(Node from, Node to, AnnotationMirror directive) {
-        return new Edge(from, to, Weights.SENTINEL_UNREALISED, EdgeKind.SEED,
-                Optional.of(directive), Optional.empty(),
-                Optional.empty(), Optional.empty());
+        return new Edge(
+                from,
+                to,
+                Weights.SENTINEL_UNREALISED,
+                EdgeKind.SEED,
+                Optional.of(directive),
+                Optional.empty(),
+                Optional.empty(),
+                Optional.empty());
     }
 
-    public static Edge realised(Node from, Node to, int weight,
-                                Optional<String> groupId,
-                                EdgeCodegen codegen,
-                                String strategyClassFqn) {
-        return new Edge(from, to, weight, EdgeKind.REALISED,
-                Optional.empty(), groupId,
-                Optional.of(codegen), Optional.of(strategyClassFqn));
+    public static Edge realised(
+            Node from, Node to, int weight, Optional<String> groupId, EdgeCodegen codegen, String strategyClassFqn) {
+        return new Edge(
+                from,
+                to,
+                weight,
+                EdgeKind.REALISED,
+                Optional.empty(),
+                groupId,
+                Optional.of(codegen),
+                Optional.of(strategyClassFqn));
     }
 
     public static Edge marker(Node from, Node to, String strategyClassFqn) {
-        return new Edge(from, to, Weights.NOOP, EdgeKind.MARKER,
-                Optional.empty(), Optional.empty(),
-                Optional.empty(), Optional.of(strategyClassFqn));
+        return new Edge(
+                from,
+                to,
+                Weights.NOOP,
+                EdgeKind.MARKER,
+                Optional.empty(),
+                Optional.empty(),
+                Optional.empty(),
+                Optional.of(strategyClassFqn));
     }
 
     public static Edge subSeed(Node from, Node to, String strategyClassFqn) {
-        return new Edge(from, to, Weights.SENTINEL_UNREALISED, EdgeKind.SUB_SEED,
-                Optional.empty(), Optional.empty(),
-                Optional.empty(), Optional.of(strategyClassFqn));
+        return new Edge(
+                from,
+                to,
+                Weights.SENTINEL_UNREALISED,
+                EdgeKind.SUB_SEED,
+                Optional.empty(),
+                Optional.empty(),
+                Optional.empty(),
+                Optional.of(strategyClassFqn));
     }
 
     @Override
@@ -70,9 +97,19 @@ public final class Edge implements Comparable<Edge> {
         if (c != 0) return c;
         c = Boolean.compare(this.directive.isPresent(), other.directive.isPresent());
         if (c != 0) return c;
-        if (!this.groupId.isPresent() && !other.groupId.isPresent()) return 0;
+        if (!this.groupId.isPresent() && !other.groupId.isPresent()) {
+            if (!this.strategyClassFqn.isPresent() && !other.strategyClassFqn.isPresent()) return 0;
+            if (!this.strategyClassFqn.isPresent()) return -1;
+            if (!other.strategyClassFqn.isPresent()) return 1;
+            return this.strategyClassFqn.get().compareTo(other.strategyClassFqn.get());
+        }
         if (!this.groupId.isPresent()) return -1;
         if (!other.groupId.isPresent()) return 1;
-        return this.groupId.get().compareTo(other.groupId.get());
+        c = this.groupId.get().compareTo(other.groupId.get());
+        if (c != 0) return c;
+        if (!this.strategyClassFqn.isPresent() && !other.strategyClassFqn.isPresent()) return 0;
+        if (!this.strategyClassFqn.isPresent()) return -1;
+        if (!other.strategyClassFqn.isPresent()) return 1;
+        return this.strategyClassFqn.get().compareTo(other.strategyClassFqn.get());
     }
 }

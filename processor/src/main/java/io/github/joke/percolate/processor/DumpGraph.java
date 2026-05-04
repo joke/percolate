@@ -12,12 +12,21 @@ import javax.tools.StandardLocation;
 import lombok.RequiredArgsConstructor;
 
 @RequiredArgsConstructor(onConstructor_ = @Inject)
-public final class DumpGraph {
+public final class DumpGraph implements Stage {
 
     private final Filer filer;
     private final Diagnostics diagnostics;
     private final ProcessorOptions processorOptions;
     private final DotRenderer dotRenderer;
+
+    @Override
+    public void run(MapperContext ctx) {
+        final var graph = ctx.getGraph();
+        if (graph == null) {
+            return;
+        }
+        apply(graph, ctx.getMapperType());
+    }
 
     void apply(final MapperGraph graph, final TypeElement mapperType) {
         if (!processorOptions.isDebugGraphs()) {

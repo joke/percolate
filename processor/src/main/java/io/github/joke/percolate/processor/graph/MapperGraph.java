@@ -3,8 +3,8 @@ package io.github.joke.percolate.processor.graph;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Stream;
 import org.jgrapht.alg.cycle.CycleDetector;
@@ -49,9 +49,7 @@ public final class MapperGraph {
     }
 
     public RealisedSubgraph realisedSubgraph() {
-        final var mask = new MaskSubgraph<>(graph,
-                v -> false,
-                e -> e.getKind() != EdgeKind.REALISED);
+        final var mask = new MaskSubgraph<>(graph, v -> false, e -> e.getKind() != EdgeKind.REALISED);
         return new RealisedSubgraph(mask, this);
     }
 
@@ -62,8 +60,8 @@ public final class MapperGraph {
         groupCodegens.put(groupId, codegen);
     }
 
-    public java.util.Optional<GroupCodegen> groupCodegen(final String groupId) {
-        return java.util.Optional.ofNullable(groupCodegens.get(groupId));
+    public Optional<GroupCodegen> groupCodegen(final String groupId) {
+        return Optional.ofNullable(groupCodegens.get(groupId));
     }
 
     public boolean isAcyclic() {
@@ -75,5 +73,11 @@ public final class MapperGraph {
 
     Set<Edge> edgeSet() {
         return Collections.unmodifiableSet(graph.edgeSet());
+    }
+
+    public boolean hasSeedSubSeedCycles() {
+        final MaskSubgraph<Node, Edge> subgraph = new MaskSubgraph<>(
+                graph, v -> false, e -> e.getKind() != EdgeKind.SEED && e.getKind() != EdgeKind.SUB_SEED);
+        return new CycleDetector<>(subgraph).detectCycles();
     }
 }

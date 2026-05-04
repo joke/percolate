@@ -7,8 +7,6 @@ import spock.lang.Tag
 
 import javax.tools.Diagnostic.Kind
 
-import static com.google.testing.compile.Compiler.javac
-
 @Tag('integration')
 class SeedDirectiveSeedsChainSpec extends Specification {
 
@@ -18,16 +16,30 @@ class SeedDirectiveSeedsChainSpec extends Specification {
             import io.github.joke.percolate.Mapper;
             import io.github.joke.percolate.Map;
 
+            class Input {
+                String getName() { return "test"; }
+                int getAge() { return 0; }
+            }
+
+            class Output {
+                final String firstName;
+                final int age;
+                Output(String firstName, int age) {
+                    this.firstName = firstName;
+                    this.age = age;
+                }
+            }
+
             @Mapper
             public interface DirectiveChainMapper {
                 @Map(target = "firstName", source = "input.name")
                 @Map(target = "age", source = "input.age")
-                Object map(Object input);
+                Output map(Input input);
             }
         ''')
 
         when:
-        Compilation compilation = javac()
+        Compilation compilation = TestCompilers.compiler()
                 .withProcessors(new PercolateProcessor())
                 .withOptions('-Apercolate.debug.graphs=true')
                 .compile(source)

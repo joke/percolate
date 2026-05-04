@@ -7,8 +7,6 @@ import spock.lang.Tag
 
 import javax.tools.Diagnostic.Kind
 
-import static com.google.testing.compile.Compiler.javac
-
 @Tag('integration')
 class SeedInheritedGenericMethodSpec extends Specification {
 
@@ -18,18 +16,27 @@ class SeedInheritedGenericMethodSpec extends Specification {
             import io.github.joke.percolate.Mapper;
             import io.github.joke.percolate.Map;
 
+            class Input {
+                String getValue() { return "test"; }
+            }
+
+            class Output {
+                final String name;
+                Output(String name) { this.name = name; }
+            }
+
             @Mapper
             public interface InheritedGenericMapper extends BaseMapper {
             }
 
             interface BaseMapper {
-                @Map(target = "name", source = "value")
-                Object map(Object value);
+                @Map(target = "name", source = "value.value")
+                Output map(Input value);
             }
         ''')
 
         when:
-        Compilation compilation = javac()
+        Compilation compilation = TestCompilers.compiler()
                 .withProcessors(new PercolateProcessor())
                 .withOptions('-Apercolate.debug.graphs=true')
                 .compile(source)

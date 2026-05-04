@@ -7,8 +7,6 @@ import spock.lang.Tag
 
 import javax.tools.Diagnostic.Kind
 
-import static com.google.testing.compile.Compiler.javac
-
 @Tag('integration')
 class SeedSharedPrefixIsDeduplicatedSpec extends Specification {
 
@@ -18,16 +16,30 @@ class SeedSharedPrefixIsDeduplicatedSpec extends Specification {
             import io.github.joke.percolate.Mapper;
             import io.github.joke.percolate.Map;
 
+            class Input {
+                String getStreet() { return "Main St"; }
+                String getCity() { return "NYC"; }
+            }
+
+            class Output {
+                final String street;
+                final String city;
+                Output(String street, String city) {
+                    this.street = street;
+                    this.city = city;
+                }
+            }
+
             @Mapper
             public interface SharedPrefixMapper {
-                @Map(target = "street", source = "input.address")
-                @Map(target = "city", source = "input.address")
-                Object map(Object input);
+                @Map(target = "street", source = "input.street")
+                @Map(target = "city", source = "input.city")
+                Output map(Input input);
             }
         ''')
 
         when:
-        Compilation compilation = javac()
+        Compilation compilation = TestCompilers.compiler()
                 .withProcessors(new PercolateProcessor())
                 .withOptions('-Apercolate.debug.graphs=true')
                 .compile(source)

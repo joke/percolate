@@ -16,10 +16,16 @@ import javax.lang.model.util.Types;
 import lombok.RequiredArgsConstructor;
 
 @RequiredArgsConstructor(onConstructor_ = @Inject)
-final class DiscoverAbstractMethods {
+final class DiscoverAbstractMethods implements Stage {
 
     private final Elements elements;
     private final Types types;
+
+    @Override
+    public void run(MapperContext ctx) {
+        MapperShape shape = apply(ctx.getMapperType());
+        ctx.setShape(shape);
+    }
 
     MapperShape apply(final TypeElement typeElement) {
         final var objectElement = elements.getTypeElement("java.lang.Object");

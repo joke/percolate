@@ -9,7 +9,6 @@ import spock.lang.Tag
 import java.lang.reflect.Field
 
 import static com.google.testing.compile.CompilationSubject.assertThat
-import static com.google.testing.compile.Compiler.javac
 
 @Tag('integration')
 class PercolateProcessorSpec extends Specification {
@@ -25,7 +24,7 @@ class PercolateProcessorSpec extends Specification {
         ''')
 
         when:
-        Compilation compilation = javac()
+        Compilation compilation = TestCompilers.compiler()
                 .withProcessors(new PercolateProcessor())
                 .compile(source)
 
