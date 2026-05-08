@@ -1,5 +1,6 @@
 package io.github.joke.percolate.processor
 
+import io.github.joke.percolate.processor.stages.Stage
 import spock.lang.Specification
 import spock.lang.Tag
 

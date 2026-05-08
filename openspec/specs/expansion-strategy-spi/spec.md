@@ -12,7 +12,7 @@ The processor SHALL ship a new package `io.github.joke.percolate.processor.spi` 
 
 The package SHALL declare `@NullMarked` via `package-info.java`.
 
-Built-in strategies (`GetterRead`, `ConstructorCall`, `DirectAssign`) SHALL NOT import any class from `io.github.joke.percolate.processor.graph` or `io.github.joke.percolate.processor.expand`. This invariant SHALL be enforced by an architectural test.
+Built-in strategies (`GetterRead`, `ConstructorCall`, `DirectAssign`) SHALL NOT import any class from `io.github.joke.percolate.processor.graph` or `io.github.joke.percolate.processor.stages.expand`. This invariant SHALL be enforced by an architectural test.
 
 #### Scenario: spi package has @NullMarked
 - **WHEN** the source of `processor/spi/package-info.java` is inspected
@@ -20,7 +20,7 @@ Built-in strategies (`GetterRead`, `ConstructorCall`, `DirectAssign`) SHALL NOT 
 
 #### Scenario: Built-in strategies have no forbidden imports
 - **WHEN** the import statements of `GetterRead`, `ConstructorCall`, and `DirectAssign` are inspected
-- **THEN** none reference any class in `io.github.joke.percolate.processor.graph.*` or `io.github.joke.percolate.processor.expand.*`
+- **THEN** none reference any class in `io.github.joke.percolate.processor.graph.*` or `io.github.joke.percolate.processor.stages.expand.*`
 
 ### Requirement: SourceStep interface
 
@@ -99,7 +99,7 @@ public interface ResolveCtx {
 }
 ```
 
-The interface SHALL NOT expose any reference to `MapperGraph`, `Edge`, `Node`, `EdgeKind`, `MapperStep`, or any other type from `processor.graph` or `processor.expand`. A strategy author SHALL be able to write a complete strategy by importing only `processor.spi.*`, `javax.lang.model.*`, `com.squareup.javapoet.*`, and JDK types.
+The interface SHALL NOT expose any reference to `MapperGraph`, `Edge`, `Node`, `EdgeKind`, `MapperStep`, or any other type from `processor.graph` or `processor.stages.expand`. A strategy author SHALL be able to write a complete strategy by importing only `processor.spi.*`, `javax.lang.model.*`, `com.squareup.javapoet.*`, and JDK types.
 
 #### Scenario: ResolveCtx provides Types
 - **WHEN** `resolveCtx.types()` is invoked

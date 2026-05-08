@@ -7,7 +7,7 @@ This spec defines the DumpGraph stage and deterministic DOT renderer that serial
 ## Requirements
 
 ### Requirement: DumpGraph stage
-The processor SHALL define a stage `DumpGraph` in package `io.github.joke.percolate.processor` that consumes a `MapperGraph` plus the originating `TypeElement` and, when enabled by `ProcessorOptions.debugGraphs`, writes a DOT representation of the graph to `StandardLocation.SOURCE_OUTPUT`. `DumpGraph` SHALL be `@Inject`-constructed via Lombok `@RequiredArgsConstructor(onConstructor_ = @Inject)`.
+The processor SHALL define a stage `DumpGraph` in package `io.github.joke.percolate.processor.stages.dump` that consumes a `MapperGraph` plus the originating `TypeElement` and, when enabled by `ProcessorOptions.debugGraphs`, writes a DOT representation of the graph to `StandardLocation.SOURCE_OUTPUT`. `DumpGraph` SHALL be `@Inject`-constructed via Lombok `@RequiredArgsConstructor(onConstructor_ = @Inject)`.
 
 `DumpGraph` SHALL depend on `Filer`, `Diagnostics`, `ProcessorOptions`, and the deterministic DOT renderer.
 
@@ -144,7 +144,7 @@ The DOT file SHALL be named `<MapperFQN>.seed.dot`. The infix `.seed.` SHALL be 
 
 ### Requirement: DumpExpandedGraph stage
 
-The processor SHALL define a stage `DumpExpandedGraph` in package `io.github.joke.percolate.processor` that consumes the post-validation `MapperGraph` plus the originating `TypeElement` and, when enabled by `ProcessorOptions.debugGraphs`, writes a DOT representation of the *full* graph (including SEED, REALISED, MARKER, and SUB_SEED edges) to `StandardLocation.SOURCE_OUTPUT`. `DumpExpandedGraph` SHALL be `@Inject`-constructed via Lombok `@RequiredArgsConstructor(onConstructor_ = @Inject)`.
+The processor SHALL define a stage `DumpExpandedGraph` in package `io.github.joke.percolate.processor.stages.dump` that consumes the post-validation `MapperGraph` plus the originating `TypeElement` and, when enabled by `ProcessorOptions.debugGraphs`, writes a DOT representation of the *full* graph (including SEED, REALISED, MARKER, and SUB_SEED edges) to `StandardLocation.SOURCE_OUTPUT`. `DumpExpandedGraph` SHALL be `@Inject`-constructed via Lombok `@RequiredArgsConstructor(onConstructor_ = @Inject)`.
 
 `DumpExpandedGraph` SHALL depend on `Filer`, `Diagnostics`, `ProcessorOptions`, and the deterministic DOT renderer (the same renderer used by `DumpGraph`).
 

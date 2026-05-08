@@ -8,7 +8,7 @@ This spec defines the post-expansion validation that detects unrealisable direct
 
 ### Requirement: ValidateRealisationStage
 
-The processor SHALL define a stage `ValidateRealisationStage` in package `io.github.joke.percolate.processor.validate` that consumes the post-expansion `MapperGraph` and emits diagnostics for unrealisable directives. `ValidateRealisationStage` SHALL be `@Inject`-constructed via Lombok `@RequiredArgsConstructor(onConstructor_ = @Inject)`.
+The processor SHALL define a stage `ValidateRealisationStage` in package `io.github.joke.percolate.processor.stages.validate` that consumes the post-expansion `MapperGraph` and emits diagnostics for unrealisable directives. `ValidateRealisationStage` SHALL be `@Inject`-constructed via Lombok `@RequiredArgsConstructor(onConstructor_ = @Inject)`.
 
 `ValidateRealisationStage` SHALL execute two sequential `ValidationPhase`s in declared order:
 - `ValidateMarkersPhase` (Tier-2),

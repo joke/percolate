@@ -15,10 +15,10 @@ class BuiltinArchitecturalSpec extends Specification {
 
     private static final String[] FORBIDDEN_PACKAGES = [
             'io/github/joke/percolate/processor/graph',
-            'io/github/joke/percolate/processor/expand'
+            'io/github/joke/percolate/processor/stages/expand'
     ]
 
-    def 'built-in strategies do not reference processor.graph or processor.expand in bytecode'() {
+    def 'built-in strategies do not reference processor.graph or processor.stages.expand in bytecode'() {
         given:
         def builtinClasses = [
                 GetterRead,
