@@ -6,7 +6,7 @@ import lombok.EqualsAndHashCode;
 import lombok.Value;
 
 @Value
-@EqualsAndHashCode(exclude = {"codegen"})
+@EqualsAndHashCode(exclude = {"codegen", "groupId"})
 public final class Edge implements Comparable<Edge> {
     Node from;
     Node to;
@@ -73,13 +73,13 @@ public final class Edge implements Comparable<Edge> {
                 Optional.of(strategyClassFqn));
     }
 
-    public static Edge subSeed(Node from, Node to, String strategyClassFqn) {
+    public static Edge subSeed(Node from, Node to, String strategyClassFqn, Optional<AnnotationMirror> directive) {
         return new Edge(
                 from,
                 to,
                 Weights.SENTINEL_UNREALISED,
                 EdgeKind.SUB_SEED,
-                Optional.empty(),
+                directive,
                 Optional.empty(),
                 Optional.empty(),
                 Optional.of(strategyClassFqn));
@@ -97,17 +97,9 @@ public final class Edge implements Comparable<Edge> {
         if (c != 0) return c;
         c = Boolean.compare(this.directive.isPresent(), other.directive.isPresent());
         if (c != 0) return c;
-        if (!this.groupId.isPresent() && !other.groupId.isPresent()) {
-            if (!this.strategyClassFqn.isPresent() && !other.strategyClassFqn.isPresent()) return 0;
-            if (!this.strategyClassFqn.isPresent()) return -1;
-            if (!other.strategyClassFqn.isPresent()) return 1;
-            return this.strategyClassFqn.get().compareTo(other.strategyClassFqn.get());
+        if (!this.strategyClassFqn.isPresent() && !other.strategyClassFqn.isPresent()) {
+            return 0;
         }
-        if (!this.groupId.isPresent()) return -1;
-        if (!other.groupId.isPresent()) return 1;
-        c = this.groupId.get().compareTo(other.groupId.get());
-        if (c != 0) return c;
-        if (!this.strategyClassFqn.isPresent() && !other.strategyClassFqn.isPresent()) return 0;
         if (!this.strategyClassFqn.isPresent()) return -1;
         if (!other.strategyClassFqn.isPresent()) return 1;
         return this.strategyClassFqn.get().compareTo(other.strategyClassFqn.get());

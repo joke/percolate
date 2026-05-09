@@ -166,7 +166,7 @@ class DotRendererExpandedSpec extends Specification {
         graph.addEdge(Edge.seed(seedFrom, seedTo, mirror))
         graph.addEdge(Edge.realised(realisedFrom, realisedTo, 1, Optional.empty(), (vars, inputs) -> null, 'DirectAssign'))
         graph.addEdge(Edge.marker(seedFrom, realisedFrom, 'GetterRead'))
-        graph.addEdge(Edge.subSeed(seedTo, realisedTo, 'AutoRecurse'))
+        graph.addEdge(Edge.subSeed(seedTo, realisedTo, 'AutoRecurse', Optional.empty()))
         def te = typeElement('com.example.AllKindsMapper')
 
         when:

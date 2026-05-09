@@ -169,11 +169,11 @@ class SpiTypesSpec extends Specification {
         def ctx = new FakeResolveCtx(null, types)
 
         when:
-        def result = new DirectAssign().bridge(typeMirror, typeMirror, ctx)
+        def result = new DirectAssign().bridge(typeMirror, typeMirror, ctx).collect(java.util.stream.Collectors.toList())
 
         then:
-        result.isPresent()
-        result.get().weight == Weights.NOOP
+        result.size() == 1
+        result.get(0).weight == Weights.NOOP
     }
 
     def 'DirectAssign codegen renders identity — passes input through unchanged'() {
@@ -182,12 +182,12 @@ class SpiTypesSpec extends Specification {
         def typeMirror = Mock(TypeMirror)
         types.isSameType(typeMirror, typeMirror) >> true
         def ctx = new FakeResolveCtx(null, types)
-        def result = new DirectAssign().bridge(typeMirror, typeMirror, ctx)
+        def result = new DirectAssign().bridge(typeMirror, typeMirror, ctx).collect(java.util.stream.Collectors.toList())
         def inputs = Mock(IncomingValues)
         inputs.single() >> CodeBlock.of('$L', 'myVar')
 
         when:
-        def codeBlock = result.get().codegen.render(null, inputs).toString()
+        def codeBlock = result.get(0).codegen.render(null, inputs).toString()
 
         then:
         codeBlock == 'myVar'
@@ -202,10 +202,10 @@ class SpiTypesSpec extends Specification {
         def ctx = new FakeResolveCtx(null, types)
 
         when:
-        def result = new DirectAssign().bridge(typeMirror1, typeMirror2, ctx)
+        def result = new DirectAssign().bridge(typeMirror1, typeMirror2, ctx).collect(java.util.stream.Collectors.toList())
 
         then:
-        !result.isPresent()
+        result.isEmpty()
     }
 
     def 'DirectAssign uses isSameType not isAssignable'() {
@@ -217,10 +217,10 @@ class SpiTypesSpec extends Specification {
         def ctx = new FakeResolveCtx(null, types)
 
         when:
-        def result = new DirectAssign().bridge(listType, collectionType, ctx)
+        def result = new DirectAssign().bridge(listType, collectionType, ctx).collect(java.util.stream.Collectors.toList())
 
         then:
-        !result.isPresent()
+        result.isEmpty()
     }
 
     private def mockContextWithGetter(String className, String methodName, TypeKind returnTypeKind = TypeKind.CHAR) {
@@ -336,6 +336,21 @@ class SpiTypesSpec extends Specification {
         @Override
         public Elements elements() {
             return elements
+        }
+
+        @Override
+        public TypeElement mapperType() {
+            return null
+        }
+
+        @Override
+        public ExecutableElement currentMethod() {
+            return null
+        }
+
+        @Override
+        public CallableMethods callableMethods() {
+            return null
         }
 
         TypeMirror typeMirror() {

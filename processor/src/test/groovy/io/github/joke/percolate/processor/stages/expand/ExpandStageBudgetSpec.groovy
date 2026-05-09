@@ -36,7 +36,7 @@ class ExpandStageBudgetSpec extends Specification {
         for (int i = 0; i < 101; i++) {
             def subNode = new Node(Optional.empty(), new SourceLocation(mockAccessPath('sub' + i)), scope, Optional.empty())
             graph.addNode(subNode)
-            graph.addEdge(Edge.subSeed(seedNode, subNode, 'test.Strategy'))
+            graph.addEdge(Edge.subSeed(seedNode, subNode, 'test.Strategy', Optional.empty()))
         }
 
         def ctx = Mock(MapperContext)
@@ -47,6 +47,9 @@ class ExpandStageBudgetSpec extends Specification {
         def phase1 = Mock(ExpansionPhase)
         def phase2 = Mock(ExpansionPhase)
         def phase3 = Mock(ExpansionPhase)
+        phase1.apply(_) >> true
+        phase2.apply(_) >> true
+        phase3.apply(_) >> true
         def diagnostics = Mock(Diagnostics)
         def stage = new ExpandStage([phase1, phase2, phase3], diagnostics)
 

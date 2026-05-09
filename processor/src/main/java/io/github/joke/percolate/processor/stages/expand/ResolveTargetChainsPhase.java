@@ -34,8 +34,9 @@ public final class ResolveTargetChainsPhase implements ExpansionPhase {
     private final AtomicInteger groupIdCounter = new AtomicInteger(INITIAL_GROUP_ID);
 
     @Override
-    public MapperGraph apply(final MapperGraph graph) {
+    public boolean apply(final MapperGraph graph) {
         final List<Node> rootNodes = findReturnRootNodes(graph);
+        boolean anyAdded = false;
 
         for (final Node rootNode : rootNodes) {
             final List<Node> leafTargets = findLeafTargets(rootNode, graph);
@@ -49,10 +50,10 @@ public final class ResolveTargetChainsPhase implements ExpansionPhase {
             }
 
             final TypeMirror returnType = rootNode.getType().get();
-            invokeGroupTargetStrategies(rootNode, leafTargets, returnType, targetTails, graph);
+            anyAdded |= invokeGroupTargetStrategies(rootNode, leafTargets, returnType, targetTails, graph);
         }
 
-        return graph;
+        return anyAdded;
     }
 
     private List<Node> findReturnRootNodes(final MapperGraph graph) {
@@ -127,12 +128,13 @@ public final class ResolveTargetChainsPhase implements ExpansionPhase {
         return tails;
     }
 
-    private void invokeGroupTargetStrategies(
+    private boolean invokeGroupTargetStrategies(
             final Node rootNode,
             final List<Node> leafTargets,
             final TypeMirror returnType,
             final List<String> targetTails,
             final MapperGraph graph) {
+        boolean anyAdded = false;
         for (final GroupTarget strategy : groupTargets) {
             final Optional<GroupBuild> optionalBuild = strategy.buildFor(returnType, targetTails, resolveCtx);
             if (!optionalBuild.isPresent()) {
@@ -157,16 +159,17 @@ public final class ResolveTargetChainsPhase implements ExpansionPhase {
                         Optional.of(groupId),
                         slotCodegen,
                         strategy.getClass().getName());
-                graph.addEdge(realisedEdge);
+                anyAdded |= graph.addEdge(realisedEdge);
 
                 final Node seedNode = findCorrespondingSeedNode(leafTargets, slot.getName());
                 if (seedNode != null) {
                     final Edge markerEdge =
                             Edge.marker(seedNode, slotNode, strategy.getClass().getName());
-                    graph.addEdge(markerEdge);
+                    anyAdded |= graph.addEdge(markerEdge);
                 }
             }
         }
+        return anyAdded;
     }
 
     private String nextGroupId() {

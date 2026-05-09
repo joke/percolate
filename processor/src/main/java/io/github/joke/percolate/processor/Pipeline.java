@@ -15,7 +15,12 @@ final class Pipeline {
 
     Void process(final TypeElement element) {
         final var ctx = new MapperContext(element);
-        stages.forEach(s -> s.run(ctx));
+        ProcessorModule.setCurrentContext(ctx);
+        try {
+            stages.forEach(s -> s.run(ctx));
+        } finally {
+            ProcessorModule.clearCurrentContext();
+        }
         return null;
     }
 }

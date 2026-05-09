@@ -19,13 +19,16 @@ public final class MapperGraph {
         graph.addVertex(node);
     }
 
-    public void addEdge(final Edge edge) {
+    public boolean addEdge(final Edge edge) {
         graph.addVertex(edge.getFrom());
         graph.addVertex(edge.getTo());
-        if (graph.containsEdge(edge)) {
-            return;
+        for (final Edge existing : graph.edgeSet()) {
+            if (existing.equals(edge)) {
+                return false;
+            }
         }
         graph.addEdge(edge.getFrom(), edge.getTo(), edge);
+        return true;
     }
 
     public Stream<Node> nodes() {

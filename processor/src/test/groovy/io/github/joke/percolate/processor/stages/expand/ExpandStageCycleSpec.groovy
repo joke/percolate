@@ -32,8 +32,8 @@ class ExpandStageCycleSpec extends Specification {
         graph.addNode(nodeB)
 
         // Add SUB_SEED edges to create a cycle
-        def subSeed1 = Edge.subSeed(nodeA, nodeB, 'test.Strategy')
-        def subSeed2 = Edge.subSeed(nodeB, nodeA, 'test.Strategy')
+        def subSeed1 = Edge.subSeed(nodeA, nodeB, 'test.Strategy', Optional.empty())
+        def subSeed2 = Edge.subSeed(nodeB, nodeA, 'test.Strategy', Optional.empty())
         graph.addEdge(subSeed1)
         graph.addEdge(subSeed2)
 

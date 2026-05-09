@@ -27,15 +27,18 @@ public final class ResolveSourceChainsPhase implements ExpansionPhase {
     private final ResolveCtx resolveCtx;
 
     @Override
-    public MapperGraph apply(final MapperGraph graph) {
+    public boolean apply(final MapperGraph graph) {
         final Set<Edge> processed = new HashSet<>();
         final Deque<Edge> workQueue = new ArrayDeque<>();
+        boolean anyAdded = false;
 
         collectSourceSeedEdges(graph, workQueue);
 
-        processSeedEdges(workQueue, processed, graph);
+        anyAdded |= processSeedEdges(workQueue, processed, graph);
 
-        return graph;
+        anyAdded |= processUntypedEdges(graph);
+
+        return anyAdded;
     }
 
     private void collectSourceSeedEdges(final MapperGraph graph, final Deque<Edge> workQueue) {
@@ -50,7 +53,8 @@ public final class ResolveSourceChainsPhase implements ExpansionPhase {
         }
     }
 
-    private void processSeedEdges(final Deque<Edge> workQueue, final Set<Edge> processed, final MapperGraph graph) {
+    private boolean processSeedEdges(final Deque<Edge> workQueue, final Set<Edge> processed, final MapperGraph graph) {
+        boolean anyAdded = false;
         while (!workQueue.isEmpty()) {
             final Edge seedEdge = workQueue.poll();
             if (processed.contains(seedEdge)) {
@@ -77,11 +81,14 @@ public final class ResolveSourceChainsPhase implements ExpansionPhase {
             final SourceLocation targetLoc = (SourceLocation) targetNode.getLoc();
             final String pathTail = pathTail(targetLoc);
 
-            invokeSourceStrategies(sourceNode, targetNode, sourceType, pathTail, targetLoc, graph);
+            anyAdded |= invokeSourceStrategies(sourceNode, targetNode, sourceType, pathTail, targetLoc, graph);
         }
+        return anyAdded;
+    }
 
-        // Fixed-point iteration for same-side ?→? edges
+    private boolean processUntypedEdges(final MapperGraph graph) {
         final Set<Node> resolvedNodes = new HashSet<>();
+        boolean anyAdded = false;
         boolean changed = true;
         while (changed) {
             changed = false;
@@ -102,11 +109,12 @@ public final class ResolveSourceChainsPhase implements ExpansionPhase {
                 final SourceLocation targetLoc = (SourceLocation) targetNode.getLoc();
                 final String pathTail = pathTail(targetLoc);
 
-                invokeSourceStrategies(sourceNode, targetNode, sourceType, pathTail, targetLoc, graph);
+                anyAdded |= invokeSourceStrategies(sourceNode, targetNode, sourceType, pathTail, targetLoc, graph);
                 resolvedNodes.add(sourceNode);
                 changed = true;
             }
         }
+        return anyAdded;
     }
 
     private String pathTail(final SourceLocation sourceLoc) {
@@ -117,13 +125,14 @@ public final class ResolveSourceChainsPhase implements ExpansionPhase {
         return segments.get(segments.size() - 1);
     }
 
-    private void invokeSourceStrategies(
+    private boolean invokeSourceStrategies(
             final Node sourceNode,
             final Node targetNode,
             final TypeMirror sourceType,
             final String pathTail,
             final SourceLocation sourceLoc,
             final MapperGraph graph) {
+        boolean anyAdded = false;
         for (final SourceStep strategy : sourceSteps) {
             final java.util.stream.Stream<Step> steps = strategy.stepsFrom(sourceType, pathTail, resolveCtx);
             for (final Step step : steps.collect(toUnmodifiableList())) {
@@ -137,13 +146,14 @@ public final class ResolveSourceChainsPhase implements ExpansionPhase {
                         Optional.empty(),
                         step.getCodegen(),
                         strategy.getClass().getName());
-                graph.addEdge(realisedEdge);
+                anyAdded |= graph.addEdge(realisedEdge);
 
                 final Edge markerEdge = Edge.marker(
                         targetNode, realisedNode, strategy.getClass().getName());
-                graph.addEdge(markerEdge);
+                anyAdded |= graph.addEdge(markerEdge);
             }
         }
+        return anyAdded;
     }
 
     private Set<Edge> collectUntypedSourceEdges(final MapperGraph graph) {

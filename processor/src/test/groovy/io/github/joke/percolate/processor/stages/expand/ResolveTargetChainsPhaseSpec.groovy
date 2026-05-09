@@ -62,22 +62,25 @@ class ResolveTargetChainsPhaseSpec extends Specification {
         markers.size() == 2
     }
 
-    def 'multiple parallel groups when multiple GroupTargets match'() {
+    def 'multiple parallel groups when multiple GroupTargets with different slots match'() {
         given:
         def graph = new MapperGraph()
         def scope = new MethodScope(mockMethod('map'))
         def returnRoot = new Node(Optional.of(mockTypeMirror('Human')), new TargetLocation(mockTargetPath('')), scope, Optional.empty())
         def slot1 = new Node(Optional.empty(), new TargetLocation(mockTargetPath('firstName')), scope, Optional.empty())
+        def slot2 = new Node(Optional.empty(), new TargetLocation(mockTargetPath('lastName')), scope, Optional.empty())
         graph.addNode(returnRoot)
         graph.addNode(slot1)
+        graph.addNode(slot2)
         def directive = Mock(AnnotationMirror)
         graph.addEdge(Edge.seed(slot1, returnRoot, directive))
+        graph.addEdge(Edge.seed(slot2, returnRoot, directive))
 
         def build1 = new GroupBuild(
                 [new Slot('firstName', mockTypeMirror('String'), Weights.STEP)],
                 (vars, inputs) -> null)
         def build2 = new GroupBuild(
-                [new Slot('firstName', mockTypeMirror('String'), Weights.STEP)],
+                [new Slot('lastName', mockTypeMirror('String'), Weights.STEP)],
                 (vars, inputs) -> null)
         def groupTarget1 = Mock(GroupTarget)
         def groupTarget2 = Mock(GroupTarget)

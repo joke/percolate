@@ -6,6 +6,7 @@ import io.github.joke.percolate.processor.spi.BridgeStep
 import io.github.joke.percolate.processor.spi.ResolveCtx
 import spock.lang.Specification
 import spock.lang.Tag
+import java.util.stream.Stream
 
 import javax.lang.model.element.AnnotationMirror
 import javax.lang.model.element.ExecutableElement
@@ -13,6 +14,7 @@ import javax.lang.model.element.Name
 import javax.lang.model.element.TypeElement
 import javax.lang.model.type.DeclaredType
 import javax.lang.model.type.TypeKind
+import javax.lang.model.util.Types
 import javax.lang.model.type.TypeMirror
 import java.util.Optional
 
@@ -23,18 +25,22 @@ class BridgeSourceToTargetPhaseSpec extends Specification {
         given:
         def graph = new MapperGraph()
         def scope = new MethodScope(mockMethod('map'))
-        def sourceNode = new Node(Optional.of(mockTypeMirror('String')), new SourceLocation(mockAccessPath('person.name')), scope, Optional.empty())
-        def targetNode = new Node(Optional.of(mockTypeMirror('String')), new TargetLocation(mockTargetPath('name')), scope, Optional.empty())
+        def stringType = mockTypeMirror('String')
+        def sourceNode = new Node(Optional.of(stringType), new SourceLocation(mockAccessPath('person.name')), scope, Optional.empty())
+        def targetNode = new Node(Optional.of(stringType), new TargetLocation(mockTargetPath('name')), scope, Optional.empty())
         graph.addNode(sourceNode)
         graph.addNode(targetNode)
         def directive = Mock(AnnotationMirror)
         graph.addEdge(Edge.seed(sourceNode, targetNode, directive))
 
-        def bridgeStep = new BridgeStep(Weights.NOOP, (vars, inputs) -> null)
+        def bridgeStep = new BridgeStep(stringType, stringType, Weights.NOOP, (vars, inputs) -> null)
         def directAssign = Mock(Bridge)
-        directAssign.bridge(_, _, _) >> Optional.of(bridgeStep)
+        directAssign.bridge(_, _, _) >> Stream.of(bridgeStep)
 
+        def types = Mock(Types)
+        types.isSameType(_, _) >> true
         def ctx = Mock(ResolveCtx)
+        ctx.types() >> types
 
         when:
         def phase = new BridgeSourceToTargetPhase([directAssign], ctx)
@@ -75,23 +81,27 @@ class BridgeSourceToTargetPhaseSpec extends Specification {
         given:
         def graph = new MapperGraph()
         def scope = new MethodScope(mockMethod('map'))
-        def sourceNode = new Node(Optional.of(mockTypeMirror('String')), new SourceLocation(mockAccessPath('person.name')), scope, Optional.empty())
-        def targetNode = new Node(Optional.of(mockTypeMirror('String')), new TargetLocation(mockTargetPath('name')), scope, Optional.empty())
+        def stringType = mockTypeMirror('String')
+        def sourceNode = new Node(Optional.of(stringType), new SourceLocation(mockAccessPath('person.name')), scope, Optional.empty())
+        def targetNode = new Node(Optional.of(stringType), new TargetLocation(mockTargetPath('name')), scope, Optional.empty())
         graph.addNode(sourceNode)
         graph.addNode(targetNode)
         def directive = Mock(AnnotationMirror)
         graph.addEdge(Edge.seed(sourceNode, targetNode, directive))
 
-        def bridgeStep = new BridgeStep(Weights.NOOP, (vars, inputs) -> null)
+        def bridgeStep = new BridgeStep(stringType, stringType, Weights.NOOP, (vars, inputs) -> null)
         // Use anonymous class instances so each has a distinct getClass().getName()
         def bridge1 = new Bridge() {
-            Optional<BridgeStep> bridge(TypeMirror from, TypeMirror to, ResolveCtx ctx) { Optional.of(bridgeStep) }
+            Stream<BridgeStep> bridge(TypeMirror from, TypeMirror to, ResolveCtx ctx) { Stream.of(bridgeStep) }
         }
         def bridge2 = new Bridge() {
-            Optional<BridgeStep> bridge(TypeMirror from, TypeMirror to, ResolveCtx ctx) { Optional.of(bridgeStep) }
+            Stream<BridgeStep> bridge(TypeMirror from, TypeMirror to, ResolveCtx ctx) { Stream.of(bridgeStep) }
         }
 
+        def types = Mock(Types)
+        types.isSameType(_, _) >> true
         def ctx = Mock(ResolveCtx)
+        ctx.types() >> types
 
         when:
         def phase = new BridgeSourceToTargetPhase([bridge1, bridge2], ctx)

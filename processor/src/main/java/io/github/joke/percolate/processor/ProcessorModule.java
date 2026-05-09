@@ -4,11 +4,13 @@ import dagger.Module;
 import dagger.Provides;
 import io.github.joke.percolate.processor.graph.DotRenderer;
 import io.github.joke.percolate.processor.spi.Bridge;
+import io.github.joke.percolate.processor.spi.CallableMethods;
 import io.github.joke.percolate.processor.spi.GroupTarget;
 import io.github.joke.percolate.processor.spi.ResolveCtx;
 import io.github.joke.percolate.processor.spi.SourceStep;
 import io.github.joke.percolate.processor.stages.Stage;
 import io.github.joke.percolate.processor.stages.discover.DiscoverAbstractMethods;
+import io.github.joke.percolate.processor.stages.discover.DiscoverCallableMethods;
 import io.github.joke.percolate.processor.stages.discover.DiscoverMappings;
 import io.github.joke.percolate.processor.stages.dump.DumpExpandedGraph;
 import io.github.joke.percolate.processor.stages.dump.DumpGraph;
@@ -31,15 +33,28 @@ import java.util.stream.StreamSupport;
 import javax.annotation.processing.Filer;
 import javax.annotation.processing.Messager;
 import javax.annotation.processing.ProcessingEnvironment;
+import javax.lang.model.element.ExecutableElement;
+import javax.lang.model.element.TypeElement;
 import javax.lang.model.util.Elements;
 import javax.lang.model.util.Types;
 import lombok.EqualsAndHashCode;
 import lombok.RequiredArgsConstructor;
+import org.jspecify.annotations.Nullable;
 
 @Module
 @RequiredArgsConstructor(onConstructor_ = @Inject)
 @EqualsAndHashCode(onlyExplicitlyIncluded = true)
 final class ProcessorModule {
+
+    private static final ThreadLocal<MapperContext> CURRENT_CONTEXT = new ThreadLocal<>();
+
+    static void setCurrentContext(final MapperContext ctx) {
+        CURRENT_CONTEXT.set(ctx);
+    }
+
+    static void clearCurrentContext() {
+        CURRENT_CONTEXT.remove();
+    }
 
     private final ProcessingEnvironment processingEnvironment;
 
@@ -81,6 +96,11 @@ final class ProcessorModule {
     @Provides
     DiscoverMappings discoverMappings(Elements elements) {
         return new DiscoverMappings(elements);
+    }
+
+    @Provides
+    DiscoverCallableMethods discoverCallableMethods(Elements elements, Types types) {
+        return new DiscoverCallableMethods(elements, types);
     }
 
     @Provides
@@ -158,6 +178,7 @@ final class ProcessorModule {
     static List<Stage> stages(
             DiscoverAbstractMethods discoverAbstractMethods,
             DiscoverMappings discoverMappings,
+            DiscoverCallableMethods discoverCallableMethods,
             ValidateNoDuplicateTargets validateNoDuplicateTargets,
             ValidateSourceParameters validateSourceParameters,
             SeedGraph seedGraph,
@@ -168,6 +189,7 @@ final class ProcessorModule {
         return List.of(
                 discoverAbstractMethods,
                 discoverMappings,
+                discoverCallableMethods,
                 validateNoDuplicateTargets,
                 validateSourceParameters,
                 seedGraph,
@@ -228,6 +250,24 @@ final class ProcessorModule {
         @Override
         public Elements elements() {
             return elements;
+        }
+
+        @Override
+        public @Nullable TypeElement mapperType() {
+            final MapperContext ctx = CURRENT_CONTEXT.get();
+            return ctx != null ? ctx.getMapperType() : null;
+        }
+
+        @Override
+        public @Nullable ExecutableElement currentMethod() {
+            final MapperContext ctx = CURRENT_CONTEXT.get();
+            return ctx != null ? ctx.getCurrentMethod() : null;
+        }
+
+        @Override
+        public @Nullable CallableMethods callableMethods() {
+            final MapperContext ctx = CURRENT_CONTEXT.get();
+            return ctx != null ? ctx.getCallableMethods() : null;
         }
     }
 }

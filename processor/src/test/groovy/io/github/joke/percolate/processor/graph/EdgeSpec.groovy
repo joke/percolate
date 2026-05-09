@@ -113,7 +113,7 @@ class EdgeSpec extends Specification {
         e1.compareTo(e2) < 0
     }
 
-    def 'compareTo orders by groupId sixth'() {
+    def 'compareTo orders by strategyClassFqn sixth'() {
         given:
         def scope = Mock(Scope)
         scope.encode() >> 'map()'
@@ -124,14 +124,14 @@ class EdgeSpec extends Specification {
         def node = new Node(emptyType, loc, scope, Optional.empty())
 
         when:
-        def e1 = new Edge(node, node, 1, EdgeKind.SEED, Optional.empty(), Optional.of('a'), Optional.empty(), Optional.empty())
-        def e2 = new Edge(node, node, 1, EdgeKind.SEED, Optional.empty(), Optional.of('b'), Optional.empty(), Optional.empty())
+        def e1 = new Edge(node, node, 1, EdgeKind.SEED, Optional.empty(), Optional.empty(), Optional.empty(), Optional.of('a'))
+        def e2 = new Edge(node, node, 1, EdgeKind.SEED, Optional.empty(), Optional.empty(), Optional.empty(), Optional.of('b'))
 
         then:
         e1.compareTo(e2) < 0
     }
 
-    def 'equals excludes codegen but includes strategyClassFqn'() {
+    def 'equals excludes codegen and groupId but includes strategyClassFqn'() {
         given:
         def scope = Mock(Scope)
         scope.encode() >> 'map()'
@@ -149,11 +149,16 @@ class EdgeSpec extends Specification {
         def e2 = new Edge(node, node, 1, EdgeKind.REALISED, Optional.empty(), Optional.empty(), Optional.of(codegen2), Optional.of('com.example.A'))
         // Different strategyClassFqn → not equal
         def e3 = new Edge(node, node, 1, EdgeKind.REALISED, Optional.empty(), Optional.empty(), Optional.of(codegen1), Optional.of('com.example.B'))
+        // Same strategyClassFqn, different groupId → equal
+        def e4 = new Edge(node, node, 1, EdgeKind.REALISED, Optional.empty(), Optional.of('g1'), Optional.empty(), Optional.of('com.example.A'))
+        def e5 = new Edge(node, node, 1, EdgeKind.REALISED, Optional.empty(), Optional.of('g2'), Optional.empty(), Optional.of('com.example.A'))
 
         then:
         e1.equals(e2)
         e1.hashCode() == e2.hashCode()
         !e1.equals(e3)
+        e4.equals(e5)
+        e4.hashCode() == e5.hashCode()
     }
 
     def 'equals includes kind'() {
@@ -174,7 +179,7 @@ class EdgeSpec extends Specification {
         !e1.equals(e2)
     }
 
-    def 'hashCode excludes codegen but includes strategyClassFqn'() {
+    def 'hashCode excludes codegen and groupId but includes strategyClassFqn'() {
         given:
         def scope = Mock(Scope)
         scope.encode() >> 'map()'
@@ -192,10 +197,14 @@ class EdgeSpec extends Specification {
         def e2 = new Edge(node, node, 1, EdgeKind.REALISED, Optional.empty(), Optional.empty(), Optional.of(codegen2), Optional.of('a'))
         // Different strategyClassFqn → different hashCode (usually)
         def e3 = new Edge(node, node, 1, EdgeKind.REALISED, Optional.empty(), Optional.empty(), Optional.of(codegen1), Optional.of('b'))
+        // Same strategyClassFqn, different groupId → same hashCode
+        def e4 = new Edge(node, node, 1, EdgeKind.REALISED, Optional.empty(), Optional.of('g1'), Optional.empty(), Optional.of('a'))
+        def e5 = new Edge(node, node, 1, EdgeKind.REALISED, Optional.empty(), Optional.of('g2'), Optional.empty(), Optional.of('a'))
 
         then:
         e1.hashCode() == e2.hashCode()
         e1.hashCode() != e3.hashCode()
+        e4.hashCode() == e5.hashCode()
     }
 
     def 'Edge.seed() produces kind=SEED, sentinel weight, directive present'() {
@@ -282,7 +291,7 @@ class EdgeSpec extends Specification {
         def node = new Node(emptyType, loc, scope, Optional.empty())
 
         when:
-        def edge = Edge.subSeed(node, node, 'com.example.MyStrategy')
+        def edge = Edge.subSeed(node, node, 'com.example.MyStrategy', Optional.empty())
 
         then:
         edge.kind == EdgeKind.SUB_SEED
