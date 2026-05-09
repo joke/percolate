@@ -22,6 +22,7 @@ subprojects { project ->
         pluginManager.apply 'com.diffplug.spotless'
         pluginManager.apply 'net.ltgt.errorprone'
         pluginManager.apply 'jacoco'
+        pluginManager.apply 'pmd'
         // pluginManager.apply 'com.palantir.baseline-format'
         tasks.withType(JavaCompile).configureEach {
             options.release = 11
@@ -86,6 +87,15 @@ subprojects { project ->
         }
         tasks.named('check') {
             dependsOn jacocoTestCoverageVerification
+        }
+    }
+
+    pluginManager.withPlugin('pmd') {
+        pmd {
+            consoleOutput = true
+            toolVersion = "7.24.0"
+            rulesMinimumPriority = 5
+            ruleSets = ["$rootDir/.pmd.xml"]
         }
     }
 
