@@ -13,7 +13,8 @@ import lombok.Setter;
 import org.jspecify.annotations.Nullable;
 
 @RequiredArgsConstructor(onConstructor_ = @Inject)
-@Getter @Setter
+@Getter
+@Setter
 public final class MapperContext {
     private final TypeElement mapperType;
     private @Nullable MapperShape shape;

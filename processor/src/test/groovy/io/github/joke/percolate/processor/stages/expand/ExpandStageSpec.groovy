@@ -124,6 +124,6 @@ class ExpandStageSpec extends Specification {
         stage.run(ctx)
 
         then:
-        0 * diagnostics.error(_, _, _, { it != null && it.contains('budget') })
+        0 * diagnostics.error(_, { it != null && it.contains('converge') })
     }
 }

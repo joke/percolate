@@ -4,6 +4,9 @@ import static java.util.stream.Collectors.toUnmodifiableList;
 
 import io.github.joke.percolate.processor.graph.Edge;
 import io.github.joke.percolate.processor.graph.EdgeKind;
+import io.github.joke.percolate.processor.graph.GraphDelta;
+import io.github.joke.percolate.processor.graph.GroupCodegen;
+import io.github.joke.percolate.processor.graph.GroupRegistration;
 import io.github.joke.percolate.processor.graph.MapperGraph;
 import io.github.joke.percolate.processor.graph.Node;
 import io.github.joke.percolate.processor.graph.TargetLocation;
@@ -20,6 +23,7 @@ import java.util.List;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.stream.Stream;
 import javax.lang.model.type.TypeMirror;
 import lombok.RequiredArgsConstructor;
 import org.jspecify.annotations.Nullable;
@@ -34,36 +38,79 @@ public final class ResolveTargetChainsPhase implements ExpansionPhase {
     private final AtomicInteger groupIdCounter = new AtomicInteger(INITIAL_GROUP_ID);
 
     @Override
-    public boolean apply(final MapperGraph graph) {
+    public void apply(final MapperGraph graph) {
         final List<Node> rootNodes = findReturnRootNodes(graph);
-        boolean anyAdded = false;
 
-        for (final Node rootNode : rootNodes) {
-            final List<Node> leafTargets = findLeafTargets(rootNode, graph);
-            if (leafTargets.isEmpty()) {
-                continue;
+        rootNodes.stream()
+                .flatMap(rootNode -> {
+                    final List<Node> leafTargets = findLeafTargets(rootNode, graph);
+                    if (leafTargets.isEmpty()) {
+                        return Stream.empty();
+                    }
+
+                    final List<String> targetTails = extractTargetTails(leafTargets);
+                    if (targetTails.isEmpty()) {
+                        return Stream.empty();
+                    }
+
+                    final TypeMirror returnType = rootNode.getType().get();
+                    return deriveForReturnRoot(rootNode, leafTargets, returnType, targetTails);
+                })
+                .forEach(graph::apply);
+    }
+
+    private Stream<GraphDelta> deriveForReturnRoot(
+            final Node rootNode,
+            final List<Node> leafTargets,
+            final TypeMirror returnType,
+            final List<String> targetTails) {
+        return groupTargets.stream().flatMap(strategy -> {
+            final Optional<GroupBuild> optionalBuild = strategy.buildFor(returnType, targetTails, resolveCtx);
+            if (!optionalBuild.isPresent()) {
+                return Stream.empty();
             }
 
-            final List<String> targetTails = extractTargetTails(leafTargets);
-            if (targetTails.isEmpty()) {
-                continue;
-            }
+            final GroupBuild groupBuild = optionalBuild.get();
+            final String groupId = nextGroupId();
+            final GroupCodegen codegen = groupBuild.getCodegen();
+            final GroupRegistration registration = new GroupRegistration(groupId, codegen);
 
-            final TypeMirror returnType = rootNode.getType().get();
-            anyAdded |= invokeGroupTargetStrategies(rootNode, leafTargets, returnType, targetTails, graph);
-        }
+            return groupBuild.getSlots().stream().map(slot -> {
+                final Node slotNode = allocateSlotNode(rootNode, slot);
+                final io.github.joke.percolate.processor.graph.EdgeCodegen slotCodegen = codegen::render;
+                final Edge realisedEdge = Edge.realised(
+                        slotNode,
+                        rootNode,
+                        slot.getWeight(),
+                        Optional.of(groupId),
+                        slotCodegen,
+                        strategy.getClass().getName());
 
-        return anyAdded;
+                final Node seedNode = findCorrespondingSeedNode(leafTargets, slot.getName());
+
+                final List<Node> nodes = new ArrayList<>(1);
+                nodes.add(slotNode);
+
+                final List<Edge> edges = new ArrayList<>(2);
+                edges.add(realisedEdge);
+
+                if (seedNode != null) {
+                    final Edge markerEdge =
+                            Edge.marker(seedNode, slotNode, strategy.getClass().getName());
+                    edges.add(markerEdge);
+                }
+
+                return GraphDelta.of(nodes, edges, List.of(registration));
+            });
+        });
+    }
+
+    private String nextGroupId() {
+        return "g" + groupIdCounter.incrementAndGet();
     }
 
     private List<Node> findReturnRootNodes(final MapperGraph graph) {
-        final List<Node> result = new ArrayList<>();
-        for (final Node node : graph.nodes().collect(toUnmodifiableList())) {
-            if (isReturnRootNode(node)) {
-                result.add(node);
-            }
-        }
-        return result;
+        return graph.nodes().filter(this::isReturnRootNode).collect(toUnmodifiableList());
     }
 
     private boolean isReturnRootNode(final Node node) {
@@ -117,63 +164,14 @@ public final class ResolveTargetChainsPhase implements ExpansionPhase {
     }
 
     private List<String> extractTargetTails(final List<Node> leafTargets) {
-        final List<String> tails = new ArrayList<>();
-        for (final Node leaf : leafTargets) {
-            final TargetLocation targetLoc = (TargetLocation) leaf.getLoc();
-            final List<String> segments = targetLoc.getPath().getSegments();
-            if (!segments.isEmpty()) {
-                tails.add(segments.get(segments.size() - 1));
-            }
-        }
-        return tails;
-    }
-
-    private boolean invokeGroupTargetStrategies(
-            final Node rootNode,
-            final List<Node> leafTargets,
-            final TypeMirror returnType,
-            final List<String> targetTails,
-            final MapperGraph graph) {
-        boolean anyAdded = false;
-        for (final GroupTarget strategy : groupTargets) {
-            final Optional<GroupBuild> optionalBuild = strategy.buildFor(returnType, targetTails, resolveCtx);
-            if (!optionalBuild.isPresent()) {
-                continue;
-            }
-
-            final GroupBuild groupBuild = optionalBuild.get();
-            final String groupId = nextGroupId();
-
-            graph.addGroupCodegen(groupId, groupBuild.getCodegen());
-
-            for (final Slot slot : groupBuild.getSlots()) {
-                final Node slotNode = allocateSlotNode(rootNode, slot);
-                graph.addNode(slotNode);
-
-                final io.github.joke.percolate.processor.graph.EdgeCodegen slotCodegen =
-                        groupBuild.getCodegen()::render;
-                final Edge realisedEdge = Edge.realised(
-                        slotNode,
-                        rootNode,
-                        slot.getWeight(),
-                        Optional.of(groupId),
-                        slotCodegen,
-                        strategy.getClass().getName());
-                anyAdded |= graph.addEdge(realisedEdge);
-
-                final Node seedNode = findCorrespondingSeedNode(leafTargets, slot.getName());
-                if (seedNode != null) {
-                    final Edge markerEdge =
-                            Edge.marker(seedNode, slotNode, strategy.getClass().getName());
-                    anyAdded |= graph.addEdge(markerEdge);
-                }
-            }
-        }
-        return anyAdded;
-    }
-
-    private String nextGroupId() {
-        return "g" + groupIdCounter.incrementAndGet();
+        return leafTargets.stream()
+                .map(Node::getLoc)
+                .filter(l -> l instanceof TargetLocation)
+                .map(l -> (TargetLocation) l)
+                .map(tl -> tl.getPath().getSegments())
+                .filter(segments -> !segments.isEmpty())
+                .map(segments -> segments.get(segments.size() - 1))
+                .collect(toUnmodifiableList());
     }
 
     private Node allocateSlotNode(final Node rootNode, final Slot slot) {
@@ -184,16 +182,15 @@ public final class ResolveTargetChainsPhase implements ExpansionPhase {
 
     @Nullable
     private Node findCorrespondingSeedNode(final List<Node> leafTargets, final String slotName) {
-        for (final Node leaf : leafTargets) {
-            if (!(leaf.getLoc() instanceof TargetLocation)) {
-                continue;
-            }
-            final TargetLocation targetLoc = (TargetLocation) leaf.getLoc();
-            final List<String> segments = targetLoc.getPath().getSegments();
-            if (!segments.isEmpty() && segments.get(segments.size() - 1).equals(slotName)) {
-                return leaf;
-            }
-        }
-        return null;
+        return leafTargets.stream()
+                .filter(leaf -> leaf.getLoc() instanceof TargetLocation)
+                .filter(leaf -> {
+                    final TargetLocation targetLoc = (TargetLocation) leaf.getLoc();
+                    final List<String> segments = targetLoc.getPath().getSegments();
+                    return !segments.isEmpty()
+                            && segments.get(segments.size() - 1).equals(slotName);
+                })
+                .findFirst()
+                .orElse(null);
     }
 }

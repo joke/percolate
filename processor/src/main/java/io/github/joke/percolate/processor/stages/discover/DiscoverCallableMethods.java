@@ -19,12 +19,10 @@ import javax.lang.model.element.Element;
 import javax.lang.model.element.ElementKind;
 import javax.lang.model.element.ExecutableElement;
 import javax.lang.model.element.TypeElement;
-import javax.lang.model.type.TypeKind;
 import javax.lang.model.type.TypeMirror;
 import javax.lang.model.util.Elements;
 import javax.lang.model.util.Types;
 import lombok.RequiredArgsConstructor;
-import org.jspecify.annotations.Nullable;
 
 @RequiredArgsConstructor(onConstructor_ = @Inject)
 public final class DiscoverCallableMethods implements Stage {
@@ -85,8 +83,7 @@ public final class DiscoverCallableMethods implements Stage {
         private final Map<String, List<ExecutableElement>> indexByReturnType;
         private final Types types;
 
-        private IndexCallableMethods(
-                final Map<String, List<ExecutableElement>> indexByReturnType, final Types types) {
+        private IndexCallableMethods(final Map<String, List<ExecutableElement>> indexByReturnType, final Types types) {
             this.indexByReturnType = indexByReturnType;
             this.types = types;
         }

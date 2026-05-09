@@ -6,7 +6,6 @@ import io.github.joke.percolate.processor.spi.Bridge;
 import io.github.joke.percolate.processor.spi.BridgeStep;
 import io.github.joke.percolate.processor.spi.CallableMethods;
 import io.github.joke.percolate.processor.spi.EdgeCodegen;
-import io.github.joke.percolate.processor.spi.IncomingValues;
 import io.github.joke.percolate.processor.spi.MethodCandidate;
 import io.github.joke.percolate.processor.spi.ResolveCtx;
 import io.github.joke.percolate.processor.spi.Weights;
@@ -17,25 +16,21 @@ import java.util.Set;
 import java.util.stream.Stream;
 import javax.lang.model.element.ExecutableElement;
 import javax.lang.model.element.TypeElement;
-import javax.lang.model.type.DeclaredType;
-import javax.lang.model.type.TypeKind;
 import javax.lang.model.type.TypeMirror;
-import org.jspecify.annotations.Nullable;
 
 @AutoService(Bridge.class)
 public final class MethodCallBridge implements Bridge {
 
     @Override
-    public Stream<BridgeStep> bridge(
-            final TypeMirror sourceType, final TypeMirror targetType, final ResolveCtx ctx) {
+    public Stream<BridgeStep> bridge(final TypeMirror sourceType, final TypeMirror targetType, final ResolveCtx ctx) {
         final CallableMethods callableMethods = ctx.callableMethods();
         if (callableMethods == null) {
             return Stream.empty();
         }
 
         final List<BridgeStep> steps = new ArrayList<>();
-        for (final MethodCandidate candidate : callableMethods.producing(targetType).collect(
-                java.util.stream.Collectors.toUnmodifiableList())) {
+        for (final MethodCandidate candidate :
+                callableMethods.producing(targetType).collect(java.util.stream.Collectors.toUnmodifiableList())) {
             final ExecutableElement method = candidate.getMethod();
             final List<? extends javax.lang.model.element.VariableElement> params = method.getParameters();
             if (params.size() != 1) {

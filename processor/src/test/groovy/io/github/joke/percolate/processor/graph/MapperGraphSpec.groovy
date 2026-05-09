@@ -3,6 +3,11 @@ package io.github.joke.percolate.processor.graph
 import spock.lang.Specification
 import spock.lang.Tag
 
+import javax.lang.model.type.DeclaredType
+import javax.lang.model.type.TypeKind
+import javax.lang.model.type.TypeMirror
+import javax.lang.model.element.TypeElement
+
 @Tag('unit')
 class MapperGraphSpec extends Specification {
 
@@ -424,5 +429,181 @@ class MapperGraphSpec extends Specification {
         expect:
         !RealisedSubgraph.class.methods.any { it.name == 'addNode' }
         !RealisedSubgraph.class.methods.any { it.name == 'addEdge' }
+    }
+
+    def 'apply commits all nodes and edges from a delta'() {
+        given:
+        def graph = new MapperGraph()
+        def typeMirror = Mock(TypeMirror)
+        typeMirror.toString() >> 'Person'
+        def loc1 = Mock(Location)
+        def loc2 = Mock(Location)
+        def loc3 = Mock(Location)
+        def loc4 = Mock(Location)
+        loc1.encode() >> 'src[a]'
+        loc1.segment() >> 'src[a]'
+        loc2.encode() >> 'src[b]'
+        loc2.segment() >> 'src[b]'
+        loc3.encode() >> 'tgt[c]'
+        loc3.segment() >> 'tgt[c]'
+        loc4.encode() >> 'tgt[d]'
+        loc4.segment() >> 'tgt[d]'
+        def n1 = node(scope, loc1, Optional.of(typeMirror))
+        def n2 = node(scope, loc2, Optional.of(typeMirror))
+        def n3 = node(otherScope, loc3, Optional.of(typeMirror))
+        def n4 = node(otherScope, loc4, Optional.of(typeMirror))
+        def e1 = realisedEdge(n3, n4)
+        def e2 = realisedEdge(n1, n2)
+        def delta = GraphDelta.of([n1, n2], [e1, e2])
+
+        when:
+        graph.apply(delta)
+
+        then:
+        graph.nodeCount() == 4
+        graph.edgeCount() == 2
+        def nodeIds = graph.nodes().collect { it.id() }.toList()
+        def expectedIds = [n1.id(), n2.id(), n3.id(), n4.id()].sort()
+        nodeIds.sort() == expectedIds
+        def edgeKinds = graph.edges().collect { it.kind }.toList()
+        edgeKinds == [EdgeKind.REALISED, EdgeKind.REALISED]
+    }
+
+    def 'apply with an empty delta is a no-op'() {
+        given:
+        def graph = new MapperGraph()
+        def typeMirror = Mock(TypeMirror)
+        typeMirror.toString() >> 'Person'
+        def loc = Mock(Location)
+        loc.encode() >> 'src[x]'
+        loc.segment() >> 'src[x]'
+        def n = node(scope, loc, Optional.of(typeMirror))
+        graph.addNode(n)
+        def beforeNodeCount = graph.nodeCount()
+        def beforeEdgeCount = graph.edgeCount()
+
+        when:
+        graph.apply(GraphDelta.empty())
+
+        then:
+        graph.nodeCount() == beforeNodeCount
+        graph.edgeCount() == beforeEdgeCount
+    }
+
+    def 'apply is idempotent on duplicate deltas'() {
+        given:
+        def graph = new MapperGraph()
+        def typeMirror = Mock(TypeMirror)
+        typeMirror.toString() >> 'Person'
+        def loc1 = Mock(Location)
+        def loc2 = Mock(Location)
+        def loc3 = Mock(Location)
+        def loc4 = Mock(Location)
+        loc1.encode() >> 'src[a]'
+        loc1.segment() >> 'src[a]'
+        loc2.encode() >> 'src[b]'
+        loc2.segment() >> 'src[b]'
+        loc3.encode() >> 'tgt[c]'
+        loc3.segment() >> 'tgt[c]'
+        loc4.encode() >> 'tgt[d]'
+        loc4.segment() >> 'tgt[d]'
+        def n1 = node(scope, loc1, Optional.of(typeMirror))
+        def n2 = node(scope, loc2, Optional.of(typeMirror))
+        def n3 = node(otherScope, loc3, Optional.of(typeMirror))
+        def n4 = node(otherScope, loc4, Optional.of(typeMirror))
+        def e1 = realisedEdge(n3, n4)
+        def e2 = realisedEdge(n1, n2)
+        def delta = GraphDelta.of([n1, n2], [e1, e2])
+
+        when:
+        graph.apply(delta)
+        def afterFirst = [graph.nodeCount(), graph.edgeCount()]
+        graph.apply(delta)
+        def afterSecond = [graph.nodeCount(), graph.edgeCount()]
+
+        then:
+        afterFirst == afterSecond
+    }
+
+    def 'apply commits nodes before edges'() {
+        given:
+        def graph = new MapperGraph()
+        def typeMirror = Mock(TypeMirror)
+        typeMirror.toString() >> 'Person'
+        def loc1 = Mock(Location)
+        def loc2 = Mock(Location)
+        loc1.encode() >> 'src[a]'
+        loc1.segment() >> 'src[a]'
+        loc2.encode() >> 'src[b]'
+        loc2.segment() >> 'src[b]'
+        def n1 = node(scope, loc1, Optional.of(typeMirror))
+        def n2 = node(scope, loc2, Optional.of(typeMirror))
+        def e1 = realisedEdge(n1, n2)
+        def delta = GraphDelta.of([n1, n2], [e1])
+
+        when:
+        graph.apply(delta)
+
+        then:
+        noExceptionThrown()
+    }
+
+    def 'apply commits groupRegistrations from delta'() {
+        given:
+        def graph = new MapperGraph()
+        def typeMirror = Mock(TypeMirror)
+        typeMirror.toString() >> 'Person'
+        def loc1 = Mock(Location)
+        def loc2 = Mock(Location)
+        loc1.encode() >> 'src[a]'
+        loc1.segment() >> 'src[a]'
+        loc2.encode() >> 'src[b]'
+        loc2.segment() >> 'src[b]'
+        def n1 = node(scope, loc1, Optional.of(typeMirror))
+        def n2 = node(scope, loc2, Optional.of(typeMirror))
+        def e1 = realisedEdge(n1, n2)
+        def codegen = Mock(GroupCodegen)
+        def registration = new GroupRegistration('g1', codegen)
+        def delta = GraphDelta.of([n1, n2], [e1], [registration])
+
+        when:
+        graph.apply(delta)
+
+        then:
+        graph.nodeCount() == 2
+        graph.edgeCount() == 1
+        graph.groupCodegen('g1').isPresent()
+        graph.groupCodegen('g1').get() == codegen
+        graph.groupCodegen('nonexistent').isEmpty()
+    }
+
+    def 'apply with duplicate groupRegistrations is idempotent'() {
+        given:
+        def graph = new MapperGraph()
+        def typeMirror = Mock(TypeMirror)
+        typeMirror.toString() >> 'Person'
+        def loc1 = Mock(Location)
+        def loc2 = Mock(Location)
+        loc1.encode() >> 'src[a]'
+        loc1.segment() >> 'src[a]'
+        loc2.encode() >> 'src[b]'
+        loc2.segment() >> 'src[b]'
+        def n1 = node(scope, loc1, Optional.of(typeMirror))
+        def n2 = node(scope, loc2, Optional.of(typeMirror))
+        def e1 = realisedEdge(n1, n2)
+        def codegen1 = Mock(GroupCodegen)
+        def codegen2 = Mock(GroupCodegen)
+        def registration1 = new GroupRegistration('g1', codegen1)
+        def registration2 = new GroupRegistration('g1', codegen2)
+        def delta = GraphDelta.of([n1, n2], [e1], [registration1, registration2])
+
+        when:
+        graph.apply(delta)
+
+        then:
+        graph.nodeCount() == 2
+        graph.edgeCount() == 1
+        graph.groupCodegen('g1').isPresent()
+        graph.groupCodegen('g1').get() == codegen1
     }
 }

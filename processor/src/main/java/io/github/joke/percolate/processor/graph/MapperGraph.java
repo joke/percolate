@@ -22,13 +22,19 @@ public final class MapperGraph {
     public boolean addEdge(final Edge edge) {
         graph.addVertex(edge.getFrom());
         graph.addVertex(edge.getTo());
-        for (final Edge existing : graph.edgeSet()) {
-            if (existing.equals(edge)) {
-                return false;
-            }
+        if (graph.edgeSet().stream().anyMatch(existing -> existing.equals(edge))) {
+            return false;
         }
         graph.addEdge(edge.getFrom(), edge.getTo(), edge);
         return true;
+    }
+
+    public void apply(final GraphDelta delta) {
+        delta.getNodes().stream().forEach(this::addNode);
+        delta.getEdges().stream().forEach(this::addEdge);
+        delta.getGroupRegistrations().stream()
+                .filter(r -> !groupCodegens.containsKey(r.groupId))
+                .forEach(r -> groupCodegens.put(r.groupId, r.codegen));
     }
 
     public Stream<Node> nodes() {

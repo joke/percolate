@@ -8,17 +8,16 @@ import io.github.joke.percolate.processor.graph.Edge;
 import io.github.joke.percolate.processor.graph.EdgeKind;
 import io.github.joke.percolate.processor.graph.MapperGraph;
 import io.github.joke.percolate.processor.graph.MethodScope;
+import io.github.joke.percolate.processor.graph.Node;
 import io.github.joke.percolate.processor.stages.Stage;
 import jakarta.inject.Inject;
-import java.util.ArrayList;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
-import org.jspecify.annotations.Nullable;
 
 @RequiredArgsConstructor(onConstructor_ = @Inject)
 public final class ExpandStage implements Stage {
 
-    private static final int EXPANSION_BUDGET = 100;
+    static final int MAX_EXPANSION_ROUNDS = 64;
 
     private final List<ExpansionPhase> phases;
     private final Diagnostics diagnostics;
@@ -32,71 +31,41 @@ public final class ExpandStage implements Stage {
         final List<Edge> seedEdges = collectSeedEdges(graph);
         setCurrentMethodFromSeedEdges(seedEdges, ctx);
 
-        int totalAdditions = 0;
-        boolean changed;
-        do {
-            changed = false;
+        int round = 0;
+        while (round <= MAX_EXPANSION_ROUNDS) {
+            final int before = graph.edgeCount();
+
             for (final ExpansionPhase phase : phases) {
-                final boolean phaseChanged = phase.apply(graph);
-                if (phaseChanged) {
-                    changed = true;
-                    totalAdditions++;
-                }
+                phase.apply(graph);
 
                 if (graph.hasSeedSubSeedCycles()) {
-                    final Edge cyclingSeed = findSeedEdge(seedEdges);
-                    if (cyclingSeed != null && cyclingSeed.getDirective().isPresent()) {
-                        diagnostics.error(
-                                ctx.getMapperType(),
-                                cyclingSeed.getDirective().get(),
-                                null,
-                                "Cycle detected in expansion — sub-directive lineage loops back");
-                    } else {
-                        diagnostics.error(
-                                ctx.getMapperType(), "Cycle detected in expansion — sub-directive lineage loops back");
-                    }
-                    return;
-                }
-
-                if (totalAdditions > EXPANSION_BUDGET) {
-                    final Edge originatingSeed = findSeedEdge(seedEdges);
-                    final String message = "Expansion budget exceeded (" + totalAdditions + " > " + EXPANSION_BUDGET
-                            + ")";
-                    if (originatingSeed != null
-                            && originatingSeed.getDirective().isPresent()) {
-                        diagnostics.error(
-                                ctx.getMapperType(), originatingSeed.getDirective().get(), null, message);
-                    } else {
-                        diagnostics.error(ctx.getMapperType(), message);
-                    }
+                    diagnostics.error(
+                            ctx.getMapperType(), "Cycle detected in expansion — sub-directive lineage loops back");
                     return;
                 }
             }
-        } while (changed);
-    }
 
-    private void setCurrentMethodFromSeedEdges(final List<Edge> seedEdges, final MapperContext ctx) {
-        for (final Edge seedEdge : seedEdges) {
-            final var scope = seedEdge.getFrom().getScope();
-            if (scope instanceof MethodScope) {
-                final MethodScope methodScope = (MethodScope) scope;
-                ctx.setCurrentMethod(methodScope.getMethod());
+            round++;
+
+            if (graph.edgeCount() == before) {
                 return;
             }
         }
+
+        diagnostics.error(ctx.getMapperType(), "Expansion did not converge after " + round + " rounds");
+    }
+
+    private void setCurrentMethodFromSeedEdges(final List<Edge> seedEdges, final MapperContext ctx) {
+        seedEdges.stream()
+                .map(Edge::getFrom)
+                .map(Node::getScope)
+                .filter(s -> s instanceof MethodScope)
+                .map(s -> (MethodScope) s)
+                .findFirst()
+                .ifPresent(methodScope -> ctx.setCurrentMethod(methodScope.getMethod()));
     }
 
     private List<Edge> collectSeedEdges(final MapperGraph graph) {
-        final List<Edge> result = new ArrayList<>();
-        for (final Edge edge : graph.edges().collect(toUnmodifiableList())) {
-            if (edge.getKind() == EdgeKind.SEED) {
-                result.add(edge);
-            }
-        }
-        return result;
-    }
-
-    private @Nullable Edge findSeedEdge(final List<Edge> seedEdges) {
-        return seedEdges.isEmpty() ? null : seedEdges.get(0);
+        return graph.edges().filter(e -> e.getKind() == EdgeKind.SEED).collect(toUnmodifiableList());
     }
 }

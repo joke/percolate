@@ -56,7 +56,7 @@ class ExpandStageCycleSpec extends Specification {
         stage.run(ctx)
 
         then:
-        1 * diagnostics.error(_, directive, null, { it != null && it.contains('Cycle') })
+        1 * diagnostics.error(_, { it != null && it.contains('Cycle') })
     }
 
     private AccessPath mockAccessPath(String path) {

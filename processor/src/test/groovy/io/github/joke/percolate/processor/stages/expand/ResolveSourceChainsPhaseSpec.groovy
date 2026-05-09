@@ -82,6 +82,46 @@ class ResolveSourceChainsPhaseSpec extends Specification {
         graph.edges().filter { it.kind == EdgeKind.SEED }.toList().size() == 1
     }
 
+    def 'multi-segment dotted source resolves across outer rounds'() {
+        given:
+        def graph = new MapperGraph()
+        def scope = new MethodScope(mockMethod('map'))
+
+        // person is typed, but person.address is NOT yet typed
+        def personNode = new Node(Optional.of(mockTypeMirror('Person')), new SourceLocation(mockAccessPath('person')), scope, Optional.empty())
+        def addressNode = new Node(Optional.empty(), new SourceLocation(mockAccessPath('person.address')), scope, Optional.empty())
+        def streetNode = new Node(Optional.empty(), new SourceLocation(mockAccessPath('person.address.street')), scope, Optional.empty())
+        graph.addNode(personNode)
+        graph.addNode(addressNode)
+        graph.addNode(streetNode)
+
+        def directive = Mock(AnnotationMirror)
+        graph.addEdge(Edge.seed(personNode, addressNode, directive))
+        graph.addEdge(Edge.seed(addressNode, streetNode, directive))
+
+        def getterRead = Mock(SourceStep)
+        def step = new Step(mockTypeMirror('String'), Weights.STEP, (vars, inputs) -> null)
+        getterRead.stepsFrom(_, 'address', _) >> Stream.of(step)
+        getterRead.stepsFrom(_, 'street', _) >> Stream.of(step)
+
+        def ctx = Mock(ResolveCtx)
+
+        when:
+        def phase = new ResolveSourceChainsPhase([getterRead], ctx)
+        phase.apply(graph)
+
+        then:
+        // Only the 'address' prefix resolves because person is typed
+        def realisedEdges = graph.edges().filter { it.kind == EdgeKind.REALISED }.toList()
+        realisedEdges.size() == 1
+        def markerEdges = graph.edges().filter { it.kind == EdgeKind.MARKER }.toList()
+        markerEdges.size() == 1
+
+        // The new node is at 'person.address' (the first segment), not 'person.address.street'
+        def realisedNode = realisedEdges[0].getTo()
+        realisedNode.getLoc().path.segments.size() == 2
+    }
+
     def 'MARKER weight is NOOP'() {
         given:
         def graph = new MapperGraph()

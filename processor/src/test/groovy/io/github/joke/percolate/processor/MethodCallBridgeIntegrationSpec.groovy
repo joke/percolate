@@ -179,7 +179,7 @@ class MethodCallBridgeIntegrationSpec extends Specification {
         errors.isEmpty()
 
         // DOT files should have been generated
-        def generatedFiles = compilation.generatedSourceFiles()
+        def generatedFiles = compilation.generatedFiles()
         def dotFiles = generatedFiles.findAll { it.name.toString().endsWith('.dot') }
         dotFiles.size() >= 1
 

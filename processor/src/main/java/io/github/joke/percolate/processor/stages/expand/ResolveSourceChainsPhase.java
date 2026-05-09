@@ -4,18 +4,17 @@ import static java.util.stream.Collectors.toUnmodifiableList;
 
 import io.github.joke.percolate.processor.graph.Edge;
 import io.github.joke.percolate.processor.graph.EdgeKind;
+import io.github.joke.percolate.processor.graph.GraphDelta;
 import io.github.joke.percolate.processor.graph.MapperGraph;
 import io.github.joke.percolate.processor.graph.Node;
 import io.github.joke.percolate.processor.graph.SourceLocation;
 import io.github.joke.percolate.processor.spi.ResolveCtx;
 import io.github.joke.percolate.processor.spi.SourceStep;
 import io.github.joke.percolate.processor.spi.Step;
-import java.util.ArrayDeque;
-import java.util.Deque;
-import java.util.HashSet;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
-import java.util.Set;
+import java.util.stream.Stream;
 import javax.lang.model.type.TypeMirror;
 import lombok.RequiredArgsConstructor;
 import org.jspecify.annotations.Nullable;
@@ -27,94 +26,60 @@ public final class ResolveSourceChainsPhase implements ExpansionPhase {
     private final ResolveCtx resolveCtx;
 
     @Override
-    public boolean apply(final MapperGraph graph) {
-        final Set<Edge> processed = new HashSet<>();
-        final Deque<Edge> workQueue = new ArrayDeque<>();
-        boolean anyAdded = false;
+    public void apply(final MapperGraph graph) {
+        final List<Edge> sourceSeedEdges = collectSourceSeedEdges(graph);
+        final List<Edge> untypedSourceEdges = collectUntypedSourceEdges(graph);
 
-        collectSourceSeedEdges(graph, workQueue);
+        final var allEdges = new ArrayList<Edge>(sourceSeedEdges.size() + untypedSourceEdges.size());
+        allEdges.addAll(sourceSeedEdges);
+        allEdges.addAll(untypedSourceEdges);
 
-        anyAdded |= processSeedEdges(workQueue, processed, graph);
-
-        anyAdded |= processUntypedEdges(graph);
-
-        return anyAdded;
+        allEdges.stream().distinct().flatMap(seed -> derive(seed, graph)).forEach(graph::apply);
     }
 
-    private void collectSourceSeedEdges(final MapperGraph graph, final Deque<Edge> workQueue) {
-        for (final Edge edge : graph.edges().collect(toUnmodifiableList())) {
-            if (edge.getKind() != EdgeKind.SEED) {
-                continue;
-            }
-            final Node fromNode = edge.getFrom();
-            if (fromNode.getLoc() instanceof SourceLocation) {
-                workQueue.add(edge);
-            }
+    private Stream<GraphDelta> derive(final Edge seed, final MapperGraph graph) {
+        final Node sourceNode = seed.getFrom();
+        final Node targetNode = seed.getTo();
+
+        if (!(sourceNode.getLoc() instanceof SourceLocation)) {
+            return Stream.empty();
         }
-    }
 
-    private boolean processSeedEdges(final Deque<Edge> workQueue, final Set<Edge> processed, final MapperGraph graph) {
-        boolean anyAdded = false;
-        while (!workQueue.isEmpty()) {
-            final Edge seedEdge = workQueue.poll();
-            if (processed.contains(seedEdge)) {
-                continue;
-            }
-            processed.add(seedEdge);
-
-            final Node sourceNode = seedEdge.getFrom();
-            final Node targetNode = seedEdge.getTo();
-
-            if (!(sourceNode.getLoc() instanceof SourceLocation)) {
-                continue;
-            }
-
-            final TypeMirror sourceType = findSourceType(sourceNode, graph);
-            if (sourceType == null) {
-                continue;
-            }
-
-            if (!(targetNode.getLoc() instanceof SourceLocation)) {
-                continue;
-            }
-
-            final SourceLocation targetLoc = (SourceLocation) targetNode.getLoc();
-            final String pathTail = pathTail(targetLoc);
-
-            anyAdded |= invokeSourceStrategies(sourceNode, targetNode, sourceType, pathTail, targetLoc, graph);
+        if (!(targetNode.getLoc() instanceof SourceLocation)) {
+            return Stream.empty();
         }
-        return anyAdded;
-    }
 
-    private boolean processUntypedEdges(final MapperGraph graph) {
-        final Set<Node> resolvedNodes = new HashSet<>();
-        boolean anyAdded = false;
-        boolean changed = true;
-        while (changed) {
-            changed = false;
-            final Set<Edge> untypedSourceEdges = collectUntypedSourceEdges(graph);
-            for (final Edge edge : untypedSourceEdges) {
-                final Node sourceNode = edge.getFrom();
-                if (sourceNode.getType().isPresent()) {
-                    continue;
-                }
-                if (resolvedNodes.contains(sourceNode)) {
-                    continue;
-                }
-                final TypeMirror sourceType = findSourceType(sourceNode, graph);
-                if (sourceType == null) {
-                    continue;
-                }
-                final Node targetNode = edge.getTo();
-                final SourceLocation targetLoc = (SourceLocation) targetNode.getLoc();
-                final String pathTail = pathTail(targetLoc);
-
-                anyAdded |= invokeSourceStrategies(sourceNode, targetNode, sourceType, pathTail, targetLoc, graph);
-                resolvedNodes.add(sourceNode);
-                changed = true;
-            }
+        final TypeMirror sourceType = findSourceType(sourceNode, graph);
+        if (sourceType == null) {
+            return Stream.empty();
         }
-        return anyAdded;
+
+        final SourceLocation targetLoc = (SourceLocation) targetNode.getLoc();
+        final String pathTail = pathTail(targetLoc);
+
+        return sourceSteps.stream().flatMap(strategy -> strategy.stepsFrom(sourceType, pathTail, resolveCtx)
+                .map(step -> {
+                    final Node realisedNode = allocateRealisedNode(sourceNode, targetLoc, step);
+                    final Edge realisedEdge = Edge.realised(
+                            sourceNode,
+                            realisedNode,
+                            step.getWeight(),
+                            Optional.empty(),
+                            step.getCodegen(),
+                            strategy.getClass().getName());
+
+                    final Edge markerEdge = Edge.marker(
+                            targetNode, realisedNode, strategy.getClass().getName());
+
+                    final List<Node> nodes = new ArrayList<>(1);
+                    nodes.add(realisedNode);
+
+                    final List<Edge> edges = new ArrayList<>(2);
+                    edges.add(realisedEdge);
+                    edges.add(markerEdge);
+
+                    return GraphDelta.of(nodes, edges);
+                }));
     }
 
     private String pathTail(final SourceLocation sourceLoc) {
@@ -125,56 +90,20 @@ public final class ResolveSourceChainsPhase implements ExpansionPhase {
         return segments.get(segments.size() - 1);
     }
 
-    private boolean invokeSourceStrategies(
-            final Node sourceNode,
-            final Node targetNode,
-            final TypeMirror sourceType,
-            final String pathTail,
-            final SourceLocation sourceLoc,
-            final MapperGraph graph) {
-        boolean anyAdded = false;
-        for (final SourceStep strategy : sourceSteps) {
-            final java.util.stream.Stream<Step> steps = strategy.stepsFrom(sourceType, pathTail, resolveCtx);
-            for (final Step step : steps.collect(toUnmodifiableList())) {
-                final Node realisedNode = allocateRealisedNode(sourceNode, sourceLoc, step);
-                graph.addNode(realisedNode);
-
-                final Edge realisedEdge = Edge.realised(
-                        sourceNode,
-                        realisedNode,
-                        step.getWeight(),
-                        Optional.empty(),
-                        step.getCodegen(),
-                        strategy.getClass().getName());
-                anyAdded |= graph.addEdge(realisedEdge);
-
-                final Edge markerEdge = Edge.marker(
-                        targetNode, realisedNode, strategy.getClass().getName());
-                anyAdded |= graph.addEdge(markerEdge);
-            }
-        }
-        return anyAdded;
+    private List<Edge> collectSourceSeedEdges(final MapperGraph graph) {
+        return graph.edges()
+                .filter(e -> e.getKind() == EdgeKind.SEED)
+                .filter(e -> e.getFrom().getLoc() instanceof SourceLocation)
+                .collect(toUnmodifiableList());
     }
 
-    private Set<Edge> collectUntypedSourceEdges(final MapperGraph graph) {
-        final Set<Edge> result = new HashSet<>();
-        for (final Edge edge : graph.edges().collect(toUnmodifiableList())) {
-            if (edge.getKind() != EdgeKind.SEED) {
-                continue;
-            }
-            final Node sourceNode = edge.getFrom();
-            if (!(sourceNode.getLoc() instanceof SourceLocation)) {
-                continue;
-            }
-            if (sourceNode.getType().isPresent()) {
-                continue;
-            }
-            if (!(edge.getTo().getLoc() instanceof SourceLocation)) {
-                continue;
-            }
-            result.add(edge);
-        }
-        return result;
+    private List<Edge> collectUntypedSourceEdges(final MapperGraph graph) {
+        return graph.edges()
+                .filter(e -> e.getKind() == EdgeKind.SEED)
+                .filter(e -> e.getFrom().getLoc() instanceof SourceLocation)
+                .filter(e -> !e.getFrom().getType().isPresent())
+                .filter(e -> e.getTo().getLoc() instanceof SourceLocation)
+                .collect(toUnmodifiableList());
     }
 
     @Nullable
@@ -193,36 +122,26 @@ public final class ResolveSourceChainsPhase implements ExpansionPhase {
 
     @Nullable
     private TypeMirror findTypeViaMarker(final Node node, final MapperGraph graph) {
-        for (final Edge edge : graph.edges().collect(toUnmodifiableList())) {
-            if (edge.getKind() != EdgeKind.MARKER) {
-                continue;
-            }
-            if (!edge.getFrom().equals(node)) {
-                continue;
-            }
-            final Node target = edge.getTo();
-            if (target.getType().isPresent()) {
-                return target.getType().get();
-            }
-        }
-        return null;
+        return graph.edges()
+                .filter(e -> e.getKind() == EdgeKind.MARKER)
+                .filter(e -> e.getFrom().equals(node))
+                .map(Edge::getTo)
+                .filter(target -> target.getType().isPresent())
+                .map(target -> target.getType().get())
+                .findFirst()
+                .orElse(null);
     }
 
     @Nullable
     private TypeMirror findTypeViaRealised(final Node node, final MapperGraph graph) {
-        for (final Edge edge : graph.edges().collect(toUnmodifiableList())) {
-            if (edge.getKind() != EdgeKind.REALISED) {
-                continue;
-            }
-            if (!edge.getTo().equals(node)) {
-                continue;
-            }
-            final Node source = edge.getFrom();
-            if (source.getType().isPresent()) {
-                return source.getType().get();
-            }
-        }
-        return null;
+        return graph.edges()
+                .filter(e -> e.getKind() == EdgeKind.REALISED)
+                .filter(e -> e.getTo().equals(node))
+                .map(Edge::getFrom)
+                .filter(source -> source.getType().isPresent())
+                .map(source -> source.getType().get())
+                .findFirst()
+                .orElse(null);
     }
 
     private Node allocateRealisedNode(final Node seedNode, final SourceLocation sourceLoc, final Step step) {
