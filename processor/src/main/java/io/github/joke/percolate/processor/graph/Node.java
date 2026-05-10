@@ -1,5 +1,6 @@
 package io.github.joke.percolate.processor.graph;
 
+import java.util.NoSuchElementException;
 import java.util.Objects;
 import java.util.Optional;
 import javax.lang.model.type.TypeMirror;
@@ -40,7 +41,7 @@ public final class Node implements Comparable<Node> {
         final var other = (Node) o;
         try {
             return Objects.equals(this.id(), other.id());
-        } catch (Exception e) {
+        } catch (final NoSuchElementException e) {
             return Objects.equals(this.parent, other.parent)
                     && Objects.equals(this.type, other.type)
                     && Objects.equals(this.loc, other.loc)
@@ -52,7 +53,7 @@ public final class Node implements Comparable<Node> {
     public int hashCode() {
         try {
             return Objects.hash(id());
-        } catch (Exception e) {
+        } catch (final NoSuchElementException e) {
             return Objects.hash(type, loc, scope, parent);
         }
     }

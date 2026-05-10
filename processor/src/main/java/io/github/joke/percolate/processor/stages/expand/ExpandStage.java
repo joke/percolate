@@ -1,7 +1,5 @@
 package io.github.joke.percolate.processor.stages.expand;
 
-import static java.util.stream.Collectors.toUnmodifiableList;
-
 import io.github.joke.percolate.processor.Diagnostics;
 import io.github.joke.percolate.processor.MapperContext;
 import io.github.joke.percolate.processor.graph.Edge;
@@ -11,8 +9,11 @@ import io.github.joke.percolate.processor.graph.MethodScope;
 import io.github.joke.percolate.processor.graph.Node;
 import io.github.joke.percolate.processor.stages.Stage;
 import jakarta.inject.Inject;
-import java.util.List;
 import lombok.RequiredArgsConstructor;
+
+import java.util.List;
+
+import static java.util.stream.Collectors.toUnmodifiableList;
 
 @RequiredArgsConstructor(onConstructor_ = @Inject)
 public final class ExpandStage implements Stage {
@@ -28,14 +29,14 @@ public final class ExpandStage implements Stage {
         if (graph == null) {
             return;
         }
-        final List<Edge> seedEdges = collectSeedEdges(graph);
+        final var seedEdges = collectSeedEdges(graph);
         setCurrentMethodFromSeedEdges(seedEdges, ctx);
 
-        int round = 0;
+        var round = 0;
         while (round <= MAX_EXPANSION_ROUNDS) {
-            final int before = graph.edgeCount();
+            final var before = graph.edgeCount();
 
-            for (final ExpansionPhase phase : phases) {
+            for (final var phase : phases) {
                 phase.apply(graph);
 
                 if (graph.hasSeedSubSeedCycles()) {

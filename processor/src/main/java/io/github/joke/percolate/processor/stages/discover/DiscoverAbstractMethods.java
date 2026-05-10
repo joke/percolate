@@ -1,21 +1,21 @@
 package io.github.joke.percolate.processor.stages.discover;
 
-import static java.util.stream.Collectors.toUnmodifiableList;
-import static javax.lang.model.element.Modifier.ABSTRACT;
-
 import com.google.auto.common.MoreElements;
 import io.github.joke.percolate.processor.MapperContext;
 import io.github.joke.percolate.processor.model.MapperShape;
 import io.github.joke.percolate.processor.stages.Stage;
 import jakarta.inject.Inject;
-import java.util.ArrayList;
-import java.util.List;
-import javax.lang.model.element.Element;
+import lombok.RequiredArgsConstructor;
+
 import javax.lang.model.element.ExecutableElement;
 import javax.lang.model.element.TypeElement;
 import javax.lang.model.util.Elements;
 import javax.lang.model.util.Types;
-import lombok.RequiredArgsConstructor;
+import java.util.ArrayList;
+import java.util.List;
+
+import static java.util.stream.Collectors.toUnmodifiableList;
+import static javax.lang.model.element.Modifier.ABSTRACT;
 
 @RequiredArgsConstructor(onConstructor_ = @Inject)
 public final class DiscoverAbstractMethods implements Stage {
@@ -24,8 +24,8 @@ public final class DiscoverAbstractMethods implements Stage {
     private final Types types;
 
     @Override
-    public void run(MapperContext ctx) {
-        MapperShape shape = apply(ctx.getMapperType());
+    public void run(final MapperContext ctx) {
+        final var shape = apply(ctx.getMapperType());
         ctx.setShape(shape);
     }
 
@@ -49,7 +49,7 @@ public final class DiscoverAbstractMethods implements Stage {
     }
 
     boolean isObjectMethod(final ExecutableElement method, final TypeElement objectElement) {
-        final Element enclosing = method.getEnclosingElement();
+        final var enclosing = method.getEnclosingElement();
         return enclosing != null && enclosing.equals(objectElement);
     }
 }

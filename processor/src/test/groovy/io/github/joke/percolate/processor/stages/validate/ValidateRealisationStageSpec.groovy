@@ -1,12 +1,7 @@
 package io.github.joke.percolate.processor.stages.validate
-import io.github.joke.percolate.processor.MapperContext
-import io.github.joke.percolate.processor.Diagnostics
 
 import io.github.joke.percolate.processor.Diagnostics
 import io.github.joke.percolate.processor.MapperContext
-import io.github.joke.percolate.processor.stages.validate.ValidateMarkersPhase
-import io.github.joke.percolate.processor.stages.validate.ValidatePathsPhase
-import io.github.joke.percolate.processor.stages.validate.ValidateRealisationStage
 import spock.lang.Specification
 import spock.lang.Tag
 

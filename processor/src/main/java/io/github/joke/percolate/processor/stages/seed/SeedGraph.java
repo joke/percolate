@@ -1,6 +1,7 @@
 package io.github.joke.percolate.processor.stages.seed;
 
 import io.github.joke.percolate.processor.MapperContext;
+import io.github.joke.percolate.processor.graph.AccessPath;
 import io.github.joke.percolate.processor.graph.Edge;
 import io.github.joke.percolate.processor.graph.MapperGraph;
 import io.github.joke.percolate.processor.graph.MethodScope;
@@ -14,23 +15,26 @@ import io.github.joke.percolate.processor.model.MappingDirective;
 import io.github.joke.percolate.processor.model.MethodMappings;
 import io.github.joke.percolate.processor.stages.Stage;
 import jakarta.inject.Inject;
+import lombok.RequiredArgsConstructor;
+
 import java.util.ArrayDeque;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
-import lombok.RequiredArgsConstructor;
 
 @RequiredArgsConstructor(onConstructor_ = @Inject)
 public final class SeedGraph implements Stage {
 
+    private static final int SINGLE_SEGMENT_COUNT = 1;
+
     @Override
-    public void run(MapperContext ctx) {
+    public void run(final MapperContext ctx) {
         final var mappings = ctx.getMappings();
         if (mappings == null) {
             return;
         }
-        MapperGraph graph = apply(mappings);
+        final var graph = apply(mappings);
         ctx.setGraph(graph);
     }
 
@@ -52,7 +56,7 @@ public final class SeedGraph implements Stage {
         for (final var param : method.getParameters()) {
             final var paramName = param.getSimpleName().toString();
             final var paramType = param.asType();
-            final var loc = new SourceLocation(io.github.joke.percolate.processor.graph.AccessPath.of(paramName));
+            final var loc = new SourceLocation(AccessPath.of(paramName));
             final var node = new Node(Optional.of(paramType), loc, scope, Optional.empty());
             graph.addNode(node);
             paramRoots.put(paramName, node);
@@ -82,10 +86,9 @@ public final class SeedGraph implements Stage {
         final var sourceNodes = new ArrayDeque<Node>();
         final var firstSourceSegment = sourceSegments.get(0);
         Node sourceChainStart;
-        if (sourceSegments.size() == 1) {
+        if (sourceSegments.size() == SINGLE_SEGMENT_COUNT) {
             // Single-segment: spec requires a separate empty-typed source node
-            final var loc =
-                    new SourceLocation(io.github.joke.percolate.processor.graph.AccessPath.of(firstSourceSegment));
+            final var loc = new SourceLocation(AccessPath.of(firstSourceSegment));
             sourceChainStart = new Node(Optional.empty(), loc, scope, Optional.empty());
             graph.addNode(sourceChainStart);
             final var paramRoot = paramRoots.get(firstSourceSegment);
@@ -96,8 +99,7 @@ public final class SeedGraph implements Stage {
             // Multi-segment: MAY reuse parameter-root as chain start
             sourceChainStart = paramRoots.get(firstSourceSegment);
             if (sourceChainStart == null) {
-                final var loc =
-                        new SourceLocation(io.github.joke.percolate.processor.graph.AccessPath.of(firstSourceSegment));
+                final var loc = new SourceLocation(AccessPath.of(firstSourceSegment));
                 sourceChainStart = new Node(Optional.empty(), loc, scope, Optional.empty());
                 graph.addNode(sourceChainStart);
             }
@@ -105,7 +107,7 @@ public final class SeedGraph implements Stage {
         sourceNodes.add(sourceChainStart);
 
         // Build chain for remaining source segments
-        for (int i = 1; i < sourceSegments.size(); i++) {
+        for (var i = 1; i < sourceSegments.size(); i++) {
             final var seg = sourceSegments.get(i);
             final var prevNode = sourceNodes.peekLast();
             final var prevPath = ((SourceLocation) prevNode.getLoc()).getPath();
@@ -119,7 +121,7 @@ public final class SeedGraph implements Stage {
         // Target chain: [t1,...,tk] → [t1,...,t(k-1)] → ... → [] (return root)
         // Build outward from root: [] → [t1] → [t1,t2] → ... → [t1,...,tk]
         // Then reverse: edges flow from deepest to root
-        Node currentTarget = returnRoot;
+        var currentTarget = returnRoot;
         for (final var seg : targetSegments) {
             final var prevPath = ((TargetLocation) currentTarget.getLoc()).getPath();
             final var newPath = prevPath.append(seg);

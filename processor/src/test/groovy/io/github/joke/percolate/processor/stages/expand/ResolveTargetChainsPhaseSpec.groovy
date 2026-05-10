@@ -2,10 +2,10 @@ package io.github.joke.percolate.processor.stages.expand
 
 import com.palantir.javapoet.CodeBlock
 import io.github.joke.percolate.processor.graph.*
-import io.github.joke.percolate.processor.spi.GroupTarget
 import io.github.joke.percolate.processor.spi.GroupBuild
-import io.github.joke.percolate.processor.spi.Slot
+import io.github.joke.percolate.processor.spi.GroupTarget
 import io.github.joke.percolate.processor.spi.ResolveCtx
+import io.github.joke.percolate.processor.spi.Slot
 import spock.lang.Specification
 import spock.lang.Tag
 
@@ -13,13 +13,9 @@ import javax.lang.model.element.AnnotationMirror
 import javax.lang.model.element.ExecutableElement
 import javax.lang.model.element.Name
 import javax.lang.model.element.TypeElement
-import javax.lang.model.element.VariableElement
 import javax.lang.model.type.DeclaredType
 import javax.lang.model.type.TypeKind
 import javax.lang.model.type.TypeMirror
-import javax.lang.model.util.Elements
-import javax.lang.model.util.Types
-import java.util.Optional
 
 @Tag('unit')
 class ResolveTargetChainsPhaseSpec extends Specification {

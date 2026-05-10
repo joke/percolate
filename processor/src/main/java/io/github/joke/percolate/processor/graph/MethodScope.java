@@ -1,7 +1,8 @@
 package io.github.joke.percolate.processor.graph;
 
-import javax.lang.model.element.ExecutableElement;
 import lombok.Value;
+
+import javax.lang.model.element.ExecutableElement;
 
 @Value
 public final class MethodScope implements Scope {

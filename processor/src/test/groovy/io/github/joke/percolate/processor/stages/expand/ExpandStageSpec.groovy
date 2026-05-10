@@ -1,11 +1,9 @@
 package io.github.joke.percolate.processor.stages.expand
-import io.github.joke.percolate.processor.MapperContext
-import io.github.joke.percolate.processor.Diagnostics
 
 import io.github.joke.percolate.processor.Diagnostics
 import io.github.joke.percolate.processor.MapperContext
-import io.github.joke.percolate.processor.graph.MapperGraph
 import io.github.joke.percolate.processor.graph.EdgeKind
+import io.github.joke.percolate.processor.graph.MapperGraph
 import spock.lang.Specification
 import spock.lang.Tag
 

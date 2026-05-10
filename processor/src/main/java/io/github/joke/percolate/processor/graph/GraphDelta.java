@@ -1,21 +1,20 @@
 package io.github.joke.percolate.processor.graph;
 
-import java.util.List;
 import lombok.Value;
+
+import java.util.List;
 
 @Value
 public final class GraphDelta {
 
-    private static final GraphDelta EMPTY = new GraphDelta(List.of(), List.of(), List.of());
-
-    List<Node> nodes;
-    List<Edge> edges;
+    List<Node> nodeList;
+    List<Edge> edgeList;
     List<GroupRegistration> groupRegistrations;
 
     public GraphDelta(
-            final List<Node> nodes, final List<Edge> edges, final List<GroupRegistration> groupRegistrations) {
-        this.nodes = List.copyOf(nodes);
-        this.edges = List.copyOf(edges);
+            final List<Node> nodeList, final List<Edge> edgeList, final List<GroupRegistration> groupRegistrations) {
+        this.nodeList = List.copyOf(nodeList);
+        this.edgeList = List.copyOf(edgeList);
         this.groupRegistrations = List.copyOf(groupRegistrations);
     }
 
@@ -29,7 +28,7 @@ public final class GraphDelta {
     }
 
     public static GraphDelta empty() {
-        return EMPTY;
+        return new GraphDelta(List.of(), List.of(), List.of());
     }
 
     public static GraphDelta nodes(final Node... nodes) {

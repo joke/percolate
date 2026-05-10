@@ -1,17 +1,13 @@
 package io.github.joke.percolate.processor.stages.validate
-import io.github.joke.percolate.processor.Diagnostics
 
+import io.github.joke.percolate.processor.Diagnostics
 import io.github.joke.percolate.processor.model.MapperMappings
 import io.github.joke.percolate.processor.model.MappingDirective
 import io.github.joke.percolate.processor.model.MethodMappings
 import spock.lang.Specification
 import spock.lang.Tag
 
-import javax.lang.model.element.AnnotationMirror
-import javax.lang.model.element.AnnotationValue
-import javax.lang.model.element.ExecutableElement
-import javax.lang.model.element.Name
-import javax.lang.model.element.VariableElement
+import javax.lang.model.element.*
 
 @Tag('unit')
 class ValidateSourceParametersSpec extends Specification {

@@ -1,14 +1,11 @@
 package io.github.joke.percolate.processor.stages.discover
 
-import io.github.joke.percolate.Map
-import io.github.joke.percolate.MapList
-import io.github.joke.percolate.processor.model.MapperShape
+
 import spock.lang.Specification
 import spock.lang.Tag
 
 import javax.lang.model.element.AnnotationMirror
 import javax.lang.model.element.AnnotationValue
-import javax.lang.model.element.ExecutableElement
 import javax.lang.model.element.TypeElement
 import javax.lang.model.type.DeclaredType
 import javax.lang.model.util.Elements

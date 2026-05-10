@@ -7,7 +7,6 @@ import spock.lang.Tag
 
 import javax.tools.Diagnostic.Kind
 
-import static com.google.testing.compile.CompilationSubject.assertThat
 import static com.google.testing.compile.Compiler.javac
 
 @Tag('integration')

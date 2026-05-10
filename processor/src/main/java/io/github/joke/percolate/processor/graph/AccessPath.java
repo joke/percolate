@@ -1,9 +1,10 @@
 package io.github.joke.percolate.processor.graph;
 
+import lombok.Value;
+
 import java.util.List;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
-import lombok.Value;
 
 @Value
 public final class AccessPath {

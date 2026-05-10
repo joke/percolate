@@ -4,59 +4,62 @@ import com.google.auto.service.AutoService;
 import com.palantir.javapoet.CodeBlock;
 import io.github.joke.percolate.processor.spi.Bridge;
 import io.github.joke.percolate.processor.spi.BridgeStep;
-import io.github.joke.percolate.processor.spi.CallableMethods;
 import io.github.joke.percolate.processor.spi.EdgeCodegen;
 import io.github.joke.percolate.processor.spi.MethodCandidate;
 import io.github.joke.percolate.processor.spi.ResolveCtx;
 import io.github.joke.percolate.processor.spi.Weights;
+import lombok.NoArgsConstructor;
+
+import javax.lang.model.element.TypeElement;
+import javax.lang.model.type.TypeMirror;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.stream.Stream;
-import javax.lang.model.element.ExecutableElement;
-import javax.lang.model.element.TypeElement;
-import javax.lang.model.type.TypeMirror;
 
 @AutoService(Bridge.class)
+@NoArgsConstructor
 public final class MethodCallBridge implements Bridge {
+
+    private static final int SINGLE_PARAM_COUNT = 1;
 
     @Override
     public Stream<BridgeStep> bridge(final TypeMirror sourceType, final TypeMirror targetType, final ResolveCtx ctx) {
-        final CallableMethods callableMethods = ctx.callableMethods();
+        final var callableMethods = ctx.callableMethods();
         if (callableMethods == null) {
             return Stream.empty();
         }
 
         final List<BridgeStep> steps = new ArrayList<>();
-        for (final MethodCandidate candidate :
+        for (final var candidate :
                 callableMethods.producing(targetType).collect(java.util.stream.Collectors.toUnmodifiableList())) {
-            final ExecutableElement method = candidate.getMethod();
-            final List<? extends javax.lang.model.element.VariableElement> params = method.getParameters();
-            if (params.size() != 1) {
+            final var method = candidate.getMethod();
+            final var params = method.getParameters();
+            if (params.size() != SINGLE_PARAM_COUNT) {
                 continue;
             }
-            final TypeMirror paramType = params.get(0).asType();
+            final var paramType = params.get(0).asType();
             if (!ctx.types().isAssignable(sourceType, paramType)) {
                 continue;
             }
-            final TypeMirror returnType = method.getReturnType();
+            final var returnType = method.getReturnType();
             if (!ctx.types().isAssignable(returnType, targetType)) {
                 continue;
             }
-            final int paramDistance = subtypeDistance(sourceType, paramType, ctx);
-            final int returnDistance = subtypeDistance(returnType, targetType, ctx);
-            final int weight = Weights.METHOD + paramDistance + returnDistance;
-            final EdgeCodegen codegen = renderCodegen(candidate);
+            final var paramDistance = subtypeDistance(sourceType, paramType, ctx);
+            final var returnDistance = subtypeDistance(returnType, targetType, ctx);
+            final var weight = Weights.METHOD + paramDistance + returnDistance;
+            final var codegen = renderCodegen(candidate);
             steps.add(new BridgeStep(paramType, returnType, weight, codegen));
         }
         return steps.stream();
     }
 
     private EdgeCodegen renderCodegen(final MethodCandidate candidate) {
-        final CodeBlock receiver = candidate.getReceiver().asExpression();
-        final ExecutableElement method = candidate.getMethod();
-        final String methodName = method.getSimpleName().toString();
+        final var receiver = candidate.getReceiver().asExpression();
+        final var method = candidate.getMethod();
+        final var methodName = method.getSimpleName().toString();
         return (vars, inputs) -> CodeBlock.of("$L.$N($L)", receiver, methodName, inputs.single());
     }
 
@@ -79,19 +82,19 @@ public final class MethodCallBridge implements Bridge {
         queue.add(new Pair(start, 0));
         visited.add(start.toString());
         while (!queue.isEmpty()) {
-            final Pair current = queue.remove(0);
-            final TypeMirror currentType = current.type;
-            final int depth = current.depth;
-            final javax.lang.model.element.Element elem = ctx.types().asElement(currentType);
+            final var current = queue.remove(0);
+            final var currentType = current.type;
+            final var depth = current.depth;
+            final var elem = ctx.types().asElement(currentType);
             if (!(elem instanceof TypeElement)) {
                 continue;
             }
-            final TypeElement typeElement = (TypeElement) elem;
-            final TypeMirror directSupertypes = typeElement.getSuperclass();
+            final var typeElement = (TypeElement) elem;
+            final var directSupertypes = typeElement.getSuperclass();
             if (directSupertypes == null) {
                 continue;
             }
-            final String supKey = directSupertypes.toString();
+            final var supKey = directSupertypes.toString();
             if (visited.contains(supKey)) {
                 continue;
             }

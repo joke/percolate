@@ -5,7 +5,6 @@ import spock.lang.Specification
 import spock.lang.Tag
 
 import javax.lang.model.element.TypeElement
-import java.util.List
 
 @Tag('unit')
 class PipelineSpec extends Specification {

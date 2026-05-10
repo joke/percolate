@@ -1,6 +1,6 @@
 package io.github.joke.percolate.processor.stages.discover
 
-import io.github.joke.percolate.processor.model.MapperShape
+
 import spock.lang.Specification
 import spock.lang.Tag
 

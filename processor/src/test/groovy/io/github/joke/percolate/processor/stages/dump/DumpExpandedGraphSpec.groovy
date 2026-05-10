@@ -1,7 +1,7 @@
 package io.github.joke.percolate.processor.stages.dump
-import io.github.joke.percolate.processor.ProcessorOptions
-import io.github.joke.percolate.processor.Diagnostics
 
+import io.github.joke.percolate.processor.Diagnostics
+import io.github.joke.percolate.processor.ProcessorOptions
 import io.github.joke.percolate.processor.graph.DotRenderer
 import io.github.joke.percolate.processor.graph.MapperGraph
 import spock.lang.Specification

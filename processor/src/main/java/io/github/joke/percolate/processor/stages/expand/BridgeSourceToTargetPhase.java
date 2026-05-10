@@ -1,10 +1,9 @@
 package io.github.joke.percolate.processor.stages.expand;
 
-import static java.util.stream.Collectors.toUnmodifiableList;
-
 import io.github.joke.percolate.processor.graph.Edge;
 import io.github.joke.percolate.processor.graph.EdgeKind;
 import io.github.joke.percolate.processor.graph.GraphDelta;
+import io.github.joke.percolate.processor.graph.Location;
 import io.github.joke.percolate.processor.graph.MapperGraph;
 import io.github.joke.percolate.processor.graph.Node;
 import io.github.joke.percolate.processor.graph.Scope;
@@ -13,14 +12,17 @@ import io.github.joke.percolate.processor.graph.TargetLocation;
 import io.github.joke.percolate.processor.spi.Bridge;
 import io.github.joke.percolate.processor.spi.BridgeStep;
 import io.github.joke.percolate.processor.spi.ResolveCtx;
+import lombok.RequiredArgsConstructor;
+import org.jspecify.annotations.Nullable;
+
+import javax.lang.model.element.AnnotationMirror;
+import javax.lang.model.type.TypeMirror;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 import java.util.stream.Stream;
-import javax.lang.model.element.AnnotationMirror;
-import javax.lang.model.type.TypeMirror;
-import lombok.RequiredArgsConstructor;
-import org.jspecify.annotations.Nullable;
+
+import static java.util.stream.Collectors.toUnmodifiableList;
 
 @RequiredArgsConstructor
 public final class BridgeSourceToTargetPhase implements ExpansionPhase {
@@ -34,8 +36,8 @@ public final class BridgeSourceToTargetPhase implements ExpansionPhase {
     }
 
     private Stream<Edge> seeds(final MapperGraph graph) {
-        final List<Edge> flavorTwoSeedEdges = collectFlavorTwoSeedEdges(graph);
-        final List<Edge> subSeedEdges = collectSubSeedEdges(graph);
+        final var flavorTwoSeedEdges = collectFlavorTwoSeedEdges(graph);
+        final var subSeedEdges = collectSubSeedEdges(graph);
         final var result = new ArrayList<Edge>(flavorTwoSeedEdges.size() + subSeedEdges.size());
         result.addAll(flavorTwoSeedEdges);
         result.addAll(subSeedEdges);
@@ -50,27 +52,27 @@ public final class BridgeSourceToTargetPhase implements ExpansionPhase {
     }
 
     private Stream<GraphDelta> deriveSeedEdge(final Edge seedEdge, final MapperGraph graph) {
-        final Node sourceSeed = seedEdge.getFrom();
-        final Node targetSeed = seedEdge.getTo();
+        final var sourceSeed = seedEdge.getFrom();
+        final var targetSeed = seedEdge.getTo();
 
-        final Node realisedSource = resolveRealisedCounterpart(sourceSeed, graph);
+        final var realisedSource = resolveRealisedCounterpart(sourceSeed, graph);
         if (realisedSource == null) {
             return Stream.empty();
         }
 
-        final Node realisedTarget = resolveRealisedCounterpart(targetSeed, graph);
+        final var realisedTarget = resolveRealisedCounterpart(targetSeed, graph);
         if (realisedTarget == null) {
             return Stream.empty();
         }
 
-        final TypeMirror fromType = realisedSource.getType().orElse(null);
-        final TypeMirror toType = realisedTarget.getType().orElse(null);
+        final var fromType = realisedSource.getType().orElse(null);
+        final var toType = realisedTarget.getType().orElse(null);
 
         if (fromType == null || toType == null) {
             return Stream.empty();
         }
 
-        final Optional<AnnotationMirror> directive = seedEdge.getDirective();
+        final var directive = seedEdge.getDirective();
         return bridges.stream().flatMap(bridge -> bridge.bridge(fromType, toType, resolveCtx)
                 .map(step -> applyUnifiedEmissionRule(
                         realisedSource,
@@ -81,20 +83,20 @@ public final class BridgeSourceToTargetPhase implements ExpansionPhase {
     }
 
     private Stream<GraphDelta> deriveSubSeedEdge(final Edge subSeedEdge, final MapperGraph graph) {
-        final Node fromNode = subSeedEdge.getFrom();
-        final Node toNode = subSeedEdge.getTo();
+        final var fromNode = subSeedEdge.getFrom();
+        final var toNode = subSeedEdge.getTo();
 
-        final TypeMirror fromType = resolveNodeType(fromNode, graph);
-        final TypeMirror toType = resolveNodeType(toNode, graph);
+        final var fromType = resolveNodeType(fromNode, graph);
+        final var toType = resolveNodeType(toNode, graph);
 
         if (fromType == null || toType == null) {
             return Stream.empty();
         }
 
-        final Scope scope = fromNode.getScope();
-        final io.github.joke.percolate.processor.graph.Location loc = fromNode.getLoc();
+        final var scope = fromNode.getScope();
+        final var loc = fromNode.getLoc();
 
-        final Optional<AnnotationMirror> directive = subSeedEdge.getDirective();
+        final var directive = subSeedEdge.getDirective();
         return bridges.stream().flatMap(bridge -> bridge.bridge(fromType, toType, resolveCtx)
                 .map(step -> applySubSeedEmissionRule(
                         fromNode,
@@ -112,13 +114,13 @@ public final class BridgeSourceToTargetPhase implements ExpansionPhase {
             final BridgeStep step,
             final Optional<AnnotationMirror> directive,
             final String strategyFqn) {
-        final Scope scope = f.getScope();
-        final io.github.joke.percolate.processor.graph.Location loc = f.getLoc();
+        final var scope = f.getScope();
+        final var loc = f.getLoc();
 
-        final Node inputNode = resolveOrCreateNode(scope, loc, step.getInputType(), f);
-        final Node outputNode = resolveOrCreateNode(scope, loc, step.getOutputType(), t);
+        final var inputNode = resolveOrCreateNode(scope, loc, step.getInputType(), f);
+        final var outputNode = resolveOrCreateNode(scope, loc, step.getOutputType(), t);
 
-        final Edge realisedEdge = Edge.realised(
+        final var realisedEdge = Edge.realised(
                 inputNode, outputNode, step.getWeight(), Optional.empty(), step.getCodegen(), strategyFqn);
 
         final List<Node> nodes = new ArrayList<>();
@@ -134,7 +136,7 @@ public final class BridgeSourceToTargetPhase implements ExpansionPhase {
         edges.add(realisedEdge);
 
         if (!inputNode.equals(f)) {
-            final Edge subSeedEdge = Edge.subSeed(f, inputNode, strategyFqn, directive);
+            final var subSeedEdge = Edge.subSeed(f, inputNode, strategyFqn, directive);
             edges.add(subSeedEdge);
         }
 
@@ -145,25 +147,25 @@ public final class BridgeSourceToTargetPhase implements ExpansionPhase {
             final Node fromNode,
             final Node toNode,
             final Scope scope,
-            final io.github.joke.percolate.processor.graph.Location loc,
+            final Location loc,
             final BridgeStep step,
             final Optional<AnnotationMirror> directive,
             final String strategyFqn) {
-        final TypeMirror fromType = fromNode.getType().orElse(null);
-        final TypeMirror toType = toNode.getType().orElse(null);
+        final var fromType = fromNode.getType().orElse(null);
+        final var toType = toNode.getType().orElse(null);
 
-        final Node inputNode = resolveOrCreateNode(
+        final var inputNode = resolveOrCreateNode(
                 scope,
                 loc,
                 step.getInputType(),
                 fromType != null && fromNode.getType().isPresent() ? fromNode : null);
-        final Node outputNode = resolveOrCreateNode(
+        final var outputNode = resolveOrCreateNode(
                 scope,
                 loc,
                 step.getOutputType(),
                 toType != null && toNode.getType().isPresent() ? toNode : null);
 
-        final Edge realisedEdge = Edge.realised(
+        final var realisedEdge = Edge.realised(
                 inputNode, outputNode, step.getWeight(), Optional.empty(), step.getCodegen(), strategyFqn);
 
         final List<Node> nodes = new ArrayList<>();
@@ -179,7 +181,7 @@ public final class BridgeSourceToTargetPhase implements ExpansionPhase {
         edges.add(realisedEdge);
 
         if (!inputNode.equals(fromNode)) {
-            final Edge subSeedEdge = Edge.subSeed(fromNode, inputNode, strategyFqn, directive);
+            final var subSeedEdge = Edge.subSeed(fromNode, inputNode, strategyFqn, directive);
             edges.add(subSeedEdge);
         }
 
@@ -187,10 +189,7 @@ public final class BridgeSourceToTargetPhase implements ExpansionPhase {
     }
 
     private Node resolveOrCreateNode(
-            final Scope scope,
-            final io.github.joke.percolate.processor.graph.Location loc,
-            @Nullable final TypeMirror type,
-            @Nullable final Node existing) {
+            final Scope scope, final Location loc, @Nullable final TypeMirror type, @Nullable final Node existing) {
         if (type != null
                 && existing != null
                 && existing.getType().isPresent()
@@ -218,7 +217,7 @@ public final class BridgeSourceToTargetPhase implements ExpansionPhase {
             return seedNode;
         }
 
-        final Node markerTarget = findTypedMarkerTarget(seedNode, graph);
+        final var markerTarget = findTypedMarkerTarget(seedNode, graph);
         if (markerTarget != null) {
             return markerTarget;
         }
@@ -253,11 +252,11 @@ public final class BridgeSourceToTargetPhase implements ExpansionPhase {
         if (node.getType().isPresent()) {
             return node.getType().get();
         }
-        final Node markerTarget = findTypedMarkerTarget(node, graph);
+        final var markerTarget = findTypedMarkerTarget(node, graph);
         if (markerTarget != null && markerTarget.getType().isPresent()) {
             return markerTarget.getType().get();
         }
-        final Node realisedSource = findTypedRealisedSource(node, graph);
+        final var realisedSource = findTypedRealisedSource(node, graph);
         if (realisedSource != null && realisedSource.getType().isPresent()) {
             return realisedSource.getType().get();
         }

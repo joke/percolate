@@ -1,5 +1,5 @@
 package io.github.joke.percolate.processor.stages.seed
-import io.github.joke.percolate.processor.PercolateProcessor
+
 
 import io.github.joke.percolate.processor.graph.*
 import io.github.joke.percolate.processor.model.MapperMappings
@@ -8,12 +8,7 @@ import io.github.joke.percolate.processor.model.MethodMappings
 import spock.lang.Specification
 import spock.lang.Tag
 
-import javax.lang.model.element.AnnotationMirror
-import javax.lang.model.element.AnnotationValue
-import javax.lang.model.element.ExecutableElement
-import javax.lang.model.element.Name
-import javax.lang.model.element.TypeElement
-import javax.lang.model.element.VariableElement
+import javax.lang.model.element.*
 import javax.lang.model.type.TypeMirror
 
 @Tag('unit')

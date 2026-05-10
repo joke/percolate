@@ -6,7 +6,6 @@ import io.github.joke.percolate.processor.spi.BridgeStep
 import io.github.joke.percolate.processor.spi.ResolveCtx
 import spock.lang.Specification
 import spock.lang.Tag
-import java.util.stream.Stream
 
 import javax.lang.model.element.AnnotationMirror
 import javax.lang.model.element.ExecutableElement
@@ -14,9 +13,9 @@ import javax.lang.model.element.Name
 import javax.lang.model.element.TypeElement
 import javax.lang.model.type.DeclaredType
 import javax.lang.model.type.TypeKind
-import javax.lang.model.util.Types
 import javax.lang.model.type.TypeMirror
-import java.util.Optional
+import javax.lang.model.util.Types
+import java.util.stream.Stream
 
 @Tag('unit')
 class BridgeSourceToTargetPhaseSpec extends Specification {

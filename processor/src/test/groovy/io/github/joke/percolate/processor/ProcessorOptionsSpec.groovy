@@ -3,8 +3,6 @@ package io.github.joke.percolate.processor
 import spock.lang.Specification
 import spock.lang.Tag
 
-import java.util.Map
-
 @Tag('unit')
 class ProcessorOptionsSpec extends Specification {
 

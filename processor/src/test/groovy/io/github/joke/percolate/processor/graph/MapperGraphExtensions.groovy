@@ -1,10 +1,5 @@
 package io.github.joke.percolate.processor.graph
 
-import io.github.joke.percolate.processor.graph.MapperGraph
-import io.github.joke.percolate.processor.graph.Node
-import io.github.joke.percolate.processor.graph.Edge
-import io.github.joke.percolate.processor.graph.Scope
-
 class MapperGraphExtensions {
 
     static void hasNode(MapperGraph graph, Map<String, Object> criteria) {

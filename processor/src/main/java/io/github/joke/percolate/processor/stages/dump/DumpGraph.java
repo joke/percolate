@@ -7,13 +7,14 @@ import io.github.joke.percolate.processor.graph.DotRenderer;
 import io.github.joke.percolate.processor.graph.MapperGraph;
 import io.github.joke.percolate.processor.stages.Stage;
 import jakarta.inject.Inject;
-import java.io.IOException;
-import java.io.OutputStreamWriter;
-import java.nio.charset.StandardCharsets;
+import lombok.RequiredArgsConstructor;
+
 import javax.annotation.processing.Filer;
 import javax.lang.model.element.TypeElement;
 import javax.tools.StandardLocation;
-import lombok.RequiredArgsConstructor;
+import java.io.IOException;
+import java.io.OutputStreamWriter;
+import java.nio.charset.StandardCharsets;
 
 @RequiredArgsConstructor(onConstructor_ = @Inject)
 public final class DumpGraph implements Stage {
@@ -24,7 +25,7 @@ public final class DumpGraph implements Stage {
     private final DotRenderer dotRenderer;
 
     @Override
-    public void run(MapperContext ctx) {
+    public void run(final MapperContext ctx) {
         final var graph = ctx.getGraph();
         if (graph == null) {
             return;
@@ -46,8 +47,8 @@ public final class DumpGraph implements Stage {
 
         try {
             final var resource = filer.createResource(StandardLocation.SOURCE_OUTPUT, "", fileName, mapperType);
-            try (final var os = resource.openOutputStream()) {
-                final var writer = new OutputStreamWriter(os, StandardCharsets.UTF_8);
+            try (var os = resource.openOutputStream();
+                    var writer = new OutputStreamWriter(os, StandardCharsets.UTF_8)) {
                 writer.write(dotOutput);
                 writer.flush();
             }

@@ -8,59 +8,61 @@ import io.github.joke.percolate.processor.spi.GroupTarget;
 import io.github.joke.percolate.processor.spi.ResolveCtx;
 import io.github.joke.percolate.processor.spi.Slot;
 import io.github.joke.percolate.processor.spi.Weights;
+import lombok.NoArgsConstructor;
+
+import javax.lang.model.element.ElementKind;
+import javax.lang.model.element.ExecutableElement;
+import javax.lang.model.element.TypeElement;
+import javax.lang.model.type.TypeKind;
+import javax.lang.model.type.TypeMirror;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
-import javax.lang.model.element.Element;
-import javax.lang.model.element.ElementKind;
-import javax.lang.model.element.ExecutableElement;
-import javax.lang.model.element.TypeElement;
-import javax.lang.model.element.VariableElement;
-import javax.lang.model.type.TypeKind;
-import javax.lang.model.type.TypeMirror;
 
 @AutoService(GroupTarget.class)
+@NoArgsConstructor
 public final class ConstructorCall implements GroupTarget {
 
     @Override
-    public Optional<GroupBuild> buildFor(TypeMirror returnType, List<String> targetTails, ResolveCtx ctx) {
+    public Optional<GroupBuild> buildFor(
+            final TypeMirror returnType, final List<String> targetTails, final ResolveCtx ctx) {
         if (targetTails == null || targetTails.isEmpty()) {
             return Optional.empty();
         }
 
-        TypeMirror actualType = returnType;
+        final var actualType = returnType;
         if (actualType.getKind() != TypeKind.DECLARED) {
             return Optional.empty();
         }
 
-        Element element = ctx.types().asElement(actualType);
+        final var element = ctx.types().asElement(actualType);
         if (!(element instanceof TypeElement)) {
             return Optional.empty();
         }
         @SuppressWarnings("cast")
-        TypeElement typeElement = (TypeElement) element;
+        final var typeElement = (TypeElement) element;
 
-        Set<String> requiredNames = Set.copyOf(targetTails);
+        final var requiredNames = Set.copyOf(targetTails);
 
         // Find constructors whose parameter name set exactly matches targetTails
         ExecutableElement bestCtor = null;
-        boolean nameMatch = false;
+        var nameMatch = false;
 
-        for (Element enclosed : typeElement.getEnclosedElements()) {
+        for (final var enclosed : typeElement.getEnclosedElements()) {
             if (enclosed.getKind() != ElementKind.CONSTRUCTOR) {
                 continue;
             }
-            ExecutableElement ctor = (ExecutableElement) enclosed;
-            List<? extends VariableElement> params = ctor.getParameters();
+            final var ctor = (ExecutableElement) enclosed;
+            final var params = ctor.getParameters();
 
             if (params.size() != requiredNames.size()) {
                 continue;
             }
 
-            Set<String> paramNames = new HashSet<>();
-            for (VariableElement param : params) {
+            final Set<String> paramNames = new HashSet<>();
+            for (final var param : params) {
                 paramNames.add(param.getSimpleName().toString());
             }
 
@@ -73,8 +75,8 @@ public final class ConstructorCall implements GroupTarget {
 
         // Fall back to field-name matching when parameter names are not preserved
         if (bestCtor == null) {
-            List<String> fieldNames = new ArrayList<>();
-            for (Element enclosed : typeElement.getEnclosedElements()) {
+            final List<String> fieldNames = new ArrayList<>();
+            for (final var enclosed : typeElement.getEnclosedElements()) {
                 if (enclosed.getKind() != ElementKind.FIELD) {
                     continue;
                 }
@@ -82,12 +84,12 @@ public final class ConstructorCall implements GroupTarget {
             }
 
             if (fieldNames.size() == targetTails.size() && new HashSet<>(fieldNames).equals(requiredNames)) {
-                for (Element enclosed : typeElement.getEnclosedElements()) {
+                for (final var enclosed : typeElement.getEnclosedElements()) {
                     if (enclosed.getKind() != ElementKind.CONSTRUCTOR) {
                         continue;
                     }
-                    ExecutableElement ctor = (ExecutableElement) enclosed;
-                    List<? extends VariableElement> params = ctor.getParameters();
+                    final var ctor = (ExecutableElement) enclosed;
+                    final var params = ctor.getParameters();
 
                     if (params.size() == targetTails.size()) {
                         bestCtor = ctor;
@@ -101,25 +103,25 @@ public final class ConstructorCall implements GroupTarget {
             return Optional.empty();
         }
 
-        final ExecutableElement ctor = bestCtor;
-        final TypeElement targetElement = typeElement;
+        final var ctor = bestCtor;
+        final var targetElement = typeElement;
 
         // Build slots in constructor declaration order
-        List<Slot> slots = new ArrayList<>();
+        final List<Slot> slots = new ArrayList<>();
         final List<String> slotNames = new ArrayList<>();
         final List<String> fieldNames = new ArrayList<>();
-        for (Element enclosed : typeElement.getEnclosedElements()) {
+        for (final var enclosed : typeElement.getEnclosedElements()) {
             if (enclosed.getKind() == ElementKind.FIELD) {
                 fieldNames.add(enclosed.getSimpleName().toString());
             }
         }
-        final boolean fieldMatch = !nameMatch
+        final var fieldMatch = !nameMatch
                 && fieldNames.size() == targetTails.size()
                 && new HashSet<>(fieldNames).equals(requiredNames);
 
-        for (int i = 0; i < ctor.getParameters().size(); i++) {
-            VariableElement param = ctor.getParameters().get(i);
-            String paramName;
+        for (var i = 0; i < ctor.getParameters().size(); i++) {
+            final var param = ctor.getParameters().get(i);
+            final String paramName;
             if (nameMatch) {
                 paramName = param.getSimpleName().toString();
             } else if (fieldMatch && i < fieldNames.size()) {
@@ -132,9 +134,9 @@ public final class ConstructorCall implements GroupTarget {
         }
 
         // GroupCodegen for group coordination
-        GroupCodegen groupCodegen = (vars, inputs) -> {
-            CodeBlock.Builder builder = CodeBlock.builder().add("new $T(", targetElement.getQualifiedName());
-            for (int i = 0; i < slotNames.size(); i++) {
+        final GroupCodegen groupCodegen = (vars, inputs) -> {
+            final var builder = CodeBlock.builder().add("new $T(", targetElement.getQualifiedName());
+            for (var i = 0; i < slotNames.size(); i++) {
                 if (i > 0) {
                     builder.add(", ");
                 }

@@ -27,9 +27,10 @@ import io.github.joke.percolate.processor.stages.validate.ValidateRealisationSta
 import io.github.joke.percolate.processor.stages.validate.ValidateSourceParameters;
 import jakarta.inject.Inject;
 import jakarta.inject.Singleton;
-import java.util.List;
-import java.util.ServiceLoader;
-import java.util.stream.StreamSupport;
+import lombok.EqualsAndHashCode;
+import lombok.RequiredArgsConstructor;
+import org.jspecify.annotations.Nullable;
+
 import javax.annotation.processing.Filer;
 import javax.annotation.processing.Messager;
 import javax.annotation.processing.ProcessingEnvironment;
@@ -37,9 +38,9 @@ import javax.lang.model.element.ExecutableElement;
 import javax.lang.model.element.TypeElement;
 import javax.lang.model.util.Elements;
 import javax.lang.model.util.Types;
-import lombok.EqualsAndHashCode;
-import lombok.RequiredArgsConstructor;
-import org.jspecify.annotations.Nullable;
+import java.util.List;
+import java.util.ServiceLoader;
+import java.util.stream.StreamSupport;
 
 @Module
 @RequiredArgsConstructor(onConstructor_ = @Inject)
@@ -48,6 +49,8 @@ final class ProcessorModule {
 
     private static final ThreadLocal<MapperContext> CURRENT_CONTEXT = new ThreadLocal<>();
 
+    private final ProcessingEnvironment processingEnvironment;
+
     static void setCurrentContext(final MapperContext ctx) {
         CURRENT_CONTEXT.set(ctx);
     }
@@ -55,8 +58,6 @@ final class ProcessorModule {
     static void clearCurrentContext() {
         CURRENT_CONTEXT.remove();
     }
-
-    private final ProcessingEnvironment processingEnvironment;
 
     @Provides
     Elements elements() {
@@ -89,27 +90,27 @@ final class ProcessorModule {
     }
 
     @Provides
-    DiscoverAbstractMethods discoverAbstractMethods(Elements elements, Types types) {
+    DiscoverAbstractMethods discoverAbstractMethods(final Elements elements, final Types types) {
         return new DiscoverAbstractMethods(elements, types);
     }
 
     @Provides
-    DiscoverMappings discoverMappings(Elements elements) {
+    DiscoverMappings discoverMappings(final Elements elements) {
         return new DiscoverMappings(elements);
     }
 
     @Provides
-    DiscoverCallableMethods discoverCallableMethods(Elements elements, Types types) {
+    DiscoverCallableMethods discoverCallableMethods(final Elements elements, final Types types) {
         return new DiscoverCallableMethods(elements, types);
     }
 
     @Provides
-    ValidateNoDuplicateTargets validateNoDuplicateTargets(Diagnostics diagnostics) {
+    ValidateNoDuplicateTargets validateNoDuplicateTargets(final Diagnostics diagnostics) {
         return new ValidateNoDuplicateTargets(diagnostics);
     }
 
     @Provides
-    ValidateSourceParameters validateSourceParameters(Diagnostics diagnostics) {
+    ValidateSourceParameters validateSourceParameters(final Diagnostics diagnostics) {
         return new ValidateSourceParameters(diagnostics);
     }
 
@@ -120,72 +121,81 @@ final class ProcessorModule {
 
     @Provides
     DumpGraph dumpGraph(
-            Filer filer, Diagnostics diagnostics, ProcessorOptions processorOptions, DotRenderer dotRenderer) {
+            final Filer filer,
+            final Diagnostics diagnostics,
+            final ProcessorOptions processorOptions,
+            final DotRenderer dotRenderer) {
         return new DumpGraph(filer, diagnostics, processorOptions, dotRenderer);
     }
 
     @Provides
-    ExpandStage expandStage(List<ExpansionPhase> phases, Diagnostics diagnostics) {
+    ExpandStage expandStage(final List<ExpansionPhase> phases, final Diagnostics diagnostics) {
         return new ExpandStage(phases, diagnostics);
     }
 
     @Provides
     ValidateRealisationStage validateRealisationStage(
-            ValidateMarkersPhase markersPhase, ValidatePathsPhase pathsPhase, Diagnostics diagnostics) {
+            final ValidateMarkersPhase markersPhase,
+            final ValidatePathsPhase pathsPhase,
+            final Diagnostics diagnostics) {
         return new ValidateRealisationStage(markersPhase, pathsPhase, diagnostics);
     }
 
     @Provides
-    ValidateMarkersPhase validateMarkersPhase(Diagnostics diagnostics) {
+    ValidateMarkersPhase validateMarkersPhase(final Diagnostics diagnostics) {
         return new ValidateMarkersPhase(diagnostics);
     }
 
     @Provides
-    ValidatePathsPhase validatePathsPhase(Diagnostics diagnostics) {
+    ValidatePathsPhase validatePathsPhase(final Diagnostics diagnostics) {
         return new ValidatePathsPhase(diagnostics);
     }
 
     @Provides
     DumpExpandedGraph dumpExpandedGraph(
-            Filer filer, Diagnostics diagnostics, ProcessorOptions processorOptions, DotRenderer dotRenderer) {
+            final Filer filer,
+            final Diagnostics diagnostics,
+            final ProcessorOptions processorOptions,
+            final DotRenderer dotRenderer) {
         return new DumpExpandedGraph(filer, diagnostics, processorOptions, dotRenderer);
     }
 
     @Provides
-    ResolveSourceChainsPhase resolveSourceChainsPhase(List<SourceStep> sourceSteps, ResolveCtx resolveCtx) {
+    ResolveSourceChainsPhase resolveSourceChainsPhase(final List<SourceStep> sourceSteps, final ResolveCtx resolveCtx) {
         return new ResolveSourceChainsPhase(sourceSteps, resolveCtx);
     }
 
     @Provides
-    ResolveTargetChainsPhase resolveTargetChainsPhase(List<GroupTarget> groupTargets, ResolveCtx resolveCtx) {
+    ResolveTargetChainsPhase resolveTargetChainsPhase(
+            final List<GroupTarget> groupTargets, final ResolveCtx resolveCtx) {
         return new ResolveTargetChainsPhase(groupTargets, resolveCtx);
     }
 
     @Provides
-    BridgeSourceToTargetPhase bridgeSourceToTargetPhase(List<Bridge> bridges, ResolveCtx resolveCtx) {
+    BridgeSourceToTargetPhase bridgeSourceToTargetPhase(final List<Bridge> bridges, final ResolveCtx resolveCtx) {
         return new BridgeSourceToTargetPhase(bridges, resolveCtx);
     }
 
     @Provides
     static List<ExpansionPhase> expansionPhases(
-            ResolveSourceChainsPhase sourceChains,
-            ResolveTargetChainsPhase targetChains,
-            BridgeSourceToTargetPhase bridgePhase) {
+            final ResolveSourceChainsPhase sourceChains,
+            final ResolveTargetChainsPhase targetChains,
+            final BridgeSourceToTargetPhase bridgePhase) {
         return List.of(sourceChains, targetChains, bridgePhase);
     }
 
     @Provides
     static List<Stage> stages(
-            DiscoverAbstractMethods discoverAbstractMethods,
-            DiscoverMappings discoverMappings,
-            DiscoverCallableMethods discoverCallableMethods,
-            ValidateNoDuplicateTargets validateNoDuplicateTargets,
-            ValidateSourceParameters validateSourceParameters,
-            SeedGraph seedGraph,
-            DumpGraph dumpGraph,
-            ExpandStage expandStage,
-            ValidateRealisationStage validateRealisationStage,
-            DumpExpandedGraph dumpExpandedGraph) {
+            final DiscoverAbstractMethods discoverAbstractMethods,
+            final DiscoverMappings discoverMappings,
+            final DiscoverCallableMethods discoverCallableMethods,
+            final ValidateNoDuplicateTargets validateNoDuplicateTargets,
+            final ValidateSourceParameters validateSourceParameters,
+            final SeedGraph seedGraph,
+            final DumpGraph dumpGraph,
+            final ExpandStage expandStage,
+            final ValidateRealisationStage validateRealisationStage,
+            final DumpExpandedGraph dumpExpandedGraph) {
         return List.of(
                 discoverAbstractMethods,
                 discoverMappings,
@@ -203,7 +213,8 @@ final class ProcessorModule {
     @Provides
     static List<SourceStep> sourceSteps() {
         return StreamSupport.stream(
-                        ServiceLoader.load(SourceStep.class, SourceStep.class.getClassLoader())
+                        ServiceLoader.load(
+                                        SourceStep.class, ProcessorModule.class.getClassLoader())
                                 .spliterator(),
                         false)
                 .sorted((a, b) -> a.getClass().getName().compareTo(b.getClass().getName()))
@@ -214,7 +225,9 @@ final class ProcessorModule {
     @Provides
     static List<GroupTarget> groupTargets() {
         return StreamSupport.stream(
-                        ServiceLoader.load(GroupTarget.class, GroupTarget.class.getClassLoader())
+                        ServiceLoader.load(
+                                        GroupTarget.class,
+                                        ProcessorModule.class.getClassLoader())
                                 .spliterator(),
                         false)
                 .sorted((a, b) -> a.getClass().getName().compareTo(b.getClass().getName()))
@@ -225,7 +238,7 @@ final class ProcessorModule {
     @Provides
     static List<Bridge> bridgeStrategies() {
         return StreamSupport.stream(
-                        ServiceLoader.load(Bridge.class, Bridge.class.getClassLoader())
+                        ServiceLoader.load(Bridge.class, ProcessorModule.class.getClassLoader())
                                 .spliterator(),
                         false)
                 .sorted((a, b) -> a.getClass().getName().compareTo(b.getClass().getName()))
@@ -233,40 +246,40 @@ final class ProcessorModule {
     }
 
     @Provides
-    static ResolveCtx resolveCtx(Types types, Elements elements) {
+    static ResolveCtx resolveCtx(final Types types, final Elements elements) {
         return new CompileResolveCtx(elements, types);
     }
 
     @RequiredArgsConstructor
-    private static final class CompileResolveCtx implements io.github.joke.percolate.processor.spi.ResolveCtx {
-        private final Elements elements;
-        private final Types types;
+    private static final class CompileResolveCtx implements ResolveCtx {
+        private final Elements elemElements;
+        private final Types elemTypes;
 
         @Override
         public Types types() {
-            return types;
+            return elemTypes;
         }
 
         @Override
         public Elements elements() {
-            return elements;
+            return elemElements;
         }
 
         @Override
         public @Nullable TypeElement mapperType() {
-            final MapperContext ctx = CURRENT_CONTEXT.get();
+            final var ctx = CURRENT_CONTEXT.get();
             return ctx != null ? ctx.getMapperType() : null;
         }
 
         @Override
         public @Nullable ExecutableElement currentMethod() {
-            final MapperContext ctx = CURRENT_CONTEXT.get();
+            final var ctx = CURRENT_CONTEXT.get();
             return ctx != null ? ctx.getCurrentMethod() : null;
         }
 
         @Override
         public @Nullable CallableMethods callableMethods() {
-            final MapperContext ctx = CURRENT_CONTEXT.get();
+            final var ctx = CURRENT_CONTEXT.get();
             return ctx != null ? ctx.getCallableMethods() : null;
         }
     }

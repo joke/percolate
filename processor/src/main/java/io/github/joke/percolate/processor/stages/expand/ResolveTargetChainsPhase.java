@@ -1,8 +1,7 @@
 package io.github.joke.percolate.processor.stages.expand;
 
-import static java.util.stream.Collectors.toUnmodifiableList;
-
 import io.github.joke.percolate.processor.graph.Edge;
+import io.github.joke.percolate.processor.graph.EdgeCodegen;
 import io.github.joke.percolate.processor.graph.EdgeKind;
 import io.github.joke.percolate.processor.graph.GraphDelta;
 import io.github.joke.percolate.processor.graph.GroupCodegen;
@@ -11,10 +10,13 @@ import io.github.joke.percolate.processor.graph.MapperGraph;
 import io.github.joke.percolate.processor.graph.Node;
 import io.github.joke.percolate.processor.graph.TargetLocation;
 import io.github.joke.percolate.processor.graph.TargetPath;
-import io.github.joke.percolate.processor.spi.GroupBuild;
 import io.github.joke.percolate.processor.spi.GroupTarget;
 import io.github.joke.percolate.processor.spi.ResolveCtx;
 import io.github.joke.percolate.processor.spi.Slot;
+import lombok.RequiredArgsConstructor;
+import org.jspecify.annotations.Nullable;
+
+import javax.lang.model.type.TypeMirror;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Deque;
@@ -24,9 +26,8 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Stream;
-import javax.lang.model.type.TypeMirror;
-import lombok.RequiredArgsConstructor;
-import org.jspecify.annotations.Nullable;
+
+import static java.util.stream.Collectors.toUnmodifiableList;
 
 @RequiredArgsConstructor
 public final class ResolveTargetChainsPhase implements ExpansionPhase {
@@ -39,21 +40,21 @@ public final class ResolveTargetChainsPhase implements ExpansionPhase {
 
     @Override
     public void apply(final MapperGraph graph) {
-        final List<Node> rootNodes = findReturnRootNodes(graph);
+        final var rootNodes = findReturnRootNodes(graph);
 
         rootNodes.stream()
                 .flatMap(rootNode -> {
-                    final List<Node> leafTargets = findLeafTargets(rootNode, graph);
+                    final var leafTargets = findLeafTargets(rootNode, graph);
                     if (leafTargets.isEmpty()) {
                         return Stream.empty();
                     }
 
-                    final List<String> targetTails = extractTargetTails(leafTargets);
+                    final var targetTails = extractTargetTails(leafTargets);
                     if (targetTails.isEmpty()) {
                         return Stream.empty();
                     }
 
-                    final TypeMirror returnType = rootNode.getType().get();
+                    final var returnType = rootNode.getType().get();
                     return deriveForReturnRoot(rootNode, leafTargets, returnType, targetTails);
                 })
                 .forEach(graph::apply);
@@ -65,20 +66,20 @@ public final class ResolveTargetChainsPhase implements ExpansionPhase {
             final TypeMirror returnType,
             final List<String> targetTails) {
         return groupTargets.stream().flatMap(strategy -> {
-            final Optional<GroupBuild> optionalBuild = strategy.buildFor(returnType, targetTails, resolveCtx);
+            final var optionalBuild = strategy.buildFor(returnType, targetTails, resolveCtx);
             if (!optionalBuild.isPresent()) {
                 return Stream.empty();
             }
 
-            final GroupBuild groupBuild = optionalBuild.get();
-            final String groupId = nextGroupId();
+            final var groupBuild = optionalBuild.get();
+            final var groupId = nextGroupId();
             final GroupCodegen codegen = groupBuild.getCodegen();
-            final GroupRegistration registration = new GroupRegistration(groupId, codegen);
+            final var registration = new GroupRegistration(groupId, codegen);
 
             return groupBuild.getSlots().stream().map(slot -> {
-                final Node slotNode = allocateSlotNode(rootNode, slot);
-                final io.github.joke.percolate.processor.graph.EdgeCodegen slotCodegen = codegen::render;
-                final Edge realisedEdge = Edge.realised(
+                final var slotNode = allocateSlotNode(rootNode, slot);
+                final EdgeCodegen slotCodegen = codegen::render;
+                final var realisedEdge = Edge.realised(
                         slotNode,
                         rootNode,
                         slot.getWeight(),
@@ -86,7 +87,7 @@ public final class ResolveTargetChainsPhase implements ExpansionPhase {
                         slotCodegen,
                         strategy.getClass().getName());
 
-                final Node seedNode = findCorrespondingSeedNode(leafTargets, slot.getName());
+                final var seedNode = findCorrespondingSeedNode(leafTargets, slot.getName());
 
                 final List<Node> nodes = new ArrayList<>(1);
                 nodes.add(slotNode);
@@ -95,7 +96,7 @@ public final class ResolveTargetChainsPhase implements ExpansionPhase {
                 edges.add(realisedEdge);
 
                 if (seedNode != null) {
-                    final Edge markerEdge =
+                    final var markerEdge =
                             Edge.marker(seedNode, slotNode, strategy.getClass().getName());
                     edges.add(markerEdge);
                 }
@@ -117,9 +118,9 @@ public final class ResolveTargetChainsPhase implements ExpansionPhase {
         if (!(node.getLoc() instanceof TargetLocation)) {
             return false;
         }
-        final TargetLocation targetLoc = (TargetLocation) node.getLoc();
-        final boolean isEmpty = targetLoc.getPath().getSegments().isEmpty();
-        final boolean hasType = node.getType().isPresent();
+        final var targetLoc = (TargetLocation) node.getLoc();
+        final var isEmpty = targetLoc.getPath().getSegments().isEmpty();
+        final var hasType = node.getType().isPresent();
         return isEmpty && hasType;
     }
 
@@ -132,17 +133,17 @@ public final class ResolveTargetChainsPhase implements ExpansionPhase {
         visited.add(root);
 
         while (!queue.isEmpty()) {
-            final Node current = queue.poll();
-            boolean hasIncomingSeed = false;
+            final var current = queue.poll();
+            var hasIncomingSeed = false;
 
-            for (final Edge edge : graph.edges().collect(toUnmodifiableList())) {
+            for (final var edge : graph.edges().collect(toUnmodifiableList())) {
                 if (edge.getKind() != EdgeKind.SEED) {
                     continue;
                 }
                 if (!edge.getTo().equals(current)) {
                     continue;
                 }
-                final Node next = edge.getFrom();
+                final var next = edge.getFrom();
                 if (visited.contains(next)) {
                     continue;
                 }
@@ -175,8 +176,8 @@ public final class ResolveTargetChainsPhase implements ExpansionPhase {
     }
 
     private Node allocateSlotNode(final Node rootNode, final Slot slot) {
-        final TargetPath slotPath = TargetPath.of(slot.getName());
-        final TargetLocation slotLoc = new TargetLocation(slotPath);
+        final var slotPath = TargetPath.of(slot.getName());
+        final var slotLoc = new TargetLocation(slotPath);
         return new Node(Optional.of(slot.getType()), slotLoc, rootNode.getScope(), Optional.empty());
     }
 
@@ -185,8 +186,8 @@ public final class ResolveTargetChainsPhase implements ExpansionPhase {
         return leafTargets.stream()
                 .filter(leaf -> leaf.getLoc() instanceof TargetLocation)
                 .filter(leaf -> {
-                    final TargetLocation targetLoc = (TargetLocation) leaf.getLoc();
-                    final List<String> segments = targetLoc.getPath().getSegments();
+                    final var targetLoc = (TargetLocation) leaf.getLoc();
+                    final var segments = targetLoc.getPath().getSegments();
                     return !segments.isEmpty()
                             && segments.get(segments.size() - 1).equals(slotName);
                 })

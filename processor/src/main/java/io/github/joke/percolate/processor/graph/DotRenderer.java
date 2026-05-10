@@ -1,14 +1,18 @@
 package io.github.joke.percolate.processor.graph;
 
-import static java.util.stream.Collectors.toList;
+import lombok.NoArgsConstructor;
 
+import javax.lang.model.element.TypeElement;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
-import javax.lang.model.element.TypeElement;
+import java.util.concurrent.ConcurrentHashMap;
 
+import static java.util.stream.Collectors.toList;
+
+@NoArgsConstructor
 public final class DotRenderer {
 
     private static final String SOURCE_SHAPE = "box";
@@ -16,7 +20,7 @@ public final class DotRenderer {
     private static final String PHANTOM_SHAPE = "diamond";
     private static final String SENTINEL_LABEL = "\u221E";
 
-    private static final Map<EdgeKind, String> KIND_STYLE = new LinkedHashMap<>();
+    private static final Map<EdgeKind, String> KIND_STYLE = new ConcurrentHashMap<>();
 
     static {
         KIND_STYLE.put(EdgeKind.SEED, "solid");
@@ -26,7 +30,7 @@ public final class DotRenderer {
     }
 
     public String render(final MapperGraph graph, final TypeElement mapperType) {
-        final var sb = new StringBuilder();
+        final var sb = new StringBuilder(128);
         final var digraphName = escapeDot(mapperType.getQualifiedName().toString());
         sb.append("digraph \"").append(digraphName).append("\" {\n");
 
@@ -65,8 +69,11 @@ public final class DotRenderer {
             final var scope = entry.getKey();
             final var scopeNodes = entry.getValue();
             final var scopeLabel = escapeDot(scope.encode());
-            sb.append("  subgraph \"cluster_").append(escapeDot(scope.encode())).append("\" {\n");
-            sb.append("    label=\"").append(scopeLabel).append("\";\n");
+            sb.append("  subgraph \"cluster_")
+                    .append(scopeLabel)
+                    .append("\" {\n    label=\"")
+                    .append(scopeLabel)
+                    .append("\";\n");
 
             for (final var node : scopeNodes) {
                 renderNode(sb, node);
@@ -149,7 +156,8 @@ public final class DotRenderer {
             if (!first[0]) {
                 sb.append(", ");
             }
-            sb.append(entry.getKey()).append("=\"").append(entry.getValue()).append("\"");
+            final var attrLine = entry.getKey() + "=\"" + entry.getValue() + '"';
+            sb.append(attrLine);
             first[0] = false;
         }
     }

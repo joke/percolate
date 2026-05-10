@@ -25,7 +25,7 @@ public final class ValidatePathsPhase implements ValidationPhase {
     private final Diagnostics diagnostics;
 
     @Override
-    public void apply(final @org.jspecify.annotations.Nullable MapperGraph graph, final TypeElement typeElement) {
+    public void apply(final @Nullable MapperGraph graph, final TypeElement typeElement) {
         if (graph == null) {
             return;
         }

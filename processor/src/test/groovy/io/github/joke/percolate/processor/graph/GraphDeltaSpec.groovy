@@ -3,10 +3,10 @@ package io.github.joke.percolate.processor.graph
 import spock.lang.Specification
 import spock.lang.Tag
 
+import javax.lang.model.element.TypeElement
 import javax.lang.model.type.DeclaredType
 import javax.lang.model.type.TypeKind
 import javax.lang.model.type.TypeMirror
-import javax.lang.model.element.TypeElement
 
 @Tag('unit')
 class GraphDeltaSpec extends Specification {
@@ -30,8 +30,8 @@ class GraphDeltaSpec extends Specification {
         def delta = GraphDelta.of([node], [edge])
 
         then:
-        delta.nodes == [node]
-        delta.edges == [edge]
+        delta.nodeList == [node]
+        delta.edgeList == [edge]
         delta.groupRegistrations.isEmpty()
     }
 
@@ -46,8 +46,8 @@ class GraphDeltaSpec extends Specification {
         def delta = GraphDelta.of([node], [edge], [registration])
 
         then:
-        delta.nodes == [node]
-        delta.edges == [edge]
+        delta.nodeList == [node]
+        delta.edgeList == [edge]
         delta.groupRegistrations == [registration]
     }
 
@@ -57,8 +57,8 @@ class GraphDeltaSpec extends Specification {
         def d2 = GraphDelta.empty()
 
         then:
-        d1.nodes.isEmpty()
-        d1.edges.isEmpty()
+        d1.nodeList.isEmpty()
+        d1.edgeList.isEmpty()
         d1.groupRegistrations.isEmpty()
         d1 == d2
     }
@@ -72,8 +72,8 @@ class GraphDeltaSpec extends Specification {
         def delta = GraphDelta.nodes(node)
 
         then:
-        delta.nodes == [node]
-        delta.edges.isEmpty()
+        delta.nodeList == [node]
+        delta.edgeList.isEmpty()
         delta.groupRegistrations.isEmpty()
     }
 
@@ -87,8 +87,8 @@ class GraphDeltaSpec extends Specification {
         def delta = GraphDelta.edges(edge)
 
         then:
-        delta.nodes.isEmpty()
-        delta.edges == [edge]
+        delta.nodeList.isEmpty()
+        delta.edgeList == [edge]
         delta.groupRegistrations.isEmpty()
     }
 
@@ -99,7 +99,7 @@ class GraphDeltaSpec extends Specification {
         def delta = GraphDelta.of([node], [])
 
         when:
-        delta.nodes.add(new Node(Optional.of(typeMirror), loc, scope, Optional.empty()))
+        delta.nodeList.add(new Node(Optional.of(typeMirror), loc, scope, Optional.empty()))
 
         then:
         thrown(UnsupportedOperationException)
@@ -113,7 +113,7 @@ class GraphDeltaSpec extends Specification {
         def delta = GraphDelta.of([], [edge])
 
         when:
-        delta.edges.add(edge)
+        delta.edgeList.add(edge)
 
         then:
         thrown(UnsupportedOperationException)
@@ -133,8 +133,8 @@ class GraphDeltaSpec extends Specification {
 
     def 'empty delta getNodes, getEdges and getGroupRegistrations are empty'() {
         expect:
-        GraphDelta.empty().nodes.isEmpty()
-        GraphDelta.empty().edges.isEmpty()
+        GraphDelta.empty().nodeList.isEmpty()
+        GraphDelta.empty().edgeList.isEmpty()
         GraphDelta.empty().groupRegistrations.isEmpty()
     }
 

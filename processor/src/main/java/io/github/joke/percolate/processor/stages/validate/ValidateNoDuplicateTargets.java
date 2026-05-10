@@ -1,19 +1,20 @@
 package io.github.joke.percolate.processor.stages.validate;
 
-import static java.util.stream.Collectors.groupingBy;
-import static java.util.stream.Collectors.toUnmodifiableList;
-
 import io.github.joke.percolate.processor.Diagnostics;
 import io.github.joke.percolate.processor.MapperContext;
 import io.github.joke.percolate.processor.model.MapperMappings;
 import io.github.joke.percolate.processor.model.MappingDirective;
 import io.github.joke.percolate.processor.stages.Stage;
 import jakarta.inject.Inject;
+import lombok.RequiredArgsConstructor;
+
+import javax.lang.model.element.ExecutableElement;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import javax.lang.model.element.ExecutableElement;
-import lombok.RequiredArgsConstructor;
+
+import static java.util.stream.Collectors.groupingBy;
+import static java.util.stream.Collectors.toUnmodifiableList;
 
 @RequiredArgsConstructor(onConstructor_ = @Inject)
 public final class ValidateNoDuplicateTargets implements Stage {
@@ -21,7 +22,7 @@ public final class ValidateNoDuplicateTargets implements Stage {
     private final Diagnostics diagnostics;
 
     @Override
-    public void run(MapperContext ctx) {
+    public void run(final MapperContext ctx) {
         final var mappings = ctx.getMappings();
         if (mappings == null) {
             return;
@@ -43,7 +44,7 @@ public final class ValidateNoDuplicateTargets implements Stage {
 
     void reportDuplicates(
             final ExecutableElement method, final String target, final List<MappingDirective> directives) {
-        for (int i = 1; i < directives.size(); i++) {
+        for (var i = 1; i < directives.size(); i++) {
             final var duplicate = directives.get(i);
             diagnostics.error(
                     method, duplicate.getMirror(), duplicate.getTargetValue(), "duplicate target '" + target + "'");

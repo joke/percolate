@@ -1,11 +1,11 @@
 package io.github.joke.percolate.processor.spi
 
 import com.palantir.javapoet.CodeBlock
+import io.github.joke.percolate.processor.graph.IncomingValues
+import io.github.joke.percolate.processor.graph.Weights
 import io.github.joke.percolate.processor.spi.builtins.ConstructorCall
 import io.github.joke.percolate.processor.spi.builtins.DirectAssign
 import io.github.joke.percolate.processor.spi.builtins.GetterRead
-import io.github.joke.percolate.processor.graph.IncomingValues
-import io.github.joke.percolate.processor.graph.Weights
 import spock.lang.Specification
 import spock.lang.Tag
 

@@ -1,20 +1,13 @@
 package io.github.joke.percolate.processor.stages.discover;
 
-import static java.util.stream.Collectors.toUnmodifiableList;
-
 import io.github.joke.percolate.processor.MapperContext;
 import io.github.joke.percolate.processor.spi.CallableMethods;
 import io.github.joke.percolate.processor.spi.MethodCandidate;
 import io.github.joke.percolate.processor.spi.ThisReceiver;
 import io.github.joke.percolate.processor.stages.Stage;
 import jakarta.inject.Inject;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
-import java.util.stream.Stream;
+import lombok.RequiredArgsConstructor;
+
 import javax.lang.model.element.Element;
 import javax.lang.model.element.ElementKind;
 import javax.lang.model.element.ExecutableElement;
@@ -22,24 +15,34 @@ import javax.lang.model.element.TypeElement;
 import javax.lang.model.type.TypeMirror;
 import javax.lang.model.util.Elements;
 import javax.lang.model.util.Types;
-import lombok.RequiredArgsConstructor;
+import java.util.ArrayList;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.stream.Stream;
+
+import static java.util.stream.Collectors.toUnmodifiableList;
 
 @RequiredArgsConstructor(onConstructor_ = @Inject)
 public final class DiscoverCallableMethods implements Stage {
+
+    private static final int SINGLE_PARAM_COUNT = 1;
 
     private final Elements elements;
     private final Types types;
 
     @Override
     public void run(final MapperContext ctx) {
-        final TypeElement mapperType = ctx.getMapperType();
-        final CallableMethods callableMethods = discover(mapperType);
+        final var mapperType = ctx.getMapperType();
+        final var callableMethods = discover(mapperType);
         ctx.setCallableMethods(callableMethods);
     }
 
     private CallableMethods discover(final TypeElement mapperType) {
         final List<ExecutableElement> allMembers = new ArrayList<>();
-        for (final Element member : elements.getAllMembers(mapperType)) {
+        for (final var member : elements.getAllMembers(mapperType)) {
             if (member instanceof ExecutableElement) {
                 allMembers.add((ExecutableElement) member);
             }
@@ -50,20 +53,20 @@ public final class DiscoverCallableMethods implements Stage {
             if (member.getKind() != ElementKind.METHOD) {
                 continue;
             }
-            final ExecutableElement method = (ExecutableElement) member;
+            final var method = (ExecutableElement) member;
             if (isInObjectClass(method)) {
                 continue;
             }
-            if (method.getParameters().size() != 1) {
+            if (method.getParameters().size() != SINGLE_PARAM_COUNT) {
                 continue;
             }
             filtered.add(method);
         }
 
-        final Map<String, List<ExecutableElement>> indexByReturnType = new HashMap<>();
-        for (final ExecutableElement method : filtered) {
-            final TypeMirror returnType = method.getReturnType();
-            final String key = returnType.toString();
+        final Map<String, List<ExecutableElement>> indexByReturnType = new ConcurrentHashMap<>();
+        for (final var method : filtered) {
+            final var returnType = method.getReturnType();
+            final var key = returnType.toString();
             indexByReturnType.computeIfAbsent(key, k -> new ArrayList<>()).add(method);
         }
 
@@ -71,7 +74,7 @@ public final class DiscoverCallableMethods implements Stage {
     }
 
     private boolean isInObjectClass(final ExecutableElement method) {
-        final Element enclosing = method.getEnclosingElement();
+        final var enclosing = method.getEnclosingElement();
         if (!(enclosing instanceof TypeElement)) {
             return false;
         }
@@ -91,9 +94,9 @@ public final class DiscoverCallableMethods implements Stage {
         @Override
         public Stream<MethodCandidate> producing(final TypeMirror outputType) {
             final List<ExecutableElement> candidates = new ArrayList<>();
-            for (final List<ExecutableElement> methods : indexByReturnType.values()) {
-                for (final ExecutableElement method : methods) {
-                    final TypeMirror methodReturnType = method.getReturnType();
+            for (final var methods : indexByReturnType.values()) {
+                for (final var method : methods) {
+                    final var methodReturnType = method.getReturnType();
                     if (types.isAssignable(methodReturnType, outputType)) {
                         candidates.add(method);
                     }

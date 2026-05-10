@@ -1,7 +1,8 @@
 package io.github.joke.percolate.processor.spi;
 
-import javax.lang.model.type.TypeMirror;
 import lombok.Value;
+
+import javax.lang.model.type.TypeMirror;
 
 @Value
 public final class Step {

@@ -1,7 +1,5 @@
 package io.github.joke.percolate.processor.stages.expand;
 
-import static java.util.stream.Collectors.toUnmodifiableList;
-
 import io.github.joke.percolate.processor.graph.Edge;
 import io.github.joke.percolate.processor.graph.EdgeKind;
 import io.github.joke.percolate.processor.graph.GraphDelta;
@@ -11,13 +9,16 @@ import io.github.joke.percolate.processor.graph.SourceLocation;
 import io.github.joke.percolate.processor.spi.ResolveCtx;
 import io.github.joke.percolate.processor.spi.SourceStep;
 import io.github.joke.percolate.processor.spi.Step;
+import lombok.RequiredArgsConstructor;
+import org.jspecify.annotations.Nullable;
+
+import javax.lang.model.type.TypeMirror;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 import java.util.stream.Stream;
-import javax.lang.model.type.TypeMirror;
-import lombok.RequiredArgsConstructor;
-import org.jspecify.annotations.Nullable;
+
+import static java.util.stream.Collectors.toUnmodifiableList;
 
 @RequiredArgsConstructor
 public final class ResolveSourceChainsPhase implements ExpansionPhase {
@@ -27,8 +28,8 @@ public final class ResolveSourceChainsPhase implements ExpansionPhase {
 
     @Override
     public void apply(final MapperGraph graph) {
-        final List<Edge> sourceSeedEdges = collectSourceSeedEdges(graph);
-        final List<Edge> untypedSourceEdges = collectUntypedSourceEdges(graph);
+        final var sourceSeedEdges = collectSourceSeedEdges(graph);
+        final var untypedSourceEdges = collectUntypedSourceEdges(graph);
 
         final var allEdges = new ArrayList<Edge>(sourceSeedEdges.size() + untypedSourceEdges.size());
         allEdges.addAll(sourceSeedEdges);
@@ -38,29 +39,29 @@ public final class ResolveSourceChainsPhase implements ExpansionPhase {
     }
 
     private Stream<GraphDelta> derive(final Edge seed, final MapperGraph graph) {
-        final Node sourceNode = seed.getFrom();
-        final Node targetNode = seed.getTo();
+        final var sourceNode = seed.getFrom();
 
         if (!(sourceNode.getLoc() instanceof SourceLocation)) {
             return Stream.empty();
         }
 
+        final var targetNode = seed.getTo();
         if (!(targetNode.getLoc() instanceof SourceLocation)) {
             return Stream.empty();
         }
 
-        final TypeMirror sourceType = findSourceType(sourceNode, graph);
+        final var sourceType = findSourceType(sourceNode, graph);
         if (sourceType == null) {
             return Stream.empty();
         }
 
-        final SourceLocation targetLoc = (SourceLocation) targetNode.getLoc();
-        final String pathTail = pathTail(targetLoc);
+        final var targetLoc = (SourceLocation) targetNode.getLoc();
+        final var pathTail = pathTail(targetLoc);
 
         return sourceSteps.stream().flatMap(strategy -> strategy.stepsFrom(sourceType, pathTail, resolveCtx)
                 .map(step -> {
-                    final Node realisedNode = allocateRealisedNode(sourceNode, targetLoc, step);
-                    final Edge realisedEdge = Edge.realised(
+                    final var realisedNode = allocateRealisedNode(sourceNode, targetLoc, step);
+                    final var realisedEdge = Edge.realised(
                             sourceNode,
                             realisedNode,
                             step.getWeight(),
@@ -68,7 +69,7 @@ public final class ResolveSourceChainsPhase implements ExpansionPhase {
                             step.getCodegen(),
                             strategy.getClass().getName());
 
-                    final Edge markerEdge = Edge.marker(
+                    final var markerEdge = Edge.marker(
                             targetNode, realisedNode, strategy.getClass().getName());
 
                     final List<Node> nodes = new ArrayList<>(1);
@@ -83,7 +84,7 @@ public final class ResolveSourceChainsPhase implements ExpansionPhase {
     }
 
     private String pathTail(final SourceLocation sourceLoc) {
-        final List<String> segments = sourceLoc.getPath().getSegments();
+        final var segments = sourceLoc.getPath().getSegments();
         if (segments.isEmpty()) {
             return "";
         }
@@ -112,7 +113,7 @@ public final class ResolveSourceChainsPhase implements ExpansionPhase {
             return node.getType().get();
         }
 
-        final TypeMirror markerType = findTypeViaMarker(node, graph);
+        final var markerType = findTypeViaMarker(node, graph);
         if (markerType != null) {
             return markerType;
         }
@@ -145,7 +146,7 @@ public final class ResolveSourceChainsPhase implements ExpansionPhase {
     }
 
     private Node allocateRealisedNode(final Node seedNode, final SourceLocation sourceLoc, final Step step) {
-        final TypeMirror realisedType = step.getProduces();
+        final var realisedType = step.getProduces();
         return new Node(Optional.of(realisedType), sourceLoc, seedNode.getScope(), Optional.empty());
     }
 }

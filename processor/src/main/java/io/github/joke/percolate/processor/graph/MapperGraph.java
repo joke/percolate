@@ -1,19 +1,22 @@
 package io.github.joke.percolate.processor.graph;
 
-import java.util.Collections;
-import java.util.Comparator;
-import java.util.HashMap;
-import java.util.Map;
-import java.util.Optional;
-import java.util.Set;
-import java.util.stream.Stream;
+import lombok.NoArgsConstructor;
 import org.jgrapht.alg.cycle.CycleDetector;
 import org.jgrapht.graph.DirectedMultigraph;
 import org.jgrapht.graph.MaskSubgraph;
 
+import java.util.Collections;
+import java.util.Comparator;
+import java.util.Map;
+import java.util.Optional;
+import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.stream.Stream;
+
+@NoArgsConstructor
 public final class MapperGraph {
     private final DirectedMultigraph<Node, Edge> graph = new DirectedMultigraph<>(Edge.class);
-    private final Map<String, GroupCodegen> groupCodegens = new HashMap<>();
+    private final Map<String, GroupCodegen> groupCodegens = new ConcurrentHashMap<>();
 
     public void addNode(final Node node) {
         graph.addVertex(node);
@@ -30,8 +33,8 @@ public final class MapperGraph {
     }
 
     public void apply(final GraphDelta delta) {
-        delta.getNodes().stream().forEach(this::addNode);
-        delta.getEdges().stream().forEach(this::addEdge);
+        delta.getNodeList().stream().forEach(this::addNode);
+        delta.getEdgeList().stream().forEach(this::addEdge);
         delta.getGroupRegistrations().stream()
                 .filter(r -> !groupCodegens.containsKey(r.groupId))
                 .forEach(r -> groupCodegens.put(r.groupId, r.codegen));
@@ -85,7 +88,7 @@ public final class MapperGraph {
     }
 
     public boolean hasSeedSubSeedCycles() {
-        final MaskSubgraph<Node, Edge> subgraph = new MaskSubgraph<>(
+        final var subgraph = new MaskSubgraph<Node, Edge>(
                 graph, v -> false, e -> e.getKind() != EdgeKind.SEED && e.getKind() != EdgeKind.SUB_SEED);
         return new CycleDetector<>(subgraph).detectCycles();
     }

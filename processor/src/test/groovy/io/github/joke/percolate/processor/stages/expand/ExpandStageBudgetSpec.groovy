@@ -1,6 +1,4 @@
 package io.github.joke.percolate.processor.stages.expand
-import io.github.joke.percolate.processor.MapperContext
-import io.github.joke.percolate.processor.Diagnostics
 
 import io.github.joke.percolate.processor.Diagnostics
 import io.github.joke.percolate.processor.MapperContext
@@ -8,16 +6,12 @@ import io.github.joke.percolate.processor.graph.*
 import spock.lang.Specification
 import spock.lang.Tag
 
+import javax.annotation.processing.Messager
 import javax.lang.model.element.AnnotationMirror
 import javax.lang.model.element.ExecutableElement
 import javax.lang.model.element.Name
 import javax.lang.model.element.TypeElement
-import javax.lang.model.type.DeclaredType
-import javax.lang.model.type.TypeKind
 import javax.lang.model.type.TypeMirror
-import java.util.Optional
-
-import javax.annotation.processing.Messager
 
 @Tag('unit')
 class ExpandStageBudgetSpec extends Specification {

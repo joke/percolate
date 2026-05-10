@@ -1,17 +1,18 @@
 package io.github.joke.percolate.processor.stages.validate;
 
-import static java.util.stream.Collectors.toUnmodifiableList;
-
 import io.github.joke.percolate.processor.Diagnostics;
 import io.github.joke.percolate.processor.graph.Edge;
 import io.github.joke.percolate.processor.graph.EdgeKind;
 import io.github.joke.percolate.processor.graph.MapperGraph;
 import io.github.joke.percolate.processor.graph.Node;
 import jakarta.inject.Inject;
+import lombok.RequiredArgsConstructor;
+
+import javax.lang.model.element.TypeElement;
 import java.util.HashSet;
 import java.util.Set;
-import javax.lang.model.element.TypeElement;
-import lombok.RequiredArgsConstructor;
+
+import static java.util.stream.Collectors.toUnmodifiableList;
 
 @RequiredArgsConstructor(onConstructor_ = @Inject)
 public final class ValidateMarkersPhase implements ValidationPhase {
@@ -25,7 +26,7 @@ public final class ValidateMarkersPhase implements ValidationPhase {
         }
         final Set<Node> checkedNodes = new HashSet<>();
 
-        for (final Edge edge : graph.edges().collect(toUnmodifiableList())) {
+        for (final var edge : graph.edges().collect(toUnmodifiableList())) {
             if (edge.getKind() != EdgeKind.SEED) {
                 continue;
             }
@@ -49,10 +50,10 @@ public final class ValidateMarkersPhase implements ValidationPhase {
             return;
         }
 
-        final int markerCount = countOutgoingMarkers(node, graph);
+        final var markerCount = countOutgoingMarkers(node, graph);
 
         if (markerCount == 0) {
-            final String message = "No strategy could realise " + node.id() + " — no MARKER edges emitted";
+            final var message = "No strategy could realise " + node.id() + " — no MARKER edges emitted";
             if (seedEdge.getDirective().isPresent()) {
                 diagnostics.error(typeElement, seedEdge.getDirective().get(), null, message);
             } else {
@@ -62,8 +63,8 @@ public final class ValidateMarkersPhase implements ValidationPhase {
     }
 
     private int countOutgoingMarkers(final Node node, final MapperGraph graph) {
-        int count = 0;
-        for (final Edge edge : graph.edges().collect(toUnmodifiableList())) {
+        var count = 0;
+        for (final var edge : graph.edges().collect(toUnmodifiableList())) {
             if (edge.getKind() == EdgeKind.MARKER && edge.getFrom().equals(node)) {
                 count++;
             }

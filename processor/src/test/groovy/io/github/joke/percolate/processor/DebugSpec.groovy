@@ -5,8 +5,6 @@ import com.google.testing.compile.JavaFileObjects
 import spock.lang.Specification
 import spock.lang.Tag
 
-import javax.tools.Diagnostic.Kind
-
 import static com.google.testing.compile.Compiler.javac
 
 @Tag('integration')

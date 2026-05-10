@@ -1,7 +1,6 @@
 package io.github.joke.percolate.processor.stages.discover
 
 import io.github.joke.percolate.processor.MapperContext
-import io.github.joke.percolate.processor.spi.CallableMethods
 import io.github.joke.percolate.processor.spi.ThisReceiver
 import spock.lang.Specification
 import spock.lang.Tag

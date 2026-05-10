@@ -1,9 +1,9 @@
 package io.github.joke.percolate.processor.stages.seed
-import io.github.joke.percolate.processor.TestCompilers
-import io.github.joke.percolate.processor.PercolateProcessor
 
 import com.google.testing.compile.Compilation
 import com.google.testing.compile.JavaFileObjects
+import io.github.joke.percolate.processor.PercolateProcessor
+import io.github.joke.percolate.processor.TestCompilers
 import spock.lang.Specification
 import spock.lang.Tag
 

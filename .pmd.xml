@@ -9,21 +9,45 @@
 
     <rule ref="category/java/bestpractices.xml">
         <exclude name="GuardLogStatement"/>
+        <exclude name="ImplicitFunctionalInterface"/>
     </rule>
     <rule ref="category/java/codestyle.xml">
         <exclude name="OnlyOneReturn"/>
         <exclude name="CommentDefaultAccessModifier"/>
         <exclude name="ShortClassName"/>
+        <exclude name="ShortMethodName"/>
+        <exclude name="LongVariable"/>
+        <exclude name="ShortVariable"/>
+        <exclude name="UseExplicitTypes"/>
     </rule>
-    <rule ref="category/java/design.xml">
-        <exclude name="LawOfDemeter"/>
-        <exclude name="CouplingBetweenObjects"/>
-        <exclude name="ExcessiveImports"/>
-    </rule>
+<!--    <rule ref="category/java/design.xml">-->
+<!--        <exclude name="LawOfDemeter"/>-->
+<!--        <exclude name="CouplingBetweenObjects"/>-->
+<!--        <exclude name="ExcessiveImports"/>-->
+<!--    </rule>-->
     <rule ref="category/java/errorprone.xml"/>
     <rule ref="category/java/multithreading.xml"/>
     <rule ref="category/java/performance.xml">
         <exclude name="AvoidInstantiatingObjectsInLoops"/>
     </rule>
 
+    <rule name="UseVarForLocalVariables"
+          language="java"
+          message="Use 'var' instead of an explicit local variable type."
+          class="net.sourceforge.pmd.lang.rule.xpath.XPathRule">
+
+        <description>
+            Requires local variable declarations to use 'var'.
+        </description>
+
+        <properties>
+            <property name="xpath">
+                <value><![CDATA[
+                //LocalVariableDeclaration[
+                    Type/@Image != 'var'
+                ]
+            ]]></value>
+            </property>
+        </properties>
+    </rule>
 </ruleset>

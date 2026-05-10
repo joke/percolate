@@ -1,6 +1,6 @@
 package io.github.joke.percolate.processor
 
-import com.google.common.collect.ImmutableSet
+
 import com.google.common.collect.ImmutableSetMultimap
 import io.github.joke.percolate.Mapper
 import spock.lang.Specification

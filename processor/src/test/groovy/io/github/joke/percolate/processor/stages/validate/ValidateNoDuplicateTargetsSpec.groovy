@@ -1,6 +1,6 @@
 package io.github.joke.percolate.processor.stages.validate
-import io.github.joke.percolate.processor.Diagnostics
 
+import io.github.joke.percolate.processor.Diagnostics
 import io.github.joke.percolate.processor.model.MapperMappings
 import io.github.joke.percolate.processor.model.MappingDirective
 import io.github.joke.percolate.processor.model.MethodMappings

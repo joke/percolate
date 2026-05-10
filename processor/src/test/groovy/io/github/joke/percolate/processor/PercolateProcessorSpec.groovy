@@ -1,14 +1,12 @@
 package io.github.joke.percolate.processor
 
-import com.google.auto.common.BasicAnnotationProcessor.Step
+
 import com.google.testing.compile.Compilation
 import com.google.testing.compile.JavaFileObjects
 import spock.lang.Specification
 import spock.lang.Tag
 
 import java.lang.reflect.Field
-
-import static com.google.testing.compile.CompilationSubject.assertThat
 
 @Tag('integration')
 class PercolateProcessorSpec extends Specification {
