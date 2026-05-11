@@ -1,6 +1,9 @@
 package io.github.joke.percolate.processor.spi;
 
-public final class Weights {
+import lombok.experimental.UtilityClass;
+
+@UtilityClass
+public class Weights {
     public static final int NOOP = 0;
     public static final int STEP = 1;
     public static final int METHOD = 1;
@@ -8,7 +11,7 @@ public final class Weights {
     public static final int EXPENSIVE = 3;
     public static final int SENTINEL_UNREALISED = Integer.MAX_VALUE / 2;
 
-    private Weights() {
-        throw new UnsupportedOperationException();
+    public static boolean isSentinel(final int weight) {
+        return weight >= SENTINEL_UNREALISED;
     }
 }

@@ -1,8 +1,7 @@
 package io.github.joke.percolate.processor.spi;
 
-import lombok.Value;
-
 import javax.lang.model.type.TypeMirror;
+import lombok.Value;
 
 @Value
 public final class Slot {

@@ -1,5 +1,7 @@
 package io.github.joke.percolate.processor.stages.expand;
 
+import static java.util.stream.Collectors.toUnmodifiableList;
+
 import io.github.joke.percolate.processor.Diagnostics;
 import io.github.joke.percolate.processor.MapperContext;
 import io.github.joke.percolate.processor.graph.Edge;
@@ -9,11 +11,8 @@ import io.github.joke.percolate.processor.graph.MethodScope;
 import io.github.joke.percolate.processor.graph.Node;
 import io.github.joke.percolate.processor.stages.Stage;
 import jakarta.inject.Inject;
-import lombok.RequiredArgsConstructor;
-
 import java.util.List;
-
-import static java.util.stream.Collectors.toUnmodifiableList;
+import lombok.RequiredArgsConstructor;
 
 @RequiredArgsConstructor(onConstructor_ = @Inject)
 public final class ExpandStage implements Stage {

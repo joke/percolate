@@ -7,10 +7,9 @@ import io.github.joke.percolate.processor.spi.BridgeStep;
 import io.github.joke.percolate.processor.spi.EdgeCodegen;
 import io.github.joke.percolate.processor.spi.ResolveCtx;
 import io.github.joke.percolate.processor.spi.Weights;
-import lombok.NoArgsConstructor;
-
-import javax.lang.model.type.TypeMirror;
 import java.util.stream.Stream;
+import javax.lang.model.type.TypeMirror;
+import lombok.NoArgsConstructor;
 
 @AutoService(Bridge.class)
 @NoArgsConstructor

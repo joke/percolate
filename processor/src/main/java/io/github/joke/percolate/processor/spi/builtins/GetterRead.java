@@ -7,15 +7,14 @@ import io.github.joke.percolate.processor.spi.ResolveCtx;
 import io.github.joke.percolate.processor.spi.SourceStep;
 import io.github.joke.percolate.processor.spi.Step;
 import io.github.joke.percolate.processor.spi.Weights;
-import lombok.NoArgsConstructor;
-import org.jspecify.annotations.Nullable;
-
+import java.util.stream.Stream;
 import javax.lang.model.element.ElementKind;
 import javax.lang.model.element.ExecutableElement;
 import javax.lang.model.element.TypeElement;
 import javax.lang.model.type.TypeKind;
 import javax.lang.model.type.TypeMirror;
-import java.util.stream.Stream;
+import lombok.NoArgsConstructor;
+import org.jspecify.annotations.Nullable;
 
 @AutoService(SourceStep.class)
 @NoArgsConstructor
@@ -75,11 +74,9 @@ public final class GetterRead implements SourceStep {
             return false;
         }
         final var elem = ctx.types().asElement(returnType);
-        if (!(elem instanceof TypeElement)) {
-            return false;
-        }
-        return "java.lang.Boolean"
-                .equals(((TypeElement) elem).getQualifiedName().toString());
+        return elem instanceof TypeElement
+                && "java.lang.Boolean"
+                        .equals(((TypeElement) elem).getQualifiedName().toString());
     }
 
     @Nullable
@@ -111,10 +108,8 @@ public final class GetterRead implements SourceStep {
 
     private boolean isInObjectClass(final ExecutableElement method) {
         final var enclosing = method.getEnclosingElement();
-        if (!(enclosing instanceof TypeElement)) {
-            return false;
-        }
-        return "java.lang.Object"
-                .equals(((TypeElement) enclosing).getQualifiedName().toString());
+        return enclosing instanceof TypeElement
+                && "java.lang.Object"
+                        .equals(((TypeElement) enclosing).getQualifiedName().toString());
     }
 }

@@ -26,11 +26,12 @@ import io.github.joke.percolate.processor.stages.validate.ValidatePathsPhase;
 import io.github.joke.percolate.processor.stages.validate.ValidateRealisationStage;
 import io.github.joke.percolate.processor.stages.validate.ValidateSourceParameters;
 import jakarta.inject.Inject;
+import jakarta.inject.Named;
 import jakarta.inject.Singleton;
-import lombok.EqualsAndHashCode;
-import lombok.RequiredArgsConstructor;
-import org.jspecify.annotations.Nullable;
-
+import java.util.ArrayList;
+import java.util.List;
+import java.util.ServiceLoader;
+import java.util.stream.StreamSupport;
 import javax.annotation.processing.Filer;
 import javax.annotation.processing.Messager;
 import javax.annotation.processing.ProcessingEnvironment;
@@ -38,9 +39,9 @@ import javax.lang.model.element.ExecutableElement;
 import javax.lang.model.element.TypeElement;
 import javax.lang.model.util.Elements;
 import javax.lang.model.util.Types;
-import java.util.List;
-import java.util.ServiceLoader;
-import java.util.stream.StreamSupport;
+import lombok.EqualsAndHashCode;
+import lombok.RequiredArgsConstructor;
+import org.jspecify.annotations.Nullable;
 
 @Module
 @RequiredArgsConstructor(onConstructor_ = @Inject)
@@ -185,10 +186,17 @@ final class ProcessorModule {
     }
 
     @Provides
-    static List<Stage> stages(
+    @Named("discover")
+    static List<Stage> discoverStages(
             final DiscoverAbstractMethods discoverAbstractMethods,
             final DiscoverMappings discoverMappings,
-            final DiscoverCallableMethods discoverCallableMethods,
+            final DiscoverCallableMethods discoverCallableMethods) {
+        return List.of(discoverAbstractMethods, discoverMappings, discoverCallableMethods);
+    }
+
+    @Provides
+    static List<Stage> stages(
+            @Named("discover") final List<Stage> discoverStages,
             final ValidateNoDuplicateTargets validateNoDuplicateTargets,
             final ValidateSourceParameters validateSourceParameters,
             final SeedGraph seedGraph,
@@ -196,25 +204,22 @@ final class ProcessorModule {
             final ExpandStage expandStage,
             final ValidateRealisationStage validateRealisationStage,
             final DumpExpandedGraph dumpExpandedGraph) {
-        return List.of(
-                discoverAbstractMethods,
-                discoverMappings,
-                discoverCallableMethods,
-                validateNoDuplicateTargets,
-                validateSourceParameters,
-                seedGraph,
-                dumpGraph,
-                expandStage,
-                validateRealisationStage,
-                dumpExpandedGraph);
+        final var all = new ArrayList<Stage>(discoverStages);
+        all.add(validateNoDuplicateTargets);
+        all.add(validateSourceParameters);
+        all.add(seedGraph);
+        all.add(dumpGraph);
+        all.add(expandStage);
+        all.add(validateRealisationStage);
+        all.add(dumpExpandedGraph);
+        return List.copyOf(all);
     }
 
     @Singleton
     @Provides
     static List<SourceStep> sourceSteps() {
         return StreamSupport.stream(
-                        ServiceLoader.load(
-                                        SourceStep.class, ProcessorModule.class.getClassLoader())
+                        ServiceLoader.load(SourceStep.class, ProcessorModule.class.getClassLoader())
                                 .spliterator(),
                         false)
                 .sorted((a, b) -> a.getClass().getName().compareTo(b.getClass().getName()))
@@ -225,9 +230,7 @@ final class ProcessorModule {
     @Provides
     static List<GroupTarget> groupTargets() {
         return StreamSupport.stream(
-                        ServiceLoader.load(
-                                        GroupTarget.class,
-                                        ProcessorModule.class.getClassLoader())
+                        ServiceLoader.load(GroupTarget.class, ProcessorModule.class.getClassLoader())
                                 .spliterator(),
                         false)
                 .sorted((a, b) -> a.getClass().getName().compareTo(b.getClass().getName()))

@@ -1,20 +1,13 @@
 package io.github.joke.percolate.processor.stages.discover;
 
+import static java.util.stream.Collectors.toUnmodifiableList;
+
 import io.github.joke.percolate.processor.MapperContext;
 import io.github.joke.percolate.processor.spi.CallableMethods;
 import io.github.joke.percolate.processor.spi.MethodCandidate;
 import io.github.joke.percolate.processor.spi.ThisReceiver;
 import io.github.joke.percolate.processor.stages.Stage;
 import jakarta.inject.Inject;
-import lombok.RequiredArgsConstructor;
-
-import javax.lang.model.element.Element;
-import javax.lang.model.element.ElementKind;
-import javax.lang.model.element.ExecutableElement;
-import javax.lang.model.element.TypeElement;
-import javax.lang.model.type.TypeMirror;
-import javax.lang.model.util.Elements;
-import javax.lang.model.util.Types;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
@@ -22,8 +15,14 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Stream;
-
-import static java.util.stream.Collectors.toUnmodifiableList;
+import javax.lang.model.element.Element;
+import javax.lang.model.element.ElementKind;
+import javax.lang.model.element.ExecutableElement;
+import javax.lang.model.element.TypeElement;
+import javax.lang.model.type.TypeMirror;
+import javax.lang.model.util.Elements;
+import javax.lang.model.util.Types;
+import lombok.RequiredArgsConstructor;
 
 @RequiredArgsConstructor(onConstructor_ = @Inject)
 public final class DiscoverCallableMethods implements Stage {
@@ -75,11 +74,9 @@ public final class DiscoverCallableMethods implements Stage {
 
     private boolean isInObjectClass(final ExecutableElement method) {
         final var enclosing = method.getEnclosingElement();
-        if (!(enclosing instanceof TypeElement)) {
-            return false;
-        }
-        return "java.lang.Object"
-                .equals(((TypeElement) enclosing).getQualifiedName().toString());
+        return enclosing instanceof TypeElement
+                && "java.lang.Object"
+                        .equals(((TypeElement) enclosing).getQualifiedName().toString());
     }
 
     private static final class IndexCallableMethods implements CallableMethods {

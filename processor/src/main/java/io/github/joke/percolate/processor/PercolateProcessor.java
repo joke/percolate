@@ -2,14 +2,13 @@ package io.github.joke.percolate.processor;
 
 import com.google.auto.common.BasicAnnotationProcessor;
 import com.google.auto.service.AutoService;
-import lombok.NoArgsConstructor;
-import org.jspecify.annotations.Nullable;
-
-import javax.annotation.processing.Processor;
-import javax.lang.model.SourceVersion;
 import java.util.List;
 import java.util.Objects;
 import java.util.Set;
+import javax.annotation.processing.Processor;
+import javax.lang.model.SourceVersion;
+import lombok.NoArgsConstructor;
+import org.jspecify.annotations.Nullable;
 
 @AutoService(Processor.class)
 @NoArgsConstructor

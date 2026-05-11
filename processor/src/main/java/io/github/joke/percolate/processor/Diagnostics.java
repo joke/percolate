@@ -2,18 +2,17 @@ package io.github.joke.percolate.processor;
 
 import jakarta.inject.Inject;
 import jakarta.inject.Singleton;
-import lombok.RequiredArgsConstructor;
-import org.jspecify.annotations.Nullable;
-
+import java.util.HashSet;
+import java.util.Map;
+import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import javax.annotation.processing.Messager;
 import javax.lang.model.element.AnnotationMirror;
 import javax.lang.model.element.AnnotationValue;
 import javax.lang.model.element.Element;
 import javax.tools.Diagnostic;
-import java.util.HashSet;
-import java.util.Map;
-import java.util.Set;
-import java.util.concurrent.ConcurrentHashMap;
+import lombok.RequiredArgsConstructor;
+import org.jspecify.annotations.Nullable;
 
 @Singleton
 @RequiredArgsConstructor(onConstructor_ = @Inject)
@@ -55,10 +54,8 @@ public final class Diagnostics {
     }
 
     public boolean hasErrorsFor(final Element element) {
-        if (scarred.contains(element)) {
-            return true;
-        }
-        return scarredWithEnclosing.values().stream().anyMatch(element::equals);
+        return scarred.contains(element)
+                || scarredWithEnclosing.values().stream().anyMatch(element::equals);
     }
 
     void reset() {

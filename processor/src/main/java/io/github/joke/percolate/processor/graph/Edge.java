@@ -1,14 +1,21 @@
 package io.github.joke.percolate.processor.graph;
 
+import java.util.Comparator;
+import java.util.Optional;
+import javax.lang.model.element.AnnotationMirror;
 import lombok.EqualsAndHashCode;
 import lombok.Value;
-
-import javax.lang.model.element.AnnotationMirror;
-import java.util.Optional;
 
 @Value
 @EqualsAndHashCode(exclude = {"codegen", "groupId"})
 public final class Edge implements Comparable<Edge> {
+
+    private static final Comparator<Edge> EDGE_ORDER = Comparator.<Edge, String>comparing(e -> e.from.id())
+            .thenComparing(e -> e.to.id())
+            .thenComparingInt(e -> e.weight)
+            .thenComparing(e -> e.kind)
+            .thenComparing(e -> e.directive.isPresent())
+            .thenComparing(e -> e.strategyClassFqn.orElse(null), Comparator.nullsFirst(Comparator.naturalOrder()));
     Node from;
     Node to;
     int weight;
@@ -94,35 +101,6 @@ public final class Edge implements Comparable<Edge> {
 
     @Override
     public int compareTo(final Edge other) {
-        var c = this.from.id().compareTo(other.from.id());
-        if (c != 0) {
-            return c;
-        }
-        c = this.to.id().compareTo(other.to.id());
-        if (c != 0) {
-            return c;
-        }
-        c = Integer.compare(this.weight, other.weight);
-        if (c != 0) {
-            return c;
-        }
-        c = this.kind.compareTo(other.kind);
-        if (c != 0) {
-            return c;
-        }
-        c = Boolean.compare(this.directive.isPresent(), other.directive.isPresent());
-        if (c != 0) {
-            return c;
-        }
-        if (!this.strategyClassFqn.isPresent() && !other.strategyClassFqn.isPresent()) {
-            return 0;
-        }
-        if (!this.strategyClassFqn.isPresent()) {
-            return -1;
-        }
-        if (!other.strategyClassFqn.isPresent()) {
-            return 1;
-        }
-        return this.strategyClassFqn.get().compareTo(other.strategyClassFqn.get());
+        return EDGE_ORDER.compare(this, other);
     }
 }

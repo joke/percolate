@@ -5,13 +5,12 @@ import io.github.joke.percolate.processor.model.MapperMappings;
 import io.github.joke.percolate.processor.model.MapperShape;
 import io.github.joke.percolate.processor.spi.CallableMethods;
 import jakarta.inject.Inject;
+import javax.lang.model.element.ExecutableElement;
+import javax.lang.model.element.TypeElement;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 import lombok.Setter;
 import org.jspecify.annotations.Nullable;
-
-import javax.lang.model.element.ExecutableElement;
-import javax.lang.model.element.TypeElement;
 
 @RequiredArgsConstructor(onConstructor_ = @Inject)
 @Getter

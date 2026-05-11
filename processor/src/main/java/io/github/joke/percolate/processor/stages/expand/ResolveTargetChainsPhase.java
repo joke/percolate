@@ -1,5 +1,7 @@
 package io.github.joke.percolate.processor.stages.expand;
 
+import static java.util.stream.Collectors.toUnmodifiableList;
+
 import io.github.joke.percolate.processor.graph.Edge;
 import io.github.joke.percolate.processor.graph.EdgeCodegen;
 import io.github.joke.percolate.processor.graph.EdgeKind;
@@ -13,10 +15,6 @@ import io.github.joke.percolate.processor.graph.TargetPath;
 import io.github.joke.percolate.processor.spi.GroupTarget;
 import io.github.joke.percolate.processor.spi.ResolveCtx;
 import io.github.joke.percolate.processor.spi.Slot;
-import lombok.RequiredArgsConstructor;
-import org.jspecify.annotations.Nullable;
-
-import javax.lang.model.type.TypeMirror;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Deque;
@@ -26,8 +24,9 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Stream;
-
-import static java.util.stream.Collectors.toUnmodifiableList;
+import javax.lang.model.type.TypeMirror;
+import lombok.RequiredArgsConstructor;
+import org.jspecify.annotations.Nullable;
 
 @RequiredArgsConstructor
 public final class ResolveTargetChainsPhase implements ExpansionPhase {
@@ -134,34 +133,36 @@ public final class ResolveTargetChainsPhase implements ExpansionPhase {
 
         while (!queue.isEmpty()) {
             final var current = queue.poll();
-            var hasIncomingSeed = false;
-
-            for (final var edge : graph.edges().collect(toUnmodifiableList())) {
-                if (edge.getKind() != EdgeKind.SEED) {
-                    continue;
-                }
-                if (!edge.getTo().equals(current)) {
-                    continue;
-                }
-                final var next = edge.getFrom();
-                if (visited.contains(next)) {
-                    continue;
-                }
-                visited.add(next);
-                if (next.getLoc() instanceof TargetLocation) {
-                    hasIncomingSeed = true;
-                    queue.add(next);
-                }
-            }
-
-            if (!hasIncomingSeed && !current.equals(root)) {
-                if (!current.getType().isPresent()) {
-                    leaves.add(current);
-                }
+            final var hasIncomingSeed = collectSeedNeighbors(current, graph, visited, queue);
+            if (!hasIncomingSeed && !current.equals(root) && current.getType().isEmpty()) {
+                leaves.add(current);
             }
         }
 
         return leaves;
+    }
+
+    private boolean collectSeedNeighbors(
+            final Node current, final MapperGraph graph, final Set<Node> visited, final Deque<Node> queue) {
+        var hasIncomingSeed = false;
+        for (final var edge : graph.edges().collect(toUnmodifiableList())) {
+            if (edge.getKind() != EdgeKind.SEED) {
+                continue;
+            }
+            if (!edge.getTo().equals(current)) {
+                continue;
+            }
+            final var next = edge.getFrom();
+            if (visited.contains(next)) {
+                continue;
+            }
+            visited.add(next);
+            if (next.getLoc() instanceof TargetLocation) {
+                hasIncomingSeed = true;
+                queue.add(next);
+            }
+        }
+        return hasIncomingSeed;
     }
 
     private List<String> extractTargetTails(final List<Node> leafTargets) {

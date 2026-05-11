@@ -30,44 +30,43 @@ public final class ValidatePathsPhase implements ValidationPhase {
             return;
         }
         final Set<Edge> processedSeeds = new HashSet<>();
-
         for (final Edge edge : graph.edges().collect(toUnmodifiableList())) {
-            if (edge.getKind() != EdgeKind.SEED) {
-                continue;
-            }
-            final boolean fromSource = edge.getFrom().getLoc() instanceof SourceLocation;
-            final boolean toTarget = edge.getTo().getLoc() instanceof TargetLocation;
-            if (!fromSource || !toTarget) {
-                continue;
-            }
-            if (processedSeeds.contains(edge)) {
-                continue;
-            }
-            processedSeeds.add(edge);
-
-            final Node sourceSeed = edge.getFrom();
-            final Node targetSeed = edge.getTo();
-
-            final Node realisedSource = resolveRealisedCounterpart(sourceSeed, graph);
-            final Node realisedTarget = resolveRealisedCounterpart(targetSeed, graph);
-
-            if (realisedSource == null || realisedTarget == null) {
-                final String message = "No realised path: could not find realised counterpart for "
-                        + (realisedSource == null ? sourceSeed.id() : targetSeed.id());
-                emitError(typeElement, edge, message);
-                continue;
-            }
-
-            if (!hasRealisedPath(realisedSource, realisedTarget, graph)) {
-                final String fromType =
-                        realisedSource.getType().map(TypeMirror::toString).orElse("?");
-                final String toType =
-                        realisedTarget.getType().map(TypeMirror::toString).orElse("?");
-                final String message = "No realised path between " + fromType + " and " + toType + " — gap at "
-                        + realisedSource.id() + " → " + realisedTarget.id();
-                emitError(typeElement, edge, message);
+            if (isUnprocessedSeedBetweenSourceAndTarget(edge, processedSeeds)) {
+                validateSeedEdge(edge, graph, typeElement);
             }
         }
+    }
+
+    private boolean isUnprocessedSeedBetweenSourceAndTarget(final Edge edge, final Set<Edge> processedSeeds) {
+        return edge.getKind() == EdgeKind.SEED
+                && edge.getFrom().getLoc() instanceof SourceLocation
+                && edge.getTo().getLoc() instanceof TargetLocation
+                && processedSeeds.add(edge);
+    }
+
+    private void validateSeedEdge(final Edge edge, final MapperGraph graph, final TypeElement typeElement) {
+        final Node sourceSeed = edge.getFrom();
+        final Node targetSeed = edge.getTo();
+
+        final Node realisedSource = resolveRealisedCounterpart(sourceSeed, graph);
+        final Node realisedTarget = resolveRealisedCounterpart(targetSeed, graph);
+
+        if (realisedSource == null || realisedTarget == null) {
+            final String message = "No realised path: could not find realised counterpart for "
+                    + (realisedSource == null ? sourceSeed.id() : targetSeed.id());
+            emitError(typeElement, edge, message);
+            return;
+        }
+
+        if (!hasRealisedPath(realisedSource, realisedTarget, graph)) {
+            emitError(typeElement, edge, buildNoPathMessage(realisedSource, realisedTarget));
+        }
+    }
+
+    private String buildNoPathMessage(final Node from, final Node to) {
+        final String fromType = from.getType().map(TypeMirror::toString).orElse("?");
+        final String toType = to.getType().map(TypeMirror::toString).orElse("?");
+        return "No realised path between " + fromType + " and " + toType + " — gap at " + from.id() + " → " + to.id();
     }
 
     private boolean hasRealisedPath(final Node from, final Node to, final MapperGraph graph) {
@@ -103,7 +102,15 @@ public final class ValidatePathsPhase implements ValidationPhase {
         if (seedNode.getType().isPresent()) {
             return seedNode;
         }
+        final var fromMarker = findTypedMarkerTarget(seedNode, graph);
+        if (fromMarker != null) {
+            return fromMarker;
+        }
+        return findTypedRealisedSource(seedNode, graph);
+    }
 
+    @Nullable
+    private Node findTypedMarkerTarget(final Node seedNode, final MapperGraph graph) {
         for (final Edge edge : graph.edges().collect(toUnmodifiableList())) {
             if (edge.getKind() != EdgeKind.MARKER) {
                 continue;
@@ -111,12 +118,15 @@ public final class ValidatePathsPhase implements ValidationPhase {
             if (!edge.getFrom().equals(seedNode)) {
                 continue;
             }
-            final Node target = edge.getTo();
-            if (target.getType().isPresent()) {
-                return target;
+            if (edge.getTo().getType().isPresent()) {
+                return edge.getTo();
             }
         }
+        return null;
+    }
 
+    @Nullable
+    private Node findTypedRealisedSource(final Node seedNode, final MapperGraph graph) {
         for (final Edge edge : graph.edges().collect(toUnmodifiableList())) {
             if (edge.getKind() != EdgeKind.REALISED) {
                 continue;
@@ -124,12 +134,10 @@ public final class ValidatePathsPhase implements ValidationPhase {
             if (!edge.getTo().equals(seedNode)) {
                 continue;
             }
-            final Node source = edge.getFrom();
-            if (source.getType().isPresent()) {
-                return source;
+            if (edge.getFrom().getType().isPresent()) {
+                return edge.getFrom();
             }
         }
-
         return null;
     }
 }
