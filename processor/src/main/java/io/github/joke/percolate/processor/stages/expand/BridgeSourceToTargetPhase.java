@@ -1,16 +1,13 @@
 package io.github.joke.percolate.processor.stages.expand;
 
-import static java.util.stream.Collectors.toUnmodifiableList;
-
 import io.github.joke.percolate.processor.graph.Edge;
 import io.github.joke.percolate.processor.graph.EdgeKind;
+import io.github.joke.percolate.processor.graph.ElementLocation;
 import io.github.joke.percolate.processor.graph.GraphDelta;
 import io.github.joke.percolate.processor.graph.Location;
 import io.github.joke.percolate.processor.graph.MapperGraph;
 import io.github.joke.percolate.processor.graph.Node;
 import io.github.joke.percolate.processor.graph.Scope;
-import io.github.joke.percolate.processor.graph.SourceLocation;
-import io.github.joke.percolate.processor.graph.TargetLocation;
 import io.github.joke.percolate.processor.spi.Bridge;
 import io.github.joke.percolate.processor.spi.BridgeStep;
 import io.github.joke.percolate.processor.spi.ResolveCtx;
@@ -35,31 +32,34 @@ public final class BridgeSourceToTargetPhase implements ExpansionPhase {
     }
 
     private Stream<Edge> seeds(final MapperGraph graph) {
-        final var flavorTwoSeedEdges = collectFlavorTwoSeedEdges(graph);
-        final var subSeedEdges = collectSubSeedEdges(graph);
-        final var result = new ArrayList<Edge>(flavorTwoSeedEdges.size() + subSeedEdges.size());
+        final var flavorTwoSeedEdges = BridgeGraphQuery.collectFlavorTwoSeedEdges(graph);
+        final var subSeedEdges = BridgeGraphQuery.collectSubSeedEdges(graph);
+        final var elementScopeSeedEdges = BridgeGraphQuery.collectElementScopeSeedEdges(graph);
+        final var result =
+                new ArrayList<Edge>(flavorTwoSeedEdges.size() + subSeedEdges.size() + elementScopeSeedEdges.size());
         result.addAll(flavorTwoSeedEdges);
         result.addAll(subSeedEdges);
+        result.addAll(elementScopeSeedEdges);
         return result.stream();
     }
 
     private Stream<GraphDelta> derive(final Edge seed, final MapperGraph graph) {
-        if (seed.getFrom().getLoc() instanceof SourceLocation && seed.getTo().getLoc() instanceof TargetLocation) {
-            return deriveSeedEdge(seed, graph);
+        if (seed.getKind() == EdgeKind.SUB_SEED) {
+            return deriveSubSeedEdge(seed, graph);
         }
-        return deriveSubSeedEdge(seed, graph);
+        return deriveSeedEdge(seed, graph);
     }
 
     private Stream<GraphDelta> deriveSeedEdge(final Edge seedEdge, final MapperGraph graph) {
         final var sourceSeed = seedEdge.getFrom();
         final var targetSeed = seedEdge.getTo();
 
-        final var realisedSource = resolveRealisedCounterpart(sourceSeed, graph);
+        final var realisedSource = BridgeGraphQuery.resolveRealisedCounterpart(sourceSeed, graph);
         if (realisedSource == null) {
             return Stream.empty();
         }
 
-        final var realisedTarget = resolveRealisedCounterpart(targetSeed, graph);
+        final var realisedTarget = BridgeGraphQuery.resolveRealisedCounterpart(targetSeed, graph);
         if (realisedTarget == null) {
             return Stream.empty();
         }
@@ -85,8 +85,8 @@ public final class BridgeSourceToTargetPhase implements ExpansionPhase {
         final var fromNode = subSeedEdge.getFrom();
         final var toNode = subSeedEdge.getTo();
 
-        final var fromType = resolveNodeType(fromNode, graph);
-        final var toType = resolveNodeType(toNode, graph);
+        final var fromType = BridgeGraphQuery.resolveNodeType(fromNode, graph);
+        final var toType = BridgeGraphQuery.resolveNodeType(toNode, graph);
 
         if (fromType == null || toType == null) {
             return Stream.empty();
@@ -115,9 +115,12 @@ public final class BridgeSourceToTargetPhase implements ExpansionPhase {
             final String strategyFqn) {
         final var scope = f.getScope();
         final var loc = f.getLoc();
+        final var isElement = loc instanceof ElementLocation;
 
-        final var inputNode = resolveOrCreateNode(scope, loc, step.getInputType(), f);
-        final var outputNode = resolveOrCreateNode(scope, loc, step.getOutputType(), t);
+        final var inputNode =
+                resolveOrCreateNode(scope, loc, step.getInputType(), f, isElement ? f.getParent() : Optional.empty());
+        final var outputNode =
+                resolveOrCreateNode(scope, loc, step.getOutputType(), t, isElement ? t.getParent() : Optional.empty());
 
         final var realisedEdge = Edge.realised(
                 inputNode, outputNode, step.getWeight(), Optional.empty(), step.getCodegen(), strategyFqn);
@@ -139,6 +142,28 @@ public final class BridgeSourceToTargetPhase implements ExpansionPhase {
             edges.add(subSeedEdge);
         }
 
+        if (!outputNode.equals(t)) {
+            final var subSeedEdge = Edge.subSeed(outputNode, t, strategyFqn, directive);
+            edges.add(subSeedEdge);
+        }
+
+        for (final var elementSeed : step.getElementSeeds()) {
+            final var eFrom = new Node(
+                    Optional.of(elementSeed.getInputType()),
+                    new ElementLocation(elementSeed.getRole()),
+                    scope,
+                    Optional.of(inputNode));
+            final var eTo = new Node(
+                    Optional.of(elementSeed.getOutputType()),
+                    new ElementLocation(elementSeed.getRole()),
+                    scope,
+                    Optional.of(outputNode));
+            nodes.add(eFrom);
+            nodes.add(eTo);
+            final var seedEdge = Edge.elementSeed(eFrom, eTo, strategyFqn);
+            edges.add(seedEdge);
+        }
+
         return GraphDelta.of(nodes, edges);
     }
 
@@ -152,17 +177,20 @@ public final class BridgeSourceToTargetPhase implements ExpansionPhase {
             final String strategyFqn) {
         final var fromType = fromNode.getType().orElse(null);
         final var toType = toNode.getType().orElse(null);
+        final var isElement = loc instanceof ElementLocation;
 
         final var inputNode = resolveOrCreateNode(
                 scope,
                 loc,
                 step.getInputType(),
-                fromType != null && fromNode.getType().isPresent() ? fromNode : null);
+                fromType != null ? fromNode : null,
+                isElement ? fromNode.getParent() : Optional.empty());
         final var outputNode = resolveOrCreateNode(
                 scope,
                 loc,
                 step.getOutputType(),
-                toType != null && toNode.getType().isPresent() ? toNode : null);
+                toType != null ? toNode : null,
+                isElement ? toNode.getParent() : Optional.empty());
 
         final var realisedEdge = Edge.realised(
                 inputNode, outputNode, step.getWeight(), Optional.empty(), step.getCodegen(), strategyFqn);
@@ -172,6 +200,8 @@ public final class BridgeSourceToTargetPhase implements ExpansionPhase {
 
         if (!inputNode.equals(fromNode)) {
             nodes.add(inputNode);
+            final var subSeedEdge = Edge.subSeed(fromNode, inputNode, strategyFqn, directive);
+            edges.add(subSeedEdge);
         }
         if (!outputNode.equals(toNode)) {
             nodes.add(outputNode);
@@ -179,86 +209,21 @@ public final class BridgeSourceToTargetPhase implements ExpansionPhase {
 
         edges.add(realisedEdge);
 
-        if (!inputNode.equals(fromNode)) {
-            final var subSeedEdge = Edge.subSeed(fromNode, inputNode, strategyFqn, directive);
-            edges.add(subSeedEdge);
-        }
-
         return GraphDelta.of(nodes, edges);
     }
 
     private Node resolveOrCreateNode(
-            final Scope scope, final Location loc, @Nullable final TypeMirror type, @Nullable final Node existing) {
+            final Scope scope,
+            final Location loc,
+            @Nullable final TypeMirror type,
+            @Nullable final Node existing,
+            final Optional<Node> parent) {
         if (type != null
                 && existing != null
                 && existing.getType().isPresent()
                 && resolveCtx.types().isSameType(type, existing.getType().get())) {
             return existing;
         }
-        return new Node(Optional.ofNullable(type), loc, scope, Optional.empty());
-    }
-
-    private List<Edge> collectFlavorTwoSeedEdges(final MapperGraph graph) {
-        return graph.edges()
-                .filter(e -> e.getKind() == EdgeKind.SEED)
-                .filter(e -> e.getFrom().getLoc() instanceof SourceLocation)
-                .filter(e -> e.getTo().getLoc() instanceof TargetLocation)
-                .collect(toUnmodifiableList());
-    }
-
-    private List<Edge> collectSubSeedEdges(final MapperGraph graph) {
-        return graph.edges().filter(e -> e.getKind() == EdgeKind.SUB_SEED).collect(toUnmodifiableList());
-    }
-
-    @Nullable
-    private Node resolveRealisedCounterpart(final Node seedNode, final MapperGraph graph) {
-        if (seedNode.getType().isPresent()) {
-            return seedNode;
-        }
-
-        final var markerTarget = findTypedMarkerTarget(seedNode, graph);
-        if (markerTarget != null) {
-            return markerTarget;
-        }
-
-        return findTypedRealisedSource(seedNode, graph);
-    }
-
-    @Nullable
-    private Node findTypedMarkerTarget(final Node seedNode, final MapperGraph graph) {
-        return graph.edges()
-                .filter(e -> e.getKind() == EdgeKind.MARKER)
-                .filter(e -> e.getFrom().equals(seedNode))
-                .map(Edge::getTo)
-                .filter(target -> target.getType().isPresent())
-                .findFirst()
-                .orElse(null);
-    }
-
-    @Nullable
-    private Node findTypedRealisedSource(final Node seedNode, final MapperGraph graph) {
-        return graph.edges()
-                .filter(e -> e.getKind() == EdgeKind.REALISED)
-                .filter(e -> e.getTo().equals(seedNode))
-                .map(Edge::getFrom)
-                .filter(source -> source.getType().isPresent())
-                .findFirst()
-                .orElse(null);
-    }
-
-    @Nullable
-    private TypeMirror resolveNodeType(final Node node, final MapperGraph graph) {
-        if (node.getType().isPresent()) {
-            return node.getType().get();
-        }
-        final var markerTarget = findTypedMarkerTarget(node, graph);
-        if (markerTarget != null && markerTarget.getType().isPresent()) {
-            return markerTarget.getType().get();
-        }
-        final var realisedSource = findTypedRealisedSource(node, graph);
-        if (realisedSource != null && realisedSource.getType().isPresent()) {
-            return realisedSource.getType().get();
-        }
-        return null;
+        return new Node(Optional.ofNullable(type), loc, scope, parent);
     }
 }

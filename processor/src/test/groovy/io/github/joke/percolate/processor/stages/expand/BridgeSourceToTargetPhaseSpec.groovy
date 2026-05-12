@@ -32,7 +32,7 @@ class BridgeSourceToTargetPhaseSpec extends Specification {
         def directive = Mock(AnnotationMirror)
         graph.addEdge(Edge.seed(sourceNode, targetNode, directive))
 
-        def bridgeStep = new BridgeStep(stringType, stringType, Weights.NOOP, (vars, inputs) -> null)
+        def bridgeStep = new BridgeStep(stringType, stringType, Weights.NOOP, (vars, inputs) -> null, List.of())
         def directAssign = Mock(Bridge)
         directAssign.bridge(_, _, _) >> Stream.of(bridgeStep)
 
@@ -88,7 +88,7 @@ class BridgeSourceToTargetPhaseSpec extends Specification {
         def directive = Mock(AnnotationMirror)
         graph.addEdge(Edge.seed(sourceNode, targetNode, directive))
 
-        def bridgeStep = new BridgeStep(stringType, stringType, Weights.NOOP, (vars, inputs) -> null)
+        def bridgeStep = new BridgeStep(stringType, stringType, Weights.NOOP, (vars, inputs) -> null, List.of())
         // Use anonymous class instances so each has a distinct getClass().getName()
         def bridge1 = new Bridge() {
             Stream<BridgeStep> bridge(TypeMirror from, TypeMirror to, ResolveCtx ctx) { Stream.of(bridgeStep) }

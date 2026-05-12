@@ -19,7 +19,7 @@ public final class Node implements Comparable<Node> {
 
     public String id() {
         if (loc instanceof ElementLocation) {
-            return parent.orElseThrow().id() + "::elem";
+            return parent.orElseThrow().id() + "::" + loc.segment() + "::" + typeEncode();
         }
         final var seg = loc != null ? loc.segment() : "none";
         return scope.encode() + "::" + seg + "::" + typeEncode();

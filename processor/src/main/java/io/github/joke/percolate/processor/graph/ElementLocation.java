@@ -4,14 +4,23 @@ import lombok.Value;
 
 @Value
 public final class ElementLocation implements Location {
+    String role;
+
+    public ElementLocation() {
+        this("element");
+    }
+
+    public ElementLocation(final String role) {
+        this.role = role;
+    }
 
     @Override
     public String encode() {
-        return "elem";
+        return "elem(" + role + ")";
     }
 
     @Override
     public String segment() {
-        return "elem";
+        return "elem(" + role + ")";
     }
 }

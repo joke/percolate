@@ -174,7 +174,7 @@ public final class DotRenderer {
             return "tgt[" + ((TargetLocation) loc).getPath() + "]";
         }
         if (loc instanceof ElementLocation) {
-            return "elem";
+            return loc.segment();
         }
         return "?";
     }

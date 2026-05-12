@@ -6,23 +6,38 @@ import spock.lang.Tag
 @Tag('unit')
 class ElementLocationSpec extends Specification {
 
-    def 'ElementLocation segment is elem'() {
+    def 'segment returns elem(role) with default role'() {
         expect:
-        new ElementLocation().segment() == 'elem'
+        new ElementLocation().segment() == 'elem(element)'
     }
 
-    def 'ElementLocation encode is elem'() {
+    def 'encode returns elem(role) with default role'() {
         expect:
-        new ElementLocation().encode() == 'elem'
+        new ElementLocation().encode() == 'elem(element)'
     }
 
-    def 'two ElementLocation instances are equal'() {
+    def 'segment returns elem(key) for key role'() {
         expect:
-        new ElementLocation() == new ElementLocation()
+        new ElementLocation('key').segment() == 'elem(key)'
     }
 
-    def 'two ElementLocation instances have same hashCode'() {
+    def 'two ElementLocation instances with same role are equal'() {
         expect:
-        new ElementLocation().hashCode() == new ElementLocation().hashCode()
+        new ElementLocation('element') == new ElementLocation('element')
+    }
+
+    def 'two ElementLocation instances with same role have same hashCode'() {
+        expect:
+        new ElementLocation('element').hashCode() == new ElementLocation('element').hashCode()
+    }
+
+    def 'two ElementLocation instances with different roles are not equal'() {
+        expect:
+        new ElementLocation('key') != new ElementLocation('value')
+    }
+
+    def 'no-arg constructor defaults to element role'() {
+        expect:
+        new ElementLocation().getRole() == 'element'
     }
 }

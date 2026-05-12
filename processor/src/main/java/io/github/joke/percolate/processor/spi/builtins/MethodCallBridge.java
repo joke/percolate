@@ -50,7 +50,7 @@ public final class MethodCallBridge implements Bridge {
             final var returnDistance = subtypeDistance(returnType, targetType, ctx);
             final var weight = Weights.METHOD + paramDistance + returnDistance;
             final var codegen = renderCodegen(candidate);
-            steps.add(new BridgeStep(paramType, returnType, weight, codegen));
+            steps.add(new BridgeStep(paramType, returnType, weight, codegen, List.of()));
         }
         return steps.stream();
     }

@@ -56,6 +56,18 @@ public final class Edge implements Comparable<Edge> {
                 Optional.empty());
     }
 
+    public static Edge elementSeed(final Node from, final Node to, final String strategyClassFqn) {
+        return new Edge(
+                from,
+                to,
+                Weights.SENTINEL_UNREALISED,
+                EdgeKind.SEED,
+                Optional.empty(),
+                Optional.empty(),
+                Optional.empty(),
+                Optional.of(strategyClassFqn));
+    }
+
     public static Edge realised(
             final Node from,
             final Node to,

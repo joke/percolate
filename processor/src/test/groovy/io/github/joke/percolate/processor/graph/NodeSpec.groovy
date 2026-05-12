@@ -177,7 +177,7 @@ class NodeSpec extends Specification {
         def phantom = new Node(Optional.of(phantomType), phantomLoc, scope, Optional.of(parent))
 
         then:
-        phantom.id() == 'map(Foo)::src[input]::Foo::elem'
+        phantom.id() == 'map(Foo)::src[input]::Foo::elem(element)::String'
     }
 
     def 'phantom node without parent throws on id()'() {

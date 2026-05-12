@@ -132,7 +132,11 @@ Candidate nodes and edges SHALL be accumulated as `GraphDelta` values and commit
 
 ### Requirement: BridgeSourceToTargetPhase
 
-`BridgeSourceToTargetPhase` SHALL iterate every `EdgeKind.SEED` edge and every `EdgeKind.SUB_SEED` edge whose `from` node is in source space and whose `to` node is in target space (or, for SUB_SEED, whose `to` is any typed intermediate node previously allocated by this phase).
+`BridgeSourceToTargetPhase` SHALL iterate three classes of edge on every pass:
+
+1. Every `EdgeKind.SEED` edge whose `from` node is in source space (location `SourceLocation`) and whose `to` node is in target space (location `TargetLocation`).
+2. Every `EdgeKind.SUB_SEED` edge regardless of endpoint location.
+3. Every `EdgeKind.SEED` edge whose `from` node and `to` node both have `Location` of type `ElementLocation` (element-scope SEEDs, emitted by container `Map` strategies per the element-seed emission rule).
 
 For each such edge:
 
@@ -166,6 +170,12 @@ If multiple `Bridge` strategies (or one strategy emitting multiple steps) match 
 - **WHEN** an earlier iteration emitted a SUB_SEED `src[g]:GR → src[g]:Dog` and the phase iterates again
 - **THEN** the phase invokes registered `Bridge` strategies with `(GR, Dog, ResolveCtx)` for that SUB_SEED
 
+#### Scenario: Phase processes element-scope SEED edges
+- **WHEN** a prior iteration emitted a SEED `elem(parent=src[xs]:List<Optional<GR>>):Optional<GR> → elem(parent=src[xs]:List<Pet>):Pet` from an `OptionalMap`-style strategy
+- **THEN** in the next pass, the phase iterates that SEED
+- **AND** invokes registered `Bridge` strategies with `(Optional<GR>, Pet, ResolveCtx)` for it
+- **AND** the resulting REALISED / SUB_SEED edges are emitted by the unified rule (with parent inheritance for any element-location allocations)
+
 ### Requirement: Bridge readiness predicate enforced by driver
 
 The `BridgeSourceToTargetPhase` SHALL guarantee that every `Bridge.bridge(...)` invocation receives `TypeMirror` arguments sourced from typed nodes only. Strategies SHALL never observe a `?`-typed node through the SPI. The phase enforces this by deferring any seed bridge whose endpoints lack realised counterparts.
@@ -178,46 +188,68 @@ The `BridgeSourceToTargetPhase` SHALL guarantee that every `Bridge.bridge(...)` 
 
 ### Requirement: Bridge edge-emission rule (unified)
 
-The phase SHALL apply the following rule for every `BridgeStep` returned by every `Bridge` query, regardless of whether the step represents a direct match or a chain hop:
+The phase SHALL apply the following rule for every `BridgeStep` returned by every `Bridge` query, regardless of whether the step represents a direct match, a chain hop, a container wrap/unwrap, or a container map:
 
-Let `F` be the seed's resolved typed source-side counterpart and `T` be the seed's resolved typed target-side counterpart. Given a `BridgeStep(inputType, outputType, weight, codegen)`:
+Let `F` be the seed's resolved typed source-side counterpart and `T` be the seed's resolved typed target-side counterpart. Given a `BridgeStep(inputType, outputType, weight, codegen, elementSeeds)`:
 
 1. The phase SHALL determine `inputNode`:
    - If `step.inputType` equals `F.type`, then `inputNode = F`.
-   - Otherwise, the phase SHALL find or allocate a `Node` with `scope = F.scope`, `loc = F.loc`, and `type = step.inputType`. If a node with this `(scope, loc, type)` identity already exists in the graph, that node is reused; otherwise a new node is allocated and added to the graph.
+   - Otherwise, the phase SHALL find or allocate a `Node` with `scope = F.scope`, `loc = F.loc`, `type = step.inputType`, and `parent = F.parent` if `F.loc instanceof ElementLocation` else `parent = Optional.empty()`. If a node with this `(scope, loc, type, parent)` identity already exists in the graph, that node is reused; otherwise a new node is allocated and added to the graph.
 
 2. The phase SHALL determine `outputNode`:
    - If `step.outputType` equals `T.type`, then `outputNode = T`.
-   - Otherwise, the phase SHALL find or allocate a `Node` with `scope = F.scope`, `loc = F.loc`, and `type = step.outputType`, with the same find-or-allocate semantics as for `inputNode`.
+   - Otherwise, the phase SHALL find or allocate a `Node` with `scope = F.scope`, `loc = F.loc`, `type = step.outputType`, and `parent = T.parent` if `F.loc instanceof ElementLocation` else `parent = Optional.empty()`. Find-or-allocate semantics as for `inputNode`.
 
 3. The phase SHALL emit one `EdgeKind.REALISED` edge from `inputNode` to `outputNode`, carrying `step.weight`, `step.codegen`, and the strategy's class FQN in `Edge.strategyClassFqn`.
 
 4. If `inputNode != F` (i.e. the input was allocated rather than identified with `F`), the phase SHALL emit one `EdgeKind.SUB_SEED` edge from `F` to `inputNode`, carrying weight `Weights.SENTINEL_UNREALISED` and the originating directive's `AnnotationMirror` (inherited from the seed that triggered the query). The SUB_SEED drives a subsequent outer-loop iteration to find a path from `F` to `inputNode`.
 
-The rule preserves the node-identity invariant: nodes are uniquely identified by `(scope, location, type)`, and two emissions converging on the same identity reuse the same node, becoming parallel edges.
+5. If `outputNode != T` (i.e. the output was allocated rather than identified with `T`), the phase SHALL emit one `EdgeKind.SUB_SEED` edge from `outputNode` to `T`, carrying weight `Weights.SENTINEL_UNREALISED` and the originating directive's `AnnotationMirror`. The SUB_SEED drives a subsequent outer-loop iteration to find a path from `outputNode` to `T`.
+
+6. For each `ElementSeed(role, innerInputType, innerOutputType)` in `step.elementSeeds`, the phase SHALL:
+   - Find or allocate an element `Node` `eFrom` with `scope = F.scope`, `loc = ElementLocation(role)`, `type = innerInputType`, `parent = Optional.of(inputNode)`.
+   - Find or allocate an element `Node` `eTo` with `scope = F.scope`, `loc = ElementLocation(role)`, `type = innerOutputType`, `parent = Optional.of(outputNode)`.
+   - Emit one `EdgeKind.SEED` edge from `eFrom` to `eTo`, carrying weight `Weights.SENTINEL_UNREALISED`, the emitting strategy's class FQN, and `Optional.empty()` for the directive.
+
+The rule preserves the node-identity invariant: nodes are uniquely identified by `(scope, location, type, parent)`, and two emissions converging on the same identity reuse the same node, becoming parallel edges.
 
 #### Scenario: Direct match emits one REALISED edge with no allocation and no SUB_SEED
-- **WHEN** a `BridgeStep` is emitted whose `inputType == F.type` and `outputType == T.type`
+- **WHEN** a `BridgeStep` is emitted whose `inputType == F.type`, `outputType == T.type`, and `elementSeeds` is empty
 - **THEN** the phase emits one REALISED edge `F → T`
 - **AND** no new node is allocated
 - **AND** no SUB_SEED is emitted
+- **AND** no element node or element SEED is emitted
 
 #### Scenario: Chain hop allocates an input intermediate and emits SUB_SEED
-- **WHEN** a `BridgeStep` is emitted whose `inputType` is not equal to `F.type` and whose `outputType` equals `T.type`
-- **THEN** the phase finds or allocates an intermediate node `I` with `(F.scope, F.loc, step.inputType)`
+- **WHEN** a `BridgeStep` is emitted whose `inputType` is not equal to `F.type`, whose `outputType` equals `T.type`, and `elementSeeds` is empty
+- **THEN** the phase finds or allocates an intermediate node `I` with `(F.scope, F.loc, step.inputType, parent: as F)`
 - **AND** the phase emits a REALISED edge `I → T`
 - **AND** the phase emits a SUB_SEED edge `F → I`
+- **AND** no element node or element SEED is emitted
 
 #### Scenario: Two strategies emitting the same intermediate type collapse on identity
 - **WHEN** two `Bridge` strategies each emit a `BridgeStep` with the same `inputType = X` (different from `F.type`) for the same seed
 - **THEN** the phase allocates exactly one intermediate node with `(F.scope, F.loc, X)` (the second strategy reuses the first's node)
 - **AND** the phase emits two parallel REALISED edges, both with target equal to the same shared intermediate (or its successor, depending on the steps' outputs)
 
-#### Scenario: Output type differs from T.type allocates an output intermediate
+#### Scenario: Output type differs from T.type allocates an output intermediate AND emits a SUB_SEED
 - **WHEN** a `BridgeStep` is emitted whose `outputType` is not equal to `T.type`
 - **THEN** the phase finds or allocates an intermediate node `O` with `(F.scope, F.loc, step.outputType)`
 - **AND** the phase emits a REALISED edge from `inputNode` to `O`
-- **AND** subsequent iterations may emit further bridges from `O` toward `T`
+- **AND** the phase emits a SUB_SEED edge from `O` to `T`
+
+#### Scenario: Container-map step emits outer REALISED edge AND element-scope seed
+- **WHEN** a `BridgeStep` is emitted whose `inputType == F.type`, `outputType == T.type`, and `elementSeeds = [ElementSeed("element", innerIn, innerOut)]`
+- **THEN** the phase emits one REALISED edge `F → T`
+- **AND** the phase allocates an element node `eFrom` with `(F.scope, ElementLocation("element"), innerIn, parent = F)`
+- **AND** the phase allocates an element node `eTo` with `(F.scope, ElementLocation("element"), innerOut, parent = T)`
+- **AND** the phase emits one SEED edge `eFrom → eTo`
+- **AND** no SUB_SEED is emitted at the outer level (both input and output match F and T)
+
+#### Scenario: Element-location intermediate inherits parent
+- **WHEN** the phase processes an element-scope SEED `eFrom → eTo` (both with `loc instanceof ElementLocation`) and a strategy emits a step whose `outputType != eTo.type`
+- **THEN** the phase allocates a new element node with `(eFrom.scope, eFrom.loc, step.outputType, parent = eTo.parent)`
+- **AND** that new node's `id()` correctly resolves through `parent.id()`
 
 ### Requirement: SUB_SEED edges drive outer-loop iteration
 
@@ -227,6 +259,8 @@ A SUB_SEED edge is processed identically to a SEED edge during expansion: the ph
 
 A SUB_SEED is "resolved" once a path of REALISED edges connects its FROM endpoint to its TO endpoint. The expansion driver does not explicitly track resolution; the outer fixed-point terminates when no phase has further work.
 
+SUB_SEED endpoints MAY belong to different parent nodes (e.g., an element-scope SUB_SEED whose FROM endpoint is parented by the source-side container node and whose TO endpoint is parented by the target-side container node). The driver SHALL NOT reject such SUB_SEEDs; they represent legitimate cross-parent chain segments within a single per-element computation.
+
 #### Scenario: SUB_SEED is iterated as a seed in subsequent passes
 - **WHEN** an iteration emits a SUB_SEED `F → I` and the outer loop re-runs the phase list
 - **THEN** in the next pass, `BridgeSourceToTargetPhase` queries every registered `Bridge` with `(F.type, I.type, ctx)`
@@ -235,6 +269,29 @@ A SUB_SEED is "resolved" once a path of REALISED edges connects its FROM endpoin
 - **WHEN** the chain `F → I1 → I2 → … → In → T` is being expanded and the strategy emits a step whose input type equals `F.type` for some intermediate
 - **THEN** the phase emits a REALISED edge from `F` to that intermediate without emitting a further SUB_SEED
 - **AND** subsequent iterations report no changes; the outer loop terminates
+
+#### Scenario: Cross-parent element-scope SUB_SEED is accepted
+- **WHEN** the unified rule emits a SUB_SEED from an element node `eA` (parented by node `cA`) to an element node `eB` (parented by node `cB`) where `cA != cB`
+- **THEN** the edge is added to the graph
+- **AND** subsequent iterations process this SUB_SEED like any other
+
+### Requirement: Container-Map outer REALISED edge represents an iteration
+
+A REALISED edge whose emitting strategy is a container "map"-shaped strategy (e.g., `OptionalMap`, `ListMap`, `SetMap`) SHALL be:
+
+- A single edge in the graph between the strategy's source-container node and target-container node, carrying the strategy's class FQN in `Edge.strategyClassFqn`.
+- Paired with at least one element-scope SEED whose endpoints are parented by this edge's `from` and `to` nodes respectively. The element-scope SEEDs SHALL exist in the graph as separate edges and be expanded by subsequent outer-loop iterations into element-scope REALISED edges (and possibly further SUB_SEEDs).
+
+The container-map edge's `codegen` field SHALL contain a lambda that, on `render(VarNames, IncomingValues)`, throws `UnsupportedOperationException` until the future codegen capability ships. The graph shape — the outer REALISED edge plus the parent-linked element-scope subgraph — is the complete container-expansion contract today.
+
+#### Scenario: Outer ListMap edge co-exists with its element-scope SEED
+- **WHEN** an outer REALISED edge `src[xs]:List<Dog> → tgt[]:List<Pet>` is emitted by `ListMap`
+- **THEN** the graph also contains an element-scope SEED edge whose FROM is `elem(parent=src[xs]:List<Dog>):Dog` and TO is `elem(parent=tgt[]:List<Pet>):Pet`
+
+#### Scenario: Outer container-map edge codegen throws
+- **WHEN** the `EdgeCodegen.render(VarNames, IncomingValues)` of an outer container-map REALISED edge is invoked
+- **THEN** an `UnsupportedOperationException` is thrown
+- **AND** the message names the future codegen capability
 
 ### Requirement: Self-call REALISED edges allowed
 
