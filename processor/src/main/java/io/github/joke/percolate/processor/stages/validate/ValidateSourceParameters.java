@@ -29,9 +29,7 @@ public final class ValidateSourceParameters implements Stage {
     }
 
     void validate(final MapperMappings mappings) {
-        for (final var methodMappings : mappings.getMethods()) {
-            validateMethod(methodMappings);
-        }
+        mappings.getMethods().forEach(this::validateMethod);
     }
 
     private void validateMethod(final MethodMappings methodMappings) {
@@ -41,16 +39,16 @@ public final class ValidateSourceParameters implements Stage {
                 .collect(toUnmodifiableSet());
         final var methodSig = formatMethodSig(method);
 
-        for (final var directive : methodMappings.getDirectives()) {
-            final var firstSegment = firstSegment(directive.getSource());
-            if (!paramNames.contains(firstSegment)) {
-                diagnostics.error(
-                        method,
-                        directive.getMirror(),
-                        directive.getSourceValue(),
-                        "unknown source parameter '" + firstSegment + "' in @Map on " + methodSig);
-            }
-        }
+        methodMappings.getDirectives().stream()
+                .filter(d -> !paramNames.contains(firstSegment(d.getSource())))
+                .forEach(d -> {
+                    final var seg = firstSegment(d.getSource());
+                    diagnostics.error(
+                            method,
+                            d.getMirror(),
+                            d.getSourceValue(),
+                            "unknown source parameter '" + seg + "' in @Map on " + methodSig);
+                });
     }
 
     private static String firstSegment(final String source) {

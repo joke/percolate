@@ -8,6 +8,8 @@ import io.github.joke.percolate.processor.spi.EdgeCodegen;
 import io.github.joke.percolate.processor.spi.MethodCandidate;
 import io.github.joke.percolate.processor.spi.ResolveCtx;
 import io.github.joke.percolate.processor.spi.Weights;
+import static java.util.stream.Collectors.toUnmodifiableList;
+
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
@@ -30,29 +32,25 @@ public final class MethodCallBridge implements Bridge {
             return Stream.empty();
         }
 
-        final List<BridgeStep> steps = new ArrayList<>();
-        for (final var candidate :
-                callableMethods.producing(targetType).collect(java.util.stream.Collectors.toUnmodifiableList())) {
-            final var method = candidate.getMethod();
-            final var params = method.getParameters();
-            if (params.size() != SINGLE_PARAM_COUNT) {
-                continue;
-            }
-            final var paramType = params.get(0).asType();
-            if (!ctx.types().isAssignable(sourceType, paramType)) {
-                continue;
-            }
-            final var returnType = method.getReturnType();
-            if (!ctx.types().isAssignable(returnType, targetType)) {
-                continue;
-            }
-            final var paramDistance = subtypeDistance(sourceType, paramType, ctx);
-            final var returnDistance = subtypeDistance(returnType, targetType, ctx);
-            final var weight = Weights.METHOD + paramDistance + returnDistance;
-            final var codegen = renderCodegen(candidate);
-            steps.add(new BridgeStep(paramType, returnType, weight, codegen, List.of()));
-        }
-        return steps.stream();
+        return callableMethods.producing(targetType)
+                .collect(toUnmodifiableList())
+                .stream()
+                .filter(candidate -> {
+                    final var method = candidate.getMethod();
+                    final var params = method.getParameters();
+                    return params.size() == SINGLE_PARAM_COUNT
+                            && ctx.types().isAssignable(sourceType, params.get(0).asType())
+                            && ctx.types().isAssignable(method.getReturnType(), targetType);
+                })
+                .map(candidate -> {
+                    final var method = candidate.getMethod();
+                    final var paramType = method.getParameters().get(0).asType();
+                    final var returnType = method.getReturnType();
+                    final var paramDistance = subtypeDistance(sourceType, paramType, ctx);
+                    final var returnDistance = subtypeDistance(returnType, targetType, ctx);
+                    final var weight = Weights.METHOD + paramDistance + returnDistance;
+                    return new BridgeStep(paramType, returnType, weight, renderCodegen(candidate), List.of());
+                });
     }
 
     private EdgeCodegen renderCodegen(final MethodCandidate candidate) {

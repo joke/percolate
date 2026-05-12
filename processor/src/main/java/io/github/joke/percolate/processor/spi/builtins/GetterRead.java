@@ -81,29 +81,14 @@ public final class GetterRead implements SourceStep {
 
     @Nullable
     private ExecutableElement findMethod(final TypeElement typeElement, final String name, final ResolveCtx ctx) {
-        ExecutableElement result = null;
-        boolean found = false;
-        for (final var enclosed : ctx.elements().getAllMembers(typeElement)) {
-            if (found) {
-                break;
-            }
-            if (enclosed.getKind() != ElementKind.METHOD) {
-                continue;
-            }
-            final var method = (ExecutableElement) enclosed;
-            if (!method.getSimpleName().contentEquals(name)) {
-                continue;
-            }
-            if (!method.getParameters().isEmpty()) {
-                continue;
-            }
-            if (isInObjectClass(method)) {
-                continue;
-            }
-            result = method;
-            found = true;
-        }
-        return result;
+        return ctx.elements().getAllMembers(typeElement).stream()
+                .filter(e -> e.getKind() == ElementKind.METHOD)
+                .map(ExecutableElement.class::cast)
+                .filter(m -> m.getSimpleName().contentEquals(name))
+                .filter(m -> m.getParameters().isEmpty())
+                .filter(m -> !isInObjectClass(m))
+                .findFirst()
+                .orElse(null);
     }
 
     private boolean isInObjectClass(final ExecutableElement method) {

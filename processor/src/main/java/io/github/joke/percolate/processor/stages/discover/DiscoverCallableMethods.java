@@ -1,5 +1,8 @@
 package io.github.joke.percolate.processor.stages.discover;
 
+import static java.util.stream.Collectors.groupingBy;
+import static java.util.stream.Collectors.toCollection;
+import static java.util.stream.Collectors.toList;
 import static java.util.stream.Collectors.toUnmodifiableList;
 
 import io.github.joke.percolate.processor.MapperContext;
@@ -8,14 +11,11 @@ import io.github.joke.percolate.processor.spi.MethodCandidate;
 import io.github.joke.percolate.processor.spi.ThisReceiver;
 import io.github.joke.percolate.processor.stages.Stage;
 import jakarta.inject.Inject;
-import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Stream;
-import javax.lang.model.element.Element;
 import javax.lang.model.element.ElementKind;
 import javax.lang.model.element.ExecutableElement;
 import javax.lang.model.element.TypeElement;
@@ -40,35 +40,15 @@ public final class DiscoverCallableMethods implements Stage {
     }
 
     private CallableMethods discover(final TypeElement mapperType) {
-        final List<ExecutableElement> allMembers = new ArrayList<>();
-        for (final var member : elements.getAllMembers(mapperType)) {
-            if (member instanceof ExecutableElement) {
-                allMembers.add((ExecutableElement) member);
-            }
-        }
-
-        final Set<ExecutableElement> filtered = new HashSet<>();
-        for (final Element member : allMembers) {
-            if (member.getKind() != ElementKind.METHOD) {
-                continue;
-            }
-            final var method = (ExecutableElement) member;
-            if (isInObjectClass(method)) {
-                continue;
-            }
-            if (method.getParameters().size() != SINGLE_PARAM_COUNT) {
-                continue;
-            }
-            filtered.add(method);
-        }
-
-        final Map<String, List<ExecutableElement>> indexByReturnType = new ConcurrentHashMap<>();
-        for (final var method : filtered) {
-            final var returnType = method.getReturnType();
-            final var key = returnType.toString();
-            indexByReturnType.computeIfAbsent(key, k -> new ArrayList<>()).add(method);
-        }
-
+        final Map<String, List<ExecutableElement>> indexByReturnType = elements.getAllMembers(mapperType).stream()
+                .filter(ExecutableElement.class::isInstance)
+                .map(ExecutableElement.class::cast)
+                .filter(m -> m.getKind() == ElementKind.METHOD)
+                .filter(m -> !isInObjectClass(m))
+                .filter(m -> m.getParameters().size() == SINGLE_PARAM_COUNT)
+                .collect(toCollection(HashSet::new))
+                .stream()
+                .collect(groupingBy(m -> m.getReturnType().toString(), ConcurrentHashMap::new, toList()));
         return new IndexCallableMethods(indexByReturnType, types);
     }
 
@@ -90,16 +70,9 @@ public final class DiscoverCallableMethods implements Stage {
 
         @Override
         public Stream<MethodCandidate> producing(final TypeMirror outputType) {
-            final List<ExecutableElement> candidates = new ArrayList<>();
-            for (final var methods : indexByReturnType.values()) {
-                for (final var method : methods) {
-                    final var methodReturnType = method.getReturnType();
-                    if (types.isAssignable(methodReturnType, outputType)) {
-                        candidates.add(method);
-                    }
-                }
-            }
-            return candidates.stream()
+            return indexByReturnType.values().stream()
+                    .flatMap(List::stream)
+                    .filter(m -> types.isAssignable(m.getReturnType(), outputType))
                     .map(m -> new MethodCandidate(m, ThisReceiver.INSTANCE))
                     .collect(toUnmodifiableList())
                     .stream();

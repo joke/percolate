@@ -1,5 +1,7 @@
 package io.github.joke.percolate.processor.graph;
 
+import static java.util.stream.Collectors.groupingBy;
+import static java.util.stream.Collectors.joining;
 import static java.util.stream.Collectors.toList;
 
 import java.util.ArrayList;
@@ -54,29 +56,19 @@ public final class DotRenderer {
     }
 
     private Map<Scope, List<Node>> buildNodesByScope(final List<Node> nodes) {
-        final var nodesByScope = new LinkedHashMap<Scope, List<Node>>();
-        for (final var node : nodes) {
-            nodesByScope
-                    .computeIfAbsent(node.getScope(), k -> new ArrayList<>())
-                    .add(node);
-        }
-        return nodesByScope;
+        return nodes.stream().collect(groupingBy(Node::getScope, LinkedHashMap::new, toList()));
     }
 
     private Map<Scope, List<Node>> buildPhantomNodesByParentScope(final List<Node> nodes) {
-        final var phantomNodesByParentScope = new LinkedHashMap<Scope, List<Node>>();
-        for (final var node : nodes) {
-            if (node.getLoc() instanceof ElementLocation) {
-                final var parent = node.getParent();
-                if (parent.isEmpty()) {
-                    throw new IllegalStateException("Phantom node without parent: " + node.id());
-                }
-                phantomNodesByParentScope
-                        .computeIfAbsent(parent.get().getScope(), k -> new ArrayList<>())
-                        .add(node);
-            }
-        }
-        return phantomNodesByParentScope;
+        return nodes.stream()
+                .filter(n -> n.getLoc() instanceof ElementLocation)
+                .collect(groupingBy(n -> {
+                    final var parent = n.getParent();
+                    if (parent.isEmpty()) {
+                        throw new IllegalStateException("Phantom node without parent: " + n.id());
+                    }
+                    return parent.get().getScope();
+                }, LinkedHashMap::new, toList()));
     }
 
     private void renderCluster(
@@ -151,15 +143,9 @@ public final class DotRenderer {
     }
 
     private void appendAttributes(final StringBuilder sb, final Map<String, String> attrs) {
-        final var first = new boolean[] {true};
-        for (final var entry : attrs.entrySet()) {
-            if (!first[0]) {
-                sb.append(", ");
-            }
-            final var attrLine = entry.getKey() + "=\"" + entry.getValue() + '"';
-            sb.append(attrLine);
-            first[0] = false;
-        }
+        sb.append(attrs.entrySet().stream()
+                .map(e -> e.getKey() + "=\"" + e.getValue() + '"')
+                .collect(joining(", ")));
     }
 
     private String nodeLabel(final Node node) {

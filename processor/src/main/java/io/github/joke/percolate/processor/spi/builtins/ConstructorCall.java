@@ -8,11 +8,15 @@ import io.github.joke.percolate.processor.spi.GroupTarget;
 import io.github.joke.percolate.processor.spi.ResolveCtx;
 import io.github.joke.percolate.processor.spi.Slot;
 import io.github.joke.percolate.processor.spi.Weights;
-import java.util.ArrayList;
+import static java.util.stream.Collectors.joining;
+import static java.util.stream.Collectors.toList;
+import static java.util.stream.Collectors.toSet;
+
 import java.util.HashSet;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
+import java.util.stream.IntStream;
 import javax.lang.model.element.ElementKind;
 import javax.lang.model.element.ExecutableElement;
 import javax.lang.model.element.TypeElement;
@@ -56,23 +60,15 @@ public final class ConstructorCall implements GroupTarget {
 
     private Optional<ExecutableElement> findConstructorByParamNames(
             final TypeElement typeElement, final Set<String> requiredNames) {
-        for (final var enclosed : typeElement.getEnclosedElements()) {
-            if (enclosed.getKind() != ElementKind.CONSTRUCTOR) {
-                continue;
-            }
-            final var ctor = (ExecutableElement) enclosed;
-            if (ctor.getParameters().size() != requiredNames.size()) {
-                continue;
-            }
-            final Set<String> paramNames = new HashSet<>();
-            for (final var param : ctor.getParameters()) {
-                paramNames.add(param.getSimpleName().toString());
-            }
-            if (paramNames.equals(requiredNames)) {
-                return Optional.of(ctor);
-            }
-        }
-        return Optional.empty();
+        return typeElement.getEnclosedElements().stream()
+                .filter(e -> e.getKind() == ElementKind.CONSTRUCTOR)
+                .map(ExecutableElement.class::cast)
+                .filter(ctor -> ctor.getParameters().size() == requiredNames.size())
+                .filter(ctor -> ctor.getParameters().stream()
+                        .map(p -> p.getSimpleName().toString())
+                        .collect(toSet())
+                        .equals(requiredNames))
+                .findFirst();
     }
 
     private Optional<GroupBuild> buildGroupByFieldNames(
@@ -86,26 +82,18 @@ public final class ConstructorCall implements GroupTarget {
     }
 
     private List<String> collectFieldNames(final TypeElement typeElement) {
-        final List<String> fieldNames = new ArrayList<>();
-        for (final var enclosed : typeElement.getEnclosedElements()) {
-            if (enclosed.getKind() == ElementKind.FIELD) {
-                fieldNames.add(enclosed.getSimpleName().toString());
-            }
-        }
-        return fieldNames;
+        return typeElement.getEnclosedElements().stream()
+                .filter(e -> e.getKind() == ElementKind.FIELD)
+                .map(e -> e.getSimpleName().toString())
+                .collect(toList());
     }
 
     private Optional<ExecutableElement> findConstructorByArity(final TypeElement typeElement, final int arity) {
-        for (final var enclosed : typeElement.getEnclosedElements()) {
-            if (enclosed.getKind() != ElementKind.CONSTRUCTOR) {
-                continue;
-            }
-            final var ctor = (ExecutableElement) enclosed;
-            if (ctor.getParameters().size() == arity) {
-                return Optional.of(ctor);
-            }
-        }
-        return Optional.empty();
+        return typeElement.getEnclosedElements().stream()
+                .filter(e -> e.getKind() == ElementKind.CONSTRUCTOR)
+                .map(ExecutableElement.class::cast)
+                .filter(ctor -> ctor.getParameters().size() == arity)
+                .findFirst();
     }
 
     private GroupBuild buildGroup(
@@ -119,22 +107,23 @@ public final class ConstructorCall implements GroupTarget {
                 && fieldNames.size() == targetTails.size()
                 && new HashSet<>(fieldNames).equals(requiredNames);
 
-        final List<Slot> slots = new ArrayList<>();
-        final List<String> slotNames = new ArrayList<>();
         final var params = ctor.getParameters();
-
-        for (var i = 0; i < params.size(); i++) {
-            final var param = params.get(i);
-            final var paramName = resolveParamName(
-                    nameMatch,
-                    fieldMatch,
-                    fieldNames,
-                    targetTails,
-                    param.getSimpleName().toString(),
-                    i);
-            slotNames.add(paramName);
-            slots.add(new Slot(paramName, param.asType(), Weights.STEP));
-        }
+        final List<Slot> slots = IntStream.range(0, params.size())
+                .mapToObj(i -> {
+                    final var param = params.get(i);
+                    final var paramName = resolveParamName(
+                            nameMatch,
+                            fieldMatch,
+                            fieldNames,
+                            targetTails,
+                            param.getSimpleName().toString(),
+                            i);
+                    return new Slot(paramName, param.asType(), Weights.STEP);
+                })
+                .collect(toList());
+        final List<String> slotNames = slots.stream()
+                .map(Slot::getName)
+                .collect(toList());
 
         return new GroupBuild(slots, buildCodegen(typeElement, slotNames));
     }
@@ -156,16 +145,8 @@ public final class ConstructorCall implements GroupTarget {
     }
 
     private GroupCodegen buildCodegen(final TypeElement typeElement, final List<String> slotNames) {
-        return (vars, inputs) -> {
-            final var builder = CodeBlock.builder().add("new $T(", typeElement.getQualifiedName());
-            for (var i = 0; i < slotNames.size(); i++) {
-                if (i > 0) {
-                    builder.add(", ");
-                }
-                builder.add("$L", slotNames.get(i));
-            }
-            builder.add(")");
-            return builder.build();
-        };
+        return (vars, inputs) -> CodeBlock.builder()
+                .add("new $T($L)", typeElement.getQualifiedName(), slotNames.stream().collect(joining(", ")))
+                .build();
     }
 }

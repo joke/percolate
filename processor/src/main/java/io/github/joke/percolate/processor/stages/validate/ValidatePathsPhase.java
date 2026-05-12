@@ -111,33 +111,23 @@ public final class ValidatePathsPhase implements ValidationPhase {
 
     @Nullable
     private Node findTypedMarkerTarget(final Node seedNode, final MapperGraph graph) {
-        for (final Edge edge : graph.edges().collect(toUnmodifiableList())) {
-            if (edge.getKind() != EdgeKind.MARKER) {
-                continue;
-            }
-            if (!edge.getFrom().equals(seedNode)) {
-                continue;
-            }
-            if (edge.getTo().getType().isPresent()) {
-                return edge.getTo();
-            }
-        }
-        return null;
+        return graph.edges()
+                .filter(e -> e.getKind() == EdgeKind.MARKER)
+                .filter(e -> e.getFrom().equals(seedNode))
+                .filter(e -> e.getTo().getType().isPresent())
+                .findFirst()
+                .map(Edge::getTo)
+                .orElse(null);
     }
 
     @Nullable
     private Node findTypedRealisedSource(final Node seedNode, final MapperGraph graph) {
-        for (final Edge edge : graph.edges().collect(toUnmodifiableList())) {
-            if (edge.getKind() != EdgeKind.REALISED) {
-                continue;
-            }
-            if (!edge.getTo().equals(seedNode)) {
-                continue;
-            }
-            if (edge.getFrom().getType().isPresent()) {
-                return edge.getFrom();
-            }
-        }
-        return null;
+        return graph.edges()
+                .filter(e -> e.getKind() == EdgeKind.REALISED)
+                .filter(e -> e.getTo().equals(seedNode))
+                .filter(e -> e.getFrom().getType().isPresent())
+                .findFirst()
+                .map(Edge::getFrom)
+                .orElse(null);
     }
 }

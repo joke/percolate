@@ -1,7 +1,10 @@
 package io.github.joke.percolate.processor.graph;
 
+import static java.util.stream.Collectors.toCollection;
+
 import java.util.Collections;
 import java.util.Comparator;
+import java.util.HashSet;
 import java.util.Set;
 import java.util.stream.Stream;
 import org.jgrapht.graph.MaskSubgraph;
@@ -14,11 +17,9 @@ public final class RealisedSubgraph {
     RealisedSubgraph(final MaskSubgraph<Node, Edge> subgraph, final MapperGraph delegate) {
         this.subgraph = subgraph;
         this.mapperGraph = delegate;
-        final var incident = new java.util.HashSet<Node>();
-        for (final var edge : subgraph.edgeSet()) {
-            incident.add(edge.getFrom());
-            incident.add(edge.getTo());
-        }
+        final var incident = subgraph.edgeSet().stream()
+                .flatMap(e -> Stream.of(e.getFrom(), e.getTo()))
+                .collect(toCollection(HashSet::new));
         this.incidentNodes = Collections.unmodifiableSet(incident);
     }
 

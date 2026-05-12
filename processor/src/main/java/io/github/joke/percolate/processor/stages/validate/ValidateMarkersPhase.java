@@ -25,13 +25,12 @@ public final class ValidateMarkersPhase implements ValidationPhase {
         }
         final Set<Node> checkedNodes = new HashSet<>();
 
-        for (final var edge : graph.edges().collect(toUnmodifiableList())) {
-            if (edge.getKind() != EdgeKind.SEED) {
-                continue;
-            }
-            checkNodeForMarkers(edge.getFrom(), edge, graph, typeElement, checkedNodes);
-            checkNodeForMarkers(edge.getTo(), edge, graph, typeElement, checkedNodes);
-        }
+        graph.edges()
+                .filter(e -> e.getKind() == EdgeKind.SEED)
+                .forEach(e -> {
+                    checkNodeForMarkers(e.getFrom(), e, graph, typeElement, checkedNodes);
+                    checkNodeForMarkers(e.getTo(), e, graph, typeElement, checkedNodes);
+                });
     }
 
     private void checkNodeForMarkers(
@@ -62,12 +61,8 @@ public final class ValidateMarkersPhase implements ValidationPhase {
     }
 
     private int countOutgoingMarkers(final Node node, final MapperGraph graph) {
-        var count = 0;
-        for (final var edge : graph.edges().collect(toUnmodifiableList())) {
-            if (edge.getKind() == EdgeKind.MARKER && edge.getFrom().equals(node)) {
-                count++;
-            }
-        }
-        return count;
+        return (int) graph.edges()
+                .filter(e -> e.getKind() == EdgeKind.MARKER && e.getFrom().equals(node))
+                .count();
     }
 }

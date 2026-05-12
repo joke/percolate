@@ -43,10 +43,9 @@ public final class ValidateNoDuplicateTargets implements Stage {
 
     void reportDuplicates(
             final ExecutableElement method, final String target, final List<MappingDirective> directives) {
-        for (var i = 1; i < directives.size(); i++) {
-            final var duplicate = directives.get(i);
-            diagnostics.error(
-                    method, duplicate.getMirror(), duplicate.getTargetValue(), "duplicate target '" + target + "'");
-        }
+        directives.stream().skip(1).forEach(duplicate ->
+                diagnostics.error(
+                        method, duplicate.getMirror(), duplicate.getTargetValue(),
+                        "duplicate target '" + target + "'"));
     }
 }
