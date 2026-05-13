@@ -253,18 +253,18 @@ class DotRendererSpec extends Specification {
         def to = new Node(Optional.empty(), new TargetLocation(TargetPath.of('y')), s, Optional.empty())
         graph.addNode(from)
         graph.addNode(to)
-        graph.addEdge(new Edge(from, to, 1, EdgeKind.REALISED, Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty()))
+        graph.addEdge(new Edge(from, to, 1, EdgeKind.REALISED, Optional.empty(), Optional.empty(), Optional.empty(), Optional.of('GetterRead')))
         def te = typeElement('com.example.NumericMapper')
 
         when:
         def output = renderer.render(graph, te)
 
         then:
-        output.contains('REALISED')
+        output.contains('GetterRead')
         output.contains('1')
     }
 
-    def 'strategyClassFqn appears in edge label when present'() {
+    def 'strategyClassFqn simple name appears in edge label'() {
         given:
         def renderer = new DotRenderer()
         def graph = new MapperGraph()
@@ -280,7 +280,10 @@ class DotRendererSpec extends Specification {
         def output = renderer.render(graph, te)
 
         then:
-        output.contains('GetterReadStrategy')
+        // Edge label should contain just the simple class name with weight
+        def edgeLine = output.split('\\n').find { it.contains('->') && it.contains('GetterReadStrategy') }
+        edgeLine != null
+        edgeLine.contains('GetterReadStrategy (1)')
     }
 
     def 'EdgeKind marker appears in edge label'() {
@@ -323,7 +326,7 @@ class DotRendererSpec extends Specification {
         output.contains('style="solid"')
     }
 
-    def 'REALISED edge has dashed style'() {
+    def 'REALISED edge has solid style with heavy penwidth'() {
         given:
         def renderer = new DotRenderer()
         def graph = new MapperGraph()
@@ -332,17 +335,18 @@ class DotRendererSpec extends Specification {
         def to = new Node(Optional.empty(), new TargetLocation(TargetPath.of('y')), s, Optional.empty())
         graph.addNode(from)
         graph.addNode(to)
-        graph.addEdge(new Edge(from, to, 1, EdgeKind.REALISED, Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty()))
-        def te = typeElement('com.example.DashedMapper')
+        graph.addEdge(new Edge(from, to, 1, EdgeKind.REALISED, Optional.empty(), Optional.empty(), Optional.empty(), Optional.of('GetterRead')))
+        def te = typeElement('com.example.SolidMapper')
 
         when:
         def output = renderer.render(graph, te)
 
         then:
-        output.contains('style="dashed"')
+        output.contains('style="solid"')
+        output.contains('penwidth="2.0"')
     }
 
-    def 'MARKER edge has dotted style'() {
+    def 'SUB_SEED edge has solid style with gray color'() {
         given:
         def renderer = new DotRenderer()
         def graph = new MapperGraph()
@@ -351,14 +355,16 @@ class DotRendererSpec extends Specification {
         def to = new Node(Optional.empty(), new TargetLocation(TargetPath.of('y')), s, Optional.empty())
         graph.addNode(from)
         graph.addNode(to)
-        graph.addEdge(new Edge(from, to, 0, EdgeKind.MARKER, Optional.empty(), Optional.empty(), Optional.empty(), Optional.of('com.example.Strategy')))
-        def te = typeElement('com.example.DottedMapper')
+        graph.addEdge(Edge.subSeed(from, to, 'AutoRecurse', Optional.empty()))
+        def te = typeElement('com.example.SubSeedStyleMapper')
 
         when:
         def output = renderer.render(graph, te)
 
         then:
-        output.contains('style="dotted"')
+        output.contains('style="solid"')
+        output.contains('penwidth="1.0"')
+        output.contains('color="#666666"')
     }
 
     def 'output ends with a single trailing newline'() {
@@ -423,5 +429,100 @@ class DotRendererSpec extends Specification {
         !output.contains('lambda')
         !output.contains('$')
         !output.contains('EdgeCodegen')
+    }
+
+    def 'node label has two lines: location and type'() {
+        given:
+        def renderer = new DotRenderer()
+        def graph = new MapperGraph()
+        def s = scope('map()')
+        def typeMirror = Mock(javax.lang.model.type.TypeMirror)
+        typeMirror.toString() >> 'java.lang.String'
+        def srcLoc = new Node(Optional.of(typeMirror), new SourceLocation(AccessPath.of('x')), s, Optional.empty())
+        graph.addNode(srcLoc)
+        def te = typeElement('com.example.TwoLineLabelMapper')
+
+        when:
+        def output = renderer.render(graph, te)
+
+        then:
+        output.contains('src[x]')
+        output.contains('String')
+        output.contains('\\n')
+    }
+
+    def 'java.lang prefix is stripped from type label'() {
+        given:
+        def renderer = new DotRenderer()
+        def graph = new MapperGraph()
+        def s = scope('map()')
+        def typeMirror = Mock(javax.lang.model.type.TypeMirror)
+        typeMirror.toString() >> 'java.lang.String'
+        def srcLoc = new Node(Optional.of(typeMirror), new SourceLocation(AccessPath.of('x')), s, Optional.empty())
+        graph.addNode(srcLoc)
+        def te = typeElement('com.example.StrippedJavaLangMapper')
+
+        when:
+        def output = renderer.render(graph, te)
+
+        then:
+        // Label should contain just 'String' (simplified)
+        def labelLine = output.split('\\n').find { it.contains('label=') && it.contains('src[x]') }
+        labelLine != null
+        labelLine.contains('String')
+        // Node id should still contain fully qualified type
+        output.contains('java.lang.String')
+    }
+
+    def 'non-java.lang package is preserved verbatim'() {
+        given:
+        def renderer = new DotRenderer()
+        def graph = new MapperGraph()
+        def s = scope('map()')
+        def typeMirror = Mock(javax.lang.model.type.TypeMirror)
+        typeMirror.toString() >> 'io.github.joke.testing.Person.Address'
+        def srcLoc = new Node(Optional.of(typeMirror), new SourceLocation(AccessPath.of('x')), s, Optional.empty())
+        graph.addNode(srcLoc)
+        def te = typeElement('com.example.PreservedPackageMapper')
+
+        when:
+        def output = renderer.render(graph, te)
+
+        then:
+        output.contains('io.github.joke.testing.Person.Address')
+    }
+
+    def 'untyped placeholder renders as ?'() {
+        given:
+        def renderer = new DotRenderer()
+        def graph = new MapperGraph()
+        def s = scope('map()')
+        def srcLoc = new Node(Optional.empty(), new SourceLocation(AccessPath.of('x')), s, Optional.empty())
+        graph.addNode(srcLoc)
+        def te = typeElement('com.example.UntypedMapper')
+
+        when:
+        def output = renderer.render(graph, te)
+
+        then:
+        output.contains('?')
+    }
+
+    def 'node id keeps fully qualified type while label is simplified'() {
+        given:
+        def renderer = new DotRenderer()
+        def graph = new MapperGraph()
+        def s = scope('map()')
+        def typeMirror = Mock(javax.lang.model.type.TypeMirror)
+        typeMirror.toString() >> 'java.lang.String'
+        def srcLoc = new Node(Optional.of(typeMirror), new SourceLocation(AccessPath.of('x')), s, Optional.empty())
+        graph.addNode(srcLoc)
+        def te = typeElement('com.example.QualifiedIdMapper')
+
+        when:
+        def output = renderer.render(graph, te)
+
+        then:
+        output.contains('java.lang.String')
     }
 }

@@ -6,6 +6,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import lombok.NoArgsConstructor;
 import org.jgrapht.alg.cycle.CycleDetector;
@@ -13,7 +14,7 @@ import org.jgrapht.graph.DirectedMultigraph;
 import org.jgrapht.graph.MaskSubgraph;
 
 @NoArgsConstructor
-public final class MapperGraph {
+public final class MapperGraph implements GraphSource {
     private final DirectedMultigraph<Node, Edge> graph = new DirectedMultigraph<>(Edge.class);
     private final Map<String, GroupCodegen> groupCodegens = new ConcurrentHashMap<>();
 
@@ -39,10 +40,12 @@ public final class MapperGraph {
                 .forEach(r -> groupCodegens.put(r.groupId, r.codegen));
     }
 
+    @Override
     public Stream<Node> nodes() {
         return graph.vertexSet().stream().sorted(Comparator.comparing(Node::id));
     }
 
+    @Override
     public Stream<Edge> edges() {
         return graph.edgeSet().stream().sorted(Comparator.naturalOrder());
     }
@@ -62,6 +65,10 @@ public final class MapperGraph {
     public RealisedSubgraph realisedSubgraph() {
         final var mask = new MaskSubgraph<>(graph, v -> false, e -> e.getKind() != EdgeKind.REALISED);
         return new RealisedSubgraph(mask, this);
+    }
+
+    public ExpandedGraphView expandedView() {
+        return new ExpandedGraphView(this);
     }
 
     public void addGroupCodegen(final String groupId, final GroupCodegen codegen) {

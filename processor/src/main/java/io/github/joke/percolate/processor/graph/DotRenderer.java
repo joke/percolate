@@ -11,6 +11,7 @@ import java.util.Map;
 import java.util.TreeMap;
 import java.util.concurrent.ConcurrentHashMap;
 import javax.lang.model.element.TypeElement;
+import javax.lang.model.type.TypeMirror;
 import lombok.NoArgsConstructor;
 
 @NoArgsConstructor
@@ -19,24 +20,23 @@ public final class DotRenderer {
     private static final String SOURCE_SHAPE = "box";
     private static final String TARGET_SHAPE = "oval";
     private static final String PHANTOM_SHAPE = "diamond";
-    private static final String SENTINEL_LABEL = "∞";
+    private static final String SENTINEL_LABEL = "\u221E";
 
     private static final Map<EdgeKind, String> KIND_STYLE = new ConcurrentHashMap<>();
 
     static {
         KIND_STYLE.put(EdgeKind.SEED, "solid");
-        KIND_STYLE.put(EdgeKind.REALISED, "dashed");
-        KIND_STYLE.put(EdgeKind.MARKER, "dotted");
-        KIND_STYLE.put(EdgeKind.SUB_SEED, "bold");
+        KIND_STYLE.put(EdgeKind.REALISED, "solid");
+        KIND_STYLE.put(EdgeKind.SUB_SEED, "solid");
     }
 
-    public String render(final MapperGraph graph, final TypeElement mapperType) {
+    public String render(final GraphSource source, final TypeElement mapperType) {
         final var sb = new StringBuilder(128);
         sb.append("digraph \"")
                 .append(escapeDot(mapperType.getQualifiedName().toString()))
                 .append("\" {\n");
 
-        final var sortedNodes = graph.nodes().collect(toList());
+        final var sortedNodes = source.nodes().collect(toList());
         final var nodesByScope = buildNodesByScope(sortedNodes);
         final var phantomNodesByParentScope = buildPhantomNodesByParentScope(sortedNodes);
 
@@ -47,7 +47,7 @@ public final class DotRenderer {
             renderCluster(sb, entry.getKey(), entry.getValue(), phantomNodesByParentScope);
         }
 
-        for (final var edge : graph.edges().collect(toList())) {
+        for (final var edge : source.edges().collect(toList())) {
             renderEdge(sb, edge);
         }
 
@@ -116,19 +116,8 @@ public final class DotRenderer {
         final var toId = escapeDot(edge.getTo().id());
         final var attrs = new TreeMap<String, String>();
 
-        final var weightLabel =
-                Weights.isSentinel(edge.getWeight()) ? SENTINEL_LABEL : String.valueOf(edge.getWeight());
-
-        final var labelParts = new ArrayList<String>();
-        labelParts.add(edge.getKind().name());
-        labelParts.add(weightLabel);
-        if (edge.getDirective().isPresent()) {
-            labelParts.add("directive");
-        }
-        if (edge.getStrategyClassFqn().isPresent()) {
-            labelParts.add(edge.getStrategyClassFqn().get());
-        }
-        attrs.put("label", escapeDot(String.join(" | ", labelParts)));
+        final var label = buildEdgeLabel(edge);
+        attrs.put("label", escapeDot(label));
 
         if (edge.getGroupId().isPresent()) {
             attrs.put("group", escapeDot(edge.getGroupId().get()));
@@ -137,9 +126,87 @@ public final class DotRenderer {
         final var style = KIND_STYLE.getOrDefault(edge.getKind(), "solid");
         attrs.put("style", style);
 
+        final var penwidth = edgePenwidth(edge.getKind());
+        attrs.put("penwidth", String.valueOf(penwidth));
+
+        final var colorOpt = edgeColor(edge.getKind());
+        if (colorOpt.isPresent()) {
+            attrs.put("color", colorOpt.get());
+        }
+
         sb.append("    \"").append(fromId).append("\" -> \"").append(toId).append("\" [");
         appendAttributes(sb, attrs);
         sb.append("];\n");
+    }
+
+    private String buildEdgeLabel(final Edge edge) {
+        switch (edge.getKind()) {
+            case REALISED:
+                return buildRealisedLabel(edge);
+            case SUB_SEED:
+                return "SUB_SEED";
+            case SEED:
+                return buildSeedLabel(edge);
+            case MARKER:
+                return buildMarkerLabel(edge);
+            default:
+                return edge.getKind().name();
+        }
+    }
+
+    private String buildRealisedLabel(final Edge edge) {
+        final var weightLabel =
+                Weights.isSentinel(edge.getWeight()) ? SENTINEL_LABEL : String.valueOf(edge.getWeight());
+        final var strategyShort = edge.getStrategyClassFqn()
+                .map(this::simpleClassName)
+                .orElse("");
+        if (strategyShort.isEmpty()) {
+            return weightLabel;
+        }
+        return strategyShort + " (" + weightLabel + ")";
+    }
+
+    private String buildSeedLabel(final Edge edge) {
+        final var weightLabel =
+                Weights.isSentinel(edge.getWeight()) ? SENTINEL_LABEL : String.valueOf(edge.getWeight());
+        final var parts = new ArrayList<String>();
+        parts.add("SEED");
+        parts.add(weightLabel);
+        if (edge.getDirective().isPresent()) {
+            parts.add("directive");
+        }
+        if (edge.getStrategyClassFqn().isPresent()) {
+            parts.add(edge.getStrategyClassFqn().get());
+        }
+        return String.join(" | ", parts);
+    }
+
+    private String buildMarkerLabel(final Edge edge) {
+        final var weightLabel =
+                Weights.isSentinel(edge.getWeight()) ? SENTINEL_LABEL : String.valueOf(edge.getWeight());
+        return "MARKER | " + weightLabel;
+    }
+
+    private String simpleClassName(final String fqn) {
+        final var lastDot = fqn.lastIndexOf('.');
+        if (lastDot >= 0) {
+            return fqn.substring(lastDot + 1);
+        }
+        return fqn;
+    }
+
+    private static String edgePenwidth(final EdgeKind kind) {
+        if (kind == EdgeKind.REALISED) {
+            return "2.0";
+        }
+        return "1.0";
+    }
+
+    private static java.util.Optional<String> edgeColor(final EdgeKind kind) {
+        if (kind == EdgeKind.SUB_SEED) {
+            return java.util.Optional.of("#666666");
+        }
+        return java.util.Optional.empty();
     }
 
     private void appendAttributes(final StringBuilder sb, final Map<String, String> attrs) {
@@ -151,18 +218,32 @@ public final class DotRenderer {
     private String nodeLabel(final Node node) {
         final var loc = node.getLoc();
         if (loc == null) {
+            return "?\n?";
+        }
+        final String locationSegment;
+        if (loc instanceof SourceLocation) {
+            locationSegment = "src[" + ((SourceLocation) loc).getPath() + "]";
+        } else if (loc instanceof TargetLocation) {
+            locationSegment = "tgt[" + ((TargetLocation) loc).getPath() + "]";
+        } else if (loc instanceof ElementLocation) {
+            locationSegment = loc.segment();
+        } else {
+            locationSegment = "?";
+        }
+        final var typeSegment = simplifyTypeName(node.getType().map(TypeMirror::toString).orElse("?"));
+        return locationSegment + "\n" + typeSegment;
+    }
+
+    static String simplifyTypeName(final String typeName) {
+        if (typeName.equals("?")) {
             return "?";
         }
-        if (loc instanceof SourceLocation) {
-            return "src[" + ((SourceLocation) loc).getPath() + "]";
-        }
-        if (loc instanceof TargetLocation) {
-            return "tgt[" + ((TargetLocation) loc).getPath() + "]";
-        }
-        if (loc instanceof ElementLocation) {
-            return loc.segment();
-        }
-        return "?";
+        return stripJavaLangRecursive(typeName);
+    }
+
+    private static String stripJavaLangRecursive(final String typeName) {
+        final var result = typeName.replaceAll("(?<![^<>])java\\.lang\\.", "");
+        return result;
     }
 
     static String escapeDot(final String input) {

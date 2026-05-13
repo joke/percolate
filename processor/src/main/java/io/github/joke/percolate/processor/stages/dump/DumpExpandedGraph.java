@@ -42,7 +42,7 @@ public final class DumpExpandedGraph implements Stage {
 
         final var fqn = mapperType.getQualifiedName().toString();
         final var fileName = fqn + ".expanded.dot";
-        final var dotOutput = dotRenderer.render(graph, mapperType);
+        final var dotOutput = dotRenderer.render(graph.expandedView(), mapperType);
 
         try {
             final var resource = filer.createResource(StandardLocation.SOURCE_OUTPUT, "", fileName, mapperType);
