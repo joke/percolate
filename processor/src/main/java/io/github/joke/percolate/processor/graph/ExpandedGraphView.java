@@ -25,7 +25,7 @@ final class ExpandedGraphView implements GraphSource {
         return delegate.edges().filter(this::edgeShouldPass);
     }
 
-    public Stream<Node> nodesByScope(final Scope scope) {
+    Stream<Node> nodesByScope(final Scope scope) {
         return nodes().filter(n -> n.getScope().equals(scope));
     }
 

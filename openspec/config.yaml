@@ -12,7 +12,7 @@ rules:
   design:
   - Include mermaid diagrams for complex flows
   tasks:
-  - Always add a final task to run `./gradlew check` to verify everything. Fix if needed.
+  - Always add a final task to run `./gradlew check` to verify everything. NEVER continue if there are violations!
   
 
 # Project context (optional)

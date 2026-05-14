@@ -21,13 +21,15 @@ public final class DotRenderer {
     private static final String TARGET_SHAPE = "oval";
     private static final String PHANTOM_SHAPE = "diamond";
     private static final String SENTINEL_LABEL = "\u221E";
+    private static final String SOLID_STYLE = "solid";
+    private static final String UNKNOWN_TYPE = "?";
 
     private static final Map<EdgeKind, String> KIND_STYLE = new ConcurrentHashMap<>();
 
     static {
-        KIND_STYLE.put(EdgeKind.SEED, "solid");
-        KIND_STYLE.put(EdgeKind.REALISED, "solid");
-        KIND_STYLE.put(EdgeKind.SUB_SEED, "solid");
+        KIND_STYLE.put(EdgeKind.SEED, SOLID_STYLE);
+        KIND_STYLE.put(EdgeKind.REALISED, SOLID_STYLE);
+        KIND_STYLE.put(EdgeKind.SUB_SEED, SOLID_STYLE);
     }
 
     public String render(final GraphSource source, final TypeElement mapperType) {
@@ -126,7 +128,7 @@ public final class DotRenderer {
             attrs.put("group", escapeDot(edge.getGroupId().get()));
         }
 
-        final var style = KIND_STYLE.getOrDefault(edge.getKind(), "solid");
+        final var style = KIND_STYLE.getOrDefault(edge.getKind(), SOLID_STYLE);
         attrs.put("style", style);
 
         final var penwidth = edgePenwidth(edge.getKind());
@@ -143,18 +145,17 @@ public final class DotRenderer {
     }
 
     private String buildEdgeLabel(final Edge edge) {
-        switch (edge.getKind()) {
-            case REALISED:
-                return buildRealisedLabel(edge);
-            case SUB_SEED:
-                return "SUB_SEED";
-            case SEED:
-                return buildSeedLabel(edge);
-            case MARKER:
-                return buildMarkerLabel(edge);
-            default:
-                return edge.getKind().name();
+        final EdgeKind kind = edge.getKind();
+        if (kind == EdgeKind.REALISED) {
+            return buildRealisedLabel(edge);
         }
+        if (kind == EdgeKind.SUB_SEED) {
+            return "SUB_SEED";
+        }
+        if (kind == EdgeKind.SEED) {
+            return buildSeedLabel(edge);
+        }
+        return buildMarkerLabel(edge);
     }
 
     private String buildRealisedLabel(final Edge edge) {
@@ -238,15 +239,14 @@ public final class DotRenderer {
     }
 
     static String simplifyTypeName(final String typeName) {
-        if (typeName.equals("?")) {
-            return "?";
+        if (UNKNOWN_TYPE.equals(typeName)) {
+            return UNKNOWN_TYPE;
         }
         return stripJavaLangRecursive(typeName);
     }
 
     private static String stripJavaLangRecursive(final String typeName) {
-        final var result = typeName.replaceAll("(?<![^<>])java\\.lang\\.", "");
-        return result;
+        return typeName.replaceAll("(?<![^<>])java\\.lang\\.", "");
     }
 
     static String escapeDot(final String input) {
