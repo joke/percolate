@@ -47,4 +47,10 @@ dependencies {
     testRuntimeOnly 'net.bytebuddy:byte-buddy'
     testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
     testRuntimeOnly 'org.mockito:mockito-junit-jupiter'
+
+//    dependencies {
+//        codenarc platform(project.project(':dependencies'))
+////        codenarc "org.apache.groovy:groovy:5.0.6"
+//        codenarc 'org.codenarc:CodeNarc:3.7.0-groovy-4.0'
+//    }
 }

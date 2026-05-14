@@ -1,12 +1,13 @@
 plugins {
-    id 'net.ltgt.nullaway' apply false
-    id 'net.ltgt.errorprone' apply false
     id 'com.diffplug.gradle.spotless' apply false
     id 'com.palantir.baseline' apply false
+    id 'net.ltgt.errorprone' apply false
+    id 'net.ltgt.nullaway' apply false
+    id 'org.danilopianini.cpd' apply false
 }
 
 subprojects { project ->
-    group 'io.github.joke.percolate'
+    group = 'io.github.joke.percolate'
 
     repositories {
         mavenCentral()
@@ -23,6 +24,7 @@ subprojects { project ->
         pluginManager.apply 'net.ltgt.errorprone'
         pluginManager.apply 'jacoco'
         pluginManager.apply 'pmd'
+        pluginManager.apply 'org.danilopianini.cpd'
         // pluginManager.apply 'com.palantir.baseline-format'
         tasks.withType(JavaCompile).configureEach {
             options.release = 11
@@ -62,6 +64,28 @@ subprojects { project ->
         }
     }
 
+    pluginManager.withPlugin('groovy') {
+        pluginManager.apply 'codenarc'
+        codenarc {
+            configFile = file("$rootDir/.codenarc.groovy")
+            maxPriority1Violations = 0
+            maxPriority2Violations = 0
+            maxPriority3Violations = 0
+        }
+        dependencies {
+            codenarc platform(project.project(':dependencies'))
+            codenarc 'org.codenarc:CodeNarc'
+        }
+        tasks.withType(CodeNarc).configureEach {
+            reports {
+                xml.required = false
+                html.required = true
+                text.required = true
+            }
+        }
+    }
+
+
     pluginManager.withPlugin('jacoco') {
         tasks.withType(JacocoReport).configureEach {
             dependsOn test
@@ -92,10 +116,22 @@ subprojects { project ->
 
     pluginManager.withPlugin('pmd') {
         pmd {
-            consoleOutput = true
-            toolVersion = "7.24.0"
+            consoleOutput = false
+            toolVersion = '7.24.0' // keep in sync with below
             rulesMinimumPriority = 5
             ruleSets = ["$rootDir/.pmd.xml"]
+        }
+    }
+
+    pluginManager.withPlugin('org.danilopianini.cpd') {
+        cpd {
+            toolVersion = '7.24.0' // keep in sync with above
+        }
+        tasks.named('cpdCheck') {
+            reports {
+                text.required = true
+                xml.required = true
+            }
         }
     }
 
