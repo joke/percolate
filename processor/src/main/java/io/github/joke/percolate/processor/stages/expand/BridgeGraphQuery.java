@@ -15,7 +15,6 @@ import lombok.experimental.UtilityClass;
 import org.jspecify.annotations.Nullable;
 
 @UtilityClass
-@SuppressWarnings("PMD.AtLeastOneConstructor")
 public class BridgeGraphQuery {
 
     public List<Edge> collectFlavorTwoSeedEdges(final MapperGraph graph) {

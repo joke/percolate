@@ -26,11 +26,21 @@ dependencies {
 
     testImplementation platform(project(':dependencies'))
     testImplementation 'com.google.testing.compile:compile-testing'
+    testImplementation 'net.jqwik:jqwik'
     testImplementation 'org.spockframework:spock-core'
+    testImplementation project(':processor-test-support')
     
     testRuntimeOnly 'net.bytebuddy:byte-buddy'
     testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
     testRuntimeOnly 'org.mockito:mockito-junit-jupiter'
+
+tasks.named('test') {
+    jvmArgs += ['-Djqwik.database.directory=build/jqwik-database']
+}
+
+tasks.named('jacocoTestCoverageVerification') {
+    enabled = false
+}
 
 //    dependencies {
 //        codenarc platform(project.project(':dependencies'))

@@ -7,7 +7,6 @@ import javax.lang.model.type.TypeMirror;
 import lombok.experimental.UtilityClass;
 
 @UtilityClass
-@SuppressWarnings("PMD.AtLeastOneConstructor")
 public class Containers {
 
     public boolean isOptional(final TypeMirror t, final ResolveCtx ctx) {

@@ -46,7 +46,7 @@ import org.jspecify.annotations.Nullable;
 @Module
 @RequiredArgsConstructor(onConstructor_ = @Inject)
 @EqualsAndHashCode(onlyExplicitlyIncluded = true)
-final class ProcessorModule {
+public final class ProcessorModule {
 
     private static final ThreadLocal<MapperContext> CURRENT_CONTEXT = new ThreadLocal<>();
 
@@ -129,9 +129,27 @@ final class ProcessorModule {
         return new DumpGraph(filer, diagnostics, processorOptions, dotRenderer);
     }
 
-    @Provides
-    ExpandStage expandStage(final List<ExpansionPhase> phases, final Diagnostics diagnostics) {
+    public static ExpandStage assembleExpansionPipeline(
+            final List<Bridge> bridges,
+            final List<SourceStep> sourceSteps,
+            final List<GroupTarget> groupTargets,
+            final ResolveCtx resolveCtx,
+            final Diagnostics diagnostics) {
+        final var sourcePhase = new ResolveSourceChainsPhase(sourceSteps, resolveCtx);
+        final var targetPhase = new ResolveTargetChainsPhase(groupTargets, resolveCtx);
+        final var bridgePhase = new BridgeSourceToTargetPhase(bridges, resolveCtx);
+        final var phases = List.<ExpansionPhase>of(sourcePhase, targetPhase, bridgePhase);
         return new ExpandStage(phases, diagnostics);
+    }
+
+    @Provides
+    ExpandStage expandStage(
+            final List<Bridge> bridges,
+            final List<SourceStep> sourceSteps,
+            final List<GroupTarget> groupTargets,
+            final ResolveCtx resolveCtx,
+            final Diagnostics diagnostics) {
+        return assembleExpansionPipeline(bridges, sourceSteps, groupTargets, resolveCtx, diagnostics);
     }
 
     @Provides
@@ -159,30 +177,6 @@ final class ProcessorModule {
             final ProcessorOptions processorOptions,
             final DotRenderer dotRenderer) {
         return new DumpExpandedGraph(filer, diagnostics, processorOptions, dotRenderer);
-    }
-
-    @Provides
-    ResolveSourceChainsPhase resolveSourceChainsPhase(final List<SourceStep> sourceSteps, final ResolveCtx resolveCtx) {
-        return new ResolveSourceChainsPhase(sourceSteps, resolveCtx);
-    }
-
-    @Provides
-    ResolveTargetChainsPhase resolveTargetChainsPhase(
-            final List<GroupTarget> groupTargets, final ResolveCtx resolveCtx) {
-        return new ResolveTargetChainsPhase(groupTargets, resolveCtx);
-    }
-
-    @Provides
-    BridgeSourceToTargetPhase bridgeSourceToTargetPhase(final List<Bridge> bridges, final ResolveCtx resolveCtx) {
-        return new BridgeSourceToTargetPhase(bridges, resolveCtx);
-    }
-
-    @Provides
-    static List<ExpansionPhase> expansionPhases(
-            final ResolveSourceChainsPhase sourceChains,
-            final ResolveTargetChainsPhase targetChains,
-            final BridgeSourceToTargetPhase bridgePhase) {
-        return List.of(sourceChains, targetChains, bridgePhase);
     }
 
     @Provides
