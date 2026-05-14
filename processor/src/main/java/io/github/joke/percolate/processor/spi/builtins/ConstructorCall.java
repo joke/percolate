@@ -1,5 +1,9 @@
 package io.github.joke.percolate.processor.spi.builtins;
 
+import static java.util.stream.Collectors.joining;
+import static java.util.stream.Collectors.toList;
+import static java.util.stream.Collectors.toSet;
+
 import com.google.auto.service.AutoService;
 import com.palantir.javapoet.CodeBlock;
 import io.github.joke.percolate.processor.spi.GroupBuild;
@@ -8,10 +12,6 @@ import io.github.joke.percolate.processor.spi.GroupTarget;
 import io.github.joke.percolate.processor.spi.ResolveCtx;
 import io.github.joke.percolate.processor.spi.Slot;
 import io.github.joke.percolate.processor.spi.Weights;
-import static java.util.stream.Collectors.joining;
-import static java.util.stream.Collectors.toList;
-import static java.util.stream.Collectors.toSet;
-
 import java.util.HashSet;
 import java.util.List;
 import java.util.Optional;
@@ -121,9 +121,7 @@ public final class ConstructorCall implements GroupTarget {
                     return new Slot(paramName, param.asType(), Weights.STEP);
                 })
                 .collect(toList());
-        final List<String> slotNames = slots.stream()
-                .map(Slot::getName)
-                .collect(toList());
+        final List<String> slotNames = slots.stream().map(Slot::getName).collect(toList());
 
         return new GroupBuild(slots, buildCodegen(typeElement, slotNames));
     }
@@ -146,7 +144,10 @@ public final class ConstructorCall implements GroupTarget {
 
     private GroupCodegen buildCodegen(final TypeElement typeElement, final List<String> slotNames) {
         return (vars, inputs) -> CodeBlock.builder()
-                .add("new $T($L)", typeElement.getQualifiedName(), slotNames.stream().collect(joining(", ")))
+                .add(
+                        "new $T($L)",
+                        typeElement.getQualifiedName(),
+                        slotNames.stream().collect(joining(", ")))
                 .build();
     }
 }

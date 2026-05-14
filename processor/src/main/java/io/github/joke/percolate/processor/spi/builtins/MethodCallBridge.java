@@ -1,5 +1,7 @@
 package io.github.joke.percolate.processor.spi.builtins;
 
+import static java.util.stream.Collectors.toUnmodifiableList;
+
 import com.google.auto.service.AutoService;
 import com.palantir.javapoet.CodeBlock;
 import io.github.joke.percolate.processor.spi.Bridge;
@@ -8,8 +10,6 @@ import io.github.joke.percolate.processor.spi.EdgeCodegen;
 import io.github.joke.percolate.processor.spi.MethodCandidate;
 import io.github.joke.percolate.processor.spi.ResolveCtx;
 import io.github.joke.percolate.processor.spi.Weights;
-import static java.util.stream.Collectors.toUnmodifiableList;
-
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
@@ -32,14 +32,13 @@ public final class MethodCallBridge implements Bridge {
             return Stream.empty();
         }
 
-        return callableMethods.producing(targetType)
-                .collect(toUnmodifiableList())
-                .stream()
+        return callableMethods.producing(targetType).collect(toUnmodifiableList()).stream()
                 .filter(candidate -> {
                     final var method = candidate.getMethod();
                     final var params = method.getParameters();
                     return params.size() == SINGLE_PARAM_COUNT
-                            && ctx.types().isAssignable(sourceType, params.get(0).asType())
+                            && ctx.types()
+                                    .isAssignable(sourceType, params.get(0).asType())
                             && ctx.types().isAssignable(method.getReturnType(), targetType);
                 })
                 .map(candidate -> {

@@ -1,3 +1,0 @@
-moduleName=percolate-processor-test-modules
-moduleVersion=1.0
-extensionClasses=io.github.joke.percolate.processor.graph.MapperGraphExtensions(MapperGraph)

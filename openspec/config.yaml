@@ -11,6 +11,8 @@ rules:
   - Identify affected teams
   design:
   - Include mermaid diagrams for complex flows
+  tasks:
+  - Always add a final task to run `./gradlew check` to verify everything. Fix if needed.
   
 
 # Project context (optional)

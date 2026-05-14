@@ -3,22 +3,6 @@ plugins {
     id 'groovy'
 }
 
-tasks.register('updateGoldens') {
-    description = 'Regenerate golden DOT files by compiling fixture mappers'
-    group = 'verification'
-    doLast {
-        def goldenDir = file('src/test/resources/golden-graphs')
-        if (!goldenDir.exists()) {
-            goldenDir.mkdirs()
-        }
-        ant.property(file: project.file('gradle.properties'))
-        def updateFlag = project.findProperty('updateGoldens')
-        if (updateFlag) {
-            println 'Regenerating golden files (updateGoldens=true)'
-        }
-    }
-}
-
 dependencies {
     annotationProcessor platform(project(':dependencies'))
     annotationProcessor 'org.projectlombok:lombok'

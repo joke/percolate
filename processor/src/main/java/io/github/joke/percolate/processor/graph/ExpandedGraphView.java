@@ -11,9 +11,8 @@ final class ExpandedGraphView implements GraphSource {
 
     ExpandedGraphView(final MapperGraph delegate) {
         this.delegate = delegate;
-        this.typedNodes = delegate.nodes()
-                .filter(n -> n.getType().isPresent())
-                .collect(Collectors.toCollection(HashSet::new));
+        this.typedNodes =
+                delegate.nodes().filter(n -> n.getType().isPresent()).collect(Collectors.toCollection(HashSet::new));
     }
 
     @Override
@@ -35,8 +34,7 @@ final class ExpandedGraphView implements GraphSource {
             return true;
         }
         for (final var typed : typedNodes) {
-            if (typed.getScope().equals(node.getScope())
-                    && typed.getLoc().equals(node.getLoc())) {
+            if (typed.getScope().equals(node.getScope()) && typed.getLoc().equals(node.getLoc())) {
                 return false;
             }
         }

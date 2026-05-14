@@ -62,13 +62,16 @@ public final class DotRenderer {
     private Map<Scope, List<Node>> buildPhantomNodesByParentScope(final List<Node> nodes) {
         return nodes.stream()
                 .filter(n -> n.getLoc() instanceof ElementLocation)
-                .collect(groupingBy(n -> {
-                    final var parent = n.getParent();
-                    if (parent.isEmpty()) {
-                        throw new IllegalStateException("Phantom node without parent: " + n.id());
-                    }
-                    return parent.get().getScope();
-                }, LinkedHashMap::new, toList()));
+                .collect(groupingBy(
+                        n -> {
+                            final var parent = n.getParent();
+                            if (parent.isEmpty()) {
+                                throw new IllegalStateException("Phantom node without parent: " + n.id());
+                            }
+                            return parent.get().getScope();
+                        },
+                        LinkedHashMap::new,
+                        toList()));
     }
 
     private void renderCluster(
@@ -157,9 +160,8 @@ public final class DotRenderer {
     private String buildRealisedLabel(final Edge edge) {
         final var weightLabel =
                 Weights.isSentinel(edge.getWeight()) ? SENTINEL_LABEL : String.valueOf(edge.getWeight());
-        final var strategyShort = edge.getStrategyClassFqn()
-                .map(this::simpleClassName)
-                .orElse("");
+        final var strategyShort =
+                edge.getStrategyClassFqn().map(this::simpleClassName).orElse("");
         if (strategyShort.isEmpty()) {
             return weightLabel;
         }
@@ -230,7 +232,8 @@ public final class DotRenderer {
         } else {
             locationSegment = "?";
         }
-        final var typeSegment = simplifyTypeName(node.getType().map(TypeMirror::toString).orElse("?"));
+        final var typeSegment =
+                simplifyTypeName(node.getType().map(TypeMirror::toString).orElse("?"));
         return locationSegment + "\n" + typeSegment;
     }
 

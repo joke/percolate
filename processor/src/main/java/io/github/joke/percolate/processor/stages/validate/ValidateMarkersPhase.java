@@ -1,7 +1,5 @@
 package io.github.joke.percolate.processor.stages.validate;
 
-import static java.util.stream.Collectors.toUnmodifiableList;
-
 import io.github.joke.percolate.processor.Diagnostics;
 import io.github.joke.percolate.processor.graph.Edge;
 import io.github.joke.percolate.processor.graph.EdgeKind;
@@ -25,12 +23,10 @@ public final class ValidateMarkersPhase implements ValidationPhase {
         }
         final Set<Node> checkedNodes = new HashSet<>();
 
-        graph.edges()
-                .filter(e -> e.getKind() == EdgeKind.SEED)
-                .forEach(e -> {
-                    checkNodeForMarkers(e.getFrom(), e, graph, typeElement, checkedNodes);
-                    checkNodeForMarkers(e.getTo(), e, graph, typeElement, checkedNodes);
-                });
+        graph.edges().filter(e -> e.getKind() == EdgeKind.SEED).forEach(e -> {
+            checkNodeForMarkers(e.getFrom(), e, graph, typeElement, checkedNodes);
+            checkNodeForMarkers(e.getTo(), e, graph, typeElement, checkedNodes);
+        });
     }
 
     private void checkNodeForMarkers(

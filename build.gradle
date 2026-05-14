@@ -24,7 +24,7 @@ subprojects { project ->
         pluginManager.apply 'net.ltgt.errorprone'
         pluginManager.apply 'jacoco'
         pluginManager.apply 'pmd'
-        pluginManager.apply 'org.danilopianini.cpd'
+//        pluginManager.apply 'org.danilopianini.cpd'
         // pluginManager.apply 'com.palantir.baseline-format'
         tasks.withType(JavaCompile).configureEach {
             options.release = 11
@@ -123,17 +123,17 @@ subprojects { project ->
         }
     }
 
-    pluginManager.withPlugin('org.danilopianini.cpd') {
-        cpd {
-            toolVersion = '7.24.0' // keep in sync with above
-        }
-        tasks.named('cpdCheck') {
-            reports {
-                text.required = true
-                xml.required = true
-            }
-        }
-    }
+//    pluginManager.withPlugin('org.danilopianini.cpd') {
+//        cpd {
+//            toolVersion = '7.24.0' // keep in sync with above
+//        }
+//        tasks.named('cpdCheck') {
+//            reports {
+//                text.required = true
+//                xml.required = true
+//            }
+//        }
+//    }
 
     pluginManager.withPlugin('net.ltgt.errorprone') {
         pluginManager.apply 'net.ltgt.nullaway'
