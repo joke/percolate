@@ -28,7 +28,7 @@ dependencies {
     testImplementation 'com.google.testing.compile:compile-testing'
     testImplementation 'net.jqwik:jqwik'
     testImplementation 'org.spockframework:spock-core'
-    testImplementation project(':processor-test-support')
+    testImplementation 'org.assertj:assertj-core'
     
     testRuntimeOnly 'net.bytebuddy:byte-buddy'
     testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
@@ -36,6 +36,7 @@ dependencies {
 
 tasks.named('test') {
     jvmArgs += ['-Djqwik.database.directory=build/jqwik-database']
+    maxParallelForks = 1
 }
 
 tasks.named('jacocoTestCoverageVerification') {

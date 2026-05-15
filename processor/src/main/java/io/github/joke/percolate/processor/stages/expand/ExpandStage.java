@@ -18,6 +18,7 @@ import lombok.RequiredArgsConstructor;
 public final class ExpandStage implements Stage {
 
     static final int MAX_EXPANSION_ROUNDS = 64;
+    static final int MAX_EXPANSION_EDGES = 1024;
 
     private final List<ExpansionPhase> phases;
     private final Diagnostics diagnostics;
@@ -41,6 +42,13 @@ public final class ExpandStage implements Stage {
                 if (graph.hasSeedSubSeedCycles()) {
                     diagnostics.error(
                             ctx.getMapperType(), "Cycle detected in expansion — sub-directive lineage loops back");
+                    return;
+                }
+
+                if (graph.edgeCount() > MAX_EXPANSION_EDGES) {
+                    diagnostics.error(
+                            ctx.getMapperType(),
+                            "Expansion did not converge: graph exceeded " + MAX_EXPANSION_EDGES + " edges");
                     return;
                 }
             }

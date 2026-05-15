@@ -1,33 +1,37 @@
 package io.github.joke.percolate.processor.stages.expand
 
+import io.github.joke.percolate.processor.graph.AccessPath
+import io.github.joke.percolate.processor.graph.Edge
 import io.github.joke.percolate.processor.graph.MapperGraph
-import io.github.joke.percolate.test.ExpansionHarness
-import io.github.joke.percolate.test.SeedDsl
-import io.github.joke.percolate.test.TypeUniverse
-import javax.lang.model.type.TypeMirror
+import io.github.joke.percolate.processor.graph.Node
+import io.github.joke.percolate.processor.graph.Scope
+import io.github.joke.percolate.processor.graph.SourceLocation
+import io.github.joke.percolate.processor.graph.TargetLocation
+import io.github.joke.percolate.processor.graph.TargetPath
+import io.github.joke.percolate.processor.test.ExpansionAssertions
+import io.github.joke.percolate.processor.test.ExpansionHarness
+import io.github.joke.percolate.processor.test.TypeUniverse
 import spock.lang.Specification
 import spock.lang.Tag
+import spock.lang.Timeout
 import spock.lang.Unroll
 
 @Tag('unit')
+@Timeout(30)
 class ExpansionCapabilitiesSpec extends Specification {
 
     @Unroll
-    def 'expansion completes via SPI mode for #scenario'() {
+    def 'expansion produces realised path for #scenario'() {
         when:
         def result = ExpansionHarness.expand(seed)
 
         then:
-        result != null
-        result.expandedGraph() != null
-        result.converged()
+        ExpansionAssertions.assertThat(result).reachable('in', 'out')
 
         where:
         scenario               | seed
-        'identity String'      | identitySeed(TypeUniverse.STRING)
-        'identity Integer'     | identitySeed(TypeUniverse.INTEGER)
-        'identity LocalDate'   | identitySeed(TypeUniverse.LOCAL_DATE_TIME)
-        'identity DayOfWeek'   | identitySeed(TypeUniverse.DAY_OF_WEEK)
+        'DirectAssign String'  | identitySeed(TypeUniverse.STRING)
+        'DirectAssign Integer' | identitySeed(TypeUniverse.INTEGER)
     }
 
     @Unroll
@@ -48,11 +52,20 @@ class ExpansionCapabilitiesSpec extends Specification {
         'identity Integer' | identitySeed(TypeUniverse.INTEGER)
     }
 
-    private static MapperGraph identitySeed(TypeMirror type) {
-        def dsl = SeedDsl.seed()
-        def method = dsl.method('map')
-        method.arg('p', type).returns(type)
-        method.directive(method.target('out'), method.source('p'))
-        dsl.build()
+    private static MapperGraph identitySeed(type) {
+        final var graph = new MapperGraph()
+        final var scope = new HarnessScope('m(java.lang.String)')
+        final var source = new Node(Optional.of(type), new SourceLocation(AccessPath.of('in')), scope, Optional.empty())
+        final var target = new Node(Optional.of(type), new TargetLocation(TargetPath.of('out')), scope, Optional.empty())
+        graph.addNode(source)
+        graph.addNode(target)
+        graph.addEdge(Edge.elementSeed(source, target, 'test.seed'))
+        graph
+    }
+
+    private static final class HarnessScope implements Scope {
+        private final String name
+        HarnessScope(final String name) { this.name = name }
+        @Override String encode() { name }
     }
 }

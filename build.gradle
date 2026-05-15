@@ -29,6 +29,10 @@ subprojects { project ->
         tasks.withType(JavaCompile).configureEach {
             options.release = 11
             options.compilerArgs << '-Werror'
+            options.fork = true
+            options.forkOptions.jvmArgs += [
+                    '--sun-misc-unsafe-memory-access=allow'
+            ]
         }
     }
 

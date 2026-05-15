@@ -1,0 +1,54 @@
+package io.github.joke.percolate.processor.test
+
+import io.github.joke.percolate.processor.spi.CallableMethods
+import io.github.joke.percolate.processor.spi.MethodCandidate
+import io.github.joke.percolate.processor.spi.ResolveCtx
+
+import javax.lang.model.element.ExecutableElement
+import javax.lang.model.element.TypeElement
+import javax.lang.model.type.TypeMirror
+import javax.lang.model.util.Elements
+import javax.lang.model.util.Types
+import java.util.stream.Stream
+
+final class HarnessResolveCtx implements ResolveCtx {
+
+    private static final HarnessResolveCtx INSTANCE = new HarnessResolveCtx()
+    private static final CallableMethods EMPTY_CALLABLE_METHODS = new CallableMethods() {
+        @Override
+        Stream<MethodCandidate> producing(final TypeMirror outputType) {
+            Stream.empty()
+        }
+    }
+
+    private HarnessResolveCtx() {}
+
+    static HarnessResolveCtx create() {
+        INSTANCE
+    }
+
+    @Override
+    Types types() {
+        TypeUniverse.types()
+    }
+
+    @Override
+    Elements elements() {
+        TypeUniverse.elements()
+    }
+
+    @Override
+    TypeElement mapperType() {
+        null
+    }
+
+    @Override
+    ExecutableElement currentMethod() {
+        null
+    }
+
+    @Override
+    CallableMethods callableMethods() {
+        EMPTY_CALLABLE_METHODS
+    }
+}
