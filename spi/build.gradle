@@ -1,0 +1,24 @@
+plugins {
+    id 'java-library'
+    id 'groovy'
+    id 'java-test-fixtures'
+}
+
+dependencies {
+    annotationProcessor platform(project(':dependencies'))
+    annotationProcessor 'org.projectlombok:lombok'
+
+    compileOnly platform(project(':dependencies'))
+    compileOnly 'org.projectlombok:lombok'
+    compileOnly 'org.jspecify:jspecify'
+    compileOnly 'com.google.auto.service:auto-service-annotations'
+
+    implementation platform(project(':dependencies'))
+
+    api platform(project(':dependencies'))
+    api 'com.palantir.javapoet:javapoet'
+
+    testFixturesImplementation platform(project(':dependencies'))
+    testFixturesImplementation 'org.spockframework:spock-core'
+    testFixturesImplementation 'org.apache.groovy:groovy'
+}

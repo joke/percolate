@@ -3,7 +3,7 @@ package io.github.joke.percolate.processor;
 import io.github.joke.percolate.processor.graph.MapperGraph;
 import io.github.joke.percolate.processor.model.MapperMappings;
 import io.github.joke.percolate.processor.model.MapperShape;
-import io.github.joke.percolate.processor.spi.CallableMethods;
+import io.github.joke.percolate.spi.CallableMethods;
 import jakarta.inject.Inject;
 import javax.lang.model.element.ExecutableElement;
 import javax.lang.model.element.TypeElement;

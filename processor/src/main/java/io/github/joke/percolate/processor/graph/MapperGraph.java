@@ -19,7 +19,7 @@ import org.jgrapht.graph.MaskSubgraph;
 public final class MapperGraph implements GraphSource {
     private final DirectedMultigraph<Node, Edge> graph = new DirectedMultigraph<>(Edge.class);
     private final Set<Edge> edgeIndex = new HashSet<>();
-    private final Map<String, GroupCodegen> groupCodegens = new ConcurrentHashMap<>();
+    private final Map<String, io.github.joke.percolate.spi.GroupCodegen> groupCodegens = new ConcurrentHashMap<>();
 
     private List<Node> sortedNodes = List.of();
     private List<Edge> sortedEdges = List.of();
@@ -92,14 +92,14 @@ public final class MapperGraph implements GraphSource {
         return new ExpandedGraphView(this);
     }
 
-    public void addGroupCodegen(final String groupId, final GroupCodegen codegen) {
+    public void addGroupCodegen(final String groupId, final io.github.joke.percolate.spi.GroupCodegen codegen) {
         if (groupCodegens.containsKey(groupId)) {
             throw new IllegalStateException("Duplicate group codegen for: " + groupId);
         }
         groupCodegens.put(groupId, codegen);
     }
 
-    public Optional<GroupCodegen> groupCodegen(final String groupId) {
+    public Optional<io.github.joke.percolate.spi.GroupCodegen> groupCodegen(final String groupId) {
         return Optional.ofNullable(groupCodegens.get(groupId));
     }
 

@@ -2,6 +2,7 @@ package io.github.joke.percolate.processor.test
 
 import io.github.joke.percolate.processor.graph.MapperGraph
 import io.github.joke.percolate.processor.test.ExpansionAssertions.ExpansionAssert.DiagnosticKind
+import io.github.joke.percolate.spi.test.TypeUniverse
 import spock.lang.Specification
 import spock.lang.Tag
 

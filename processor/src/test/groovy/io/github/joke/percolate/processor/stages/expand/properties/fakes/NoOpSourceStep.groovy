@@ -1,8 +1,8 @@
 package io.github.joke.percolate.processor.stages.expand.properties.fakes
 
-import io.github.joke.percolate.processor.spi.ResolveCtx
-import io.github.joke.percolate.processor.spi.SourceStep
-import io.github.joke.percolate.processor.spi.Step
+import io.github.joke.percolate.spi.ResolveCtx
+import io.github.joke.percolate.spi.SourceStep
+import io.github.joke.percolate.spi.Step
 
 import javax.lang.model.type.TypeMirror
 import java.util.stream.Stream

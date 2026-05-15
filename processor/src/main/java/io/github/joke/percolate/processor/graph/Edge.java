@@ -22,7 +22,7 @@ public final class Edge implements Comparable<Edge> {
     EdgeKind kind;
     Optional<AnnotationMirror> directive;
     Optional<String> groupId;
-    Optional<EdgeCodegen> codegen;
+    Optional<io.github.joke.percolate.spi.EdgeCodegen> codegen;
     Optional<String> strategyClassFqn;
 
     Edge(
@@ -32,7 +32,7 @@ public final class Edge implements Comparable<Edge> {
             final EdgeKind kind,
             final Optional<AnnotationMirror> directive,
             final Optional<String> groupId,
-            final Optional<EdgeCodegen> codegen,
+            final Optional<io.github.joke.percolate.spi.EdgeCodegen> codegen,
             final Optional<String> strategyClassFqn) {
         this.from = from;
         this.to = to;
@@ -73,7 +73,7 @@ public final class Edge implements Comparable<Edge> {
             final Node to,
             final int weight,
             final Optional<String> groupId,
-            final EdgeCodegen codegen,
+            final io.github.joke.percolate.spi.EdgeCodegen codegen,
             final String strategyClassFqn) {
         return new Edge(
                 from,

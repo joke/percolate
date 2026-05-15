@@ -8,11 +8,13 @@ This spec defines the container-shaped Bridge strategies (Optional/List/Set Wrap
 
 ### Requirement: Containers helper
 
-The processor SHALL ship a public utility class
-`io.github.joke.percolate.processor.spi.Containers` exposing static
+The percolate-spi module SHALL ship a public utility class
+`io.github.joke.percolate.spi.Containers` exposing static
 type-shape predicates and accessors for use by container `Bridge`
 strategies — both built-in and external. The class SHALL be `final`
-with a private constructor (no instances).
+with a private constructor (no instances). It SHALL reside in the
+`percolate-spi` Gradle module so that third-party strategy authors
+can use it without depending on the processor module.
 
 The class SHALL expose at least these methods:
 
@@ -73,7 +75,7 @@ the caller violates the precondition (e.g., calling
 
 ### Requirement: OptionalWrap built-in
 
-The processor SHALL ship `io.github.joke.percolate.processor.spi.builtins.OptionalWrap`
+The `percolate-strategies-builtin` module SHALL ship `io.github.joke.percolate.spi.builtins.OptionalWrap`
 implementing `Bridge` and annotated `@AutoService(Bridge.class)`.
 
 `OptionalWrap.bridge(from, to, ctx)` SHALL emit a single `BridgeStep`
@@ -105,7 +107,7 @@ When `to` is not an `Optional`, `OptionalWrap.bridge` SHALL return
 
 ### Requirement: OptionalUnwrap built-in
 
-The processor SHALL ship `io.github.joke.percolate.processor.spi.builtins.OptionalUnwrap`
+The processor SHALL ship `io.github.joke.percolate.spi.builtins.OptionalUnwrap`
 implementing `Bridge` and annotated `@AutoService(Bridge.class)`.
 
 `OptionalUnwrap.bridge(from, to, ctx)` SHALL emit a single
@@ -140,7 +142,7 @@ enrichment; that is out of scope here.
 
 ### Requirement: OptionalMap built-in
 
-The processor SHALL ship `io.github.joke.percolate.processor.spi.builtins.OptionalMap`
+The processor SHALL ship `io.github.joke.percolate.spi.builtins.OptionalMap`
 implementing `Bridge` and annotated `@AutoService(Bridge.class)`.
 
 `OptionalMap.bridge(from, to, ctx)` SHALL emit a single
@@ -181,7 +183,7 @@ SHALL return `Stream.empty()`.
 
 ### Requirement: ListWrap built-in
 
-The processor SHALL ship `io.github.joke.percolate.processor.spi.builtins.ListWrap`
+The processor SHALL ship `io.github.joke.percolate.spi.builtins.ListWrap`
 implementing `Bridge` and annotated `@AutoService(Bridge.class)`.
 
 `ListWrap.bridge(from, to, ctx)` SHALL emit a single `BridgeStep`
@@ -208,7 +210,7 @@ When `to` is not a `List`, `ListWrap.bridge` SHALL return
 
 ### Requirement: ListMap built-in
 
-The processor SHALL ship `io.github.joke.percolate.processor.spi.builtins.ListMap`
+The processor SHALL ship `io.github.joke.percolate.spi.builtins.ListMap`
 implementing `Bridge` and annotated `@AutoService(Bridge.class)`.
 
 `ListMap.bridge(from, to, ctx)` SHALL emit a single `BridgeStep`
@@ -267,7 +269,7 @@ shapes, `ListMap.bridge` SHALL return `Stream.empty()`.
 
 ### Requirement: SetWrap built-in
 
-The processor SHALL ship `io.github.joke.percolate.processor.spi.builtins.SetWrap`
+The processor SHALL ship `io.github.joke.percolate.spi.builtins.SetWrap`
 implementing `Bridge` and annotated `@AutoService(Bridge.class)`.
 
 `SetWrap.bridge(from, to, ctx)` SHALL emit a single `BridgeStep`
@@ -294,7 +296,7 @@ When `to` is not a `Set`, `SetWrap.bridge` SHALL return
 
 ### Requirement: SetMap built-in
 
-The processor SHALL ship `io.github.joke.percolate.processor.spi.builtins.SetMap`
+The processor SHALL ship `io.github.joke.percolate.spi.builtins.SetMap`
 implementing `Bridge` and annotated `@AutoService(Bridge.class)`.
 
 `SetMap.bridge(from, to, ctx)` SHALL emit a single `BridgeStep` when
@@ -344,10 +346,11 @@ codegen to use the widened contract.
 
 ### Requirement: Container strategies registered via AutoService
 
-Every container built-in strategy SHALL be annotated `@AutoService(Bridge.class)`. The seven strategies covered are `OptionalWrap`, `OptionalUnwrap`, `OptionalMap`, `ListWrap`, `ListMap`, `SetWrap`, and `SetMap`. The compile-time-generated `META-INF/services/io.github.joke.percolate.processor.spi.Bridge` file SHALL list all seven strategies.
+Every container built-in strategy SHALL be annotated `@AutoService(Bridge.class)`. The seven strategies covered are `OptionalWrap`, `OptionalUnwrap`, `OptionalMap`, `ListWrap`, `ListMap`, `SetWrap`, and `SetMap`. The compile-time-generated `META-INF/services/io.github.joke.percolate.spi.Bridge` file (produced from the `percolate-strategies-builtin` module's compilation) SHALL list all seven strategies.
 
 #### Scenario: All seven container strategies are registered
-- **WHEN** the generated `META-INF/services/io.github.joke.percolate.processor.spi.Bridge`
-  is inspected
+- **WHEN** the generated `META-INF/services/io.github.joke.percolate.spi.Bridge`
+  is inspected (inside the `percolate-strategies-builtin` JAR)
 - **THEN** the file lists `OptionalWrap`, `OptionalUnwrap`,
   `OptionalMap`, `ListWrap`, `ListMap`, `SetWrap`, and `SetMap`
+  (with the new `io.github.joke.percolate.spi.builtins.` prefix)

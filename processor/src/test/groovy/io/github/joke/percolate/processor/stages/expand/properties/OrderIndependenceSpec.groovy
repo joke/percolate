@@ -7,9 +7,9 @@ import static io.github.joke.percolate.processor.test.GraphCompare.nodeIds
 import net.jqwik.api.ForAll
 import net.jqwik.api.Property
 
-import io.github.joke.percolate.processor.spi.Bridge
-import io.github.joke.percolate.processor.spi.GroupTarget
-import io.github.joke.percolate.processor.spi.SourceStep
+import io.github.joke.percolate.spi.Bridge
+import io.github.joke.percolate.spi.GroupTarget
+import io.github.joke.percolate.spi.SourceStep
 import io.github.joke.percolate.processor.graph.MapperGraph
 
 class OrderIndependenceSpec extends ExpansionPropertyBase {

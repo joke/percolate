@@ -4,9 +4,11 @@ import io.github.joke.percolate.processor.Diagnostics
 import io.github.joke.percolate.processor.MapperContext
 import io.github.joke.percolate.processor.ProcessorModule
 import io.github.joke.percolate.processor.graph.MapperGraph
-import io.github.joke.percolate.processor.spi.Bridge
-import io.github.joke.percolate.processor.spi.GroupTarget
-import io.github.joke.percolate.processor.spi.SourceStep
+import io.github.joke.percolate.spi.Bridge
+import io.github.joke.percolate.spi.GroupTarget
+import io.github.joke.percolate.spi.SourceStep
+import io.github.joke.percolate.spi.test.HarnessResolveCtx
+import io.github.joke.percolate.spi.test.TypeUniverse
 import io.github.joke.percolate.processor.stages.validate.ValidatePathsPhase
 
 import javax.annotation.processing.Messager
@@ -16,7 +18,6 @@ import javax.lang.model.element.Element
 import javax.lang.model.element.TypeElement
 import javax.tools.Diagnostic
 import java.util.concurrent.CopyOnWriteArrayList
-import java.util.stream.Collectors
 
 final class ExpansionHarness {
 
@@ -25,15 +26,6 @@ final class ExpansionHarness {
     private static final Object EXPAND_LOCK = new Object()
 
     private ExpansionHarness() {}
-
-    /**
-     * Expands the given seed graph using strategies loaded via ServiceLoader from the
-     * current thread's context class loader. This is the default mode, used by Spock specs
-     * and production-parity scenarios.
-     */
-    static ExpansionResult expand(final MapperGraph seed) {
-        expand(seed, loadService(Bridge), loadService(SourceStep), loadService(GroupTarget))
-    }
 
     /**
      * Expands the given seed graph using the explicitly provided strategy lists. This mode
@@ -108,12 +100,5 @@ final class ExpansionHarness {
         final converged = messages.every { !it.contains('did not converge') }
 
         ExpansionResult.of(expandedGraph, messages, 1, converged, MAPPER_PLACEHOLDER)
-    }
-
-    private static <T> List<T> loadService(final Class<T> service) {
-        ServiceLoader.load(service, ExpansionHarness.classLoader).stream()
-                .map { it.get() }
-                .sorted { a, b -> a.class.name <=> b.class.name }
-                .collect(Collectors.toUnmodifiableList())
     }
 }

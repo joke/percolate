@@ -8,23 +8,29 @@ This spec defines the strategy author surface for the expansion engine: immutabl
 
 ### Requirement: SPI package isolation
 
-The processor SHALL ship a new package `io.github.joke.percolate.processor.spi` containing exactly the strategy-author surface: three interfaces (`SourceStep`, `GroupTarget`, `Bridge`), four immutable result types (`Step`, `BridgeStep`, `Slot`, `GroupBuild`), the `ResolveCtx` interface, and re-exports of the codegen interfaces (`EdgeCodegen`, `GroupCodegen`, `IncomingValues`, `VarNames`) shipped by the alignment change.
+The percolate-spi Gradle module SHALL ship a package `io.github.joke.percolate.spi` containing exactly the strategy-author surface: three interfaces (`SourceStep`, `GroupTarget`, `Bridge`), four immutable result types (`Step`, `BridgeStep`, `Slot`, `GroupBuild`), the `ResolveCtx` interface, the codegen interfaces (`EdgeCodegen`, `GroupCodegen`, `IncomingValues`, `VarNames`), the `Receiver` / `ThisReceiver` / `CallableMethods` / `MethodCandidate` / `ElementSeed` types, and the `Containers` and `Weights` utilities. The module SHALL depend only on JDK types plus `com.palantir.javapoet` (because `CodeBlock` is part of the codegen interface surface). It SHALL NOT depend on `percolate-annotations` or `percolate-processor`.
 
 The package SHALL declare `@NullMarked` via `package-info.java`.
 
-Built-in strategies (`GetterRead`, `ConstructorCall`, `DirectAssign`) SHALL NOT import any class from `io.github.joke.percolate.processor.graph` or `io.github.joke.percolate.processor.stages.expand`. This invariant SHALL be enforced by an architectural test.
+Built-in strategies (`GetterRead`, `ConstructorCall`, `DirectAssign`, the seven container bridges, `MethodCallBridge`) SHALL ship from a separate Gradle module `percolate-strategies-builtin` whose only compile dependency is `percolate-spi`. They SHALL NOT import any class from `io.github.joke.percolate.processor.graph` or `io.github.joke.percolate.processor.stages.expand`. This invariant SHALL be enforced structurally by the module compile graph: `percolate-strategies-builtin`'s `build.gradle` declares no compile dependency on `percolate-processor`, so engine internals are unreachable from built-in sources.
 
 #### Scenario: spi package has @NullMarked
-- **WHEN** the source of `processor/spi/package-info.java` is inspected
+- **WHEN** the source of `spi/src/main/java/io/github/joke/percolate/spi/package-info.java` is inspected
 - **THEN** the package declaration carries `@org.jspecify.annotations.NullMarked`
 
 #### Scenario: Built-in strategies have no forbidden imports
-- **WHEN** the import statements of `GetterRead`, `ConstructorCall`, and `DirectAssign` are inspected
+- **WHEN** the import statements of `GetterRead`, `ConstructorCall`, `DirectAssign`, and the seven container bridges are inspected
 - **THEN** none reference any class in `io.github.joke.percolate.processor.graph.*` or `io.github.joke.percolate.processor.stages.expand.*`
+- **AND** the enforcement is structural: `strategies-builtin`'s `build.gradle` declares no compile dependency on `processor`, so attempting such an import would fail compilation
+
+#### Scenario: SPI module has no dependency on annotations or processor
+- **WHEN** `spi/build.gradle` is inspected
+- **THEN** it declares neither `project(':annotations')` nor `project(':processor')` on any `compile` / `implementation` / `api` configuration
+- **AND** its only non-JDK `api` dependency is `com.palantir.javapoet:javapoet`
 
 ### Requirement: SourceStep interface
 
-The processor SHALL define a Java interface `io.github.joke.percolate.processor.spi.SourceStep` with the following shape:
+The percolate-spi module SHALL define a Java interface `io.github.joke.percolate.spi.SourceStep` with the following shape:
 
 ```java
 public interface SourceStep {
@@ -46,7 +52,7 @@ Implementations SHALL return zero or more `Step` results describing realisations
 
 ### Requirement: GroupTarget interface
 
-The processor SHALL define a Java interface `io.github.joke.percolate.processor.spi.GroupTarget` with the following shape:
+The percolate-spi module SHALL define a Java interface `io.github.joke.percolate.spi.GroupTarget` with the following shape:
 
 ```java
 public interface GroupTarget {
@@ -68,7 +74,7 @@ Implementations SHALL return one `GroupBuild` describing a multi-arg constructio
 
 ### Requirement: Bridge interface
 
-The processor SHALL define a Java interface `io.github.joke.percolate.processor.spi.Bridge` with the following shape:
+The percolate-spi module SHALL define a Java interface `io.github.joke.percolate.spi.Bridge` with the following shape:
 
 ```java
 public interface Bridge {
@@ -97,7 +103,7 @@ A `Bridge` MAY emit multiple `BridgeStep`s in a single invocation. Each emitted 
 
 ### Requirement: ResolveCtx exposes Types, Elements, mapperType, currentMethod, callableMethods
 
-The processor SHALL define an interface `io.github.joke.percolate.processor.spi.ResolveCtx` with exactly these methods:
+The percolate-spi module SHALL define an interface `io.github.joke.percolate.spi.ResolveCtx` with exactly these methods:
 
 ```java
 public interface ResolveCtx {
@@ -109,7 +115,7 @@ public interface ResolveCtx {
 }
 ```
 
-The interface SHALL NOT expose any reference to `MapperGraph`, `Edge`, `Node`, `EdgeKind`, `MapperStep`, or any other type from `processor.graph` or `processor.stages.*`. A strategy author SHALL be able to write a complete strategy by importing only `processor.spi.*`, `javax.lang.model.*`, `com.palantir.javapoet.*`, and JDK types.
+The interface SHALL NOT expose any reference to `MapperGraph`, `Edge`, `Node`, `EdgeKind`, `MapperStep`, or any other type from `processor.graph` or `processor.stages.*`. A strategy author SHALL be able to write a complete strategy by importing only `io.github.joke.percolate.spi.*`, `javax.lang.model.*`, `com.palantir.javapoet.*`, and JDK types.
 
 `mapperType()` SHALL return the `@Mapper`-annotated `TypeElement` whose method is currently being expanded. `currentMethod()` SHALL return the `ExecutableElement` of that method. `callableMethods()` SHALL return the per-mapper index produced by `DiscoverCallableMethods`.
 
@@ -135,7 +141,7 @@ The interface SHALL NOT expose any reference to `MapperGraph`, `Edge`, `Node`, `
 
 ### Requirement: Step result type
 
-The processor SHALL define an immutable Lombok `@Value` type `io.github.joke.percolate.processor.spi.Step` with these fields, in this order:
+The percolate-spi module SHALL define an immutable Lombok `@Value` type `io.github.joke.percolate.spi.Step` with these fields, in this order:
 - `TypeMirror produces` — the type the step produces.
 - `int weight` — the cost; documented to use values from `Weights` (`NOOP`, `STEP`, `COPY`, `EXPENSIVE`).
 - `EdgeCodegen codegen` — the codegen lambda that renders the step.
@@ -150,7 +156,7 @@ The processor SHALL define an immutable Lombok `@Value` type `io.github.joke.per
 
 ### Requirement: BridgeStep result type
 
-The processor SHALL define an immutable Lombok `@Value` type `io.github.joke.percolate.processor.spi.BridgeStep` with these fields, in this order:
+The percolate-spi module SHALL define an immutable Lombok `@Value` type `io.github.joke.percolate.spi.BridgeStep` with these fields, in this order:
 
 - `TypeMirror inputType` — the type the strategy consumes.
 - `TypeMirror outputType` — the type the strategy produces.
@@ -185,7 +191,7 @@ For a container "map" step (the strategy emits an outer edge between two contain
 
 ### Requirement: Slot result type
 
-The processor SHALL define an immutable Lombok `@Value` type `io.github.joke.percolate.processor.spi.Slot` with these fields:
+The percolate-spi module SHALL define an immutable Lombok `@Value` type `io.github.joke.percolate.spi.Slot` with these fields:
 - `String name` — the slot's binding name (matches a directive target tail or a builder-method name).
 - `TypeMirror type` — the slot's required type.
 - `int weight` — the cost of filling the slot.
@@ -196,7 +202,7 @@ The processor SHALL define an immutable Lombok `@Value` type `io.github.joke.per
 
 ### Requirement: GroupBuild result type
 
-The processor SHALL define an immutable Lombok `@Value` type `io.github.joke.percolate.processor.spi.GroupBuild` with these fields:
+The percolate-spi module SHALL define an immutable Lombok `@Value` type `io.github.joke.percolate.spi.GroupBuild` with these fields:
 - `List<Slot> slots` — the slots required to build, in positional-binding order.
 - `GroupCodegen codegen` — the lambda that assembles the group's combined expression from the inputs.
 
@@ -209,24 +215,26 @@ The `slots` list SHALL be retained by reference; the driver SHALL preserve order
 
 ### Requirement: Strategy registration via ServiceLoader and AutoService
 
-Strategies SHALL be discovered uniformly via Java `ServiceLoader<Interface>` for each strategy interface (`SourceStep`, `GroupTarget`, `Bridge`). Built-in strategies SHALL declare their service registration via Google `@AutoService(<Interface>.class)` so that the `auto-service`-generated `META-INF/services/...` files ship automatically. User-supplied strategies in third-party JARs SHALL register the same way.
+Strategies SHALL be discovered uniformly via Java `ServiceLoader<Interface>` for each strategy interface (`SourceStep`, `GroupTarget`, `Bridge`). Built-in strategies — shipped from the `percolate-strategies-builtin` module — SHALL declare their service registration via Google `@AutoService(<Interface>.class)` so that the `auto-service`-generated `META-INF/services/...` files ship inside that module's JAR. User-supplied strategies in third-party JARs SHALL register the same way.
 
-The `ExpandStage`'s Dagger module SHALL provide each strategy list as `@Singleton List<Interface>` by:
+The processor's Dagger module SHALL provide each strategy list as `@Singleton List<Interface>` by:
 1. Calling `ServiceLoader.load(<Interface>.class, classLoader)` exactly once.
 2. Materialising the iterator into a list.
 3. Sorting that list lexicographically by `getClass().getName()` (FQN ascending).
 4. Wrapping in `Collections.unmodifiableList(...)` before publishing.
 
+The processor module SHALL declare `percolate-strategies-builtin` as a `runtimeOnly` Gradle dependency so that, by default, end users receive the built-in strategies on their annotation-processor classpath without an explicit declaration. End users wanting a custom-only setup MAY `exclude` the `strategies-builtin` artifact.
+
 #### Scenario: Built-in GetterRead is annotated AutoService
-- **WHEN** the source of `GetterRead` is inspected
+- **WHEN** the source of `GetterRead` (in `strategies-builtin/src/main/java/io/github/joke/percolate/spi/builtins/`) is inspected
 - **THEN** the class carries `@AutoService(SourceStep.class)`
 
 #### Scenario: Built-in ConstructorCall is annotated AutoService
-- **WHEN** the source of `ConstructorCall` is inspected
+- **WHEN** the source of `ConstructorCall` (in `strategies-builtin/src/main/java/io/github/joke/percolate/spi/builtins/`) is inspected
 - **THEN** the class carries `@AutoService(GroupTarget.class)`
 
 #### Scenario: Built-in DirectAssign is annotated AutoService
-- **WHEN** the source of `DirectAssign` is inspected
+- **WHEN** the source of `DirectAssign` (in `strategies-builtin/src/main/java/io/github/joke/percolate/spi/builtins/`) is inspected
 - **THEN** the class carries `@AutoService(Bridge.class)`
 
 #### Scenario: Provided strategy list is sorted by FQN
@@ -234,7 +242,7 @@ The `ExpandStage`'s Dagger module SHALL provide each strategy list as `@Singleto
 - **THEN** the list is sorted ascending by `getClass().getName()` for each element
 
 #### Scenario: User strategy registered via META-INF/services is discovered
-- **WHEN** a JAR on the annotation-processor classpath contains `META-INF/services/io.github.joke.percolate.processor.spi.SourceStep` referencing a user class
+- **WHEN** a JAR on the annotation-processor classpath contains `META-INF/services/io.github.joke.percolate.spi.SourceStep` referencing a user class
 - **THEN** the user class is included in the `List<SourceStep>` provided by Dagger
 - **AND** the list remains sorted by FQN including the user class
 
@@ -242,9 +250,14 @@ The `ExpandStage`'s Dagger module SHALL provide each strategy list as `@Singleto
 - **WHEN** `ExpandStage.apply(graph)` is invoked twice in a round
 - **THEN** `ServiceLoader.load(...)` is invoked exactly once for each strategy interface across the round
 
+#### Scenario: Processor declares strategies-builtin as runtimeOnly
+- **WHEN** `processor/build.gradle` is inspected
+- **THEN** it declares `runtimeOnly project(':strategies-builtin')`
+- **AND** no `compile` / `implementation` / `api` configuration mentions `:strategies-builtin`
+
 ### Requirement: GetterRead built-in
 
-The processor SHALL ship `io.github.joke.percolate.processor.spi.builtins.GetterRead` implementing `SourceStep`. `GetterRead` SHALL inspect `ctx.elements().getAllMembers(<TypeElement of sourceType>)` for a zero-argument method whose simple name matches conventional getter naming for the given `pathTail`:
+The `percolate-strategies-builtin` module SHALL ship `io.github.joke.percolate.spi.builtins.GetterRead` implementing `SourceStep`. `GetterRead` SHALL inspect `ctx.elements().getAllMembers(<TypeElement of sourceType>)` for a zero-argument method whose simple name matches conventional getter naming for the given `pathTail`:
 - `get<PathTailCapitalised>` (e.g., `lastName` → `getLastName`),
 - `is<PathTailCapitalised>` if the method's return type is `boolean` or `Boolean`.
 
@@ -273,7 +286,7 @@ For each matching method, `GetterRead` SHALL emit one `Step` whose `produces` is
 
 ### Requirement: ConstructorCall built-in (exact match)
 
-The processor SHALL ship `io.github.joke.percolate.processor.spi.builtins.ConstructorCall` implementing `GroupTarget`. `ConstructorCall` SHALL inspect the accessible constructors of the return type. A constructor matches iff `Set.copyOf(ctor.parameterNames())` equals `Set.copyOf(targetTails)`.
+The `percolate-strategies-builtin` module SHALL ship `io.github.joke.percolate.spi.builtins.ConstructorCall` implementing `GroupTarget`. `ConstructorCall` SHALL inspect the accessible constructors of the return type. A constructor matches iff `Set.copyOf(ctor.parameterNames())` equals `Set.copyOf(targetTails)`.
 
 For an exact match, `ConstructorCall` SHALL return `Optional.of(GroupBuild)` whose `slots` list contains one `Slot` per constructor parameter, in constructor-declaration order, with:
 - `name` = the parameter's simple name,
@@ -304,7 +317,7 @@ If no constructor matches exactly, `ConstructorCall` SHALL return `Optional.empt
 
 ### Requirement: DirectAssign built-in
 
-The processor SHALL ship `io.github.joke.percolate.processor.spi.builtins.DirectAssign` implementing `Bridge`. `DirectAssign` SHALL return `Stream.of(BridgeStep(sourceType, targetType, Weights.NOOP, identityCodegen))` whenever `ctx.types().isSameType(sourceType, targetType)` returns `true`. Otherwise it SHALL return `Stream.empty()`.
+The `percolate-strategies-builtin` module SHALL ship `io.github.joke.percolate.spi.builtins.DirectAssign` implementing `Bridge`. `DirectAssign` SHALL return `Stream.of(BridgeStep(sourceType, targetType, Weights.NOOP, identityCodegen))` whenever `ctx.types().isSameType(sourceType, targetType)` returns `true`. Otherwise it SHALL return `Stream.empty()`.
 
 The `identityCodegen` lambda SHALL render the single incoming variable from `IncomingValues.single()` unchanged.
 
@@ -323,11 +336,11 @@ The `identityCodegen` lambda SHALL render the single incoming variable from `Inc
 - **WHEN** `DirectAssign.bridge(<List<String>>, <Collection<String>>, ctx)` is invoked
 - **THEN** the result is `Stream.empty()` because `Types.isSameType` returns `false` for these types
 
-## ADDED Requirements
+## MODIFIED Requirements
 
 ### Requirement: Weights.METHOD constant
 
-The processor SHALL extend the `Weights` constants in `io.github.joke.percolate.processor.spi.Weights` with a new constant `METHOD`. The constant SHALL be a positive `int` representing the base cost of a method-call hop.
+The percolate-spi module SHALL extend the `Weights` constants in `io.github.joke.percolate.spi.Weights` with a constant `METHOD`. The constant SHALL be a positive `int` representing the base cost of a method-call hop.
 
 For v1, `Weights.METHOD` SHALL equal `Weights.STEP`. The numerical value is documented as the base cost; method-call edges may carry weights greater than `Weights.METHOD` when JLS-specificity distance adds to the cost (see `MethodCallBridge` requirement).
 
@@ -338,7 +351,7 @@ For v1, `Weights.METHOD` SHALL equal `Weights.STEP`. The numerical value is docu
 
 ### Requirement: MethodCallBridge built-in
 
-The processor SHALL ship `io.github.joke.percolate.processor.spi.builtins.MethodCallBridge` implementing `Bridge` and annotated `@AutoService(Bridge.class)`.
+The `percolate-strategies-builtin` module SHALL ship `io.github.joke.percolate.spi.builtins.MethodCallBridge` implementing `Bridge` and annotated `@AutoService(Bridge.class)`.
 
 `MethodCallBridge.bridge(sourceType, targetType, ctx)` SHALL invoke `ctx.callableMethods().producing(targetType)` and emit one `BridgeStep` per returned `MethodCandidate` whose method's parameter type is assignable from `sourceType` (covariant input — i.e. a value of `sourceType` could be passed where the method's parameter type is required).
 
@@ -394,8 +407,8 @@ For each emitted step:
 
 ### Requirement: ElementSeed result type
 
-The processor SHALL define an immutable Lombok `@Value` type
-`io.github.joke.percolate.processor.spi.ElementSeed` with three fields:
+The percolate-spi module SHALL define an immutable Lombok `@Value` type
+`io.github.joke.percolate.spi.ElementSeed` with three fields:
 
 - `String role` — a stable discriminator naming the element scope's
   role within its container. The default value for single-element-
@@ -430,8 +443,8 @@ ambiguous ids.
 
 ### Requirement: Weights.CONTAINER constant
 
-The processor SHALL extend `io.github.joke.percolate.processor.spi.Weights`
-with a new constant `CONTAINER` (a positive `int`) representing the
+The percolate-spi module SHALL extend `io.github.joke.percolate.spi.Weights`
+with a constant `CONTAINER` (a positive `int`) representing the
 base cost of a container-shaped hop.
 
 For v1, `Weights.CONTAINER` SHALL equal `2`, slightly heavier than
@@ -450,3 +463,34 @@ weight variation is defined for v1.
 #### Scenario: Weights.CONTAINER value
 - **WHEN** `Weights.CONTAINER` is read
 - **THEN** the value is `2`
+
+## ADDED Requirements
+
+### Requirement: Built-in service registration smoke spec
+
+The `percolate-strategies-builtin` module SHALL contain a Spock specification at `strategies-builtin/src/test/groovy/io/github/joke/percolate/spi/builtins/BuiltinServiceRegistrationSpec.groovy` that asserts the contract between modules: when `percolate-strategies-builtin` is on the classpath, `ServiceLoader.load(...)` discovers exactly the expected built-in classes for each SPI interface.
+
+The spec SHALL load each of `Bridge`, `SourceStep`, and `GroupTarget` via `ServiceLoader.load(<Interface>.class)` and assert that the discovered set contains, at minimum, the eleven shipped built-ins:
+
+- `Bridge`: `DirectAssign`, `ListMap`, `ListWrap`, `SetMap`, `SetWrap`, `OptionalMap`, `OptionalUnwrap`, `OptionalWrap`, `MethodCallBridge`.
+- `SourceStep`: `GetterRead`.
+- `GroupTarget`: `ConstructorCall`.
+
+The spec SHALL be tagged `@spock.lang.Tag('unit')` and SHALL NOT invoke `ExpansionHarness` or any expansion-pipeline code. Its sole concern is verifying that the `META-INF/services/...` files generated by `auto-service` correctly register the strategy classes.
+
+#### Scenario: ServiceLoader discovers all expected Bridge builtins
+- **WHEN** `ServiceLoader.load(Bridge.class)` is invoked from `BuiltinServiceRegistrationSpec`
+- **THEN** the returned stream's classes contain, as a subset, `DirectAssign`, `ListMap`, `ListWrap`, `SetMap`, `SetWrap`, `OptionalMap`, `OptionalUnwrap`, `OptionalWrap`, and `MethodCallBridge`
+
+#### Scenario: ServiceLoader discovers all expected SourceStep builtins
+- **WHEN** `ServiceLoader.load(SourceStep.class)` is invoked from `BuiltinServiceRegistrationSpec`
+- **THEN** the returned stream's classes contain `GetterRead`
+
+#### Scenario: ServiceLoader discovers all expected GroupTarget builtins
+- **WHEN** `ServiceLoader.load(GroupTarget.class)` is invoked from `BuiltinServiceRegistrationSpec`
+- **THEN** the returned stream's classes contain `ConstructorCall`
+
+#### Scenario: Spec does not depend on the expansion pipeline
+- **WHEN** the source of `BuiltinServiceRegistrationSpec` is inspected
+- **THEN** no import references `io.github.joke.percolate.processor.*`
+- **AND** no invocation of `ExpansionHarness`, `ExpandStage`, or `ProcessorModule` appears

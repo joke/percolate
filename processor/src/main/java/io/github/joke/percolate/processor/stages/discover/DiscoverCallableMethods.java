@@ -6,10 +6,10 @@ import static java.util.stream.Collectors.toList;
 import static java.util.stream.Collectors.toUnmodifiableList;
 
 import io.github.joke.percolate.processor.MapperContext;
-import io.github.joke.percolate.processor.spi.CallableMethods;
-import io.github.joke.percolate.processor.spi.MethodCandidate;
-import io.github.joke.percolate.processor.spi.ThisReceiver;
 import io.github.joke.percolate.processor.stages.Stage;
+import io.github.joke.percolate.spi.CallableMethods;
+import io.github.joke.percolate.spi.MethodCandidate;
+import io.github.joke.percolate.spi.ThisReceiver;
 import jakarta.inject.Inject;
 import java.util.HashSet;
 import java.util.List;

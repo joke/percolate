@@ -18,17 +18,20 @@ dependencies {
 
     implementation platform(project(':dependencies'))
     implementation project(':annotations')
+    implementation project(':spi')
     implementation 'org.jgrapht:jgrapht-core'
     implementation 'org.jgrapht:jgrapht-io'
     implementation 'com.google.auto:auto-common'
     implementation 'com.google.dagger:dagger'
-    implementation 'com.palantir.javapoet:javapoet'
+
+    runtimeOnly project(':strategies-builtin')
 
     testImplementation platform(project(':dependencies'))
     testImplementation 'com.google.testing.compile:compile-testing'
     testImplementation 'net.jqwik:jqwik'
     testImplementation 'org.spockframework:spock-core'
     testImplementation 'org.assertj:assertj-core'
+    testImplementation testFixtures(project(':spi'))
 
     testRuntimeOnly 'net.bytebuddy:byte-buddy'
     testRuntimeOnly 'org.junit.platform:junit-platform-launcher'

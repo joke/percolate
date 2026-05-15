@@ -4,7 +4,7 @@ import io.github.joke.percolate.processor.graph.EdgeKind
 import io.github.joke.percolate.processor.stages.expand.properties.fakes.IdentityBridge
 import io.github.joke.percolate.processor.test.ExpansionHarness
 import io.github.joke.percolate.processor.test.GraphFixtures
-import io.github.joke.percolate.processor.test.TypeUniverse
+import io.github.joke.percolate.spi.test.TypeUniverse
 import spock.lang.Specification
 import spock.lang.Tag
 import spock.lang.Timeout

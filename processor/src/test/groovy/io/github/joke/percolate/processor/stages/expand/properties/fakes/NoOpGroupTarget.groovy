@@ -1,8 +1,8 @@
 package io.github.joke.percolate.processor.stages.expand.properties.fakes
 
-import io.github.joke.percolate.processor.spi.GroupBuild
-import io.github.joke.percolate.processor.spi.GroupTarget
-import io.github.joke.percolate.processor.spi.ResolveCtx
+import io.github.joke.percolate.spi.GroupBuild
+import io.github.joke.percolate.spi.GroupTarget
+import io.github.joke.percolate.spi.ResolveCtx
 
 import javax.lang.model.type.TypeMirror
 

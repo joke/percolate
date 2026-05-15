@@ -179,7 +179,7 @@ Each rendered edge's `kind` SHALL be identifiable from the DOT output without co
 - **THEN** the edge's `label` attribute is the literal `SUB_SEED`
 
 #### Scenario: REALISED edge kind is identified by style and strategy
-- **WHEN** the renderer writes an edge with `kind == EdgeKind.REALISED` and `strategyClassFqn == Optional.of("io.github.joke.percolate.processor.spi.builtins.GetterRead")`
+- **WHEN** the renderer writes an edge with `kind == EdgeKind.REALISED` and `strategyClassFqn == Optional.of("io.github.joke.percolate.spi.builtins.GetterRead")`
 - **THEN** the edge's `label` attribute contains the simple class name `GetterRead`
 - **AND** the edge's style attributes match the documented REALISED styling (distinct from SEED and SUB_SEED)
 - **AND** the edge's `label` attribute does NOT contain the literal token `REALISED`
@@ -228,12 +228,12 @@ The renderer SHALL NOT attempt to render `Edge.codegen` — codegen closures are
 - **THEN** the edge's `label` attribute contains the literal `∞` (U+221E) instead of the numeric value
 
 #### Scenario: REALISED edge label contains strategy short name and weight
-- **WHEN** rendering a REALISED edge with `strategyClassFqn == Optional.of("io.github.joke.percolate.processor.spi.builtins.GetterRead")` and `weight == 1`
+- **WHEN** rendering a REALISED edge with `strategyClassFqn == Optional.of("io.github.joke.percolate.spi.builtins.GetterRead")` and `weight == 1`
 - **THEN** the edge's `label` attribute contains both the literal `GetterRead` and the literal `1`
-- **AND** the `label` does NOT contain the package prefix `io.github.joke.percolate.processor.spi.builtins`
+- **AND** the `label` does NOT contain the package prefix `io.github.joke.percolate.spi.builtins`
 
 #### Scenario: SUB_SEED edge label contains only the kind token
-- **WHEN** rendering a SUB_SEED edge with `strategyClassFqn == Optional.of("io.github.joke.percolate.processor.spi.builtins.OptionalWrap")`, `weight == Weights.SENTINEL_UNREALISED`, and a non-empty `directive`
+- **WHEN** rendering a SUB_SEED edge with `strategyClassFqn == Optional.of("io.github.joke.percolate.spi.builtins.OptionalWrap")`, `weight == Weights.SENTINEL_UNREALISED`, and a non-empty `directive`
 - **THEN** the edge's `label` attribute is exactly `SUB_SEED`
 - **AND** the `label` does NOT contain the strategy class name (full or simple)
 - **AND** the `label` does NOT contain the literal `∞` (since the weight is omitted)
