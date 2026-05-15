@@ -2,10 +2,13 @@ package io.github.joke.percolate.processor.graph;
 
 import java.util.Collections;
 import java.util.Comparator;
+import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import lombok.NoArgsConstructor;
 import org.jgrapht.alg.cycle.CycleDetector;
@@ -15,19 +18,28 @@ import org.jgrapht.graph.MaskSubgraph;
 @NoArgsConstructor
 public final class MapperGraph implements GraphSource {
     private final DirectedMultigraph<Node, Edge> graph = new DirectedMultigraph<>(Edge.class);
+    private final Set<Edge> edgeIndex = new HashSet<>();
     private final Map<String, GroupCodegen> groupCodegens = new ConcurrentHashMap<>();
 
+    private List<Node> sortedNodes = List.of();
+    private List<Edge> sortedEdges = List.of();
+    private boolean sortedNodesDirty = true;
+    private boolean sortedEdgesDirty = true;
+
     public void addNode(final Node node) {
-        graph.addVertex(node);
+        if (graph.addVertex(node)) {
+            sortedNodesDirty = true;
+        }
     }
 
     public boolean addEdge(final Edge edge) {
-        graph.addVertex(edge.getFrom());
-        graph.addVertex(edge.getTo());
-        if (graph.edgeSet().stream().anyMatch(existing -> existing.equals(edge))) {
+        addNode(edge.getFrom());
+        addNode(edge.getTo());
+        if (!edgeIndex.add(edge)) {
             return false;
         }
         graph.addEdge(edge.getFrom(), edge.getTo(), edge);
+        sortedEdgesDirty = true;
         return true;
     }
 
@@ -41,12 +53,22 @@ public final class MapperGraph implements GraphSource {
 
     @Override
     public Stream<Node> nodes() {
-        return graph.vertexSet().stream().sorted(Comparator.comparing(Node::id));
+        if (sortedNodesDirty) {
+            sortedNodes = graph.vertexSet().stream()
+                    .sorted(Comparator.comparing(Node::id))
+                    .collect(Collectors.toUnmodifiableList());
+            sortedNodesDirty = false;
+        }
+        return sortedNodes.stream();
     }
 
     @Override
     public Stream<Edge> edges() {
-        return graph.edgeSet().stream().sorted(Comparator.naturalOrder());
+        if (sortedEdgesDirty) {
+            sortedEdges = graph.edgeSet().stream().sorted().collect(Collectors.toUnmodifiableList());
+            sortedEdgesDirty = false;
+        }
+        return sortedEdges.stream();
     }
 
     public Stream<Node> nodesByScope(final Scope scope) {

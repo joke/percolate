@@ -2,25 +2,23 @@ package io.github.joke.percolate.processor.stages.expand.properties
 
 import static io.github.joke.percolate.processor.test.ExpansionHarness.expand
 
-import spock.lang.Specification
-import spock.lang.Tag
-import spock.lang.Timeout
+import net.jqwik.api.ForAll
+import net.jqwik.api.Property
 
-@Tag('unit')
-@Timeout(30)
-class IdentityCollapseSpec extends Specification {
+import io.github.joke.percolate.processor.spi.Bridge
+import io.github.joke.percolate.processor.spi.GroupTarget
+import io.github.joke.percolate.processor.spi.SourceStep
+import io.github.joke.percolate.processor.graph.MapperGraph
 
-    def 'no two nodes share scope-location-type for random inputs'() {
-        given:
-        final graph = GraphGenerator.randomSeed()
-        final bridges = GraphGenerator.randomBridges()
-        final sourceSteps = GraphGenerator.randomSourceSteps()
-        final groupTargets = GraphGenerator.randomGroupTargets()
+class IdentityCollapseSpec extends ExpansionPropertyBase {
 
-        when:
-        final result = expand(graph, bridges, sourceSteps, groupTargets)
-
-        then:
-        !result.hasIdentityCollisions()
+    @Property(seed = '1111')
+    void 'no two nodes share scope-location-type'(
+            @ForAll('seedGraphs') MapperGraph graph,
+            @ForAll('fakeBridges') List<Bridge> bridges,
+            @ForAll('fakeSourceSteps') List<SourceStep> sources,
+            @ForAll('fakeGroupTargets') List<GroupTarget> targets) {
+        final result = expand(graph, bridges, sources, targets)
+        assert !result.hasIdentityCollisions()
     }
 }

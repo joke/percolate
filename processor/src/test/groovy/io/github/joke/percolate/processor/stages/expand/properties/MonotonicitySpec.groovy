@@ -4,27 +4,26 @@ import static io.github.joke.percolate.processor.test.ExpansionHarness.expand
 import static io.github.joke.percolate.processor.test.GraphCompare.edgeTuples
 import static io.github.joke.percolate.processor.test.GraphCompare.nodeIds
 
-import spock.lang.Specification
-import spock.lang.Tag
-import spock.lang.Timeout
+import net.jqwik.api.ForAll
+import net.jqwik.api.Property
 
-@Tag('unit')
-@Timeout(30)
-class MonotonicitySpec extends Specification {
+import io.github.joke.percolate.processor.spi.Bridge
+import io.github.joke.percolate.processor.spi.GroupTarget
+import io.github.joke.percolate.processor.spi.SourceStep
+import io.github.joke.percolate.processor.graph.MapperGraph
 
-    def 'larger strategy set produces superset for random inputs'() {
-        given:
-        final graph = GraphGenerator.randomSeed()
-        final bridges = GraphGenerator.randomBridges()
-        final sourceSteps = GraphGenerator.randomSourceSteps()
-        final groupTargets = GraphGenerator.randomGroupTargets()
+class MonotonicitySpec extends ExpansionPropertyBase {
 
-        when:
+    @Property(seed = '9999')
+    void 'larger strategy set produces superset'(
+            @ForAll('seedGraphs') MapperGraph graph,
+            @ForAll('fakeBridges') List<Bridge> bridges,
+            @ForAll('fakeSourceSteps') List<SourceStep> sources,
+            @ForAll('fakeGroupTargets') List<GroupTarget> targets) {
         final smaller = expand(graph, [], [], [])
-        final larger = expand(graph, bridges, sourceSteps, groupTargets)
+        final larger  = expand(graph, bridges, sources, targets)
 
-        then:
-        edgeTuples(larger.expandedGraph()).containsAll(edgeTuples(smaller.expandedGraph()))
-        nodeIds(larger.expandedGraph()).containsAll(nodeIds(smaller.expandedGraph()))
+        assert edgeTuples(larger.expandedGraph()).containsAll(edgeTuples(smaller.expandedGraph()))
+        assert nodeIds(larger.expandedGraph()).containsAll(nodeIds(smaller.expandedGraph()))
     }
 }

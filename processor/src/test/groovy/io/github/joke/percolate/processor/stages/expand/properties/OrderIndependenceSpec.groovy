@@ -4,31 +4,30 @@ import static io.github.joke.percolate.processor.test.ExpansionHarness.expand
 import static io.github.joke.percolate.processor.test.GraphCompare.edgeTuples
 import static io.github.joke.percolate.processor.test.GraphCompare.nodeIds
 
-import spock.lang.Specification
-import spock.lang.Tag
-import spock.lang.Timeout
+import net.jqwik.api.ForAll
+import net.jqwik.api.Property
 
-@Tag('unit')
-@Timeout(30)
-class OrderIndependenceSpec extends Specification {
+import io.github.joke.percolate.processor.spi.Bridge
+import io.github.joke.percolate.processor.spi.GroupTarget
+import io.github.joke.percolate.processor.spi.SourceStep
+import io.github.joke.percolate.processor.graph.MapperGraph
 
-    def 'permuting strategies does not change output for random inputs'() {
-        given:
-        final graph = GraphGenerator.randomSeed()
-        final bridges = GraphGenerator.randomBridges()
-        final sourceSteps = GraphGenerator.randomSourceSteps()
-        final groupTargets = GraphGenerator.randomGroupTargets()
+class OrderIndependenceSpec extends ExpansionPropertyBase {
 
-        final bridgesReversed = bridges.reverse()
-        final sourceStepsReversed = sourceSteps.reverse()
-        final groupTargetsReversed = groupTargets.reverse()
+    @Property(seed = '8888')
+    void 'permuting strategies does not change output'(
+            @ForAll('seedGraphs') MapperGraph graph,
+            @ForAll('fakeBridges') List<Bridge> bridges,
+            @ForAll('fakeSourceSteps') List<SourceStep> sources,
+            @ForAll('fakeGroupTargets') List<GroupTarget> targets) {
+        final bridgesReversed      = bridges.reverse()
+        final sourceStepsReversed  = sources.reverse()
+        final groupTargetsReversed = targets.reverse()
 
-        when:
-        final original = expand(graph, bridges, sourceSteps, groupTargets)
-        final permuted = expand(graph, bridgesReversed, sourceStepsReversed, groupTargetsReversed)
+        final original   = expand(graph, bridges, sources, targets)
+        final permuted   = expand(graph, bridgesReversed, sourceStepsReversed, groupTargetsReversed)
 
-        then:
-        nodeIds(permuted.expandedGraph()) == nodeIds(original.expandedGraph())
-        edgeTuples(permuted.expandedGraph()) == edgeTuples(original.expandedGraph())
+        assert nodeIds(permuted.expandedGraph()) == nodeIds(original.expandedGraph())
+        assert edgeTuples(permuted.expandedGraph()) == edgeTuples(original.expandedGraph())
     }
 }

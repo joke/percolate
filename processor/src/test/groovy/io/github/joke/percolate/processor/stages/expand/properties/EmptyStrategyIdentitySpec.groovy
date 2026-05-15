@@ -4,23 +4,17 @@ import static io.github.joke.percolate.processor.test.ExpansionHarness.expand
 import static io.github.joke.percolate.processor.test.GraphCompare.edgeTuples
 import static io.github.joke.percolate.processor.test.GraphCompare.nodeIds
 
-import spock.lang.Specification
-import spock.lang.Tag
-import spock.lang.Timeout
+import net.jqwik.api.ForAll
+import net.jqwik.api.Property
 
-@Tag('unit')
-@Timeout(30)
-class EmptyStrategyIdentitySpec extends Specification {
+import io.github.joke.percolate.processor.graph.MapperGraph
 
-    def 'empty strategy set preserves seed for random inputs'() {
-        given:
-        final graph = GraphGenerator.randomSeed()
+class EmptyStrategyIdentitySpec extends ExpansionPropertyBase {
 
-        when:
+    @Property(seed = '3333')
+    void 'empty strategy set preserves seed'(@ForAll('seedGraphs') MapperGraph graph) {
         final result = expand(graph, [], [], [])
-
-        then:
-        nodeIds(result.expandedGraph()) == nodeIds(graph)
-        edgeTuples(result.expandedGraph()) == edgeTuples(graph)
+        assert nodeIds(result.expandedGraph()) == nodeIds(graph)
+        assert edgeTuples(result.expandedGraph()) == edgeTuples(graph)
     }
 }

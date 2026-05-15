@@ -96,6 +96,8 @@ Run `./gradlew :processor:test --tests JqwikProbeSpec`. Pass criteria:
 
 If the probe fails, fall back to **D2-alt**: property classes do NOT extend `Specification`. They are plain Groovy classes named `*Spec.groovy` with `@Tag` (the JUnit Jupiter version, not Spock's — feedback memory `feedback_spock_jqwik_tags` is about Spec discovery, not jqwik discovery; jqwik does respect JUnit Platform tags via `net.jqwik.api.Tag`). The base class still exists but extends nothing.
 
+**D2 probe outcome (2026-05-15):** The probe (`JqwikProbeSpec extends Specification`) failed — jqwik's JUnit Platform engine did not discover the `@Property` method on a Spock `Specification` subclass. `./gradlew :processor:test --tests JqwikProbeSpec` reported "No tests found". Pivot to D2-alt confirmed: `ExpansionPropertyBase` extends nothing (no `extends Specification`). All seven property specs are plain Groovy classes. `@Tag` uses `net.jqwik.api.Tag` (JUnit Jupiter), not `spock.lang.Tag`.
+
 The probe lives in the source tree for the duration of the change and is deleted at the end. Recording the probe's outcome up front prevents committing seven rewrites that the test engine then refuses to run.
 
 ### D3. `Arbitrary<MapperGraph>` composition strategy

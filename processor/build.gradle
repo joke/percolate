@@ -29,23 +29,16 @@ dependencies {
     testImplementation 'net.jqwik:jqwik'
     testImplementation 'org.spockframework:spock-core'
     testImplementation 'org.assertj:assertj-core'
-    
+
     testRuntimeOnly 'net.bytebuddy:byte-buddy'
     testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
     testRuntimeOnly 'org.mockito:mockito-junit-jupiter'
+}
 
 tasks.named('test') {
     jvmArgs += ['-Djqwik.database.directory=build/jqwik-database']
-    maxParallelForks = 1
 }
 
 tasks.named('jacocoTestCoverageVerification') {
     enabled = false
-}
-
-//    dependencies {
-//        codenarc platform(project.project(':dependencies'))
-////        codenarc "org.apache.groovy:groovy:5.0.6"
-//        codenarc 'org.codenarc:CodeNarc:3.7.0-groovy-4.0'
-//    }
 }

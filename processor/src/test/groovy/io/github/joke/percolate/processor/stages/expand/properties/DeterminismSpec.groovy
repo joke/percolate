@@ -4,27 +4,26 @@ import static io.github.joke.percolate.processor.test.ExpansionHarness.expand
 import static io.github.joke.percolate.processor.test.GraphCompare.edgeTuples
 import static io.github.joke.percolate.processor.test.GraphCompare.nodeIds
 
-import spock.lang.Specification
-import spock.lang.Tag
-import spock.lang.Timeout
+import net.jqwik.api.ForAll
+import net.jqwik.api.Property
 
-@Tag('unit')
-@Timeout(30)
-class DeterminismSpec extends Specification {
+import io.github.joke.percolate.processor.spi.Bridge
+import io.github.joke.percolate.processor.spi.GroupTarget
+import io.github.joke.percolate.processor.spi.SourceStep
+import io.github.joke.percolate.processor.graph.MapperGraph
 
-    def 'expansion is deterministic for random inputs'() {
-        given:
-        final graph = GraphGenerator.randomSeed()
-        final bridges = GraphGenerator.randomBridges()
-        final sourceSteps = GraphGenerator.randomSourceSteps()
-        final groupTargets = GraphGenerator.randomGroupTargets()
 
-        when:
-        final first = expand(graph, bridges, sourceSteps, groupTargets)
-        final second = expand(graph, bridges, sourceSteps, groupTargets)
+class DeterminismSpec extends ExpansionPropertyBase {
 
-        then:
-        nodeIds(first.expandedGraph()) == nodeIds(second.expandedGraph())
-        edgeTuples(first.expandedGraph()) == edgeTuples(second.expandedGraph())
+    @Property(seed = '4242')
+    void 'expansion is deterministic'(
+            @ForAll('seedGraphs') MapperGraph graph,
+            @ForAll('fakeBridges') List<Bridge> bridges,
+            @ForAll('fakeSourceSteps') List<SourceStep> sources,
+            @ForAll('fakeGroupTargets') List<GroupTarget> targets) {
+        final first  = expand(graph, bridges, sources, targets)
+        final second = expand(graph, bridges, sources, targets)
+        assert nodeIds(first.expandedGraph())   == nodeIds(second.expandedGraph())
+        assert edgeTuples(first.expandedGraph()) == edgeTuples(second.expandedGraph())
     }
 }

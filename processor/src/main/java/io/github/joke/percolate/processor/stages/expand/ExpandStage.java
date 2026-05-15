@@ -1,7 +1,5 @@
 package io.github.joke.percolate.processor.stages.expand;
 
-import static java.util.stream.Collectors.toUnmodifiableList;
-
 import io.github.joke.percolate.processor.Diagnostics;
 import io.github.joke.percolate.processor.MapperContext;
 import io.github.joke.percolate.processor.graph.Edge;
@@ -74,6 +72,6 @@ public final class ExpandStage implements Stage {
     }
 
     private List<Edge> collectSeedEdges(final MapperGraph graph) {
-        return graph.edges().filter(e -> e.getKind() == EdgeKind.SEED).collect(toUnmodifiableList());
+        return graph.edges().filter(e -> e.getKind() == EdgeKind.SEED).collect(java.util.stream.Collectors.toList());
     }
 }

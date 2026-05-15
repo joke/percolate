@@ -1,4 +1,4 @@
-package io.github.joke.percolate.processor.stages.expand.properties
+package io.github.joke.percolate.processor.stages.expand
 
 import io.github.joke.percolate.processor.graph.EdgeKind
 import io.github.joke.percolate.processor.stages.expand.properties.fakes.IdentityBridge

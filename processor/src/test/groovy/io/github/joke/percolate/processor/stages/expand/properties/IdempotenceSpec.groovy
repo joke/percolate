@@ -4,27 +4,25 @@ import static io.github.joke.percolate.processor.test.ExpansionHarness.expand
 import static io.github.joke.percolate.processor.test.GraphCompare.edgeTuples
 import static io.github.joke.percolate.processor.test.GraphCompare.nodeIds
 
-import spock.lang.Specification
-import spock.lang.Tag
-import spock.lang.Timeout
+import net.jqwik.api.ForAll
+import net.jqwik.api.Property
 
-@Tag('unit')
-@Timeout(30)
-class IdempotenceSpec extends Specification {
+import io.github.joke.percolate.processor.spi.Bridge
+import io.github.joke.percolate.processor.spi.GroupTarget
+import io.github.joke.percolate.processor.spi.SourceStep
+import io.github.joke.percolate.processor.graph.MapperGraph
 
-    def 'second expansion adds nothing for random inputs'() {
-        given:
-        final graph = GraphGenerator.randomSeed()
-        final bridges = GraphGenerator.randomBridges()
-        final sourceSteps = GraphGenerator.randomSourceSteps()
-        final groupTargets = GraphGenerator.randomGroupTargets()
+class IdempotenceSpec extends ExpansionPropertyBase {
 
-        when:
-        final firstPass = expand(graph, bridges, sourceSteps, groupTargets)
-        final secondPass = expand(firstPass.expandedGraph(), bridges, sourceSteps, groupTargets)
-
-        then:
-        nodeIds(secondPass.expandedGraph()) == nodeIds(firstPass.expandedGraph())
-        edgeTuples(secondPass.expandedGraph()) == edgeTuples(firstPass.expandedGraph())
+    @Property(seed = '7777')
+    void 'second expansion adds nothing'(
+            @ForAll('seedGraphs') MapperGraph graph,
+            @ForAll('fakeBridges') List<Bridge> bridges,
+            @ForAll('fakeSourceSteps') List<SourceStep> sources,
+            @ForAll('fakeGroupTargets') List<GroupTarget> targets) {
+        final firstPass  = expand(graph, bridges, sources, targets)
+        final secondPass = expand(firstPass.expandedGraph(), bridges, sources, targets)
+        assert nodeIds(secondPass.expandedGraph()) == nodeIds(firstPass.expandedGraph())
+        assert edgeTuples(secondPass.expandedGraph()) == edgeTuples(firstPass.expandedGraph())
     }
 }

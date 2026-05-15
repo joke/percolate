@@ -2,7 +2,7 @@
 
 ### Requirement: jqwik property tests
 
-The processor module SHALL contain jqwik-driven property specs (Groovy sources) at `processor/src/test/groovy/io/github/joke/percolate/processor/stages/expand/properties/` covering the algebraic contract of `expand`. Each spec is a Groovy class named `*Spec.groovy` that `extends ExpansionPropertyBase` (which itself `extends spock.lang.Specification`) — Spec naming and `Specification` inheritance match the rest of the test layer; jqwik provides the property-test engine via `@net.jqwik.api.Property`-annotated methods on the same class. The seven specs are:
+The processor module SHALL contain jqwik-driven property specs (Groovy sources) at `processor/src/test/groovy/io/github/joke/percolate/processor/stages/expand/properties/` covering the algebraic contract of `expand`. Each spec is a Groovy class named `*Spec.groovy` that `extends ExpansionPropertyBase` — jqwik provides the property-test engine via `@net.jqwik.api.Property`-annotated methods on the same class. The seven specs are:
 
 - **`DeterminismSpec`**: `expand(g, S) == expand(g, S)` across repeated invocation.
 - **`IdempotenceSpec`**: `expand(expand(g, S), S) == expand(g, S)`.
@@ -28,7 +28,7 @@ Fakes drawn into the property alphabet SHALL be stateless across invocations. `D
 #### Scenario: Properties extend the property base
 - **WHEN** the source of any property spec is inspected
 - **THEN** the class `extends ExpansionPropertyBase`
-- **AND** `ExpansionPropertyBase` itself `extends spock.lang.Specification`
+- **AND** `ExpansionPropertyBase` is a plain Groovy class (no `extends` clause) — jqwik does not discover `@Property` methods on Spock `Specification` subclasses (D2 probe confirmed this)
 
 #### Scenario: Properties use explicit mode with fakes
 - **WHEN** the source of any property spec is inspected
@@ -41,7 +41,7 @@ Fakes drawn into the property alphabet SHALL be stateless across invocations. `D
 
 ### Requirement: jqwik configuration
 
-`processor/build.gradle` SHALL configure jqwik with a default `@Property(tries = 500)` and store a property database under `build/jqwik-database` so that shrunken counterexamples are replayed deterministically. The default-tries configuration SHALL live as a class-level `@net.jqwik.api.PropertyDefaults(tries = 500)` annotation on `ExpansionPropertyBase` — not on individual specs, not in `jqwik.properties`. Individual `@Property` methods MAY override `tries` for slow properties; the base-class value is the project-wide default.
+`processor/build.gradle` SHALL configure jqwik with a default `@Property(tries = 100)` and store a property database under `build/jqwik-database` so that shrunken counterexamples are replayed deterministically. The default-tries configuration SHALL live as a class-level `@net.jqwik.api.PropertyDefaults(tries = 100)` annotation on `ExpansionPropertyBase` — not on individual specs, not in `jqwik.properties`. Individual `@Property` methods MAY override `tries` for slow properties; the base-class value is the project-wide default.
 
 Each `@Property` method on a property spec SHALL pin a default seed via `@Property(seed = '<long>')` (jqwik requires a `long`-parseable string) to make CI failures locally reproducible on fresh databases.
 
@@ -51,7 +51,7 @@ Each `@Property` method on a property spec SHALL pin a default seed via `@Proper
 
 #### Scenario: PropertyDefaults lives on the base class
 - **WHEN** the source of `ExpansionPropertyBase` is inspected
-- **THEN** the class carries `@net.jqwik.api.PropertyDefaults(tries = 500)`
+- **THEN** the class carries `@net.jqwik.api.PropertyDefaults(tries = 100)`
 - **AND** no individual property spec re-declares the same default
 
 #### Scenario: Properties pin seeds
@@ -64,9 +64,9 @@ Each `@Property` method on a property spec SHALL pin a default seed via `@Proper
 
 The processor module SHALL contain `processor/src/test/groovy/io/github/joke/percolate/processor/stages/expand/properties/ExpansionPropertyBase.groovy`, an `abstract` Groovy class that:
 
-- `extends spock.lang.Specification` so subclasses participate in Spock's tag/timeout infrastructure.
-- Carries `@spock.lang.Tag('unit')` and `@spock.lang.Timeout(60)` at the class level so all subclasses inherit the same test-tier classification.
-- Carries `@net.jqwik.api.PropertyDefaults(tries = 500)` so all `@Property` methods on subclasses inherit the default tries count.
+- Is a plain Groovy class with no `extends` clause — jqwik does not discover `@Property` methods on Spock `Specification` subclasses (D2 probe confirmed this).
+- Carries `@net.jqwik.api.Tag('integration')` and `@org.junit.jupiter.api.Timeout(60)` at the class level so all subclasses inherit the integration test tier — property runs are too expensive for the unit-test feedback loop.
+- Carries `@net.jqwik.api.PropertyDefaults(tries = 100)` so all `@Property` methods on subclasses inherit the default tries count.
 - Defines `@net.jqwik.api.Provide` methods that return `net.jqwik.api.Arbitrary` instances for the inputs consumed by the seven property specs: at minimum `seedGraphs()` → `Arbitrary<MapperGraph>`, `fakeBridges()` → `Arbitrary<List<Bridge>>`, `fakeSourceSteps()` → `Arbitrary<List<SourceStep>>`, `fakeGroupTargets()` → `Arbitrary<List<GroupTarget>>`.
 
 `ExpansionPropertyBase` SHALL be the single source of generator definitions. Individual property specs SHALL NOT define their own `@Provide` methods or maintain parallel `java.util.Random`-driven generators. The previously-existing `GraphGenerator.groovy` (which used `java.util.Random`) SHALL be removed.
@@ -80,7 +80,7 @@ Property specs reference inherited generators via `@net.jqwik.api.ForAll('seedGr
 
 #### Scenario: Base class carries the shared annotations
 - **WHEN** the source of `ExpansionPropertyBase` is inspected
-- **THEN** the class carries `@spock.lang.Tag('unit')`, `@spock.lang.Timeout(60)`, and `@net.jqwik.api.PropertyDefaults(tries = 500)`
+- **THEN** the class carries `@net.jqwik.api.Tag('integration')`, `@org.junit.jupiter.api.Timeout(60)`, and `@net.jqwik.api.PropertyDefaults(tries = 100)`
 - **AND** the class declares `@Provide` methods returning `Arbitrary<MapperGraph>`, `Arbitrary<List<Bridge>>`, `Arbitrary<List<SourceStep>>`, and `Arbitrary<List<GroupTarget>>`
 
 #### Scenario: GraphGenerator is removed
