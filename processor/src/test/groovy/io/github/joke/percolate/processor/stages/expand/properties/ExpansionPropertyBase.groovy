@@ -1,29 +1,13 @@
 package io.github.joke.percolate.processor.stages.expand.properties
 
-import io.github.joke.percolate.processor.graph.AccessPath
-import io.github.joke.percolate.processor.graph.Edge
-import io.github.joke.percolate.processor.graph.MapperGraph
-import io.github.joke.percolate.processor.graph.Node
-import io.github.joke.percolate.processor.graph.Scope
-import io.github.joke.percolate.processor.graph.SourceLocation
-import io.github.joke.percolate.processor.graph.TargetLocation
-import io.github.joke.percolate.processor.graph.TargetPath
+import io.github.joke.percolate.processor.graph.*
+import io.github.joke.percolate.processor.stages.expand.properties.fakes.*
+import io.github.joke.percolate.processor.test.HarnessScope
 import io.github.joke.percolate.spi.Bridge
 import io.github.joke.percolate.spi.GroupTarget
 import io.github.joke.percolate.spi.SourceStep
-import io.github.joke.percolate.processor.stages.expand.properties.fakes.ChainBridge
-import io.github.joke.percolate.processor.stages.expand.properties.fakes.IdentityBridge
-import io.github.joke.percolate.processor.stages.expand.properties.fakes.NoOpBridge
-import io.github.joke.percolate.processor.stages.expand.properties.fakes.NoOpGroupTarget
-import io.github.joke.percolate.processor.stages.expand.properties.fakes.NoOpSourceStep
-import io.github.joke.percolate.processor.test.HarnessScope
 import io.github.joke.percolate.spi.test.TypeUniverse
-
-import net.jqwik.api.Arbitraries
-import net.jqwik.api.Arbitrary
-import net.jqwik.api.Provide
-import net.jqwik.api.PropertyDefaults
-import net.jqwik.api.Tag
+import net.jqwik.api.*
 import org.junit.jupiter.api.Timeout
 
 import javax.lang.model.type.TypeMirror

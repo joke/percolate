@@ -2,7 +2,8 @@ package io.github.joke.percolate.spi.test
 
 import com.sun.source.util.JavacTask
 
-import javax.lang.model.element.TypeElement
+import javax.lang.model.element.*
+import javax.lang.model.type.DeclaredType
 import javax.lang.model.type.TypeKind
 import javax.lang.model.type.TypeMirror
 import javax.lang.model.util.Elements
@@ -16,6 +17,7 @@ final class TypeUniverse {
     private static final JavacTask JAVAC_TASK = createTask()
     private static final Types TYPE_UTILS = JAVAC_TASK.types
     private static final Elements ELEMENT_UTILS = JAVAC_TASK.elements
+    private static final Elements SYNCHRONIZED_ELEMENTS = new SynchronizedElements(ELEMENT_UTILS)
     private static final Map<String, TypeElement> ELEMENT_CACHE = new ConcurrentHashMap<>()
 
     static final TypeMirror INT = TYPE_UTILS.getPrimitiveType(TypeKind.INT)
@@ -40,7 +42,116 @@ final class TypeUniverse {
     }
 
     static Elements elements() {
-        ELEMENT_UTILS
+        SYNCHRONIZED_ELEMENTS
+    }
+
+    private static final class SynchronizedElements implements Elements {
+        private final Elements delegate
+
+        SynchronizedElements(final Elements d) {
+            this.delegate = d
+        }
+
+        
+        TypeElement getTypeElement(final CharSequence qualifiedName) {
+            synchronized (TypeUniverse) { delegate.getTypeElement(qualifiedName) }
+        }
+
+        
+        List<? extends Element> getAllMembers(final TypeElement classElement) {
+            synchronized (TypeUniverse) { delegate.getAllMembers(classElement) }
+        }
+
+        
+        List<? extends Element> getEnclosedElements(final Element element) {
+            synchronized (TypeUniverse) { delegate.getEnclosedElements(element) }
+        }
+
+        
+        Set<? extends PackageElement> getPackages() {
+            delegate.packages()
+        }
+
+        
+        PackageElement getPackageElement(final CharSequence qualifiedName) {
+            delegate.getPackageElement(qualifiedName)
+        }
+
+        
+        Name getName(final CharSequence sequence) {
+            delegate.getName(sequence)
+        }
+
+        
+        boolean isFunctionalInterface(final TypeElement typeElement) {
+            delegate.isFunctionalInterface(typeElement)
+        }
+
+        
+        void printElements(final Writer writer, final Element... elements) {
+            delegate.printElements(writer, elements)
+        }
+
+        
+        Element getNoElement() {
+            delegate.noElement()
+        }
+
+        
+        boolean hides(final Element hiding, final Element hidden) {
+            delegate.hides(hiding, hidden)
+        }
+
+        
+        boolean overrides(final ExecutableElement method, final ExecutableElement overriden, final TypeElement type) {
+            delegate.overrides(method, overriden, type)
+        }
+
+        
+        String getConstantExpression(final Object value) {
+            delegate.getConstantExpression(value)
+        }
+
+
+        ModuleElement getModuleElement(final CharSequence moduleName) {
+            delegate.getModuleElement(moduleName)
+        }
+
+        Element getBinaryElement(final TypeElement classElement, final CharSequence flatName) {
+            delegate.getBinaryElement(classElement, flatName)
+        }
+
+        Element getElement(final DeclaredType declaredType, final TypeElement... typeParameters) {
+            delegate.getElement(declaredType, typeParameters)
+        }
+
+        Element getUnknownModuleElement(final String moduleName) {
+            delegate.getUnknownModuleElement(moduleName)
+        }
+
+        Map<? extends AnnotationMirror, ? extends AnnotationValue> getElementValuesWithDefaults(final AnnotationMirror annotation) {
+            synchronized (TypeUniverse) { delegate.getElementValuesWithDefaults(annotation) }
+        }
+
+        String getDocComment(final Element element) {
+            synchronized (TypeUniverse) { delegate.getDocComment(element) }
+        }
+
+        boolean isDeprecated(final Element element) {
+            synchronized (TypeUniverse) { delegate.isDeprecated(element) }
+        }
+
+        Name getBinaryName(final TypeElement typeElement) {
+            synchronized (TypeUniverse) { delegate.getBinaryName(typeElement) }
+        }
+
+        PackageElement getPackageOf(final Element element) {
+            synchronized (TypeUniverse) { delegate.getPackageOf(element) }
+        }
+
+        List<? extends AnnotationMirror> getAllAnnotationMirrors(final Element element) {
+            synchronized (TypeUniverse) { delegate.getAllAnnotationMirrors(element) }
+        }
     }
 
     static List<TypeMirror> pool() {
@@ -54,12 +165,13 @@ final class TypeUniverse {
     private static JavacTask createTask() {
         final JavaCompiler compiler = ToolProvider.systemJavaCompiler
         Objects.requireNonNull(compiler, 'no system Java compiler available; JDK required at runtime')
-        (JavacTask) compiler.getTask(null, null, null, null, null, null)
+        final var classpath = System.getProperty('java.class.path')
+        (JavacTask) compiler.getTask(null, null, null, ['-cp', classpath], null, null)
     }
 
     private static TypeElement lookup(final String qualifiedName) {
-        ELEMENT_CACHE.computeIfAbsent(qualifiedName) { name ->
-            synchronized (ELEMENT_UTILS) {
+        synchronized (TypeUniverse) {
+            ELEMENT_CACHE.computeIfAbsent(qualifiedName) { name ->
                 final element = ELEMENT_UTILS.getTypeElement(name)
                 if (element == null) {
                     throw new NullPointerException("type not found on classpath: ${name}")

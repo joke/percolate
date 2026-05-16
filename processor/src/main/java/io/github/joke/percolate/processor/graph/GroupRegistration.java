@@ -1,8 +1,9 @@
 package io.github.joke.percolate.processor.graph;
 
-import java.util.Objects;
 import lombok.EqualsAndHashCode;
 import lombok.Getter;
+
+import java.util.Objects;
 
 @Getter
 @EqualsAndHashCode

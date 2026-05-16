@@ -1,14 +1,13 @@
 package io.github.joke.percolate.processor.stages.expand.properties
 
-import static io.github.joke.percolate.processor.test.ExpansionHarness.expand
-
-import net.jqwik.api.ForAll
-import net.jqwik.api.Property
-
+import io.github.joke.percolate.processor.graph.MapperGraph
 import io.github.joke.percolate.spi.Bridge
 import io.github.joke.percolate.spi.GroupTarget
 import io.github.joke.percolate.spi.SourceStep
-import io.github.joke.percolate.processor.graph.MapperGraph
+import net.jqwik.api.ForAll
+import net.jqwik.api.Property
+
+import static io.github.joke.percolate.processor.test.ExpansionHarness.expand
 
 class IdentityCollapseSpec extends ExpansionPropertyBase {
 

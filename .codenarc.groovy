@@ -65,7 +65,6 @@ ruleset {
 
 //    Imports
     DuplicateImport
-    MisorderedStaticImports
     UnnecessaryGroovyImport
     UnusedImport
 

@@ -1,7 +1,6 @@
 package io.github.joke.percolate.processor.test
 
 import io.github.joke.percolate.processor.graph.DotRenderer
-import io.github.joke.percolate.processor.graph.Edge
 import io.github.joke.percolate.processor.graph.EdgeKind
 import io.github.joke.percolate.processor.graph.MapperGraph
 import io.github.joke.percolate.processor.graph.Node

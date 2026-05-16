@@ -6,10 +6,11 @@ import io.github.joke.percolate.processor.graph.EdgeKind;
 import io.github.joke.percolate.processor.graph.MapperGraph;
 import io.github.joke.percolate.processor.graph.Node;
 import jakarta.inject.Inject;
+import lombok.RequiredArgsConstructor;
+
+import javax.lang.model.element.TypeElement;
 import java.util.HashSet;
 import java.util.Set;
-import javax.lang.model.element.TypeElement;
-import lombok.RequiredArgsConstructor;
 
 @RequiredArgsConstructor(onConstructor_ = @Inject)
 public final class ValidateMarkersPhase implements ValidationPhase {

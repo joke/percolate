@@ -1,7 +1,5 @@
 package io.github.joke.percolate.spi.builtins;
 
-import static java.util.stream.Collectors.toUnmodifiableList;
-
 import com.google.auto.service.AutoService;
 import com.palantir.javapoet.CodeBlock;
 import io.github.joke.percolate.spi.Bridge;
@@ -10,14 +8,17 @@ import io.github.joke.percolate.spi.EdgeCodegen;
 import io.github.joke.percolate.spi.MethodCandidate;
 import io.github.joke.percolate.spi.ResolveCtx;
 import io.github.joke.percolate.spi.Weights;
+import lombok.NoArgsConstructor;
+
+import javax.lang.model.element.TypeElement;
+import javax.lang.model.type.TypeMirror;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.stream.Stream;
-import javax.lang.model.element.TypeElement;
-import javax.lang.model.type.TypeMirror;
-import lombok.NoArgsConstructor;
+
+import static java.util.stream.Collectors.toUnmodifiableList;
 
 @AutoService(Bridge.class)
 @NoArgsConstructor

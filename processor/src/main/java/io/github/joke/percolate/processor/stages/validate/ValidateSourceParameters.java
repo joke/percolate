@@ -1,18 +1,19 @@
 package io.github.joke.percolate.processor.stages.validate;
 
-import static java.util.stream.Collectors.joining;
-import static java.util.stream.Collectors.toUnmodifiableSet;
-
 import io.github.joke.percolate.processor.Diagnostics;
 import io.github.joke.percolate.processor.MapperContext;
 import io.github.joke.percolate.processor.model.MapperMappings;
 import io.github.joke.percolate.processor.model.MethodMappings;
 import io.github.joke.percolate.processor.stages.Stage;
 import jakarta.inject.Inject;
+import lombok.RequiredArgsConstructor;
+
 import javax.lang.model.element.ExecutableElement;
 import javax.lang.model.element.TypeElement;
 import javax.lang.model.type.TypeKind;
-import lombok.RequiredArgsConstructor;
+
+import static java.util.stream.Collectors.joining;
+import static java.util.stream.Collectors.toUnmodifiableSet;
 
 @RequiredArgsConstructor(onConstructor_ = @Inject)
 public final class ValidateSourceParameters implements Stage {

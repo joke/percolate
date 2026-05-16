@@ -1,28 +1,29 @@
 package io.github.joke.percolate.processor.stages.discover;
 
-import static java.util.stream.Collectors.groupingBy;
-import static java.util.stream.Collectors.toCollection;
-import static java.util.stream.Collectors.toList;
-import static java.util.stream.Collectors.toUnmodifiableList;
-
 import io.github.joke.percolate.processor.MapperContext;
 import io.github.joke.percolate.processor.stages.Stage;
 import io.github.joke.percolate.spi.CallableMethods;
 import io.github.joke.percolate.spi.MethodCandidate;
 import io.github.joke.percolate.spi.ThisReceiver;
 import jakarta.inject.Inject;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.stream.Stream;
+import lombok.RequiredArgsConstructor;
+
 import javax.lang.model.element.ElementKind;
 import javax.lang.model.element.ExecutableElement;
 import javax.lang.model.element.TypeElement;
 import javax.lang.model.type.TypeMirror;
 import javax.lang.model.util.Elements;
 import javax.lang.model.util.Types;
-import lombok.RequiredArgsConstructor;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.stream.Stream;
+
+import static java.util.stream.Collectors.groupingBy;
+import static java.util.stream.Collectors.toCollection;
+import static java.util.stream.Collectors.toList;
+import static java.util.stream.Collectors.toUnmodifiableList;
 
 @RequiredArgsConstructor(onConstructor_ = @Inject)
 public final class DiscoverCallableMethods implements Stage {

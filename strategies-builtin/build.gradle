@@ -19,6 +19,7 @@ dependencies {
     testImplementation platform(project(':dependencies'))
     testImplementation 'org.spockframework:spock-core'
     testImplementation 'org.mockito:mockito-junit-jupiter'
+    testImplementation 'org.jspecify:jspecify'
     testImplementation testFixtures(project(':spi'))
 
     testRuntimeOnly 'net.bytebuddy:byte-buddy'
@@ -27,4 +28,10 @@ dependencies {
 
 tasks.named('jacocoTestCoverageVerification') {
     enabled = false
+}
+
+tasks.named('test') {
+    maxParallelForks = 1
+    systemProperty 'junit.jupiter.execution.parallel.enabled', 'false'
+    systemProperty 'spock.parallel.threads', '0'
 }

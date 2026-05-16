@@ -1,7 +1,8 @@
 package io.github.joke.percolate.processor;
 
-import java.util.Map;
 import lombok.Value;
+
+import java.util.Map;
 
 @Value
 public final class ProcessorOptions {

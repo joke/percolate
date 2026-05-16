@@ -28,10 +28,10 @@ import io.github.joke.percolate.spi.SourceStep;
 import jakarta.inject.Inject;
 import jakarta.inject.Named;
 import jakarta.inject.Singleton;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.ServiceLoader;
-import java.util.stream.StreamSupport;
+import lombok.EqualsAndHashCode;
+import lombok.RequiredArgsConstructor;
+import org.jspecify.annotations.Nullable;
+
 import javax.annotation.processing.Filer;
 import javax.annotation.processing.Messager;
 import javax.annotation.processing.ProcessingEnvironment;
@@ -39,9 +39,10 @@ import javax.lang.model.element.ExecutableElement;
 import javax.lang.model.element.TypeElement;
 import javax.lang.model.util.Elements;
 import javax.lang.model.util.Types;
-import lombok.EqualsAndHashCode;
-import lombok.RequiredArgsConstructor;
-import org.jspecify.annotations.Nullable;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.ServiceLoader;
+import java.util.stream.StreamSupport;
 
 @Module
 @RequiredArgsConstructor(onConstructor_ = @Inject)

@@ -1,11 +1,6 @@
 package io.github.joke.percolate.processor.test
 
-import io.github.joke.percolate.processor.graph.Edge
-import io.github.joke.percolate.processor.graph.EdgeKind
-import io.github.joke.percolate.processor.graph.MapperGraph
-import io.github.joke.percolate.processor.graph.Node
-import io.github.joke.percolate.processor.graph.SourceLocation
-import io.github.joke.percolate.processor.graph.TargetLocation
+import io.github.joke.percolate.processor.graph.*
 
 final class ExpansionAssertions {
 

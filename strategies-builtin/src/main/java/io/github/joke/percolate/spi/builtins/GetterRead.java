@@ -7,14 +7,15 @@ import io.github.joke.percolate.spi.ResolveCtx;
 import io.github.joke.percolate.spi.SourceStep;
 import io.github.joke.percolate.spi.Step;
 import io.github.joke.percolate.spi.Weights;
-import java.util.stream.Stream;
+import lombok.NoArgsConstructor;
+import org.jspecify.annotations.Nullable;
+
 import javax.lang.model.element.ElementKind;
 import javax.lang.model.element.ExecutableElement;
 import javax.lang.model.element.TypeElement;
 import javax.lang.model.type.TypeKind;
 import javax.lang.model.type.TypeMirror;
-import lombok.NoArgsConstructor;
-import org.jspecify.annotations.Nullable;
+import java.util.stream.Stream;
 
 @AutoService(SourceStep.class)
 @NoArgsConstructor

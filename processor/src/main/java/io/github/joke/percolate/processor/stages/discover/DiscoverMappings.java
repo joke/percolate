@@ -1,8 +1,5 @@
 package io.github.joke.percolate.processor.stages.discover;
 
-import static com.google.auto.common.AnnotationMirrors.getAnnotationValue;
-import static java.util.stream.Collectors.toUnmodifiableList;
-
 import io.github.joke.percolate.Map;
 import io.github.joke.percolate.MapList;
 import io.github.joke.percolate.processor.MapperContext;
@@ -12,13 +9,17 @@ import io.github.joke.percolate.processor.model.MappingDirective;
 import io.github.joke.percolate.processor.model.MethodMappings;
 import io.github.joke.percolate.processor.stages.Stage;
 import jakarta.inject.Inject;
-import java.util.List;
-import java.util.stream.Stream;
+import lombok.RequiredArgsConstructor;
+
 import javax.lang.model.element.AnnotationMirror;
 import javax.lang.model.element.AnnotationValue;
 import javax.lang.model.element.ExecutableElement;
 import javax.lang.model.util.Elements;
-import lombok.RequiredArgsConstructor;
+import java.util.List;
+import java.util.stream.Stream;
+
+import static com.google.auto.common.AnnotationMirrors.getAnnotationValue;
+import static java.util.stream.Collectors.toUnmodifiableList;
 
 /**
  * Discovers {@code @Map} and {@code @MapList} directives on mapper methods via {@link javax.lang.model.element.AnnotationMirror} walking.

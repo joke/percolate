@@ -5,10 +5,11 @@ import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.ImmutableSetMultimap;
 import io.github.joke.percolate.Mapper;
 import jakarta.inject.Inject;
-import java.util.Set;
+import lombok.RequiredArgsConstructor;
+
 import javax.lang.model.element.Element;
 import javax.lang.model.element.TypeElement;
-import lombok.RequiredArgsConstructor;
+import java.util.Set;
 
 @RequiredArgsConstructor(onConstructor_ = @Inject)
 final class MapperStep implements Step {

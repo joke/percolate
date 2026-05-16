@@ -4,12 +4,12 @@ import io.github.joke.percolate.processor.Diagnostics
 import io.github.joke.percolate.processor.MapperContext
 import io.github.joke.percolate.processor.ProcessorModule
 import io.github.joke.percolate.processor.graph.MapperGraph
+import io.github.joke.percolate.processor.stages.validate.ValidatePathsPhase
 import io.github.joke.percolate.spi.Bridge
 import io.github.joke.percolate.spi.GroupTarget
 import io.github.joke.percolate.spi.SourceStep
 import io.github.joke.percolate.spi.test.HarnessResolveCtx
 import io.github.joke.percolate.spi.test.TypeUniverse
-import io.github.joke.percolate.processor.stages.validate.ValidatePathsPhase
 
 import javax.annotation.processing.Messager
 import javax.lang.model.element.AnnotationMirror

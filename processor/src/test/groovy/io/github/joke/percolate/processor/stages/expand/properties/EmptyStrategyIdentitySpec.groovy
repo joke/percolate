@@ -1,13 +1,12 @@
 package io.github.joke.percolate.processor.stages.expand.properties
 
-import static io.github.joke.percolate.processor.test.ExpansionHarness.expand
-import static io.github.joke.percolate.processor.test.GraphCompare.edgeTuples
-import static io.github.joke.percolate.processor.test.GraphCompare.nodeIds
-
+import io.github.joke.percolate.processor.graph.MapperGraph
 import net.jqwik.api.ForAll
 import net.jqwik.api.Property
 
-import io.github.joke.percolate.processor.graph.MapperGraph
+import static io.github.joke.percolate.processor.test.ExpansionHarness.expand
+import static io.github.joke.percolate.processor.test.GraphCompare.edgeTuples
+import static io.github.joke.percolate.processor.test.GraphCompare.nodeIds
 
 class EmptyStrategyIdentitySpec extends ExpansionPropertyBase {
 

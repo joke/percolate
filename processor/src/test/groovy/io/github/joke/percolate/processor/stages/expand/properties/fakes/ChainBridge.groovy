@@ -1,11 +1,7 @@
 package io.github.joke.percolate.processor.stages.expand.properties.fakes
 
 import com.palantir.javapoet.CodeBlock
-import io.github.joke.percolate.spi.Bridge
-import io.github.joke.percolate.spi.BridgeStep
-import io.github.joke.percolate.spi.EdgeCodegen
-import io.github.joke.percolate.spi.ElementSeed
-import io.github.joke.percolate.spi.ResolveCtx
+import io.github.joke.percolate.spi.*
 import io.github.joke.percolate.spi.test.TypeUniverse
 
 import javax.lang.model.type.TypeMirror

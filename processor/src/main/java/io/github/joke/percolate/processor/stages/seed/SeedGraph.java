@@ -15,12 +15,13 @@ import io.github.joke.percolate.processor.model.MappingDirective;
 import io.github.joke.percolate.processor.model.MethodMappings;
 import io.github.joke.percolate.processor.stages.Stage;
 import jakarta.inject.Inject;
+import lombok.RequiredArgsConstructor;
+
 import java.util.ArrayDeque;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
-import lombok.RequiredArgsConstructor;
 
 @RequiredArgsConstructor(onConstructor_ = @Inject)
 public final class SeedGraph implements Stage {
