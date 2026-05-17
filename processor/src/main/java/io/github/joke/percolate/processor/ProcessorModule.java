@@ -7,17 +7,16 @@ import io.github.joke.percolate.processor.stages.Stage;
 import io.github.joke.percolate.processor.stages.discover.DiscoverAbstractMethods;
 import io.github.joke.percolate.processor.stages.discover.DiscoverCallableMethods;
 import io.github.joke.percolate.processor.stages.discover.DiscoverMappings;
-import io.github.joke.percolate.processor.stages.dump.DumpExpandedGraph;
+import io.github.joke.percolate.processor.stages.dump.DumpFullGraph;
 import io.github.joke.percolate.processor.stages.dump.DumpGraph;
+import io.github.joke.percolate.processor.stages.dump.DumpTransforms;
 import io.github.joke.percolate.processor.stages.expand.BridgeSourceToTargetPhase;
 import io.github.joke.percolate.processor.stages.expand.ExpandStage;
 import io.github.joke.percolate.processor.stages.expand.ExpansionPhase;
 import io.github.joke.percolate.processor.stages.expand.ResolveSourceChainsPhase;
 import io.github.joke.percolate.processor.stages.expand.ResolveTargetChainsPhase;
 import io.github.joke.percolate.processor.stages.seed.SeedGraph;
-import io.github.joke.percolate.processor.stages.validate.ValidateMarkersPhase;
 import io.github.joke.percolate.processor.stages.validate.ValidateNoDuplicateTargets;
-import io.github.joke.percolate.processor.stages.validate.ValidatePathsPhase;
 import io.github.joke.percolate.processor.stages.validate.ValidateRealisationStage;
 import io.github.joke.percolate.processor.stages.validate.ValidateSourceParameters;
 import io.github.joke.percolate.spi.Bridge;
@@ -28,10 +27,10 @@ import io.github.joke.percolate.spi.SourceStep;
 import jakarta.inject.Inject;
 import jakarta.inject.Named;
 import jakarta.inject.Singleton;
-import lombok.EqualsAndHashCode;
-import lombok.RequiredArgsConstructor;
-import org.jspecify.annotations.Nullable;
-
+import java.util.ArrayList;
+import java.util.List;
+import java.util.ServiceLoader;
+import java.util.stream.StreamSupport;
 import javax.annotation.processing.Filer;
 import javax.annotation.processing.Messager;
 import javax.annotation.processing.ProcessingEnvironment;
@@ -39,10 +38,9 @@ import javax.lang.model.element.ExecutableElement;
 import javax.lang.model.element.TypeElement;
 import javax.lang.model.util.Elements;
 import javax.lang.model.util.Types;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.ServiceLoader;
-import java.util.stream.StreamSupport;
+import lombok.EqualsAndHashCode;
+import lombok.RequiredArgsConstructor;
+import org.jspecify.annotations.Nullable;
 
 @Module
 @RequiredArgsConstructor(onConstructor_ = @Inject)
@@ -154,30 +152,26 @@ public final class ProcessorModule {
     }
 
     @Provides
-    ValidateRealisationStage validateRealisationStage(
-            final ValidateMarkersPhase markersPhase,
-            final ValidatePathsPhase pathsPhase,
-            final Diagnostics diagnostics) {
-        return new ValidateRealisationStage(markersPhase, pathsPhase, diagnostics);
+    ValidateRealisationStage validateRealisationStage(final Diagnostics diagnostics) {
+        return new ValidateRealisationStage(diagnostics);
     }
 
     @Provides
-    ValidateMarkersPhase validateMarkersPhase(final Diagnostics diagnostics) {
-        return new ValidateMarkersPhase(diagnostics);
-    }
-
-    @Provides
-    ValidatePathsPhase validatePathsPhase(final Diagnostics diagnostics) {
-        return new ValidatePathsPhase(diagnostics);
-    }
-
-    @Provides
-    DumpExpandedGraph dumpExpandedGraph(
+    DumpFullGraph dumpFullGraph(
             final Filer filer,
             final Diagnostics diagnostics,
             final ProcessorOptions processorOptions,
             final DotRenderer dotRenderer) {
-        return new DumpExpandedGraph(filer, diagnostics, processorOptions, dotRenderer);
+        return new DumpFullGraph(filer, diagnostics, processorOptions, dotRenderer);
+    }
+
+    @Provides
+    DumpTransforms dumpTransforms(
+            final Filer filer,
+            final Diagnostics diagnostics,
+            final ProcessorOptions processorOptions,
+            final DotRenderer dotRenderer) {
+        return new DumpTransforms(filer, diagnostics, processorOptions, dotRenderer);
     }
 
     @Provides
@@ -197,16 +191,18 @@ public final class ProcessorModule {
             final SeedGraph seedGraph,
             final DumpGraph dumpGraph,
             final ExpandStage expandStage,
-            final ValidateRealisationStage validateRealisationStage,
-            final DumpExpandedGraph dumpExpandedGraph) {
+            final DumpFullGraph dumpFullGraph,
+            final DumpTransforms dumpTransforms,
+            final ValidateRealisationStage validateRealisationStage) {
         final var all = new ArrayList<Stage>(discoverStages);
         all.add(validateNoDuplicateTargets);
         all.add(validateSourceParameters);
         all.add(seedGraph);
         all.add(dumpGraph);
         all.add(expandStage);
+        all.add(dumpFullGraph);
+        all.add(dumpTransforms);
         all.add(validateRealisationStage);
-        all.add(dumpExpandedGraph);
         return List.copyOf(all);
     }
 

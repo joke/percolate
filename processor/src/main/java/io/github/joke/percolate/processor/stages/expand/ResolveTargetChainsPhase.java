@@ -1,5 +1,7 @@
 package io.github.joke.percolate.processor.stages.expand;
 
+import static java.util.stream.Collectors.toUnmodifiableList;
+
 import io.github.joke.percolate.processor.graph.Edge;
 import io.github.joke.percolate.processor.graph.EdgeKind;
 import io.github.joke.percolate.processor.graph.GraphDelta;
@@ -13,10 +15,6 @@ import io.github.joke.percolate.spi.GroupCodegen;
 import io.github.joke.percolate.spi.GroupTarget;
 import io.github.joke.percolate.spi.ResolveCtx;
 import io.github.joke.percolate.spi.Slot;
-import lombok.RequiredArgsConstructor;
-import org.jspecify.annotations.Nullable;
-
-import javax.lang.model.type.TypeMirror;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Deque;
@@ -24,19 +22,16 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
-import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Stream;
-
-import static java.util.stream.Collectors.toUnmodifiableList;
+import javax.lang.model.type.TypeMirror;
+import lombok.RequiredArgsConstructor;
+import org.jspecify.annotations.Nullable;
 
 @RequiredArgsConstructor
 public final class ResolveTargetChainsPhase implements ExpansionPhase {
 
-    private static final int INITIAL_GROUP_ID = 0;
-
     private final List<GroupTarget> groupTargets;
     private final ResolveCtx resolveCtx;
-    private final AtomicInteger groupIdCounter = new AtomicInteger(INITIAL_GROUP_ID);
 
     @Override
     public void apply(final MapperGraph graph) {
@@ -72,7 +67,7 @@ public final class ResolveTargetChainsPhase implements ExpansionPhase {
             }
 
             final var groupBuild = optionalBuild.get();
-            final var groupId = nextGroupId();
+            final var groupId = deterministicGroupId(rootNode, strategy);
             final GroupCodegen codegen = groupBuild.getCodegen();
             final var registration = new GroupRegistration(groupId, codegen);
 
@@ -106,8 +101,8 @@ public final class ResolveTargetChainsPhase implements ExpansionPhase {
         });
     }
 
-    private String nextGroupId() {
-        return "g" + groupIdCounter.incrementAndGet();
+    private String deterministicGroupId(final Node rootNode, final GroupTarget strategy) {
+        return "g:" + rootNode.id() + ":" + strategy.getClass().getName();
     }
 
     private List<Node> findReturnRootNodes(final MapperGraph graph) {

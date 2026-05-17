@@ -49,10 +49,10 @@ class DisjointAdditivitySpec extends ExpansionPropertyBase {
             result.addNode(renamed)
         }
         graph.edges().forEach { edge ->
-            result.addEdge(Edge.elementSeed(
+            result.addEdge(Edge.copyWithEndpoints(
+                    edge,
                     remap[edge.from],
-                    remap[edge.to],
-                    edge.strategyClassFqn.orElse('test.seed')))
+                    remap[edge.to]))
         }
         result
     }

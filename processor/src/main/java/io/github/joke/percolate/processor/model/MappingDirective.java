@@ -1,9 +1,8 @@
 package io.github.joke.percolate.processor.model;
 
-import lombok.Value;
-
 import javax.lang.model.element.AnnotationMirror;
 import javax.lang.model.element.AnnotationValue;
+import lombok.Value;
 
 @Value
 public class MappingDirective {

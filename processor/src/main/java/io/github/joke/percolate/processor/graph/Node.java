@@ -1,11 +1,10 @@
 package io.github.joke.percolate.processor.graph;
 
-import lombok.Value;
-
-import javax.lang.model.type.TypeMirror;
 import java.util.NoSuchElementException;
 import java.util.Objects;
 import java.util.Optional;
+import javax.lang.model.type.TypeMirror;
+import lombok.Value;
 
 @Value
 public final class Node implements Comparable<Node> {

@@ -21,10 +21,10 @@ class ExpansionFailureModesSpec extends Specification {
         def result = ExpansionHarness.expand(seed, List.of(new NoOpBridge()), List.of(), List.of())
 
         when:
-        def hasNoPath = result.diagnostics().any { it.toLowerCase().contains('no realised path') }
+        def hasNoProducer = result.diagnostics().any { it.toLowerCase().contains('no producer') }
 
         then:
-        hasNoPath
+        hasNoProducer
     }
 
     def 'cycle diagnostic fires when SUB_SEED edges form a cycle'() {
@@ -73,7 +73,7 @@ class ExpansionFailureModesSpec extends Specification {
         final var target = new Node(Optional.of(typeTo), new TargetLocation(TargetPath.of('out')), scope, Optional.empty())
         graph.addNode(source)
         graph.addNode(target)
-        graph.addEdge(Edge.elementSeed(source, target, 'test.seed'))
+        graph.addEdge(Edge.seedForTest(source, target))
         graph
     }
 
@@ -84,7 +84,7 @@ class ExpansionFailureModesSpec extends Specification {
         final var target = new Node(Optional.of(type), new TargetLocation(TargetPath.of('out')), scope, Optional.empty())
         graph.addNode(source)
         graph.addNode(target)
-        graph.addEdge(Edge.elementSeed(source, target, 'test.seed'))
+        graph.addEdge(Edge.seedForTest(source, target))
         graph
     }
 

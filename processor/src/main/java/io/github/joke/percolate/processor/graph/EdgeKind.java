@@ -4,5 +4,6 @@ public enum EdgeKind {
     SEED,
     REALISED,
     MARKER,
-    SUB_SEED
+    SUB_SEED,
+    ELEMENT_SEED
 }

@@ -4,7 +4,7 @@ import io.github.joke.percolate.processor.Diagnostics
 import io.github.joke.percolate.processor.MapperContext
 import io.github.joke.percolate.processor.ProcessorModule
 import io.github.joke.percolate.processor.graph.MapperGraph
-import io.github.joke.percolate.processor.stages.validate.ValidatePathsPhase
+import io.github.joke.percolate.processor.stages.validate.ValidateRealisationStage
 import io.github.joke.percolate.spi.Bridge
 import io.github.joke.percolate.spi.GroupTarget
 import io.github.joke.percolate.spi.SourceStep
@@ -93,8 +93,8 @@ final class ExpansionHarness {
             return ExpansionResult.of(new MapperGraph(), List.copyOf(errorMessages), 0, false, MAPPER_PLACEHOLDER)
         }
 
-        final validatePaths = new ValidatePathsPhase(diagnostics)
-        validatePaths.apply(expandedGraph, MAPPER_PLACEHOLDER)
+        final validateRealisation = new ValidateRealisationStage(diagnostics)
+        validateRealisation.run(ctx)
 
         final messages = List.copyOf(errorMessages)
         final converged = messages.every { !it.contains('did not converge') }

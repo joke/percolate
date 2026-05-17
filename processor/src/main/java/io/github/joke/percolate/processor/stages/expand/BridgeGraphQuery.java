@@ -1,5 +1,7 @@
 package io.github.joke.percolate.processor.stages.expand;
 
+import static java.util.stream.Collectors.toUnmodifiableList;
+
 import io.github.joke.percolate.processor.graph.Edge;
 import io.github.joke.percolate.processor.graph.EdgeKind;
 import io.github.joke.percolate.processor.graph.ElementLocation;
@@ -7,13 +9,10 @@ import io.github.joke.percolate.processor.graph.MapperGraph;
 import io.github.joke.percolate.processor.graph.Node;
 import io.github.joke.percolate.processor.graph.SourceLocation;
 import io.github.joke.percolate.processor.graph.TargetLocation;
+import java.util.List;
+import javax.lang.model.type.TypeMirror;
 import lombok.experimental.UtilityClass;
 import org.jspecify.annotations.Nullable;
-
-import javax.lang.model.type.TypeMirror;
-import java.util.List;
-
-import static java.util.stream.Collectors.toUnmodifiableList;
 
 @UtilityClass
 public class BridgeGraphQuery {
@@ -32,7 +31,7 @@ public class BridgeGraphQuery {
 
     public List<Edge> collectElementScopeSeedEdges(final MapperGraph graph) {
         return graph.edges()
-                .filter(e -> e.getKind() == EdgeKind.SEED)
+                .filter(e -> e.getKind() == EdgeKind.ELEMENT_SEED)
                 .filter(e -> e.getFrom().getLoc() instanceof ElementLocation)
                 .filter(e -> e.getTo().getLoc() instanceof ElementLocation)
                 .collect(toUnmodifiableList());

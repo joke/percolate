@@ -79,7 +79,7 @@ abstract class ExpansionPropertyBase {
             graph.addNode(targetNode)
 
             argNodes.values().each { argNode ->
-                graph.addEdge(Edge.elementSeed(argNode, targetNode, 'test.seed'))
+                graph.addEdge(Edge.seedForTest(argNode, targetNode))
             }
         }
         graph

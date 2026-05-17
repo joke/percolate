@@ -1,19 +1,18 @@
 package io.github.joke.percolate.processor.graph;
 
-import lombok.NoArgsConstructor;
+import static java.util.stream.Collectors.groupingBy;
+import static java.util.stream.Collectors.joining;
+import static java.util.stream.Collectors.toList;
 
-import javax.lang.model.element.TypeElement;
-import javax.lang.model.type.TypeMirror;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
 import java.util.concurrent.ConcurrentHashMap;
-
-import static java.util.stream.Collectors.groupingBy;
-import static java.util.stream.Collectors.joining;
-import static java.util.stream.Collectors.toList;
+import javax.lang.model.element.TypeElement;
+import javax.lang.model.type.TypeMirror;
+import lombok.NoArgsConstructor;
 
 @NoArgsConstructor
 public final class DotRenderer {
@@ -31,6 +30,7 @@ public final class DotRenderer {
         KIND_STYLE.put(EdgeKind.SEED, SOLID_STYLE);
         KIND_STYLE.put(EdgeKind.REALISED, SOLID_STYLE);
         KIND_STYLE.put(EdgeKind.SUB_SEED, SOLID_STYLE);
+        KIND_STYLE.put(EdgeKind.ELEMENT_SEED, SOLID_STYLE);
     }
 
     public String render(final GraphSource source, final TypeElement mapperType) {
@@ -153,6 +153,9 @@ public final class DotRenderer {
         if (kind == EdgeKind.SUB_SEED) {
             return "SUB_SEED";
         }
+        if (kind == EdgeKind.ELEMENT_SEED) {
+            return "ELEMENT_SEED";
+        }
         if (kind == EdgeKind.SEED) {
             return buildSeedLabel(edge);
         }
@@ -209,6 +212,9 @@ public final class DotRenderer {
     private static java.util.Optional<String> edgeColor(final EdgeKind kind) {
         if (kind == EdgeKind.SUB_SEED) {
             return java.util.Optional.of("#666666");
+        }
+        if (kind == EdgeKind.ELEMENT_SEED) {
+            return java.util.Optional.of("#3366aa");
         }
         return java.util.Optional.empty();
     }

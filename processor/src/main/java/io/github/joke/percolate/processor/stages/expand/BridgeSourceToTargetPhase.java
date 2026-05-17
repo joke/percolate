@@ -11,15 +11,14 @@ import io.github.joke.percolate.processor.graph.Scope;
 import io.github.joke.percolate.spi.Bridge;
 import io.github.joke.percolate.spi.BridgeStep;
 import io.github.joke.percolate.spi.ResolveCtx;
-import lombok.RequiredArgsConstructor;
-import org.jspecify.annotations.Nullable;
-
-import javax.lang.model.element.AnnotationMirror;
-import javax.lang.model.type.TypeMirror;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 import java.util.stream.Stream;
+import javax.lang.model.element.AnnotationMirror;
+import javax.lang.model.type.TypeMirror;
+import lombok.RequiredArgsConstructor;
+import org.jspecify.annotations.Nullable;
 
 @RequiredArgsConstructor
 public final class BridgeSourceToTargetPhase implements ExpansionPhase {
@@ -74,7 +73,7 @@ public final class BridgeSourceToTargetPhase implements ExpansionPhase {
 
         final var directive = seedEdge.getDirective();
         return bridges.stream().flatMap(bridge -> bridge.bridge(fromType, toType, resolveCtx)
-                .map(step -> applyUnifiedEmissionRule(
+                .map(step -> applyEmissionRule(
                         realisedSource,
                         realisedTarget,
                         step,
@@ -93,92 +92,24 @@ public final class BridgeSourceToTargetPhase implements ExpansionPhase {
             return Stream.empty();
         }
 
-        final var scope = fromNode.getScope();
-        final var loc = fromNode.getLoc();
-
         final var directive = subSeedEdge.getDirective();
         return bridges.stream().flatMap(bridge -> bridge.bridge(fromType, toType, resolveCtx)
-                .map(step -> applySubSeedEmissionRule(
-                        fromNode,
-                        toNode,
-                        scope,
-                        loc,
-                        step,
-                        directive,
-                        bridge.getClass().getName())));
+                .map(step -> applyEmissionRule(
+                        fromNode, toNode, step, directive, bridge.getClass().getName())));
     }
 
-    private GraphDelta applyUnifiedEmissionRule(
-            final Node f,
-            final Node t,
-            final BridgeStep step,
-            final Optional<AnnotationMirror> directive,
-            final String strategyFqn) {
-        final var scope = f.getScope();
-        final var loc = f.getLoc();
-        final var isElement = loc instanceof ElementLocation;
-
-        final var inputNode =
-                resolveOrCreateNode(scope, loc, step.getInputType(), f, isElement ? f.getParent() : Optional.empty());
-        final var outputNode =
-                resolveOrCreateNode(scope, loc, step.getOutputType(), t, isElement ? t.getParent() : Optional.empty());
-
-        final var realisedEdge = Edge.realised(
-                inputNode, outputNode, step.getWeight(), Optional.empty(), step.getCodegen(), strategyFqn);
-
-        final List<Node> nodes = new ArrayList<>();
-        final List<Edge> edges = new ArrayList<>(2);
-
-        if (!inputNode.equals(f)) {
-            nodes.add(inputNode);
-        }
-        if (!outputNode.equals(t)) {
-            nodes.add(outputNode);
-        }
-
-        edges.add(realisedEdge);
-
-        if (!inputNode.equals(f)) {
-            final var subSeedEdge = Edge.subSeed(f, inputNode, strategyFqn, directive);
-            edges.add(subSeedEdge);
-        }
-
-        if (!outputNode.equals(t)) {
-            final var subSeedEdge = Edge.subSeed(outputNode, t, strategyFqn, directive);
-            edges.add(subSeedEdge);
-        }
-
-        for (final var elementSeed : step.getElementSeeds()) {
-            final var eFrom = new Node(
-                    Optional.of(elementSeed.getInputType()),
-                    new ElementLocation(elementSeed.getRole()),
-                    scope,
-                    Optional.of(inputNode));
-            final var eTo = new Node(
-                    Optional.of(elementSeed.getOutputType()),
-                    new ElementLocation(elementSeed.getRole()),
-                    scope,
-                    Optional.of(outputNode));
-            nodes.add(eFrom);
-            nodes.add(eTo);
-            final var seedEdge = Edge.elementSeed(eFrom, eTo, strategyFqn);
-            edges.add(seedEdge);
-        }
-
-        return GraphDelta.of(nodes, edges);
-    }
-
-    private GraphDelta applySubSeedEmissionRule(
+    private GraphDelta applyEmissionRule(
             final Node fromNode,
             final Node toNode,
-            final Scope scope,
-            final Location loc,
             final BridgeStep step,
             final Optional<AnnotationMirror> directive,
             final String strategyFqn) {
+        final var scope = fromNode.getScope();
+        final var loc = fromNode.getLoc();
+        final var isElement = loc instanceof ElementLocation;
+
         final var fromType = fromNode.getType().orElse(null);
         final var toType = toNode.getType().orElse(null);
-        final var isElement = loc instanceof ElementLocation;
 
         final var inputNode = resolveOrCreateNode(
                 scope,
@@ -201,14 +132,31 @@ public final class BridgeSourceToTargetPhase implements ExpansionPhase {
 
         if (!inputNode.equals(fromNode)) {
             nodes.add(inputNode);
-            final var subSeedEdge = Edge.subSeed(fromNode, inputNode, strategyFqn, directive);
-            edges.add(subSeedEdge);
+            edges.add(Edge.subSeed(fromNode, inputNode, strategyFqn, directive));
         }
         if (!outputNode.equals(toNode)) {
             nodes.add(outputNode);
+            edges.add(Edge.subSeed(outputNode, toNode, strategyFqn, directive));
         }
 
         edges.add(realisedEdge);
+
+        for (final var elementSeed : step.getElementSeeds()) {
+            final var eFrom = new Node(
+                    Optional.of(elementSeed.getInputType()),
+                    new ElementLocation(elementSeed.getRole()),
+                    scope,
+                    Optional.of(inputNode));
+            final var eTo = new Node(
+                    Optional.of(elementSeed.getOutputType()),
+                    new ElementLocation(elementSeed.getRole()),
+                    scope,
+                    Optional.of(outputNode));
+            nodes.add(eFrom);
+            nodes.add(eTo);
+            final var seedEdge = Edge.elementSeed(eFrom, eTo, strategyFqn);
+            edges.add(seedEdge);
+        }
 
         return GraphDelta.of(nodes, edges);
     }

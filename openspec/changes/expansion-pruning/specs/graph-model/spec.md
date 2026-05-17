@@ -20,7 +20,7 @@ The processor SHALL define a Lombok `@Value` class `Edge` in `io.github.joke.per
 - `Node to`
 - `int weight` — uses the scale documented in `Weights`. `SEED`, `SUB_SEED`, and `ELEMENT_SEED` edges use `Weights.SENTINEL_UNREALISED`. `REALISED` edges use a value in `{0, 1, 2, 3}`. `MARKER` edges use `Weights.NOOP`.
 - `EdgeKind kind` — categorises the edge for view filtering, DOT styling, and dispatch.
-- `Optional<AnnotationMirror> directive` — present when the edge was seeded by a user `@Map` directive (i.e., `kind == SEED` and emitted from `SeedGraph`); empty for `SUB_SEED`, `ELEMENT_SEED`, `REALISED`, and `MARKER` edges.
+- `Optional<AnnotationMirror> directive` — present when the edge was seeded by a user `@Map` directive (i.e., `kind == SEED` and emitted from `SeedGraph`), or when a `SUB_SEED` edge inherits the originating directive's mirror from the seed/sub-seed that triggered the bridge query (see the `graph-expansion` spec's `Bridge edge-emission rule (unified)`); empty for `ELEMENT_SEED`, `REALISED`, and `MARKER` edges and for `SUB_SEED` edges constructed without an inherited directive (e.g. in tests).
 - `Optional<String> groupId` — present when the edge participates in a coordinated multi-edge group (constructor parameters, builder chain); empty otherwise.
 - `Optional<EdgeCodegen> codegen` — present on `REALISED` edges; empty on `SEED`, `SUB_SEED`, `ELEMENT_SEED`, `MARKER` edges.
 - `Optional<String> strategyClassFqn` — fully-qualified class name of the strategy that emitted this edge; populated by strategies via `getClass().getName()` at edge construction; empty for edges emitted by `SeedGraph` (which is not a strategy).
@@ -33,7 +33,7 @@ The processor SHALL define a Lombok `@Value` class `Edge` in `io.github.joke.per
 - `Edge.seed(Node from, Node to, AnnotationMirror directive)` — produces an edge with `kind = SEED`, `weight = Weights.SENTINEL_UNREALISED`, `directive = Optional.of(directive)`, all other Optional fields empty.
 - `Edge.realised(Node from, Node to, int weight, Optional<String> groupId, EdgeCodegen codegen, String strategyClassFqn)` — produces an edge with `kind = REALISED`, the supplied weight, `directive = Optional.empty()`, `codegen = Optional.of(codegen)`, `strategyClassFqn = Optional.of(strategyClassFqn)`.
 - `Edge.marker(Node from, Node to, String strategyClassFqn)` — produces an edge with `kind = MARKER`, `weight = Weights.NOOP`, `directive`, `groupId`, `codegen` empty, `strategyClassFqn` populated.
-- `Edge.subSeed(Node from, Node to, String strategyClassFqn)` — produces an edge with `kind = SUB_SEED`, `weight = Weights.SENTINEL_UNREALISED`, `directive`, `groupId`, `codegen` empty, `strategyClassFqn` populated.
+- `Edge.subSeed(Node from, Node to, String strategyClassFqn, Optional<AnnotationMirror> directive)` — produces an edge with `kind = SUB_SEED`, `weight = Weights.SENTINEL_UNREALISED`, `groupId` and `codegen` empty, `strategyClassFqn` populated, and `directive` set to the supplied value (typically inherited from the triggering seed/sub-seed; `Optional.empty()` when no directive lineage is available, e.g. in tests).
 - `Edge.elementSeed(Node from, Node to, String strategyClassFqn)` — produces an edge with `kind = ELEMENT_SEED`, `weight = Weights.SENTINEL_UNREALISED`, `directive`, `groupId`, `codegen` empty, `strategyClassFqn` populated. Both `from` and `to` MUST have `loc` of type `ElementLocation`.
 
 #### Scenario: Directive-seeded edge carries the mirror, kind SEED, sentinel weight
@@ -48,9 +48,13 @@ The processor SHALL define a Lombok `@Value` class `Edge` in `io.github.joke.per
 - **WHEN** `Edge.marker(seedNode, realisedNode, "com.example.GetterReadStrategy")` is invoked
 - **THEN** the resulting edge has `kind == EdgeKind.MARKER`, `weight == 0`, empty `directive`, `groupId`, `codegen`, and non-empty `strategyClassFqn`
 
-#### Scenario: SubSeed edge has sentinel weight, no directive
-- **WHEN** `Edge.subSeed(from, to, "com.example.SomeStrategy")` is invoked
+#### Scenario: SubSeed edge with empty directive
+- **WHEN** `Edge.subSeed(from, to, "com.example.SomeStrategy", Optional.empty())` is invoked
 - **THEN** the resulting edge has `kind == EdgeKind.SUB_SEED`, `weight == Weights.SENTINEL_UNREALISED`, empty `directive`, `groupId`, `codegen`, and non-empty `strategyClassFqn`
+
+#### Scenario: SubSeed edge inherits the triggering directive
+- **WHEN** `Edge.subSeed(from, to, "com.example.SomeStrategy", Optional.of(directiveMirror))` is invoked
+- **THEN** the resulting edge has `kind == EdgeKind.SUB_SEED`, `weight == Weights.SENTINEL_UNREALISED`, `directive == Optional.of(directiveMirror)`, empty `groupId` and `codegen`, and non-empty `strategyClassFqn`
 
 #### Scenario: ElementSeed edge has sentinel weight, ELEMENT_SEED kind, no directive
 - **WHEN** `Edge.elementSeed(elemFrom, elemTo, "com.example.SetMap")` is invoked where both `elemFrom` and `elemTo` have `loc` of type `ElementLocation`

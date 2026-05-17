@@ -1,10 +1,9 @@
 package io.github.joke.percolate.processor.model;
 
-import lombok.Value;
-
+import java.util.List;
 import javax.lang.model.element.ExecutableElement;
 import javax.lang.model.element.TypeElement;
-import java.util.List;
+import lombok.Value;
 
 @Value
 public class MapperShape {

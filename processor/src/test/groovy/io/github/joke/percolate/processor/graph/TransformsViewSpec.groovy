@@ -1,0 +1,144 @@
+package io.github.joke.percolate.processor.graph
+
+import io.github.joke.percolate.spi.test.TypeUniverse
+import spock.lang.Specification
+import spock.lang.Tag
+
+@Tag('unit')
+class TransformsViewSpec extends Specification {
+
+    def 'transformsView accessor returns a non-null view'() {
+        given:
+        final var graph = buildGraphWithRealisedEdge()
+
+        when:
+        final var view = graph.transformsView()
+
+        then:
+        view != null
+        view.nodes() != null
+        view.edges() != null
+        view.nodesByScope(HarnessScope.of('test')) != null
+    }
+
+    def 'Only REALISED edges pass the edge mask'() {
+        given:
+        final var graph = buildGraphWithMixedKinds()
+
+        when:
+        final var edges = graph.transformsView().edges().toList()
+
+        then:
+        edges.every { it.kind == EdgeKind.REALISED }
+        edges.size() == 1
+    }
+
+    def 'Only nodes incident on REALISED edges pass the vertex mask'() {
+        given:
+        final var graph = buildGraphWithSubSeedOnlyNode()
+        final var realisedEdges = graph.edges().filter { it.kind == EdgeKind.REALISED }.toList()
+        final var view = graph.transformsView()
+
+        when:
+        final var nodes = view.nodes().toList()
+
+        then:
+        nodes.contains(realisedEdges[0].from)
+        nodes.contains(realisedEdges[0].to)
+        nodes.size() == 2
+    }
+
+    def 'Dead-end transformations are retained'() {
+        given:
+        final var graph = buildGraphWithDeadEndRealised()
+        final var view = graph.transformsView()
+
+        when:
+        final var edges = view.edges().toList()
+        final var nodes = view.nodes().toList()
+
+        then:
+        edges.size() == 1
+        edges[0].kind == EdgeKind.REALISED
+        nodes.size() == 2
+    }
+
+    def 'View construction does not mutate the underlying graph'() {
+        given:
+        final var graph = buildGraphWithRealisedEdge()
+        final var nodeCountBefore = graph.nodeCount()
+        final var edgeCountBefore = graph.edgeCount()
+
+        when:
+        graph.transformsView()
+
+        then:
+        graph.nodeCount() == nodeCountBefore
+        graph.edgeCount() == edgeCountBefore
+    }
+
+    private static MapperGraph buildGraphWithRealisedEdge() {
+        final graph = new MapperGraph()
+        final scope = HarnessScope.of('test')
+        final a = new Node(Optional.of(TypeUniverse.STRING), new SourceLocation(AccessPath.of('in')), scope, Optional.empty())
+        final b = new Node(Optional.of(TypeUniverse.STRING), new TargetLocation(TargetPath.of('out')), scope, Optional.empty())
+        graph.addNode(a)
+        graph.addNode(b)
+        final realised = Edge.realised(a, b, 1, Optional.empty(), { _, _ -> com.palantir.javapoet.CodeBlock.of('') }, 'test.Strategy')
+        graph.addEdge(realised)
+        graph
+    }
+
+    private static MapperGraph buildGraphWithMixedKinds() {
+        final graph = new MapperGraph()
+        final scope = HarnessScope.of('test')
+        final a = new Node(Optional.of(TypeUniverse.STRING), new SourceLocation(AccessPath.of('a')), scope, Optional.empty())
+        final b = new Node(Optional.of(TypeUniverse.STRING), new SourceLocation(AccessPath.of('b')), scope, Optional.empty())
+        final c = new Node(Optional.of(TypeUniverse.STRING), new SourceLocation(AccessPath.of('c')), scope, Optional.empty())
+        final d = new Node(Optional.of(TypeUniverse.STRING), new TargetLocation(TargetPath.of('d')), scope, Optional.empty())
+        graph.addNode(a)
+        graph.addNode(b)
+        graph.addNode(c)
+        graph.addNode(d)
+        graph.addEdge(Edge.seedForTest(a, b))
+        final realised = Edge.realised(c, d, 1, Optional.empty(), { _, _ -> com.palantir.javapoet.CodeBlock.of('') }, 'test.Strategy')
+        graph.addEdge(realised)
+        graph.addEdge(Edge.subSeed(a, c, 'test.Strategy', Optional.empty()))
+        graph.addEdge(Edge.marker(a, b, 'test.Strategy'))
+        graph
+    }
+
+    private static MapperGraph buildGraphWithSubSeedOnlyNode() {
+        final graph = new MapperGraph()
+        final scope = HarnessScope.of('test')
+        final a = new Node(Optional.of(TypeUniverse.STRING), new SourceLocation(AccessPath.of('a')), scope, Optional.empty())
+        final b = new Node(Optional.of(TypeUniverse.STRING), new TargetLocation(TargetPath.of('b')), scope, Optional.empty())
+        final c = new Node(Optional.of(TypeUniverse.STRING), new SourceLocation(AccessPath.of('c')), scope, Optional.empty())
+        graph.addNode(a)
+        graph.addNode(b)
+        graph.addNode(c)
+        final realised = Edge.realised(a, b, 1, Optional.empty(), { _, _ -> com.palantir.javapoet.CodeBlock.of('') }, 'test.Strategy')
+        graph.addEdge(realised)
+        graph.addEdge(Edge.subSeed(c, a, 'test.Strategy', Optional.empty()))
+        graph
+    }
+
+    private static MapperGraph buildGraphWithDeadEndRealised() {
+        final graph = new MapperGraph()
+        final scope = HarnessScope.of('test')
+        final x = new Node(Optional.of(TypeUniverse.STRING), new SourceLocation(AccessPath.of('x')), scope, Optional.empty())
+        final y = new Node(Optional.of(TypeUniverse.STRING), new TargetLocation(TargetPath.of('y')), scope, Optional.empty())
+        graph.addNode(x)
+        graph.addNode(y)
+        final xToY = Edge.realised(x, y, 1, Optional.empty(), { _, _ -> com.palantir.javapoet.CodeBlock.of('') }, 'test.Strategy')
+        graph.addEdge(xToY)
+        graph
+    }
+
+    private static final class HarnessScope implements Scope {
+        private final String name
+        static HarnessScope of(final String name) { return new HarnessScope(name) }
+        HarnessScope(final String name) { this.name = name }
+        @Override String encode() { name }
+    }
+}

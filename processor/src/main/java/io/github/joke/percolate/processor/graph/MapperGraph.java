@@ -1,10 +1,5 @@
 package io.github.joke.percolate.processor.graph;
 
-import lombok.NoArgsConstructor;
-import org.jgrapht.alg.cycle.CycleDetector;
-import org.jgrapht.graph.DirectedMultigraph;
-import org.jgrapht.graph.MaskSubgraph;
-
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashSet;
@@ -15,6 +10,10 @@ import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
+import lombok.NoArgsConstructor;
+import org.jgrapht.alg.cycle.CycleDetector;
+import org.jgrapht.graph.DirectedMultigraph;
+import org.jgrapht.graph.MaskSubgraph;
 
 @NoArgsConstructor
 public final class MapperGraph implements GraphSource {
@@ -89,8 +88,9 @@ public final class MapperGraph implements GraphSource {
         return new RealisedSubgraph(mask, this);
     }
 
-    public ExpandedGraphView expandedView() {
-        return new ExpandedGraphView(this);
+    public TransformsView transformsView() {
+        final var mask = new MaskSubgraph<>(graph, v -> false, e -> e.getKind() != EdgeKind.REALISED);
+        return new TransformsView(mask, this);
     }
 
     public void addGroupCodegen(final String groupId, final io.github.joke.percolate.spi.GroupCodegen codegen) {

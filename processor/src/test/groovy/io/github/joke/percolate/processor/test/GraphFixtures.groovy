@@ -20,7 +20,7 @@ final class GraphFixtures {
         final target = node(scope, targetLoc('out'), TypeUniverse.STRING)
         graph.addNode(source)
         graph.addNode(target)
-        graph.addEdge(Edge.elementSeed(source, target, 'test.seed'))
+        graph.addEdge(Edge.seedForTest(source, target))
         graph.addEdge(Edge.realised(source, target, 1, Optional.empty(), NO_OP_CODEGEN, 'Identity'))
         graph
     }
@@ -36,7 +36,7 @@ final class GraphFixtures {
         graph.addNode(seedTgt)
         graph.addNode(a)
         graph.addNode(b)
-        graph.addEdge(Edge.elementSeed(seedSrc, seedTgt, 'test.seed'))
+        graph.addEdge(Edge.seedForTest(seedSrc, seedTgt))
         graph.addEdge(Edge.subSeed(a, b, 'cycle.strategy', Optional.empty()))
         graph.addEdge(Edge.subSeed(b, a, 'cycle.strategy', Optional.empty()))
         graph
@@ -53,7 +53,7 @@ final class GraphFixtures {
         graph.addNode(seedTgt)
         graph.addNode(stray1)
         graph.addNode(stray2)
-        graph.addEdge(Edge.elementSeed(seedSrc, seedTgt, 'test.seed'))
+        graph.addEdge(Edge.seedForTest(seedSrc, seedTgt))
         graph.addEdge(Edge.realised(stray1, stray2, 1, Optional.empty(), NO_OP_CODEGEN, 'Stray'))
         graph
     }

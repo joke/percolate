@@ -7,17 +7,16 @@ import io.github.joke.percolate.processor.graph.DotRenderer;
 import io.github.joke.percolate.processor.graph.MapperGraph;
 import io.github.joke.percolate.processor.stages.Stage;
 import jakarta.inject.Inject;
-import lombok.RequiredArgsConstructor;
-
-import javax.annotation.processing.Filer;
-import javax.lang.model.element.TypeElement;
-import javax.tools.StandardLocation;
 import java.io.IOException;
 import java.io.OutputStreamWriter;
 import java.nio.charset.StandardCharsets;
+import javax.annotation.processing.Filer;
+import javax.lang.model.element.TypeElement;
+import javax.tools.StandardLocation;
+import lombok.RequiredArgsConstructor;
 
 @RequiredArgsConstructor(onConstructor_ = @Inject)
-public final class DumpExpandedGraph implements Stage {
+public final class DumpTransforms implements Stage {
 
     private final Filer filer;
     private final Diagnostics diagnostics;
@@ -42,8 +41,8 @@ public final class DumpExpandedGraph implements Stage {
         }
 
         final var fqn = mapperType.getQualifiedName().toString();
-        final var fileName = fqn + ".expanded.dot";
-        final var dotOutput = dotRenderer.render(graph.expandedView(), mapperType);
+        final var fileName = fqn + ".transforms.dot";
+        final var dotOutput = dotRenderer.render(graph.transformsView(), mapperType);
 
         try {
             final var resource = filer.createResource(StandardLocation.SOURCE_OUTPUT, "", fileName, mapperType);
@@ -53,7 +52,7 @@ public final class DumpExpandedGraph implements Stage {
                 writer.flush();
             }
         } catch (final IOException e) {
-            diagnostics.warning(mapperType, "Failed to write expanded debug graph: " + e.getMessage());
+            diagnostics.warning(mapperType, "Failed to write transforms debug graph: " + e.getMessage());
         }
     }
 }

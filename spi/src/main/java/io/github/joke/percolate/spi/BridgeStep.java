@@ -1,11 +1,10 @@
 package io.github.joke.percolate.spi;
 
-import lombok.Value;
-
-import javax.lang.model.type.TypeMirror;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import javax.lang.model.type.TypeMirror;
+import lombok.Value;
 
 @Value
 public final class BridgeStep {

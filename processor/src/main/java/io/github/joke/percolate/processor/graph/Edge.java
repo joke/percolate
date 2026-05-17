@@ -1,14 +1,13 @@
 package io.github.joke.percolate.processor.graph;
 
+import java.util.Comparator;
+import java.util.Optional;
+import javax.lang.model.element.AnnotationMirror;
 import lombok.EqualsAndHashCode;
 import lombok.Value;
 
-import javax.lang.model.element.AnnotationMirror;
-import java.util.Comparator;
-import java.util.Optional;
-
 @Value
-@EqualsAndHashCode(exclude = {"codegen", "groupId"})
+@EqualsAndHashCode(exclude = {"codegen", "strategyClassFqn"})
 public final class Edge implements Comparable<Edge> {
 
     private static final Comparator<Edge> EDGE_ORDER = Comparator.<Edge, String>comparing(e -> e.from.id())
@@ -57,12 +56,42 @@ public final class Edge implements Comparable<Edge> {
                 Optional.empty());
     }
 
-    public static Edge elementSeed(final Node from, final Node to, final String strategyClassFqn) {
+    static Edge seedForTest(final Node from, final Node to) {
         return new Edge(
                 from,
                 to,
                 Weights.SENTINEL_UNREALISED,
                 EdgeKind.SEED,
+                Optional.empty(),
+                Optional.empty(),
+                Optional.empty(),
+                Optional.empty());
+    }
+
+    static Edge copyWithEndpoints(final Edge original, final Node newFrom, final Node newTo) {
+        return new Edge(
+                newFrom,
+                newTo,
+                original.weight,
+                original.kind,
+                original.directive,
+                original.groupId,
+                original.codegen,
+                original.strategyClassFqn);
+    }
+
+    public static Edge elementSeed(final Node from, final Node to, final String strategyClassFqn) {
+        if (!(from.getLoc() instanceof ElementLocation)) {
+            throw new IllegalArgumentException("elementSeed from node must have ElementLocation: " + from);
+        }
+        if (!(to.getLoc() instanceof ElementLocation)) {
+            throw new IllegalArgumentException("elementSeed to node must have ElementLocation: " + to);
+        }
+        return new Edge(
+                from,
+                to,
+                Weights.SENTINEL_UNREALISED,
+                EdgeKind.ELEMENT_SEED,
                 Optional.empty(),
                 Optional.empty(),
                 Optional.empty(),
