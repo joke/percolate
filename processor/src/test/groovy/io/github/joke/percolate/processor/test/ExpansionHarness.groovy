@@ -4,10 +4,9 @@ import io.github.joke.percolate.processor.Diagnostics
 import io.github.joke.percolate.processor.MapperContext
 import io.github.joke.percolate.processor.ProcessorModule
 import io.github.joke.percolate.processor.graph.MapperGraph
-import io.github.joke.percolate.processor.stages.validate.ValidateRealisationStage
+import io.github.joke.percolate.processor.stages.validate.RealisationDiagnosticsStage
 import io.github.joke.percolate.spi.Bridge
 import io.github.joke.percolate.spi.GroupTarget
-import io.github.joke.percolate.spi.SourceStep
 import io.github.joke.percolate.spi.test.HarnessResolveCtx
 import io.github.joke.percolate.spi.test.TypeUniverse
 
@@ -34,17 +33,15 @@ final class ExpansionHarness {
     static ExpansionResult expand(
             final MapperGraph seed,
             final List<Bridge> bridges,
-            final List<SourceStep> sourceSteps,
             final List<GroupTarget> groupTargets) {
         synchronized (EXPAND_LOCK) {
-            expandLocked(seed, bridges, sourceSteps, groupTargets)
+            expandLocked(seed, bridges, groupTargets)
         }
     }
 
     private static ExpansionResult expandLocked(
             final MapperGraph seed,
             final List<Bridge> bridges,
-            final List<SourceStep> sourceSteps,
             final List<GroupTarget> groupTargets) {
         final errorMessages = new CopyOnWriteArrayList<String>()
         final messager = new Messager() {
@@ -82,7 +79,7 @@ final class ExpansionHarness {
         final resolveCtx = HarnessResolveCtx.create()
 
         final stage =
-                ProcessorModule.assembleExpansionPipeline(bridges, sourceSteps, groupTargets, resolveCtx, diagnostics)
+                ProcessorModule.assembleExpansionPipeline(bridges, groupTargets, resolveCtx)
 
         final ctx = new MapperContext(MAPPER_PLACEHOLDER)
         ctx.graph = seed
@@ -93,8 +90,8 @@ final class ExpansionHarness {
             return ExpansionResult.of(new MapperGraph(), List.copyOf(errorMessages), 0, false, MAPPER_PLACEHOLDER)
         }
 
-        final validateRealisation = new ValidateRealisationStage(diagnostics)
-        validateRealisation.run(ctx)
+        final realisationDiagnostics = new RealisationDiagnosticsStage(diagnostics)
+        realisationDiagnostics.run(ctx)
 
         final messages = List.copyOf(errorMessages)
         final converged = messages.every { !it.contains('did not converge') }

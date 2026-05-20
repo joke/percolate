@@ -3,7 +3,6 @@ package io.github.joke.percolate.processor.stages.expand.properties
 import io.github.joke.percolate.processor.graph.MapperGraph
 import io.github.joke.percolate.spi.Bridge
 import io.github.joke.percolate.spi.GroupTarget
-import io.github.joke.percolate.spi.SourceStep
 import net.jqwik.api.ForAll
 import net.jqwik.api.Property
 
@@ -17,10 +16,9 @@ class DeterminismSpec extends ExpansionPropertyBase {
     void 'expansion is deterministic'(
             @ForAll('seedGraphs') MapperGraph graph,
             @ForAll('fakeBridges') List<Bridge> bridges,
-            @ForAll('fakeSourceSteps') List<SourceStep> sources,
             @ForAll('fakeGroupTargets') List<GroupTarget> targets) {
-        final first  = expand(graph, bridges, sources, targets)
-        final second = expand(graph, bridges, sources, targets)
+        final first  = expand(graph, bridges, targets)
+        final second = expand(graph, bridges, targets)
         assert nodeIds(first.expandedGraph())   == nodeIds(second.expandedGraph())
         assert edgeTuples(first.expandedGraph()) == edgeTuples(second.expandedGraph())
     }

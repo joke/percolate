@@ -35,3 +35,7 @@ tasks.named('test') {
     systemProperty 'junit.jupiter.execution.parallel.enabled', 'false'
     systemProperty 'spock.parallel.threads', '0'
 }
+
+tasks.named('compileTestJava') {
+    options.release = 17
+}

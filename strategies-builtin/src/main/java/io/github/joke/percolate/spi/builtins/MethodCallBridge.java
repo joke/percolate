@@ -35,19 +35,15 @@ public final class MethodCallBridge implements Bridge {
         return callableMethods.producing(targetType).collect(toUnmodifiableList()).stream()
                 .filter(candidate -> {
                     final var method = candidate.getMethod();
-                    final var params = method.getParameters();
-                    return params.size() == SINGLE_PARAM_COUNT
-                            && ctx.types()
-                                    .isAssignable(sourceType, params.get(0).asType())
+                    return method.getParameters().size() == SINGLE_PARAM_COUNT
                             && ctx.types().isAssignable(method.getReturnType(), targetType);
                 })
                 .map(candidate -> {
                     final var method = candidate.getMethod();
                     final var paramType = method.getParameters().get(0).asType();
                     final var returnType = method.getReturnType();
-                    final var paramDistance = subtypeDistance(sourceType, paramType, ctx);
                     final var returnDistance = subtypeDistance(returnType, targetType, ctx);
-                    final var weight = Weights.METHOD + paramDistance + returnDistance;
+                    final var weight = Weights.METHOD + returnDistance;
                     return new BridgeStep(paramType, returnType, weight, renderCodegen(candidate), List.of());
                 });
     }

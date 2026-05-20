@@ -19,7 +19,7 @@ class RealisedEdgeCanarySpec extends Specification {
         final bridge = new IdentityBridge(TypeUniverse.STRING, TypeUniverse.STRING)
 
         when:
-        final result = ExpansionHarness.expand(seed, [bridge], [], [])
+        final result = ExpansionHarness.expand(seed, [bridge], [])
 
         then:
         result.expandedGraph().edges().any { it.kind == EdgeKind.REALISED }

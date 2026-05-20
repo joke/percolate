@@ -22,9 +22,9 @@ class MapperGraphAppendOnlySpec extends Specification {
         given:
         final var graph = new MapperGraph()
         final var scope = new HarnessScope('test()')
-        final var source = new Node(Optional.of(TypeUniverse.STRING), new SourceLocation(AccessPath.of('in')), scope, Optional.empty())
-        final var target = new Node(Optional.of(TypeUniverse.STRING), new TargetLocation(TargetPath.of('out')), scope, Optional.empty())
-        final var realised = new Node(Optional.of(TypeUniverse.STRING), new ElementLocation('realised'), scope, Optional.of(source))
+        final var source = new Node(Optional.of(TypeUniverse.STRING), new SourceLocation(AccessPath.of('in')), scope)
+        final var target = new Node(Optional.of(TypeUniverse.STRING), new TargetLocation(TargetPath.of('out')), scope)
+        final var realised = new Node(Optional.of(TypeUniverse.STRING), new ElementLocation('realised'), scope)
         graph.addNode(source)
         graph.addNode(target)
         graph.addNode(realised)
@@ -34,7 +34,7 @@ class MapperGraphAppendOnlySpec extends Specification {
 
         when:
         // Simulate expansion by adding a realised edge
-        graph.addEdge(Edge.realised(realised, target, 1, Optional.empty(), { _, _ -> com.palmerjava.javapoet.CodeBlock.of('') }, 'test.Strategy'))
+        graph.addEdge(Edge.realised(realised, target, 1, { _, _ -> com.palantir.javapoet.CodeBlock.of('') }, 'test.Strategy'))
 
         then:
         graph.edges().filter { it.kind == EdgeKind.MARKER }.count() == markerCountBefore
@@ -44,9 +44,9 @@ class MapperGraphAppendOnlySpec extends Specification {
         given:
         final var graph = new MapperGraph()
         final var scope = new HarnessScope('test()')
-        final var n1 = new Node(Optional.of(TypeUniverse.STRING), new SourceLocation(AccessPath.of('a')), scope, Optional.empty())
-        final var n2 = new Node(Optional.of(TypeUniverse.STRING), new SourceLocation(AccessPath.of('b')), scope, Optional.empty())
-        final var n3 = new Node(Optional.of(TypeUniverse.STRING), new SourceLocation(AccessPath.of('c')), scope, Optional.empty())
+        final var n1 = new Node(Optional.of(TypeUniverse.STRING), new SourceLocation(AccessPath.of('a')), scope) 
+        final var n2 = new Node(Optional.of(TypeUniverse.STRING), new SourceLocation(AccessPath.of('b')), scope) 
+        final var n3 = new Node(Optional.of(TypeUniverse.STRING), new SourceLocation(AccessPath.of('c')), scope) 
         graph.addNode(n1)
         graph.addNode(n2)
         graph.addEdge(Edge.seedForTest(n1, n2))
@@ -64,16 +64,15 @@ class MapperGraphAppendOnlySpec extends Specification {
 
     private static boolean hasRemovalMethod(final Class<?> clazz, final String methodName) {
         try {
-            clazz.getMethod(methodName, Node.class)
+            clazz.getMethod(methodName, Node)
             return true
         } catch (final NoSuchMethodException e) {
-            // try with Edge.class
             try {
-                clazz.getMethod(methodName, Edge.class)
+                clazz.getMethod(methodName, Edge)
                 return true
             } catch (final NoSuchMethodException e2) {
                 try {
-                    clazz.getMethod(methodName, Object.class)
+                    clazz.getMethod(methodName, Object)
                     return true
                 } catch (final NoSuchMethodException e3) {
                     return false

@@ -29,8 +29,6 @@ public final class DotRenderer {
     static {
         KIND_STYLE.put(EdgeKind.SEED, SOLID_STYLE);
         KIND_STYLE.put(EdgeKind.REALISED, SOLID_STYLE);
-        KIND_STYLE.put(EdgeKind.SUB_SEED, SOLID_STYLE);
-        KIND_STYLE.put(EdgeKind.ELEMENT_SEED, SOLID_STYLE);
     }
 
     public String render(final GraphSource source, final TypeElement mapperType) {
@@ -50,6 +48,10 @@ public final class DotRenderer {
             renderCluster(sb, entry.getKey(), entry.getValue(), phantomNodesByParentScope);
         }
 
+        if (source instanceof MapperGraph) {
+            DotGroupClusterRenderer.render(sb, (MapperGraph) source);
+        }
+
         for (final var edge : source.edges().collect(toList())) {
             renderEdge(sb, edge);
         }
@@ -62,19 +64,10 @@ public final class DotRenderer {
         return nodes.stream().collect(groupingBy(Node::getScope, LinkedHashMap::new, toList()));
     }
 
-    private Map<Scope, List<Node>> buildPhantomNodesByParentScope(final List<Node> nodes) {
-        return nodes.stream()
-                .filter(n -> n.getLoc() instanceof ElementLocation)
-                .collect(groupingBy(
-                        n -> {
-                            final var parent = n.getParent();
-                            if (parent.isEmpty()) {
-                                throw new IllegalStateException("Phantom node without parent: " + n.id());
-                            }
-                            return parent.get().getScope();
-                        },
-                        LinkedHashMap::new,
-                        toList()));
+    private Map<Scope, List<Node>> buildPhantomNodesByParentScope(final List<Node> ignored) {
+        // Element nodes are rendered via buildNodesByScope (same scope as originating method).
+        // The parent-field-based grouping is no longer needed after Node.parent removal.
+        return Map.of();
     }
 
     private void renderCluster(
@@ -125,10 +118,6 @@ public final class DotRenderer {
         final var label = buildEdgeLabel(edge);
         attrs.put("label", escapeDot(label));
 
-        if (edge.getGroupId().isPresent()) {
-            attrs.put("group", escapeDot(edge.getGroupId().get()));
-        }
-
         final var style = KIND_STYLE.getOrDefault(edge.getKind(), SOLID_STYLE);
         attrs.put("style", style);
 
@@ -150,16 +139,13 @@ public final class DotRenderer {
         if (kind == EdgeKind.REALISED) {
             return buildRealisedLabel(edge);
         }
-        if (kind == EdgeKind.SUB_SEED) {
-            return "SUB_SEED";
-        }
-        if (kind == EdgeKind.ELEMENT_SEED) {
-            return "ELEMENT_SEED";
-        }
         if (kind == EdgeKind.SEED) {
             return buildSeedLabel(edge);
         }
-        return buildMarkerLabel(edge);
+        if (kind == EdgeKind.MARKER) {
+            return buildMarkerLabel(edge);
+        }
+        return "";
     }
 
     private String buildRealisedLabel(final Edge edge) {
@@ -209,13 +195,7 @@ public final class DotRenderer {
         return "1.0";
     }
 
-    private static java.util.Optional<String> edgeColor(final EdgeKind kind) {
-        if (kind == EdgeKind.SUB_SEED) {
-            return java.util.Optional.of("#666666");
-        }
-        if (kind == EdgeKind.ELEMENT_SEED) {
-            return java.util.Optional.of("#3366aa");
-        }
+    private static java.util.Optional<String> edgeColor(final EdgeKind ignored) {
         return java.util.Optional.empty();
     }
 

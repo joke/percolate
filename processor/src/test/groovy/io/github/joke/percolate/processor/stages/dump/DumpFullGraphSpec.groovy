@@ -17,9 +17,6 @@ import javax.lang.model.element.Element
 import javax.tools.Diagnostic
 import javax.tools.JavaFileObject
 import javax.tools.SimpleJavaFileObject
-import java.io.ByteArrayOutputStream
-import java.io.OutputStream
-import java.net.URI
 
 @Tag('unit')
 class DumpFullGraphSpec extends Specification {
@@ -89,7 +86,6 @@ class DumpFullGraphSpec extends Specification {
         dotOutput.contains('digraph "java.lang.Object"')
         // Full graph includes ALL edges, not just REALISED
         dotOutput.contains('SEED')
-        dotOutput.contains('SUB_SEED')
         dotOutput.contains('MARKER')
     }
 
@@ -123,8 +119,8 @@ class DumpFullGraphSpec extends Specification {
     private static MapperGraph buildGraphWithNodes() {
         final graph = new MapperGraph()
         final scope = HarnessScope.of('test')
-        final a = new Node(Optional.of(TypeUniverse.STRING), new SourceLocation(AccessPath.of('in')), scope, Optional.empty())
-        final b = new Node(Optional.of(TypeUniverse.STRING), new TargetLocation(TargetPath.of('out')), scope, Optional.empty())
+        final a = new Node(Optional.of(TypeUniverse.STRING), new SourceLocation(AccessPath.of('in')), scope) 
+        final b = new Node(Optional.of(TypeUniverse.STRING), new TargetLocation(TargetPath.of('out')), scope) 
         graph.addNode(a)
         graph.addNode(b)
         graph
@@ -133,17 +129,17 @@ class DumpFullGraphSpec extends Specification {
     private static MapperGraph buildGraphWithMixedKinds() {
         final graph = new MapperGraph()
         final scope = HarnessScope.of('test')
-        final a = new Node(Optional.of(TypeUniverse.STRING), new SourceLocation(AccessPath.of('a')), scope, Optional.empty())
-        final b = new Node(Optional.of(TypeUniverse.STRING), new TargetLocation(TargetPath.of('b')), scope, Optional.empty())
-        final c = new Node(Optional.of(TypeUniverse.STRING), new SourceLocation(AccessPath.of('c')), scope, Optional.empty())
-        final d = new Node(Optional.of(TypeUniverse.STRING), new TargetLocation(TargetPath.of('d')), scope, Optional.empty())
+        final a = new Node(Optional.of(TypeUniverse.STRING), new SourceLocation(AccessPath.of('a')), scope) 
+        final b = new Node(Optional.of(TypeUniverse.STRING), new TargetLocation(TargetPath.of('b')), scope) 
+        final c = new Node(Optional.of(TypeUniverse.STRING), new SourceLocation(AccessPath.of('c')), scope) 
+        final d = new Node(Optional.of(TypeUniverse.STRING), new TargetLocation(TargetPath.of('d')), scope) 
         graph.addNode(a)
         graph.addNode(b)
         graph.addNode(c)
         graph.addNode(d)
         graph.addEdge(Edge.seedForTest(a, b))
-        graph.addEdge(Edge.realised(c, d, 1, Optional.empty(), { _, _ -> com.palantir.javapoet.CodeBlock.of('') }, 'test.Strategy'))
-        graph.addEdge(Edge.subSeed(a, c, 'test.Strategy', Optional.empty()))
+        graph.addEdge(Edge.realised(c, d, 1, { _, _ -> com.palantir.javapoet.CodeBlock.of('') }, 'test.Strategy'))
+        graph.addEdge(Edge.seed(a, c, Optional.empty(), Optional.of('test.Strategy')))
         graph.addEdge(Edge.marker(a, b, 'test.Strategy'))
         graph
     }

@@ -4,7 +4,6 @@ import io.github.joke.percolate.processor.graph.*
 import io.github.joke.percolate.processor.stages.expand.properties.fakes.DivergentBridge
 import io.github.joke.percolate.processor.stages.expand.properties.fakes.NoOpBridge
 import io.github.joke.percolate.processor.test.ExpansionHarness
-import io.github.joke.percolate.processor.test.GraphFixtures
 import io.github.joke.percolate.spi.test.TypeUniverse
 import spock.lang.Specification
 import spock.lang.Tag
@@ -18,7 +17,7 @@ class ExpansionFailureModesSpec extends Specification {
     def 'no-path diagnostic fires when no strategy chain exists'() {
         given:
         def seed = incompatibleTypeSeed(TypeUniverse.STRING, TypeUniverse.LONG)
-        def result = ExpansionHarness.expand(seed, List.of(new NoOpBridge()), List.of(), List.of())
+        def result = ExpansionHarness.expand(seed, List.of(new NoOpBridge()), List.of())
 
         when:
         def hasNoProducer = result.diagnostics().any { it.toLowerCase().contains('no producer') }
@@ -27,22 +26,23 @@ class ExpansionFailureModesSpec extends Specification {
         hasNoProducer
     }
 
-    def 'cycle diagnostic fires when SUB_SEED edges form a cycle'() {
+    def 'nested SEED edges are processed as independent subgraphs'() {
         given:
-        def seed = GraphFixtures.graphWithSubSeedCycle()
-        def result = ExpansionHarness.expand(seed, List.of(new NoOpBridge()), List.of(), List.of())
+        def seed = incompatibleTypeSeed(TypeUniverse.INT, TypeUniverse.STRING)
+        def result = ExpansionHarness.expand(seed, List.of(new NoOpBridge()), List.of())
 
         when:
-        def hasCycle = result.diagnostics().any { it.toLowerCase().contains('cycle') }
+        // With the new target-driven model, an unresolvable group becomes UNSAT
+        def hasNoProducer = result.diagnostics().any { it.toLowerCase().contains('no producer') || it.toLowerCase().contains('no plan') }
 
         then:
-        hasCycle
+        hasNoProducer
     }
 
     def 'round-cap diagnostic fires when bridge prevents convergence'() {
         given:
         def seed = identitySeed(TypeUniverse.STRING)
-        def result = ExpansionHarness.expand(seed, List.of(new DivergentBridge()), List.of(), List.of())
+        def result = ExpansionHarness.expand(seed, List.of(new DivergentBridge()), List.of())
 
         when:
         def hasConvergenceIssue = result.diagnostics().any { it.toLowerCase().contains('did not converge') }
@@ -55,7 +55,7 @@ class ExpansionFailureModesSpec extends Specification {
     @Unroll
     def 'expansion produces a diagnostic-bearing result for #scenario'() {
         when:
-        def result = ExpansionHarness.expand(seed, List.of(new NoOpBridge()), List.of(), List.of())
+        def result = ExpansionHarness.expand(seed, List.of(new NoOpBridge()), List.of())
 
         then:
         result.diagnostics() != null
@@ -69,22 +69,46 @@ class ExpansionFailureModesSpec extends Specification {
     private static MapperGraph incompatibleTypeSeed(typeFrom, typeTo) {
         final var graph = new MapperGraph()
         final var scope = new HarnessScope('convert()')
-        final var source = new Node(Optional.of(typeFrom), new SourceLocation(AccessPath.of('p')), scope, Optional.empty())
-        final var target = new Node(Optional.of(typeTo), new TargetLocation(TargetPath.of('out')), scope, Optional.empty())
+        final var source = new Node(Optional.of(typeFrom), new SourceLocation(AccessPath.of('p')), scope)
+        final var returnRoot = new Node(Optional.of(typeTo), new TargetLocation(TargetPath.of('')), scope)
+        final var slot = new Node(Optional.of(typeTo), new TargetLocation(TargetPath.of('out')), scope)
         graph.addNode(source)
-        graph.addNode(target)
-        graph.addEdge(Edge.seedForTest(source, target))
+        graph.addNode(returnRoot)
+        graph.addNode(slot)
+        final var realisedEdge = Edge.realised(slot, returnRoot, 1, { vars, inputs -> com.palantir.javapoet.CodeBlock.of('') }, 'test.GroupTarget')
+        graph.addEdge(realisedEdge)
+        graph.addEdge(Edge.seedForTest(source, slot))
+        final var group = ExpansionGroup.of(
+                returnRoot,
+                [slot],
+                { vars, inputs -> com.palantir.javapoet.CodeBlock.of('') } as io.github.joke.percolate.spi.GroupCodegen,
+                'test.GroupTarget',
+                Set.of(realisedEdge),
+                graph)
+        graph.addGroup(group)
         graph
     }
 
     private static MapperGraph identitySeed(type) {
         final var graph = new MapperGraph()
         final var scope = new HarnessScope('m(java.lang.String)')
-        final var source = new Node(Optional.of(type), new SourceLocation(AccessPath.of('in')), scope, Optional.empty())
-        final var target = new Node(Optional.of(type), new TargetLocation(TargetPath.of('out')), scope, Optional.empty())
+        final var source = new Node(Optional.of(type), new SourceLocation(AccessPath.of('in')), scope)
+        final var returnRoot = new Node(Optional.of(type), new TargetLocation(TargetPath.of('')), scope)
+        final var slot = new Node(Optional.of(type), new TargetLocation(TargetPath.of('out')), scope)
         graph.addNode(source)
-        graph.addNode(target)
-        graph.addEdge(Edge.seedForTest(source, target))
+        graph.addNode(returnRoot)
+        graph.addNode(slot)
+        final var realisedEdge = Edge.realised(slot, returnRoot, 1, { vars, inputs -> com.palantir.javapoet.CodeBlock.of('') }, 'test.GroupTarget')
+        graph.addEdge(realisedEdge)
+        graph.addEdge(Edge.seedForTest(source, slot))
+        final var group = ExpansionGroup.of(
+                returnRoot,
+                [slot],
+                { vars, inputs -> com.palantir.javapoet.CodeBlock.of('') } as io.github.joke.percolate.spi.GroupCodegen,
+                'test.GroupTarget',
+                Set.of(realisedEdge),
+                graph)
+        graph.addGroup(group)
         graph
     }
 

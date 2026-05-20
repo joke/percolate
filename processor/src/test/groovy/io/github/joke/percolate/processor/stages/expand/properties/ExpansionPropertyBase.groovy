@@ -5,7 +5,6 @@ import io.github.joke.percolate.processor.stages.expand.properties.fakes.*
 import io.github.joke.percolate.processor.test.HarnessScope
 import io.github.joke.percolate.spi.Bridge
 import io.github.joke.percolate.spi.GroupTarget
-import io.github.joke.percolate.spi.SourceStep
 import io.github.joke.percolate.spi.test.TypeUniverse
 import net.jqwik.api.*
 import org.junit.jupiter.api.Timeout
@@ -43,11 +42,6 @@ abstract class ExpansionPropertyBase {
     }
 
     @Provide
-    Arbitrary<List<SourceStep>> fakeSourceSteps() {
-        Arbitraries.of([], [new NoOpSourceStep()])
-    }
-
-    @Provide
     Arbitrary<List<GroupTarget>> fakeGroupTargets() {
         Arbitraries.of([], [new NoOpGroupTarget()])
     }
@@ -63,8 +57,7 @@ abstract class ExpansionPropertyBase {
                 final node = new Node(
                         Optional.of(argType),
                         new SourceLocation(AccessPath.of(argName)),
-                        scope,
-                        Optional.empty()
+                        scope
                 )
                 argNodes[argName] = node
                 graph.addNode(node)
@@ -73,8 +66,7 @@ abstract class ExpansionPropertyBase {
             final targetNode = new Node(
                     Optional.of(method.returnType),
                     new TargetLocation(TargetPath.of('out')),
-                    scope,
-                    Optional.empty()
+                    scope
             )
             graph.addNode(targetNode)
 

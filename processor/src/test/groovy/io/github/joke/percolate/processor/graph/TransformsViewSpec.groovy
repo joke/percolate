@@ -80,11 +80,11 @@ class TransformsViewSpec extends Specification {
     private static MapperGraph buildGraphWithRealisedEdge() {
         final graph = new MapperGraph()
         final scope = HarnessScope.of('test')
-        final a = new Node(Optional.of(TypeUniverse.STRING), new SourceLocation(AccessPath.of('in')), scope, Optional.empty())
-        final b = new Node(Optional.of(TypeUniverse.STRING), new TargetLocation(TargetPath.of('out')), scope, Optional.empty())
+        final a = new Node(Optional.of(TypeUniverse.STRING), new SourceLocation(AccessPath.of('in')), scope) 
+        final b = new Node(Optional.of(TypeUniverse.STRING), new TargetLocation(TargetPath.of('out')), scope) 
         graph.addNode(a)
         graph.addNode(b)
-        final realised = Edge.realised(a, b, 1, Optional.empty(), { _, _ -> com.palantir.javapoet.CodeBlock.of('') }, 'test.Strategy')
+        final realised = Edge.realised(a, b, 1, { _, _ -> com.palantir.javapoet.CodeBlock.of('') }, 'test.Strategy')
         graph.addEdge(realised)
         graph
     }
@@ -92,18 +92,18 @@ class TransformsViewSpec extends Specification {
     private static MapperGraph buildGraphWithMixedKinds() {
         final graph = new MapperGraph()
         final scope = HarnessScope.of('test')
-        final a = new Node(Optional.of(TypeUniverse.STRING), new SourceLocation(AccessPath.of('a')), scope, Optional.empty())
-        final b = new Node(Optional.of(TypeUniverse.STRING), new SourceLocation(AccessPath.of('b')), scope, Optional.empty())
-        final c = new Node(Optional.of(TypeUniverse.STRING), new SourceLocation(AccessPath.of('c')), scope, Optional.empty())
-        final d = new Node(Optional.of(TypeUniverse.STRING), new TargetLocation(TargetPath.of('d')), scope, Optional.empty())
+        final a = new Node(Optional.of(TypeUniverse.STRING), new SourceLocation(AccessPath.of('a')), scope) 
+        final b = new Node(Optional.of(TypeUniverse.STRING), new SourceLocation(AccessPath.of('b')), scope) 
+        final c = new Node(Optional.of(TypeUniverse.STRING), new SourceLocation(AccessPath.of('c')), scope) 
+        final d = new Node(Optional.of(TypeUniverse.STRING), new TargetLocation(TargetPath.of('d')), scope) 
         graph.addNode(a)
         graph.addNode(b)
         graph.addNode(c)
         graph.addNode(d)
         graph.addEdge(Edge.seedForTest(a, b))
-        final realised = Edge.realised(c, d, 1, Optional.empty(), { _, _ -> com.palantir.javapoet.CodeBlock.of('') }, 'test.Strategy')
+        final realised = Edge.realised(c, d, 1, { _, _ -> com.palantir.javapoet.CodeBlock.of('') }, 'test.Strategy')
         graph.addEdge(realised)
-        graph.addEdge(Edge.subSeed(a, c, 'test.Strategy', Optional.empty()))
+        graph.addEdge(Edge.seed(a, c, Optional.empty(), Optional.of('test.Strategy')))
         graph.addEdge(Edge.marker(a, b, 'test.Strategy'))
         graph
     }
@@ -111,33 +111,33 @@ class TransformsViewSpec extends Specification {
     private static MapperGraph buildGraphWithSubSeedOnlyNode() {
         final graph = new MapperGraph()
         final scope = HarnessScope.of('test')
-        final a = new Node(Optional.of(TypeUniverse.STRING), new SourceLocation(AccessPath.of('a')), scope, Optional.empty())
-        final b = new Node(Optional.of(TypeUniverse.STRING), new TargetLocation(TargetPath.of('b')), scope, Optional.empty())
-        final c = new Node(Optional.of(TypeUniverse.STRING), new SourceLocation(AccessPath.of('c')), scope, Optional.empty())
+        final a = new Node(Optional.of(TypeUniverse.STRING), new SourceLocation(AccessPath.of('a')), scope) 
+        final b = new Node(Optional.of(TypeUniverse.STRING), new TargetLocation(TargetPath.of('b')), scope) 
+        final c = new Node(Optional.of(TypeUniverse.STRING), new SourceLocation(AccessPath.of('c')), scope) 
         graph.addNode(a)
         graph.addNode(b)
         graph.addNode(c)
-        final realised = Edge.realised(a, b, 1, Optional.empty(), { _, _ -> com.palantir.javapoet.CodeBlock.of('') }, 'test.Strategy')
+        final realised = Edge.realised(a, b, 1, { _, _ -> com.palantir.javapoet.CodeBlock.of('') }, 'test.Strategy')
         graph.addEdge(realised)
-        graph.addEdge(Edge.subSeed(c, a, 'test.Strategy', Optional.empty()))
+        graph.addEdge(Edge.seed(c, a, Optional.empty(), Optional.of('test.Strategy')))
         graph
     }
 
     private static MapperGraph buildGraphWithDeadEndRealised() {
         final graph = new MapperGraph()
         final scope = HarnessScope.of('test')
-        final x = new Node(Optional.of(TypeUniverse.STRING), new SourceLocation(AccessPath.of('x')), scope, Optional.empty())
-        final y = new Node(Optional.of(TypeUniverse.STRING), new TargetLocation(TargetPath.of('y')), scope, Optional.empty())
+        final x = new Node(Optional.of(TypeUniverse.STRING), new SourceLocation(AccessPath.of('x')), scope) 
+        final y = new Node(Optional.of(TypeUniverse.STRING), new TargetLocation(TargetPath.of('y')), scope) 
         graph.addNode(x)
         graph.addNode(y)
-        final xToY = Edge.realised(x, y, 1, Optional.empty(), { _, _ -> com.palantir.javapoet.CodeBlock.of('') }, 'test.Strategy')
+        final xToY = Edge.realised(x, y, 1, { _, _ -> com.palantir.javapoet.CodeBlock.of('') }, 'test.Strategy')
         graph.addEdge(xToY)
         graph
     }
 
     private static final class HarnessScope implements Scope {
         private final String name
-        static HarnessScope of(final String name) { return new HarnessScope(name) }
+        static HarnessScope of(final String name) { new HarnessScope(name) }
         HarnessScope(final String name) { this.name = name }
         @Override String encode() { name }
     }

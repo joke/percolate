@@ -10,20 +10,18 @@ import io.github.joke.percolate.processor.stages.discover.DiscoverMappings;
 import io.github.joke.percolate.processor.stages.dump.DumpFullGraph;
 import io.github.joke.percolate.processor.stages.dump.DumpGraph;
 import io.github.joke.percolate.processor.stages.dump.DumpTransforms;
-import io.github.joke.percolate.processor.stages.expand.BridgeSourceToTargetPhase;
+import io.github.joke.percolate.processor.stages.expand.ExpandGroupsPhase;
 import io.github.joke.percolate.processor.stages.expand.ExpandStage;
 import io.github.joke.percolate.processor.stages.expand.ExpansionPhase;
-import io.github.joke.percolate.processor.stages.expand.ResolveSourceChainsPhase;
 import io.github.joke.percolate.processor.stages.expand.ResolveTargetChainsPhase;
 import io.github.joke.percolate.processor.stages.seed.SeedGraph;
 import io.github.joke.percolate.processor.stages.validate.ValidateNoDuplicateTargets;
-import io.github.joke.percolate.processor.stages.validate.ValidateRealisationStage;
 import io.github.joke.percolate.processor.stages.validate.ValidateSourceParameters;
 import io.github.joke.percolate.spi.Bridge;
 import io.github.joke.percolate.spi.CallableMethods;
 import io.github.joke.percolate.spi.GroupTarget;
+import io.github.joke.percolate.spi.PathSegmentResolver;
 import io.github.joke.percolate.spi.ResolveCtx;
-import io.github.joke.percolate.spi.SourceStep;
 import jakarta.inject.Inject;
 import jakarta.inject.Named;
 import jakarta.inject.Singleton;
@@ -115,8 +113,8 @@ public final class ProcessorModule {
     }
 
     @Provides
-    SeedGraph seedGraph() {
-        return new SeedGraph();
+    SeedGraph seedGraph(final List<PathSegmentResolver> pathSegmentResolvers, final ResolveCtx resolveCtx) {
+        return new SeedGraph(pathSegmentResolvers, resolveCtx);
     }
 
     @Provides
@@ -129,31 +127,17 @@ public final class ProcessorModule {
     }
 
     public static ExpandStage assembleExpansionPipeline(
-            final List<Bridge> bridges,
-            final List<SourceStep> sourceSteps,
-            final List<GroupTarget> groupTargets,
-            final ResolveCtx resolveCtx,
-            final Diagnostics diagnostics) {
-        final var sourcePhase = new ResolveSourceChainsPhase(sourceSteps, resolveCtx);
+            final List<Bridge> bridges, final List<GroupTarget> groupTargets, final ResolveCtx resolveCtx) {
         final var targetPhase = new ResolveTargetChainsPhase(groupTargets, resolveCtx);
-        final var bridgePhase = new BridgeSourceToTargetPhase(bridges, resolveCtx);
-        final var phases = List.<ExpansionPhase>of(sourcePhase, targetPhase, bridgePhase);
-        return new ExpandStage(phases, diagnostics);
+        final var groupsPhase = new ExpandGroupsPhase(bridges, groupTargets, resolveCtx);
+        final var phases = List.<ExpansionPhase>of(targetPhase, groupsPhase);
+        return new ExpandStage(phases);
     }
 
     @Provides
     ExpandStage expandStage(
-            final List<Bridge> bridges,
-            final List<SourceStep> sourceSteps,
-            final List<GroupTarget> groupTargets,
-            final ResolveCtx resolveCtx,
-            final Diagnostics diagnostics) {
-        return assembleExpansionPipeline(bridges, sourceSteps, groupTargets, resolveCtx, diagnostics);
-    }
-
-    @Provides
-    ValidateRealisationStage validateRealisationStage(final Diagnostics diagnostics) {
-        return new ValidateRealisationStage(diagnostics);
+            final List<Bridge> bridges, final List<GroupTarget> groupTargets, final ResolveCtx resolveCtx) {
+        return assembleExpansionPipeline(bridges, groupTargets, resolveCtx);
     }
 
     @Provides
@@ -193,7 +177,8 @@ public final class ProcessorModule {
             final ExpandStage expandStage,
             final DumpFullGraph dumpFullGraph,
             final DumpTransforms dumpTransforms,
-            final ValidateRealisationStage validateRealisationStage) {
+            final io.github.joke.percolate.processor.stages.validate.RealisationDiagnosticsStage
+                    realisationDiagnosticsStage) {
         final var all = new ArrayList<Stage>(discoverStages);
         all.add(validateNoDuplicateTargets);
         all.add(validateSourceParameters);
@@ -202,19 +187,8 @@ public final class ProcessorModule {
         all.add(expandStage);
         all.add(dumpFullGraph);
         all.add(dumpTransforms);
-        all.add(validateRealisationStage);
+        all.add(realisationDiagnosticsStage);
         return List.copyOf(all);
-    }
-
-    @Singleton
-    @Provides
-    static List<SourceStep> sourceSteps() {
-        return StreamSupport.stream(
-                        ServiceLoader.load(SourceStep.class, ProcessorModule.class.getClassLoader())
-                                .spliterator(),
-                        false)
-                .sorted((a, b) -> a.getClass().getName().compareTo(b.getClass().getName()))
-                .collect(java.util.stream.Collectors.toUnmodifiableList());
     }
 
     @Singleton
@@ -233,6 +207,17 @@ public final class ProcessorModule {
     static List<Bridge> bridgeStrategies() {
         return StreamSupport.stream(
                         ServiceLoader.load(Bridge.class, ProcessorModule.class.getClassLoader())
+                                .spliterator(),
+                        false)
+                .sorted((a, b) -> a.getClass().getName().compareTo(b.getClass().getName()))
+                .collect(java.util.stream.Collectors.toUnmodifiableList());
+    }
+
+    @Singleton
+    @Provides
+    static List<PathSegmentResolver> pathSegmentResolvers() {
+        return StreamSupport.stream(
+                        ServiceLoader.load(PathSegmentResolver.class, ProcessorModule.class.getClassLoader())
                                 .spliterator(),
                         false)
                 .sorted((a, b) -> a.getClass().getName().compareTo(b.getClass().getName()))

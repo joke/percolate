@@ -109,8 +109,7 @@ final class ExpansionResult {
     private static boolean isTraversable(final EdgeKind kind) {
         kind == EdgeKind.REALISED
                 || kind == EdgeKind.MARKER
-                || kind == EdgeKind.SUB_SEED
-                || kind == EdgeKind.ELEMENT_SEED
+                || kind == EdgeKind.SEED
     }
 
     private static void enqueueIfNew(final Node node, final Set<Node> visited, final Deque<Node> queue) {

@@ -2,14 +2,17 @@ package io.github.joke.percolate.processor.stages.expand;
 
 import static java.util.stream.Collectors.toUnmodifiableList;
 
+import com.palantir.javapoet.CodeBlock;
 import io.github.joke.percolate.processor.graph.Edge;
 import io.github.joke.percolate.processor.graph.EdgeKind;
+import io.github.joke.percolate.processor.graph.ExpansionGroup;
 import io.github.joke.percolate.processor.graph.GraphDelta;
-import io.github.joke.percolate.processor.graph.GroupRegistration;
 import io.github.joke.percolate.processor.graph.MapperGraph;
 import io.github.joke.percolate.processor.graph.Node;
+import io.github.joke.percolate.processor.graph.SourceLocation;
 import io.github.joke.percolate.processor.graph.TargetLocation;
 import io.github.joke.percolate.processor.graph.TargetPath;
+import io.github.joke.percolate.processor.graph.Weights;
 import io.github.joke.percolate.spi.EdgeCodegen;
 import io.github.joke.percolate.spi.GroupCodegen;
 import io.github.joke.percolate.spi.GroupTarget;
@@ -30,6 +33,12 @@ import org.jspecify.annotations.Nullable;
 @RequiredArgsConstructor
 public final class ResolveTargetChainsPhase implements ExpansionPhase {
 
+    private static final String DIRECTIVE_BINDING_FQN =
+            "io.github.joke.percolate.processor.stages.expand.DirectiveBinding";
+    private static final EdgeCodegen PASS_THROUGH_CODEGEN = (vars, inputs) -> CodeBlock.of("$L", inputs.single());
+    private static final GroupCodegen PASS_THROUGH_GROUP_CODEGEN =
+            (vars, inputs) -> CodeBlock.of("$L", inputs.single());
+
     private final List<GroupTarget> groupTargets;
     private final ResolveCtx resolveCtx;
 
@@ -37,29 +46,38 @@ public final class ResolveTargetChainsPhase implements ExpansionPhase {
     public void apply(final MapperGraph graph) {
         final var rootNodes = findReturnRootNodes(graph);
 
+        // Two passes: first add nodes & edges to the graph; then register groups (groups need
+        // their root/slots/edges to already exist in the underlying graph).
+        final var pendingGroups = new ArrayList<PendingGroup>();
         rootNodes.stream()
                 .flatMap(rootNode -> {
                     final var leafTargets = findLeafTargets(rootNode, graph);
                     if (leafTargets.isEmpty()) {
                         return Stream.empty();
                     }
-
                     final var targetTails = extractTargetTails(leafTargets);
                     if (targetTails.isEmpty()) {
                         return Stream.empty();
                     }
-
                     final var returnType = rootNode.getType().get();
-                    return deriveForReturnRoot(rootNode, leafTargets, returnType, targetTails);
+                    return deriveForReturnRoot(rootNode, leafTargets, returnType, targetTails, graph, pendingGroups);
                 })
                 .forEach(graph::apply);
+
+        for (final var pending : pendingGroups) {
+            final var group = ExpansionGroup.of(
+                    pending.root, pending.slots, pending.codegen, pending.strategyFqn, pending.slotEdges, graph);
+            graph.addGroup(group);
+        }
     }
 
     private Stream<GraphDelta> deriveForReturnRoot(
             final Node rootNode,
             final List<Node> leafTargets,
             final TypeMirror returnType,
-            final List<String> targetTails) {
+            final List<String> targetTails,
+            final MapperGraph graph,
+            final List<PendingGroup> pendingGroups) {
         return groupTargets.stream().flatMap(strategy -> {
             final var optionalBuild = strategy.buildFor(returnType, targetTails, resolveCtx);
             if (!optionalBuild.isPresent()) {
@@ -67,42 +85,68 @@ public final class ResolveTargetChainsPhase implements ExpansionPhase {
             }
 
             final var groupBuild = optionalBuild.get();
-            final var groupId = deterministicGroupId(rootNode, strategy);
-            final GroupCodegen codegen = groupBuild.getCodegen();
-            final var registration = new GroupRegistration(groupId, codegen);
+            final var codegen = groupBuild.getCodegen();
+            final var strategyFqn = strategy.getClass().getName();
 
-            return groupBuild.getSlots().stream().map(slot -> {
+            final var slotNodes = new ArrayList<Node>(groupBuild.getSlots().size());
+            final var slotEdges = new HashSet<Edge>(groupBuild.getSlots().size());
+            final var deltas = new ArrayList<GraphDelta>(groupBuild.getSlots().size());
+
+            for (final var slot : groupBuild.getSlots()) {
                 final var slotNode = allocateSlotNode(rootNode, slot);
-                final EdgeCodegen slotCodegen = codegen::render;
-                final var realisedEdge = Edge.realised(
-                        slotNode,
-                        rootNode,
-                        slot.getWeight(),
-                        Optional.of(groupId),
-                        slotCodegen,
-                        strategy.getClass().getName());
+                final var realisedEdge =
+                        Edge.realised(slotNode, rootNode, slot.getWeight(), codegen::render, strategyFqn);
+                slotNodes.add(slotNode);
+                slotEdges.add(realisedEdge);
 
                 final var seedNode = findCorrespondingSeedNode(leafTargets, slot.getName());
-
-                final List<Node> nodes = new ArrayList<>(1);
+                final var nodes = new ArrayList<Node>(1);
                 nodes.add(slotNode);
-
-                final List<Edge> edges = new ArrayList<>(2);
+                final var edges = new ArrayList<Edge>(3);
                 edges.add(realisedEdge);
-
                 if (seedNode != null) {
-                    final var markerEdge =
-                            Edge.marker(seedNode, slotNode, strategy.getClass().getName());
-                    edges.add(markerEdge);
+                    edges.add(Edge.marker(seedNode, slotNode, strategyFqn));
+                    addDirectiveBindingIfApplicable(seedNode, slotNode, slot.getType(), graph, edges, pendingGroups);
                 }
+                deltas.add(GraphDelta.of(nodes, edges, List.of()));
+            }
 
-                return GraphDelta.of(nodes, edges, List.of(registration));
-            });
+            pendingGroups.add(new PendingGroup(rootNode, slotNodes, codegen, strategyFqn, slotEdges));
+            return deltas.stream();
         });
     }
 
-    private String deterministicGroupId(final Node rootNode, final GroupTarget strategy) {
-        return "g:" + rootNode.id() + ":" + strategy.getClass().getName();
+    private void addDirectiveBindingIfApplicable(
+            final Node seedNode,
+            final Node slotNode,
+            final TypeMirror slotType,
+            final MapperGraph graph,
+            final List<Edge> edges,
+            final List<PendingGroup> pendingGroups) {
+        final var typedSource = findTypedSeedSource(seedNode, graph);
+        if (typedSource.isEmpty()) {
+            return;
+        }
+        final var source = typedSource.get();
+        if (!resolveCtx.types().isSameType(source.getType().get(), slotType)) {
+            return;
+        }
+        final var directiveEdge =
+                Edge.realised(source, slotNode, Weights.STEP, PASS_THROUGH_CODEGEN, DIRECTIVE_BINDING_FQN);
+        edges.add(directiveEdge);
+        pendingGroups.add(new PendingGroup(
+                slotNode, List.of(source), PASS_THROUGH_GROUP_CODEGEN, DIRECTIVE_BINDING_FQN, Set.of(directiveEdge)));
+    }
+
+    private Optional<Node> findTypedSeedSource(final Node seedNode, final MapperGraph graph) {
+        final var typedSources = graph.edges()
+                .filter(e -> e.getKind() == EdgeKind.SEED)
+                .filter(e -> e.getTo().equals(seedNode))
+                .map(Edge::getFrom)
+                .filter(n -> n.getLoc() instanceof SourceLocation)
+                .filter(n -> n.getType().isPresent())
+                .collect(toUnmodifiableList());
+        return typedSources.size() == 1 ? Optional.of(typedSources.get(0)) : Optional.empty();
     }
 
     private List<Node> findReturnRootNodes(final MapperGraph graph) {
@@ -175,7 +219,7 @@ public final class ResolveTargetChainsPhase implements ExpansionPhase {
     private Node allocateSlotNode(final Node rootNode, final Slot slot) {
         final var slotPath = TargetPath.of(slot.getName());
         final var slotLoc = new TargetLocation(slotPath);
-        return new Node(Optional.of(slot.getType()), slotLoc, rootNode.getScope(), Optional.empty());
+        return new Node(Optional.of(slot.getType()), slotLoc, rootNode.getScope());
     }
 
     @Nullable
@@ -190,5 +234,26 @@ public final class ResolveTargetChainsPhase implements ExpansionPhase {
                 })
                 .findFirst()
                 .orElse(null);
+    }
+
+    private static final class PendingGroup {
+        final Node root;
+        final List<Node> slots;
+        final GroupCodegen codegen;
+        final String strategyFqn;
+        final Set<Edge> slotEdges;
+
+        PendingGroup(
+                final Node root,
+                final List<Node> slots,
+                final GroupCodegen codegen,
+                final String strategyFqn,
+                final Set<Edge> slotEdges) {
+            this.root = root;
+            this.slots = slots;
+            this.codegen = codegen;
+            this.strategyFqn = strategyFqn;
+            this.slotEdges = slotEdges;
+        }
     }
 }

@@ -1,9 +1,9 @@
-package io.github.joke.percolate.processor.stages.validate;
+package io.github.joke.percolate.processor.stages.validate
 
-import io.github.joke.percolate.processor.graph.*;
-import io.github.joke.percolate.processor.stages.expand.properties.fakes.NoOpBridge;
-import io.github.joke.percolate.processor.test.ExpansionHarness;
-import io.github.joke.percolate.spi.test.TypeUniverse;
+import io.github.joke.percolate.processor.graph.*
+import io.github.joke.percolate.processor.stages.expand.properties.fakes.NoOpBridge
+import io.github.joke.percolate.processor.test.ExpansionHarness
+import io.github.joke.percolate.spi.test.TypeUniverse
 import spock.lang.Specification
 import spock.lang.Tag
 import spock.lang.Timeout
@@ -15,7 +15,7 @@ class RealisationErrorMessagesSpec extends Specification {
     def 'element-conversion miss produces canonical message'() {
         given:
         def graph = buildGraphWithNoProducer()
-        def result = ExpansionHarness.expand(graph, List.of(new NoOpBridge()), List.of(), List.of())
+        def result = ExpansionHarness.expand(graph, List.of(new NoOpBridge()), List.of())
 
         when:
         def diagnostics = result.diagnostics()
@@ -26,14 +26,14 @@ class RealisationErrorMessagesSpec extends Specification {
         }
 
         then:
-        !diagnostics.isEmpty()
+        !diagnostics.empty
         hasNoProducerMessage
     }
 
     def 'no-producer-at-all message'() {
         given:
         def graph = buildGraphWithNoProducer()
-        def result = ExpansionHarness.expand(graph, List.of(new NoOpBridge()), List.of(), List.of())
+        def result = ExpansionHarness.expand(graph, List.of(new NoOpBridge()), List.of())
 
         when:
         def hasNoProducerMessage = result.diagnostics().any {
@@ -47,12 +47,9 @@ class RealisationErrorMessagesSpec extends Specification {
     }
 
     def 'diagnostic message is byte-stable across runs'() {
-        given:
-        def graph = buildGraphWithElementConversionMiss()
-
         when:
-        def result1 = ExpansionHarness.expand(graph, List.of(new NoOpBridge()), List.of(), List.of())
-        def result2 = ExpansionHarness.expand(graph, List.of(new NoOpBridge()), List.of(), List.of())
+        def result1 = ExpansionHarness.expand(buildGraphWithElementConversionMiss(), List.of(new NoOpBridge()), List.of())
+        def result2 = ExpansionHarness.expand(buildGraphWithElementConversionMiss(), List.of(new NoOpBridge()), List.of())
 
         then:
         result1.diagnostics() == result2.diagnostics()
@@ -62,28 +59,34 @@ class RealisationErrorMessagesSpec extends Specification {
         def graph = new MapperGraph()
         def scope = new TestScope('mapHuman()')
 
-        // Source parameter: List<Integer>
         def source = new Node(
                 Optional.of(TypeUniverse.LIST_OF_INT),
                 new SourceLocation(AccessPath.of('numbers')),
-                scope,
-                Optional.empty())
-
-        // Target: Long (no direct conversion strategy)
-        def target = new Node(
+                scope)
+        def returnRoot = new Node(
+                Optional.of(TypeUniverse.LONG),
+                new TargetLocation(TargetPath.of('')),
+                scope)
+        def slot = new Node(
                 Optional.of(TypeUniverse.LONG),
                 new TargetLocation(TargetPath.of('total')),
-                scope,
-                Optional.empty())
+                scope)
 
         graph.addNode(source)
-        graph.addNode(target)
+        graph.addNode(returnRoot)
+        graph.addNode(slot)
 
-        // SEED edge
-        graph.addEdge(Edge.seedForTest(source, target))
+        def realisedEdge = Edge.realised(slot, returnRoot, 1, { vars, inputs -> com.palantir.javapoet.CodeBlock.of('') }, 'io.github.joke.percolate.builtin.ListMap')
+        graph.addEdge(realisedEdge)
+        graph.addEdge(Edge.seedForTest(source, slot))
 
-        // REALISED edge (simulating a strategy that doesn't exist for this conversion)
-        graph.addEdge(Edge.realised(source, target, 1, Optional.empty(), { _, _ -> }, 'io.github.joke.percolate.builtin.ListMap'))
+        graph.addGroup(ExpansionGroup.of(
+                returnRoot,
+                [slot],
+                { vars, inputs -> com.palantir.javapoet.CodeBlock.of('') } as io.github.joke.percolate.spi.GroupCodegen,
+                'io.github.joke.percolate.builtin.ListMap',
+                Set.of(realisedEdge),
+                graph))
 
         graph
     }
@@ -92,26 +95,34 @@ class RealisationErrorMessagesSpec extends Specification {
         def graph = new MapperGraph()
         def scope = new TestScope('mapHuman()')
 
-        // Source parameter
         def source = new Node(
                 Optional.of(TypeUniverse.STRING),
                 new SourceLocation(AccessPath.of('person')),
-                scope,
-                Optional.empty())
-
-        // Target with no matching source type
-        def target = new Node(
+                scope)
+        def returnRoot = new Node(
+                Optional.of(TypeUniverse.LONG),
+                new TargetLocation(TargetPath.of('')),
+                scope)
+        def slot = new Node(
                 Optional.of(TypeUniverse.LONG),
                 new TargetLocation(TargetPath.of('count')),
-                scope,
-                Optional.empty())
+                scope)
 
         graph.addNode(source)
-        graph.addNode(target)
+        graph.addNode(returnRoot)
+        graph.addNode(slot)
 
-        // SEED edge
-        graph.addEdge(Edge.seedForTest(source, target))
+        def realisedEdge = Edge.realised(slot, returnRoot, 1, { vars, inputs -> com.palantir.javapoet.CodeBlock.of('') }, 'test.GroupTarget')
+        graph.addEdge(realisedEdge)
+        graph.addEdge(Edge.seedForTest(source, slot))
 
+        graph.addGroup(ExpansionGroup.of(
+                returnRoot,
+                [slot],
+                { vars, inputs -> com.palantir.javapoet.CodeBlock.of('') } as io.github.joke.percolate.spi.GroupCodegen,
+                'test.GroupTarget',
+                Set.of(realisedEdge),
+                graph))
         graph
     }
 

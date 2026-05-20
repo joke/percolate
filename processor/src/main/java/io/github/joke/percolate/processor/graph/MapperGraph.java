@@ -1,13 +1,11 @@
 package io.github.joke.percolate.processor.graph;
 
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashSet;
 import java.util.List;
-import java.util.Map;
-import java.util.Optional;
 import java.util.Set;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import lombok.NoArgsConstructor;
@@ -19,7 +17,8 @@ import org.jgrapht.graph.MaskSubgraph;
 public final class MapperGraph implements GraphSource {
     private final DirectedMultigraph<Node, Edge> graph = new DirectedMultigraph<>(Edge.class);
     private final Set<Edge> edgeIndex = new HashSet<>();
-    private final Map<String, io.github.joke.percolate.spi.GroupCodegen> groupCodegens = new ConcurrentHashMap<>();
+    private final List<ExpansionGroup> expansionGroups = new ArrayList<>();
+    private final List<GroupOutcome> outcomes = new ArrayList<>();
 
     private List<Node> sortedNodes = List.of();
     private List<Edge> sortedEdges = List.of();
@@ -43,12 +42,34 @@ public final class MapperGraph implements GraphSource {
         return true;
     }
 
+    public void addGroup(final ExpansionGroup group) {
+        if (!graph.containsVertex(group.getRoot())) {
+            throw new IllegalArgumentException("ExpansionGroup root is not a vertex of this graph");
+        }
+        for (final var slot : group.getSlots()) {
+            if (!graph.containsVertex(slot)) {
+                throw new IllegalArgumentException("ExpansionGroup slot is not a vertex of this graph");
+            }
+        }
+        expansionGroups.add(group);
+    }
+
+    public Stream<ExpansionGroup> groups() {
+        return expansionGroups.stream();
+    }
+
+    public void recordGroupOutcome(final GroupOutcome outcome) {
+        outcomes.add(outcome);
+    }
+
+    public Stream<GroupOutcome> groupOutcomes() {
+        return outcomes.stream();
+    }
+
     public void apply(final GraphDelta delta) {
-        delta.getNodeList().stream().forEach(this::addNode);
-        delta.getEdgeList().stream().forEach(this::addEdge);
-        delta.getGroupRegistrations().stream()
-                .filter(r -> !groupCodegens.containsKey(r.groupId))
-                .forEach(r -> groupCodegens.put(r.groupId, r.codegen));
+        delta.getNodeList().forEach(this::addNode);
+        delta.getEdgeList().forEach(this::addEdge);
+        delta.getGroups().forEach(this::addGroup);
     }
 
     @Override
@@ -93,21 +114,7 @@ public final class MapperGraph implements GraphSource {
         return new TransformsView(mask, this);
     }
 
-    public void addGroupCodegen(final String groupId, final io.github.joke.percolate.spi.GroupCodegen codegen) {
-        if (groupCodegens.containsKey(groupId)) {
-            throw new IllegalStateException("Duplicate group codegen for: " + groupId);
-        }
-        groupCodegens.put(groupId, codegen);
-    }
-
-    public Optional<io.github.joke.percolate.spi.GroupCodegen> groupCodegen(final String groupId) {
-        return Optional.ofNullable(groupCodegens.get(groupId));
-    }
-
     public boolean isAcyclic() {
-        // The seed graph is a DAG but not necessarily a forest in the undirected sense,
-        // since multiple directives can share common nodes (converging paths create
-        // undirected cycles while remaining acyclic in the directed sense).
         return !new CycleDetector<>(graph).detectCycles();
     }
 
@@ -115,9 +122,7 @@ public final class MapperGraph implements GraphSource {
         return Collections.unmodifiableSet(graph.edgeSet());
     }
 
-    public boolean hasSeedSubSeedCycles() {
-        final var subgraph = new MaskSubgraph<Node, Edge>(
-                graph, v -> false, e -> e.getKind() != EdgeKind.SEED && e.getKind() != EdgeKind.SUB_SEED);
-        return new CycleDetector<>(subgraph).detectCycles();
+    public DirectedMultigraph<Node, Edge> underlyingGraph() {
+        return graph;
     }
 }

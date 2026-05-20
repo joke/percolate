@@ -1,6 +1,5 @@
 package io.github.joke.percolate.processor.stages.expand;
 
-import io.github.joke.percolate.processor.Diagnostics;
 import io.github.joke.percolate.processor.MapperContext;
 import io.github.joke.percolate.processor.graph.Edge;
 import io.github.joke.percolate.processor.graph.EdgeKind;
@@ -10,16 +9,13 @@ import io.github.joke.percolate.processor.graph.Node;
 import io.github.joke.percolate.processor.stages.Stage;
 import jakarta.inject.Inject;
 import java.util.List;
+import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
 
 @RequiredArgsConstructor(onConstructor_ = @Inject)
 public final class ExpandStage implements Stage {
 
-    static final int MAX_EXPANSION_ROUNDS = 64;
-    static final int MAX_EXPANSION_EDGES = 1024;
-
     private final List<ExpansionPhase> phases;
-    private final Diagnostics diagnostics;
 
     @Override
     public void run(final MapperContext ctx) {
@@ -27,38 +23,11 @@ public final class ExpandStage implements Stage {
         if (graph == null) {
             return;
         }
-        final var seedEdges = collectSeedEdges(graph);
-        setCurrentMethodFromSeedEdges(seedEdges, ctx);
+        setCurrentMethodFromSeedEdges(collectSeedEdges(graph), ctx);
 
-        var round = 0;
-        while (round <= MAX_EXPANSION_ROUNDS) {
-            final var before = graph.edgeCount();
-
-            for (final var phase : phases) {
-                phase.apply(graph);
-
-                if (graph.hasSeedSubSeedCycles()) {
-                    diagnostics.error(
-                            ctx.getMapperType(), "Cycle detected in expansion — sub-directive lineage loops back");
-                    return;
-                }
-
-                if (graph.edgeCount() > MAX_EXPANSION_EDGES) {
-                    diagnostics.error(
-                            ctx.getMapperType(),
-                            "Expansion did not converge: graph exceeded " + MAX_EXPANSION_EDGES + " edges");
-                    return;
-                }
-            }
-
-            round++;
-
-            if (graph.edgeCount() == before) {
-                return;
-            }
+        for (final var phase : phases) {
+            phase.apply(graph);
         }
-
-        diagnostics.error(ctx.getMapperType(), "Expansion did not converge after " + round + " rounds");
     }
 
     private void setCurrentMethodFromSeedEdges(final List<Edge> seedEdges, final MapperContext ctx) {
@@ -72,6 +41,6 @@ public final class ExpandStage implements Stage {
     }
 
     private List<Edge> collectSeedEdges(final MapperGraph graph) {
-        return graph.edges().filter(e -> e.getKind() == EdgeKind.SEED).collect(java.util.stream.Collectors.toList());
+        return graph.edges().filter(e -> e.getKind() == EdgeKind.SEED).collect(Collectors.toList());
     }
 }

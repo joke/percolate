@@ -3,7 +3,6 @@ package io.github.joke.percolate.processor.stages.expand.properties
 import io.github.joke.percolate.processor.graph.MapperGraph
 import io.github.joke.percolate.spi.Bridge
 import io.github.joke.percolate.spi.GroupTarget
-import io.github.joke.percolate.spi.SourceStep
 import net.jqwik.api.ForAll
 import net.jqwik.api.Property
 
@@ -17,10 +16,9 @@ class MonotonicitySpec extends ExpansionPropertyBase {
     void 'larger strategy set produces superset'(
             @ForAll('seedGraphs') MapperGraph graph,
             @ForAll('fakeBridges') List<Bridge> bridges,
-            @ForAll('fakeSourceSteps') List<SourceStep> sources,
             @ForAll('fakeGroupTargets') List<GroupTarget> targets) {
-        final smaller = expand(graph, [], [], [])
-        final larger  = expand(graph, bridges, sources, targets)
+        final smaller = expand(graph, [], [])
+        final larger  = expand(graph, bridges, targets)
 
         assert edgeTuples(larger.expandedGraph()).containsAll(edgeTuples(smaller.expandedGraph()))
         assert nodeIds(larger.expandedGraph()).containsAll(nodeIds(smaller.expandedGraph()))

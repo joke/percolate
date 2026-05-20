@@ -12,7 +12,7 @@ class EmptyStrategyIdentitySpec extends ExpansionPropertyBase {
 
     @Property(seed = '3333')
     void 'empty strategy set preserves seed'(@ForAll('seedGraphs') MapperGraph graph) {
-        final result = expand(graph, [], [], [])
+        final result = expand(graph, [], [])
         assert nodeIds(result.expandedGraph()) == nodeIds(graph)
         assert edgeTuples(result.expandedGraph()) == edgeTuples(graph)
     }

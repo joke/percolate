@@ -3,7 +3,6 @@ package io.github.joke.percolate.processor.stages.expand.properties
 import io.github.joke.percolate.processor.graph.MapperGraph
 import io.github.joke.percolate.spi.Bridge
 import io.github.joke.percolate.spi.GroupTarget
-import io.github.joke.percolate.spi.SourceStep
 import net.jqwik.api.ForAll
 import net.jqwik.api.Property
 
@@ -17,14 +16,12 @@ class OrderIndependenceSpec extends ExpansionPropertyBase {
     void 'permuting strategies does not change output'(
             @ForAll('seedGraphs') MapperGraph graph,
             @ForAll('fakeBridges') List<Bridge> bridges,
-            @ForAll('fakeSourceSteps') List<SourceStep> sources,
             @ForAll('fakeGroupTargets') List<GroupTarget> targets) {
         final bridgesReversed      = bridges.reverse()
-        final sourceStepsReversed  = sources.reverse()
         final groupTargetsReversed = targets.reverse()
 
-        final original   = expand(graph, bridges, sources, targets)
-        final permuted   = expand(graph, bridgesReversed, sourceStepsReversed, groupTargetsReversed)
+        final original   = expand(graph, bridges, targets)
+        final permuted   = expand(graph, bridgesReversed, groupTargetsReversed)
 
         assert nodeIds(permuted.expandedGraph()) == nodeIds(original.expandedGraph())
         assert edgeTuples(permuted.expandedGraph()) == edgeTuples(original.expandedGraph())

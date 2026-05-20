@@ -6,7 +6,6 @@ import io.github.joke.percolate.processor.graph.Node
 import io.github.joke.percolate.processor.test.HarnessScope
 import io.github.joke.percolate.spi.Bridge
 import io.github.joke.percolate.spi.GroupTarget
-import io.github.joke.percolate.spi.SourceStep
 import net.jqwik.api.ForAll
 import net.jqwik.api.Property
 
@@ -20,16 +19,15 @@ class DisjointAdditivitySpec extends ExpansionPropertyBase {
             @ForAll('seedGraphs') MapperGraph graphA,
             @ForAll('seedGraphs') MapperGraph graphB,
             @ForAll('fakeBridges') List<Bridge> bridges,
-            @ForAll('fakeSourceSteps') List<SourceStep> sources,
             @ForAll('fakeGroupTargets') List<GroupTarget> targets) {
         // seedGraphs() reuses scope names ("method0", "method1", ...) on every draw, so two
         // independent draws can collide on Node.id(). Prefix graphB's scopes to guarantee
         // disjointness — the property is only meaningful on non-overlapping inputs.
         final disjointB         = withScopePrefix(graphB, 'b_')
         final combinedGraph     = union(graphA, disjointB)
-        final expandedUnion     = expand(combinedGraph, bridges, sources, targets)
-        final expandedA         = expand(graphA, bridges, sources, targets)
-        final expandedB         = expand(disjointB, bridges, sources, targets)
+        final expandedUnion     = expand(combinedGraph, bridges, targets)
+        final expandedA         = expand(graphA, bridges, targets)
+        final expandedB         = expand(disjointB, bridges, targets)
         final unionOfExpansions = union(expandedA.expandedGraph(), expandedB.expandedGraph())
 
         assert nodeIds(expandedUnion.expandedGraph()) == nodeIds(unionOfExpansions)
@@ -43,8 +41,7 @@ class DisjointAdditivitySpec extends ExpansionPropertyBase {
             final renamed = new Node(
                     original.type,
                     original.loc,
-                    new HarnessScope(prefix + original.scope.encode()),
-                    original.parent)
+                    new HarnessScope(prefix + original.scope.encode()))
             remap[original] = renamed
             result.addNode(renamed)
         }

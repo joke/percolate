@@ -3,7 +3,6 @@ package io.github.joke.percolate.processor.stages.expand.properties
 import io.github.joke.percolate.processor.graph.MapperGraph
 import io.github.joke.percolate.spi.Bridge
 import io.github.joke.percolate.spi.GroupTarget
-import io.github.joke.percolate.spi.SourceStep
 import net.jqwik.api.ForAll
 import net.jqwik.api.Property
 
@@ -15,9 +14,8 @@ class IdentityCollapseSpec extends ExpansionPropertyBase {
     void 'no two nodes share scope-location-type'(
             @ForAll('seedGraphs') MapperGraph graph,
             @ForAll('fakeBridges') List<Bridge> bridges,
-            @ForAll('fakeSourceSteps') List<SourceStep> sources,
             @ForAll('fakeGroupTargets') List<GroupTarget> targets) {
-        final result = expand(graph, bridges, sources, targets)
+        final result = expand(graph, bridges, targets)
         assert !result.hasIdentityCollisions()
     }
 }

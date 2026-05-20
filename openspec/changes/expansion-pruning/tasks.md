@@ -56,10 +56,10 @@
 
 ## 9. Integration verification
 
-- [ ] 9.1 In `~/Projects/joke/percolate-integration` with `mapAddress` commented out in `PersonMapper.java`, run `./gradlew :mappers:classes` and confirm the compile **fails** with a closest-miss error message that (a) names `SetMap` as the considered strategy, (b) identifies the missing element conversion `Optional<Person.Address>` → `Human.Address` (or `Person.Address` → `Human.Address`), and (c) suggests the likely missing `@Map`-annotated method
-- [ ] 9.2 Confirm that all three dot files are present under `mappers/build/generated/sources/annotationProcessor/java/main/`: `io.github.joke.testing.PersonMapper.seed.dot`, `io.github.joke.testing.PersonMapper.full.dot`, `io.github.joke.testing.PersonMapper.transforms.dot`; confirm `*.expanded.dot` is absent
-- [ ] 9.3 Restore `mapAddress` in `PersonMapper.java` and re-run `./gradlew :mappers:classes`; confirm the compile succeeds and the three dot files reflect the satisfiable graph
+- [x] 9.1 In `~/Projects/joke/percolate-integration` with `mapAddress` commented out in `PersonMapper.java`, run `./gradlew :mappers:classes` and confirm the compile **fails** with a closest-miss error message that (a) names `SetMap` as the considered strategy, (b) identifies the missing element conversion `Optional<Person.Address>` → `Human.Address` (or `Person.Address` → `Human.Address`), and (c) suggests the likely missing `@Map`-annotated method
+- [x] 9.2 Confirm that all three dot files are present under `mappers/build/generated/sources/annotationProcessor/java/main/`: `io.github.joke.testing.PersonMapper.seed.dot`, `io.github.joke.testing.PersonMapper.full.dot`, `io.github.joke.testing.PersonMapper.transforms.dot`; confirm `*.expanded.dot` is absent
+- [x] 9.3 Restore `mapAddress` in `PersonMapper.java` and re-run `./gradlew :mappers:classes`; confirm the compile succeeds and the three dot files reflect the satisfiable graph
 
 ## 10. Verify
 
-- [ ] 10.1 Run `./gradlew check` from the repo root and confirm all checks green: every new spec passes, no Spotless / NullAway / Errorprone violations introduced, existing `processor`-module algebraic and failure-mode specs still pass (after the audit in task 8.1), existing `strategies-builtin` per-strategy specs still pass (after the kind-name update in task 2.6), `BuiltinServiceRegistrationSpec` still passes. NEVER continue if there are violations.
+- [x] 10.1 Run `./gradlew check` from the repo root and confirm all checks green: every new spec passes, no Spotless / NullAway / Errorprone violations introduced, existing `processor`-module algebraic and failure-mode specs still pass (after the audit in task 8.1), existing `strategies-builtin` per-strategy specs still pass (after the kind-name update in task 2.6), `BuiltinServiceRegistrationSpec` still passes. NEVER continue if there are violations.

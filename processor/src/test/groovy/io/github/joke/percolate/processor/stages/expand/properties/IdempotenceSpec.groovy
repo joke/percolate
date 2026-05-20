@@ -3,7 +3,6 @@ package io.github.joke.percolate.processor.stages.expand.properties
 import io.github.joke.percolate.processor.graph.MapperGraph
 import io.github.joke.percolate.spi.Bridge
 import io.github.joke.percolate.spi.GroupTarget
-import io.github.joke.percolate.spi.SourceStep
 import net.jqwik.api.ForAll
 import net.jqwik.api.Property
 
@@ -17,10 +16,9 @@ class IdempotenceSpec extends ExpansionPropertyBase {
     void 'second expansion adds nothing'(
             @ForAll('seedGraphs') MapperGraph graph,
             @ForAll('fakeBridges') List<Bridge> bridges,
-            @ForAll('fakeSourceSteps') List<SourceStep> sources,
             @ForAll('fakeGroupTargets') List<GroupTarget> targets) {
-        final firstPass  = expand(graph, bridges, sources, targets)
-        final secondPass = expand(firstPass.expandedGraph(), bridges, sources, targets)
+        final firstPass  = expand(graph, bridges, targets)
+        final secondPass = expand(firstPass.expandedGraph(), bridges, targets)
         assert nodeIds(secondPass.expandedGraph()) == nodeIds(firstPass.expandedGraph())
         assert edgeTuples(secondPass.expandedGraph()) == edgeTuples(firstPass.expandedGraph())
     }

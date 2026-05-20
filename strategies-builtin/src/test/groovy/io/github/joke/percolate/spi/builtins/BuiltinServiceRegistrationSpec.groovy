@@ -2,7 +2,6 @@ package io.github.joke.percolate.spi.builtins
 
 import io.github.joke.percolate.spi.Bridge
 import io.github.joke.percolate.spi.GroupTarget
-import io.github.joke.percolate.spi.SourceStep
 import spock.lang.Specification
 import spock.lang.Tag
 
@@ -26,15 +25,7 @@ class BuiltinServiceRegistrationSpec extends Specification {
         discovered.contains('io.github.joke.percolate.spi.builtins.OptionalUnwrap')
         discovered.contains('io.github.joke.percolate.spi.builtins.OptionalWrap')
         discovered.contains('io.github.joke.percolate.spi.builtins.MethodCallBridge')
-    }
-
-    def 'ServiceLoader discovers all expected SourceStep builtins'() {
-        expect:
-        final discovered = ServiceLoader.load(SourceStep).stream()
-                .map { it.get().class.name }
-                .collect(Collectors.toSet())
-
-        discovered.contains('io.github.joke.percolate.spi.builtins.GetterRead')
+        !discovered.contains('io.github.joke.percolate.spi.builtins.GetterRead')
     }
 
     def 'ServiceLoader discovers all expected GroupTarget builtins'() {

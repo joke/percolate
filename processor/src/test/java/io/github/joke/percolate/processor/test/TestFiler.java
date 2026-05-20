@@ -9,6 +9,7 @@ import javax.tools.JavaFileObject;
 import org.jspecify.annotations.NullMarked;
 
 @NullMarked
+@SuppressWarnings("PMD.TestClassWithoutTestCases")
 public final class TestFiler implements Filer {
 
     private final FileObject defaultFile;

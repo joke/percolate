@@ -1,60 +1,47 @@
 package io.github.joke.percolate.processor.graph;
 
-import java.util.NoSuchElementException;
-import java.util.Objects;
 import java.util.Optional;
 import javax.lang.model.type.TypeMirror;
-import lombok.Value;
 
-@Value
 public final class Node implements Comparable<Node> {
-    Optional<TypeMirror> type;
-    Location loc;
-    Scope scope;
-    Optional<Node> parent;
+    private final Optional<TypeMirror> type;
+    private final Location loc;
+    private final Scope scope;
 
-    private String typeEncode() {
-        return type.map(TypeMirror::toString).orElse("?");
+    public Node(final Optional<TypeMirror> type, final Location loc, final Scope scope) {
+        this.type = type;
+        this.loc = loc;
+        this.scope = scope;
+    }
+
+    public Optional<TypeMirror> getType() {
+        return type;
+    }
+
+    public Location getLoc() {
+        return loc;
+    }
+
+    public Scope getScope() {
+        return scope;
     }
 
     public String id() {
-        if (loc instanceof ElementLocation) {
-            return parent.orElseThrow().id() + "::" + loc.segment() + "::" + typeEncode();
-        }
-        final var seg = loc != null ? loc.segment() : "none";
-        return scope.encode() + "::" + seg + "::" + typeEncode();
-    }
-
-    @Override
-    public int compareTo(final Node other) {
-        return this.id().compareTo(other.id());
+        return "node@" + System.identityHashCode(this);
     }
 
     @Override
     public boolean equals(final Object o) {
-        if (this == o) {
-            return true;
-        }
-        if (!(o instanceof Node)) {
-            return false;
-        }
-        final var other = (Node) o;
-        try {
-            return Objects.equals(this.id(), other.id());
-        } catch (final NoSuchElementException e) {
-            return Objects.equals(this.parent, other.parent)
-                    && Objects.equals(this.type, other.type)
-                    && Objects.equals(this.loc, other.loc)
-                    && Objects.equals(this.scope, other.scope);
-        }
+        return this == o;
     }
 
     @Override
     public int hashCode() {
-        try {
-            return Objects.hash(id());
-        } catch (final NoSuchElementException e) {
-            return Objects.hash(type, loc, scope, parent);
-        }
+        return System.identityHashCode(this);
+    }
+
+    @Override
+    public int compareTo(final Node other) {
+        return Integer.compare(System.identityHashCode(this), System.identityHashCode(other));
     }
 }

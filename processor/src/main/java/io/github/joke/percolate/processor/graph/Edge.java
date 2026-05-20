@@ -14,14 +14,12 @@ public final class Edge implements Comparable<Edge> {
             .thenComparing(e -> e.to.id())
             .thenComparingInt(e -> e.weight)
             .thenComparing(e -> e.kind)
-            .thenComparing(e -> e.directive.isPresent())
-            .thenComparing(e -> e.strategyClassFqn.orElse(null), Comparator.nullsFirst(Comparator.naturalOrder()));
+            .thenComparing(e -> e.directive.isPresent());
     Node from;
     Node to;
     int weight;
     EdgeKind kind;
     Optional<AnnotationMirror> directive;
-    Optional<String> groupId;
     Optional<io.github.joke.percolate.spi.EdgeCodegen> codegen;
     Optional<String> strategyClassFqn;
 
@@ -31,7 +29,6 @@ public final class Edge implements Comparable<Edge> {
             final int weight,
             final EdgeKind kind,
             final Optional<AnnotationMirror> directive,
-            final Optional<String> groupId,
             final Optional<io.github.joke.percolate.spi.EdgeCodegen> codegen,
             final Optional<String> strategyClassFqn) {
         this.from = from;
@@ -39,33 +36,21 @@ public final class Edge implements Comparable<Edge> {
         this.weight = weight;
         this.kind = kind;
         this.directive = directive;
-        this.groupId = groupId;
         this.codegen = codegen;
         this.strategyClassFqn = strategyClassFqn;
     }
 
-    public static Edge seed(final Node from, final Node to, final AnnotationMirror directive) {
+    public static Edge seed(
+            final Node from,
+            final Node to,
+            final Optional<AnnotationMirror> directive,
+            final Optional<String> strategyClassFqn) {
         return new Edge(
-                from,
-                to,
-                Weights.SENTINEL_UNREALISED,
-                EdgeKind.SEED,
-                Optional.of(directive),
-                Optional.empty(),
-                Optional.empty(),
-                Optional.empty());
+                from, to, Weights.SENTINEL_UNREALISED, EdgeKind.SEED, directive, Optional.empty(), strategyClassFqn);
     }
 
     static Edge seedForTest(final Node from, final Node to) {
-        return new Edge(
-                from,
-                to,
-                Weights.SENTINEL_UNREALISED,
-                EdgeKind.SEED,
-                Optional.empty(),
-                Optional.empty(),
-                Optional.empty(),
-                Optional.empty());
+        return seed(from, to, Optional.empty(), Optional.empty());
     }
 
     static Edge copyWithEndpoints(final Edge original, final Node newFrom, final Node newTo) {
@@ -75,34 +60,14 @@ public final class Edge implements Comparable<Edge> {
                 original.weight,
                 original.kind,
                 original.directive,
-                original.groupId,
                 original.codegen,
                 original.strategyClassFqn);
-    }
-
-    public static Edge elementSeed(final Node from, final Node to, final String strategyClassFqn) {
-        if (!(from.getLoc() instanceof ElementLocation)) {
-            throw new IllegalArgumentException("elementSeed from node must have ElementLocation: " + from);
-        }
-        if (!(to.getLoc() instanceof ElementLocation)) {
-            throw new IllegalArgumentException("elementSeed to node must have ElementLocation: " + to);
-        }
-        return new Edge(
-                from,
-                to,
-                Weights.SENTINEL_UNREALISED,
-                EdgeKind.ELEMENT_SEED,
-                Optional.empty(),
-                Optional.empty(),
-                Optional.empty(),
-                Optional.of(strategyClassFqn));
     }
 
     public static Edge realised(
             final Node from,
             final Node to,
             final int weight,
-            final Optional<String> groupId,
             final io.github.joke.percolate.spi.EdgeCodegen codegen,
             final String strategyClassFqn) {
         return new Edge(
@@ -111,7 +76,6 @@ public final class Edge implements Comparable<Edge> {
                 weight,
                 EdgeKind.REALISED,
                 Optional.empty(),
-                groupId,
                 Optional.of(codegen),
                 Optional.of(strategyClassFqn));
     }
@@ -122,20 +86,6 @@ public final class Edge implements Comparable<Edge> {
                 to,
                 Weights.NOOP,
                 EdgeKind.MARKER,
-                Optional.empty(),
-                Optional.empty(),
-                Optional.empty(),
-                Optional.of(strategyClassFqn));
-    }
-
-    public static Edge subSeed(
-            final Node from, final Node to, final String strategyClassFqn, final Optional<AnnotationMirror> directive) {
-        return new Edge(
-                from,
-                to,
-                Weights.SENTINEL_UNREALISED,
-                EdgeKind.SUB_SEED,
-                directive,
                 Optional.empty(),
                 Optional.empty(),
                 Optional.of(strategyClassFqn));

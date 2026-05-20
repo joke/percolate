@@ -8,22 +8,20 @@ public final class GraphDelta {
 
     List<Node> nodeList;
     List<Edge> edgeList;
-    List<GroupRegistration> groupRegistrations;
+    List<ExpansionGroup> groups;
 
-    public GraphDelta(
-            final List<Node> nodeList, final List<Edge> edgeList, final List<GroupRegistration> groupRegistrations) {
+    public GraphDelta(final List<Node> nodeList, final List<Edge> edgeList, final List<ExpansionGroup> groups) {
         this.nodeList = List.copyOf(nodeList);
         this.edgeList = List.copyOf(edgeList);
-        this.groupRegistrations = List.copyOf(groupRegistrations);
+        this.groups = List.copyOf(groups);
     }
 
     public static GraphDelta of(final List<Node> nodes, final List<Edge> edges) {
         return new GraphDelta(nodes, edges, List.of());
     }
 
-    public static GraphDelta of(
-            final List<Node> nodes, final List<Edge> edges, final List<GroupRegistration> groupRegistrations) {
-        return new GraphDelta(nodes, edges, groupRegistrations);
+    public static GraphDelta of(final List<Node> nodes, final List<Edge> edges, final List<ExpansionGroup> groups) {
+        return new GraphDelta(nodes, edges, groups);
     }
 
     public static GraphDelta empty() {
