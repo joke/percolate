@@ -38,22 +38,45 @@ The PRESERVING / ENTERING / EXITING split in `commitBridgeStep` is collapsed: th
 - **WHEN** `commitBridgeStep` runs for a `BridgeStep` with `scopeTransition == EXITING`
 - **THEN** a fresh one-slot `ExpansionGroup` is registered with the frontier as root and the allocated element-scope input as its sole slot
 
-### Requirement: Topological work-list ordering over the boundary DAG
+### Requirement: Cross-group fixed-point loop
 
-`ExpandGroupsPhase` SHALL process registered `ExpansionGroup`s in topological order over the dependency DAG defined by: group `G` depends on group `H` iff `H.root ∈ G.slots`. Dependencies SHALL be expanded before their dependents. Within a topological layer, ordering SHALL be by group registration order (deterministic).
+`ExpandGroupsPhase` SHALL iterate over registered `ExpansionGroup`s in registration order, calling `fillGroup` on each, and SHALL repeat the iteration until a full pass completes with no state changes. A "state change" is any of:
 
-When new sub-groups are registered during expansion (per the "Every bridge match spawns a one-slot nested ExpansionGroup" requirement), they SHALL join the work-list as DAG leaves (no group depends on a freshly-registered sub-group at the moment of its registration) and SHALL be processed in registration order before topological-successors of the current group.
+- a group's outcome transitioning from pending to `SAT`,
+- a new sub-group registered via `MapperGraph.addGroup(...)` during expansion,
+- an in-place `Node.setType(...)` call (path-segment groups type their root via this mutator).
 
-No fixed-point loop SHALL be employed. The DAG is acyclic by construction (group dependency is target-to-source, mirroring REALISED-edge direction).
+Within-group expansion stays target-to-source per the "Bridge edge-emission rule" requirement; the outer fixed-point loop is independent of and orthogonal to the within-group traversal direction.
 
-#### Scenario: Source-side path-segment group expands before its dependent directive-binding group
+A group whose expansion in the current pass cannot proceed because a slot is still untyped (or no candidate matches) SHALL be left in **pending** state — NOT recorded as `unsatNoPlan` — and retried in the next outer pass. The group's outcome is recorded only when the outer fixed-point converges:
+- If a group is still pending at convergence and at least one slot remains unsatisfied, `unsatNoPlan(group, failingSlot)` is recorded.
+- If the per-slot round budget tripped, `unsatDidNotConverge(group, failingSlot)` is recorded.
+- Otherwise (every slot satisfied), `sat(group)` is recorded.
+
+The phase SHALL enforce a `MAX_OUTER_PASSES = 32` cap as a safety net. Exceeding it indicates a bug (state monotonicity guarantees convergence in O(depth) passes, typically 2–4 for realistic mappers); the phase SHALL record `unsatDidNotConverge` on every still-pending group and stop.
+
+#### Scenario: Source-side path-segment group eventually types the directive-binding group's slot
 - **WHEN** two groups exist with `pathGroup.root = src[person.addresses]:?` and `bindingGroup.slot = src[person.addresses]:?` (same node)
-- **THEN** `pathGroup` is processed before `bindingGroup`
-- **AND** `bindingGroup`'s slot is typed by the time `bindingGroup` is processed
+- **AND** pass 1 processes `bindingGroup` first (it cannot proceed because its slot is untyped) then `pathGroup` (which SATs, typing `src[person.addresses]` to `List<Opt<PA>>`)
+- **THEN** the outer loop registers "state changed" and runs pass 2
+- **AND** pass 2 processes `bindingGroup` with a typed slot and is able to expand its container chain
+- **AND** the outer loop converges after pass 2 produces no further changes (or the chain spawns sub-groups that resolve in subsequent passes)
 
-#### Scenario: Constructor group expands after all its directive-binding children
-- **WHEN** a `ConstructorCall` group `g_ctor` has slots that are roots of three directive-binding groups
-- **THEN** all three directive-binding groups are processed before `g_ctor`
+#### Scenario: Pending state is not surfaced as unsatNoPlan
+- **WHEN** a group cannot proceed in pass 1 because its slot is untyped
+- **THEN** the group's outcome remains pending after pass 1
+- **AND** the outer loop does another pass
+- **AND** `unsatNoPlan` is NOT recorded for this group at the end of pass 1
+
+#### Scenario: Convergence after a fixed-point pass with no state changes
+- **WHEN** an outer pass completes with no group transitioning to SAT, no new sub-group registered, and no `Node.setType(...)` call
+- **THEN** the outer loop terminates
+- **AND** any group still pending is recorded as `unsatNoPlan(group, failingSlot)` (or `unsatDidNotConverge` if the per-slot budget tripped)
+
+#### Scenario: MAX_OUTER_PASSES safety net
+- **WHEN** the outer loop has run `MAX_OUTER_PASSES` times without convergence
+- **THEN** every still-pending group is recorded as `unsatDidNotConverge`
+- **AND** the phase returns without further iteration
 
 ### Requirement: Base-case SAT for parameter-root slots
 
@@ -137,23 +160,26 @@ Phase mutation SHALL be committed via `MapperGraph.apply(GraphDelta)` for node/e
 
 ### Requirement: ExpandGroupsPhase drives per-group expansion
 
-`ExpandGroupsPhase` SHALL drain a topologically-ordered work-list of `ExpansionGroup`s (see the "Topological work-list ordering over the boundary DAG" requirement), expanding each group's slots by sub-group spawning. Initial work-list contents are the groups present after `SeedGraph` and `ResolveTargetChainsPhase` (per-SEED-edge groups + parent constructor groups + any path-segment groups produced by `SeedGraph`'s structural registration).
+`ExpandGroupsPhase` SHALL process registered `ExpansionGroup`s via a cross-group fixed-point loop (see the "Cross-group fixed-point loop" requirement): iterate every group in registration order, repeat until a full pass produces no state changes. Initial group set is the groups present after `SeedGraph` and `ResolveTargetChainsPhase` (per-SEED-edge groups + parent constructor groups). Sub-groups registered during expansion join the set and are processed in subsequent passes.
 
 The phase SHALL enforce two budget constants:
 
-- `MAX_WORK_LIST_ITERATIONS = 256` — the maximum number of groups drained per mapper. Exceeding this records `unsatDidNotConverge` on each remaining group without further processing.
-- `MAX_SLOT_ROUNDS = 64` — the maximum number of expansion rounds per slot's `resolveSlot` call. Exceeding this records `unsatDidNotConverge` for that slot's group.
+- `MAX_OUTER_PASSES = 32` — the maximum number of cross-group passes. Exceeding this records `unsatDidNotConverge` on every still-pending group.
+- `MAX_SLOT_ROUNDS = 64` — the maximum number of expansion rounds per slot's `resolveSlot` call within a single outer pass. Exceeding this records `unsatDidNotConverge` for that slot's group.
 
-For each group drained from the work-list, the phase SHALL invoke `fillGroup(group, graph, workList)` which:
+For each group visited in an outer pass, the phase SHALL invoke `fillGroup(group)` which:
 
-1. If the group is a path-segment group, invoke `PathSegmentResolver`s per the "Path-segment-group resolution via PathSegmentResolver" requirement; on resolver match, set the group SAT and return; on no match, set `unsatNoPlan` and return.
-2. Otherwise, for each slot in `group.getSlots()`, determine the slot's outcome:
+1. If the group's outcome is already `SAT`, return without re-processing.
+2. If the group is a path-segment group, invoke `PathSegmentResolver`s per the "Path-segment-group resolution via PathSegmentResolver" requirement. On resolver match: type the root via `Node.setType(...)`, emit the REALISED edge, mark the group SAT, signal "state changed" to the outer loop. On no match in the current pass: leave the group pending and signal "no change for this group".
+3. Otherwise (a bridge-expanded group), for each slot in `group.getSlots()`:
    - If the slot is base-case SAT (per the "Base-case SAT for parameter-root slots" requirement), the slot is satisfied.
-   - Otherwise, call `resolveSlot(slot, group, graph, workList)` which expands the slot frontier through bridge matches; the slot SATs when at least one freshly-registered child sub-group is itself SAT.
-   - If any slot's resolution returns non-SAT, record the appropriate outcome on the group (`unsatNoPlan` or `unsatDidNotConverge`) and stop.
-3. Record `GroupOutcome.sat(group)` on success.
+   - Else if the slot is already typed and has at least one SAT child sub-group, the slot is satisfied.
+   - Else if the slot is typed but has no SAT child sub-group, call `resolveSlot(slot, group)`. The call may spawn new sub-groups (signal "state changed") and may SAT the slot via an existing child.
+   - Else (slot is untyped), leave the group pending — its typing depends on another group's expansion in a future outer pass.
+4. If every slot is satisfied at the end of this pass, mark the group `SAT` and signal "state changed".
+5. Otherwise leave the group pending; outcome recording is deferred to outer-loop convergence (see "Cross-group fixed-point loop").
 
-`resolveSlot` SHALL implement bounded greedy expansion: starting with `frontier = [slot]`, iterate up to `MAX_SLOT_ROUNDS` rounds. Each round calls `expandFrontier(f, group, graph, workList, newNodes)` for every `f` in the current frontier. Sub-groups spawned during the round join the work-list. The frontier becomes the freshly allocated `newNodes`. After each round, check whether the slot has at least one SAT child sub-group; if true, return `SAT`. If `newNodes` is empty before the slot SATs, return `UNSAT_NO_PLAN`. If the round budget is exhausted, return `UNSAT_DID_NOT_CONVERGE`.
+`resolveSlot` SHALL implement bounded greedy expansion within one outer pass: starting with `frontier = [slot]`, iterate up to `MAX_SLOT_ROUNDS` rounds. Each round calls `expandFrontier(f, group, newNodes)` for every `f` in the current frontier. Sub-groups spawned during the round are added to the graph's group set (and signal "state changed" so the outer loop runs another pass). The frontier becomes the freshly allocated `newNodes`. After each round, check whether the slot has at least one SAT child sub-group; if true, return `SAT`. If `newNodes` is empty before the slot SATs, return without recording an outcome (the slot is left for the next outer pass — sibling groups may type a candidate by then). If the round budget is exhausted within this pass, signal `UNSAT_DID_NOT_CONVERGE` for the group (final outcome on convergence).
 
 #### Scenario: Slot is base-case SAT for parameter root
 - **WHEN** a group's slot is `src[person]:Person` and `currentMethod` has parameter `person`
@@ -164,18 +190,19 @@ For each group drained from the work-list, the phase SHALL invoke `fillGroup(gro
 - **THEN** `resolveSlot` returns SAT for that slot
 - **AND** the group's outcome is determined by the remaining slots' outcomes
 
-#### Scenario: Slot exhausts plan ⇒ UNSAT_NO_PLAN
+#### Scenario: Slot exhausts plan in a pass ⇒ left pending for next pass
 - **WHEN** an expansion round produces no new sub-groups and the slot is still not SAT
-- **THEN** `resolveSlot` returns `UNSAT_NO_PLAN`
-- **AND** `fillGroup` records `GroupOutcome.unsatNoPlan(group, slot)`
+- **THEN** `resolveSlot` returns without recording an outcome
+- **AND** the group remains pending for the next outer pass
+- **AND** `unsatNoPlan` is recorded ONLY when the cross-group fixed-point converges with this slot still unsatisfied
 
-#### Scenario: Round budget exhaustion ⇒ UNSAT_DID_NOT_CONVERGE
-- **WHEN** `MAX_SLOT_ROUNDS` rounds elapse without the slot reaching SAT or running out of work
-- **THEN** `resolveSlot` returns `UNSAT_DID_NOT_CONVERGE`
+#### Scenario: Round budget exhaustion within a pass ⇒ flag UNSAT_DID_NOT_CONVERGE for this group
+- **WHEN** `MAX_SLOT_ROUNDS` rounds elapse within a single outer pass without the slot reaching SAT or running out of work
+- **THEN** the group is flagged `UNSAT_DID_NOT_CONVERGE`; the final outcome is recorded on cross-group convergence
 
-#### Scenario: Work-list budget exhaustion records remaining groups
-- **WHEN** more than `MAX_WORK_LIST_ITERATIONS` groups are drained
-- **THEN** every remaining group is recorded `unsatDidNotConverge` without `fillGroup` being called for it
+#### Scenario: Outer-pass budget exhaustion records remaining groups
+- **WHEN** more than `MAX_OUTER_PASSES` cross-group passes complete without convergence
+- **THEN** every still-pending group is recorded `unsatDidNotConverge`
 
 ### Requirement: Bridge edge-emission rule
 
@@ -269,7 +296,7 @@ Outcomes propagate up the dependency DAG: a parent group's slot is SAT iff at le
 Outcomes are consumed by downstream validation phases (see `realisation-validation`) to surface closest-miss diagnostics.
 
 #### Scenario: SAT outcome recorded when all slots SAT
-- **WHEN** `fillGroup(group, graph, workList)` completes with every slot either base-case SAT or having at least one SAT child sub-group
+- **WHEN** the cross-group fixed-point converges with `group` having every slot either base-case SAT or having at least one SAT child sub-group
 - **THEN** `MapperGraph.recordGroupOutcome(GroupOutcome.sat(group))` is called
 
 #### Scenario: UNSAT_NO_PLAN recorded with the failing slot

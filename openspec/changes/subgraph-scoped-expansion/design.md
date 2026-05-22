@@ -84,15 +84,25 @@ The resolver SPI surface is unchanged — `resolve(parentType, segment, ctx)` re
 - *Resolvers stay at seed time; engine ignores them during expansion.* Today's behaviour. Rejected per D4 rationale.
 - *Resolver-as-Bridge: collapse `PathSegmentResolver` into the `Bridge` SPI.* Rejected because resolvers need the segment name (not a type pair); shoehorning a name field into `Bridge` widens the SPI for a single use case. Two narrow SPIs are clearer than one wide one.
 
-### D6. Topological work-list ordering over the boundary-DAG
+### D6. Cross-group fixed-point loop
 
-**Decision:** `ExpandGroupsPhase` SHALL process groups in topological order over the dependency DAG defined by: `G` depends on `H` iff `H.root ∈ G.slots`. Dependencies expand first. Within a topological layer, ordering is by group registration order (deterministic). No fixed-point loop; no FIFO retry.
+**Decision:** `ExpandGroupsPhase` SHALL iterate over registered `ExpansionGroup`s in registration order, expanding each one, and SHALL repeat the iteration until a full pass produces no state changes. State changes include: a group transitioning from pending to `SAT`, a new sub-group registered during expansion, an in-place `Node.setType(...)` call. A `MAX_OUTER_PASSES = 32` cap MUST hold as a safety net (a trip indicates a bug, not a slow chain).
 
-**Why:** Source-side path-segment groups type their roots when expanded. A directive-binding group's slot is the typed root of a path-segment group; processing the path-segment group first means the directive-binding group sees a typed slot. Constructor groups depend on their directive-binding-group children; processed last. This ordering is statically computable from the boundary-DAG at the start of expansion (and after every nested-group registration during expansion, which is a fresh leaf added to the DAG).
+Within-group expansion stays target-to-source (root frontier asks "what produces this?"); the cross-group loop is independent of and orthogonal to the within-group rule. A group whose expansion cannot proceed because a slot is still untyped SHALL be marked as **pending** (not `unsatNoPlan`) and retried in the next outer pass. Only when the outer fixed-point converges with the group still pending is the final outcome recorded as `unsatNoPlan` (or `unsatDidNotConverge` if the budget was exhausted).
+
+**Why:** Source-side path-segment groups type their roots during their own expansion; downstream directive-binding groups need to see the typed boundary. In an earlier sketch we used a topological pre-sort over the boundary DAG to ensure source-side runs first — but the fixed-point loop arrives at the same effective order naturally, with two structural advantages:
+
+1. **Mirrors the within-group bounded iteration pattern.** `resolveSlot` already iterates rounds within a slot. `fillGroup` iterates slots within a group. The cross-group fixed-point is the same shape at the next level up — uniform "iterate until quiescent" across all three scopes.
+2. **Handles dynamic sub-group registration without special-case insertion logic.** Sub-groups registered during expansion just get picked up in the next pass. No "insert at the head of the work-list" rule needed.
+
+Convergence is guaranteed because the state space is monotonic — nodes go untyped → typed (one-way via `setType`), groups go pending → `SAT` (one-way), sub-groups are only added. Combined with finite group count and DAG-acyclic boundary structure (guaranteed by target-to-source group dependency), termination is bounded at O(depth) passes (typically 2–4 for realistic mappers).
+
+The earlier "no fixed-point loop" note in `project_expansion_direction.md` (since updated) referred to forward-sweep retries that the 2026-05-08 design rejected. A backward-only fixed-point loop is distinct: each pass is still target-to-source per group; only the orchestration is iterative.
 
 **Alternatives considered:**
-- *FIFO with bounded re-try.* Risk of nondeterministic ordering and the fixed-point smell explicitly avoided by `add-graph-expansion` (D1 there).
-- *DFS from constructor groups.* Same topological result but harder to instrument and parallelise; rejected for v1.
+- *Topological pre-sort over the boundary DAG.* O(n) vs O(n × depth) of the fixed-point. Saves a handful of redundant passes for realistic mappers — not worth the static-analysis machinery (compute DAG, handle dynamic sub-group insertion at the right position). The fixed-point loop is simpler.
+- *FIFO with one-pass + "did not yet sat" diagnostics.* Risk of false-negative diagnostics when slot typing arrives via a later group in the same pass. Rejected: the diagnostic correctness requires deferring outcome recording until quiescence, which is exactly the fixed-point.
+- *Per-group lazy re-queue when a dependency types.* Adds reverse-dependency tracking (when X SATs, notify dependents). Same correctness as fixed-point, more bookkeeping. Rejected.
 
 ### D7. SAT propagation: outcome-driven, structural base case
 
@@ -124,10 +134,10 @@ flowchart TD
     g4["g4: Directive binding<br>root=tgt[firstName]:String<br>slot=src[person.firstName]:?"]
     g5["g5: Path segment<br>root=src[person.firstName]:?<br>slot=src[person]:Person"]
 
-    g1 -- depends on --> g2
-    g1 -- depends on --> g4
-    g2 -- depends on --> g3
-    g4 -- depends on --> g5
+    g1 -- shared boundary tgt[addresses] --> g2
+    g1 -- shared boundary tgt[firstName] --> g4
+    g2 -- shared boundary src[person.addresses] --> g3
+    g4 -- shared boundary src[person.firstName] --> g5
 
     classDef seed fill:#ffe5e5,stroke:#a83c3c
     classDef ctor fill:#dff5d8,stroke:#3c803c
@@ -135,7 +145,14 @@ flowchart TD
     class g2,g3,g4,g5 seed
 ```
 
-`src[person]` is base-case SAT (parameter root) for both g3 and g5. Topological order: `{g3, g5}, {g2, g4}, {g1}`. Expanding g3 invokes `GetterPathResolver` against `Person.getAddresses()` → types `src[person.addresses]` to `List<Optional<PA>>`. Expanding g2 then sees a typed slot and runs container-bridge expansion to build the `List<Opt<PA>> → ... → Optional<Set<HA>>` chain as a tree of sub-groups beneath g2. Each chain hop is its own one-slot sub-group rooted at the current frontier.
+`src[person]` is base-case SAT (parameter root) for both g3 and g5. Cross-group fixed-point loop:
+
+- **Pass 1**: g1 cannot proceed (slots untyped further down); g2 cannot proceed (slot src[person.addresses] still untyped); g3 SATs by invoking `GetterPathResolver` against `Person.getAddresses()` → types src[person.addresses] to `List<Optional<PA>>`; g4 cannot proceed (slot untyped); g5 SATs similarly, typing src[person.firstName] to String. "State changed" — run another pass.
+- **Pass 2**: g2 now sees a typed slot, expands container-bridge tree (List<Opt<PA>> → … → Optional<Set<HA>>) as a sub-group tree beneath g2; g4 trivially SATs (typed slot of type String, root tgt[firstName]:String — DirectAssign matches); g1 still pending until its child sub-groups SAT. "State changed" — run another pass.
+- **Subsequent passes**: each container-chain sub-group beneath g2 SATs one or two passes after its parent (chain depth bounded by `MAX_OUTER_PASSES`). Eventually g2 SATs, then g1 SATs.
+- **Final pass**: no state changes; loop terminates.
+
+Each chain hop is its own one-slot sub-group rooted at the current frontier. The fixed-point loop converges in O(chain-depth) passes (typically 2–4 for realistic mappers).
 
 ## Risks / Trade-offs
 
