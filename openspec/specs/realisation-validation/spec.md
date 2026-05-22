@@ -2,110 +2,91 @@
 
 ## Purpose
 
-This spec defines the post-expansion validation that detects unrealisable directives through two tiers: marker existence check (Tier-2) and bidirectional gap walk (Tier-3).
+This spec defines the post-expansion validation stage that emits diagnostics for groups that did not satisfy. After `ExpandStage` records a `GroupOutcome` for every registered `ExpansionGroup`, `RealisationDiagnosticsStage` walks the unsatisfied outcomes and produces user-facing error messages with closest-miss information.
+
+The validation model is **outcome-driven, not topology-driven**: the engine has already decided which groups SAT and which UNSAT during expansion. The validation stage's job is to translate UNSAT outcomes into actionable diagnostics, not to re-derive realisability from edge inspection.
 
 ## Requirements
 
-### Requirement: ValidateRealisationStage
+### Requirement: RealisationDiagnosticsStage iterates UNSAT GroupOutcomes
 
-The processor SHALL define a stage `ValidateRealisationStage` in package `io.github.joke.percolate.processor.stages.validate` that consumes the post-expansion `MapperGraph` and emits diagnostics for unrealisable directives. `ValidateRealisationStage` SHALL be `@Inject`-constructed via Lombok `@RequiredArgsConstructor(onConstructor_ = @Inject)`.
+The processor SHALL define a stage `RealisationDiagnosticsStage` in package `io.github.joke.percolate.processor.stages.validate` that consumes the post-expansion `MapperGraph` and emits one diagnostic per unsatisfied `GroupOutcome`. The stage SHALL be `@Inject`-constructed via Lombok `@RequiredArgsConstructor(onConstructor_ = @Inject)` taking a `Diagnostics` collaborator as constructor argument.
 
-`ValidateRealisationStage` SHALL execute two sequential `ValidationPhase`s in declared order:
-- `ValidateMarkersPhase` (Tier-2),
-- `ValidatePathsPhase` (Tier-3).
+`RealisationDiagnosticsStage.run(MapperContext)` SHALL:
 
-Tier-2 SHALL run first and scar the mapper on failure. Tier-3 SHALL skip scarred mappers.
+1. Return immediately if `ctx.getGraph()` is `null`.
+2. Filter `graph.groupOutcomes()` to those whose `kind != GroupOutcome.Kind.SAT`.
+3. For each UNSAT outcome, call `emitFor(graph, outcome, ctx)` which formats and emits a single error diagnostic via `Diagnostics.error(ctx.getMapperType(), message)`.
 
-#### Scenario: Stage runs Tier-2 then Tier-3
-- **WHEN** `ValidateRealisationStage.apply(graph, typeElement)` is invoked
-- **THEN** `ValidateMarkersPhase.apply(graph, typeElement)` runs first
-- **AND** `ValidatePathsPhase.apply(graph, typeElement)` runs next
+If an UNSAT outcome's `failingSlot` is empty (the engine couldn't even identify a failing slot — should not happen in practice), no diagnostic is emitted for that outcome.
 
-#### Scenario: ValidateRealisationStage uses Lombok-generated injection
-- **WHEN** the source of `ValidateRealisationStage` is inspected
-- **THEN** the class carries `@RequiredArgsConstructor(onConstructor_ = @Inject)`
-- **AND** the generated constructor accepts the two phase classes
+#### Scenario: SAT groups emit no diagnostics
+- **WHEN** the graph contains only `GroupOutcome.sat(...)` outcomes
+- **THEN** `RealisationDiagnosticsStage.run(ctx)` emits zero diagnostics
 
-### Requirement: ValidateMarkersPhase walks every `?`-typed seed node
+#### Scenario: One UNSAT_NO_PLAN outcome emits one error
+- **WHEN** the graph contains one `GroupOutcome.unsatNoPlan(group, failingSlot)`
+- **THEN** one `Diagnostics.error(mapperType, message)` call is made
+- **AND** the message mentions both the failing slot's rendered path and the closest-miss node's path
 
-`ValidateMarkersPhase` SHALL iterate every `?`-typed seed node in the post-expansion graph (every node with `type == Optional.empty()` and `loc` of type `SourceLocation` or `TargetLocation`). For each such node, the phase SHALL count outgoing `EdgeKind.MARKER` edges. If the count is zero, the seed is *unrealised*.
+#### Scenario: Multiple UNSAT outcomes emit one error each
+- **WHEN** the graph contains three UNSAT outcomes
+- **THEN** three separate `Diagnostics.error` calls are made
 
-For each unrealised seed node, the phase SHALL emit one `Diagnostics.error` keyed to the `AnnotationMirror` of one of the node's incoming `EdgeKind.SEED` edges' `directive`. The error message SHALL identify:
-- the directive (the `target` and `source` strings of the `@Map`),
-- the unrealisable point in the chain (the `?`-typed node's `loc`).
+#### Scenario: Stage skips when graph is absent
+- **WHEN** `ctx.getGraph()` is `null`
+- **THEN** the stage returns without emitting any diagnostic
 
-The phase SHALL scar the affected mapper element via the existing `Diagnostics` scarring mechanism so subsequent phases observe the scar.
+### Requirement: UNSAT_NO_PLAN diagnostic includes closest-miss walk
 
-#### Scenario: Seed node with no markers emits Tier-2 error
-- **WHEN** the post-expansion graph contains a `?`-typed seed node with zero outgoing MARKER edges and an incoming SEED edge whose `directive` carries an `@Map` mirror with `target = "address.street"` and `source = "x"`
-- **THEN** `ValidateMarkersPhase` emits one error diagnostic
-- **AND** the error references the `@Map` `AnnotationMirror` as its source location
-- **AND** the message text identifies both the directive and the unrealisable node's `loc`
+For an outcome of kind `UNSAT_NO_PLAN`, the diagnostic message SHALL be of the form:
 
-#### Scenario: Seed node with at least one marker passes
-- **WHEN** the post-expansion graph contains a `?`-typed seed node with one or more outgoing MARKER edges
-- **THEN** `ValidateMarkersPhase` emits no diagnostic for that node
+```
+no plan for <slotPath>: <closestMissPath> has no producer in the graph. Likely missing: a @Map-annotated method whose source produces <closestMissType>
+```
 
-#### Scenario: Tier-2 scars the mapper on failure
-- **WHEN** `ValidateMarkersPhase` emits at least one error for a mapper
-- **THEN** the mapper is scarred via the existing `Diagnostics` scarring mechanism
+The closest-miss node SHALL be computed by `walkClosestMiss(graph, failingSlot)`: BFS the existing REALISED subgraph backwards from `failingSlot`, accumulating predecessors via REALISED edges, returning the deepest reached node. This is the node closest to source-side in the unsatisfied chain — the most informative point for the user to add a missing bridge.
 
-#### Scenario: Multiple unrealised seeds emit one error each
-- **WHEN** the graph contains three unrealised `?`-typed seed nodes
-- **THEN** the phase emits three separate error diagnostics
-- **AND** each error is keyed to its own node's incoming SEED edge's `directive`
+The slot path SHALL be rendered by `renderSlotPath(node)`:
+- For `TargetLocation` nodes: `tgt[<segments-joined-by-dot>]` or `tgt[]` if segments are empty.
+- For other nodes: `Node.id()`.
 
-### Requirement: ValidatePathsPhase bidirectional gap walk
+The closest-miss type SHALL be the node's `TypeMirror.toString()`, or `?` if the type is empty.
 
-`ValidatePathsPhase` SHALL run only on un-scarred mappers. For each `EdgeKind.SEED` edge bridging source-side to target-side (flavor ② seeds — `from` in source space, `to` in target space), the phase SHALL:
+#### Scenario: Closest-miss walk finds deepest predecessor
+- **WHEN** an `UNSAT_NO_PLAN` outcome's failing slot has an existing REALISED chain `A → B → failingSlot` (B's incoming chain leads to A; A has no further predecessors)
+- **THEN** `walkClosestMiss` returns `A`
+- **AND** the message names `A`'s rendered path as the closest-miss point
 
-1. Resolve the realised source-side counterpart of the SEED's `from` end (FROM itself if `from.type.isPresent()`, otherwise the typed nodes reachable via outgoing `MARKER` edges from FROM).
-2. Resolve the realised target-side counterpart of the SEED's `to` end the same way.
-3. Walk `EdgeKind.REALISED` edges *forward* from each source-side counterpart, accumulating a chain of typed nodes, until no further outgoing REALISED edge exists. This is the **source shoulder**.
-4. Walk `EdgeKind.REALISED` edges *backward* from each target-side counterpart, accumulating a chain of typed nodes in reverse, until no further incoming REALISED edge exists. This is the **target shoulder**.
-5. If the source shoulder's terminal node and the target shoulder's initial node are connected by at least one REALISED edge (a bridge), the SEED is realised — no error is emitted.
-6. Otherwise, the phase SHALL emit one `Diagnostics.error` keyed to the SEED's `directive` `AnnotationMirror`. The error message SHALL include:
-   - a textual rendering of the source shoulder (each typed node's `loc` and `type`, with each producing edge's strategy FQN),
-   - a textual rendering of the target shoulder (same format),
-   - the missing type pair as `(<source-shoulder.terminalType>, <target-shoulder.initialType>)`.
+#### Scenario: Closest-miss with no incoming REALISED edges falls back to slot itself
+- **WHEN** the failing slot has no incoming REALISED edges
+- **THEN** `walkClosestMiss` returns the failing slot
+- **AND** the message names the slot's rendered path as the closest-miss point
 
-The phase SHALL emit at most one error per SEED bridge edge.
+#### Scenario: Diagnostic identifies the missing method's source type
+- **WHEN** the closest-miss node carries type `Person.Address`
+- **THEN** the message ends with `Likely missing: a @Map-annotated method whose source produces Person.Address`
 
-#### Scenario: Tier-3 emits a bidirectional gap diagnostic
-- **WHEN** the post-expansion graph contains a flavor ② SEED `src[person.address]:? → tgt[.address]:?` whose source side realises to `src[person→getAddress()]:Person.Address`, target side realises to `slot[address]:Human.Address`, and no `REALISED` bridge connects the two
-- **THEN** `ValidatePathsPhase` emits one error diagnostic
-- **AND** the error references the SEED edge's `@Map` `AnnotationMirror`
-- **AND** the message includes a rendering of the source shoulder ending at type `Person.Address`
-- **AND** the message includes a rendering of the target shoulder beginning at type `Human.Address`
-- **AND** the message states the missing type pair as `(Person.Address, Human.Address)`
+### Requirement: UNSAT_DID_NOT_CONVERGE diagnostic
 
-#### Scenario: Tier-3 passes when realised path exists
-- **WHEN** the graph contains a flavor ② SEED whose source shoulder and target shoulder are connected by at least one REALISED edge (e.g., via DirectAssign on identical types)
-- **THEN** `ValidatePathsPhase` emits no diagnostic for that SEED
+For an outcome of kind `UNSAT_DID_NOT_CONVERGE`, the diagnostic message SHALL be of the form:
 
-#### Scenario: Tier-3 skips scarred mappers
-- **WHEN** a mapper has been scarred by `ValidateMarkersPhase` (Tier-2)
-- **THEN** `ValidatePathsPhase` emits zero diagnostics for any SEED in that mapper
+```
+no plan for <slotPath>: expansion did not converge within the per-slot round budget. Likely missing: a more direct conversion strategy
+```
 
-#### Scenario: Tier-3 emits at most one error per SEED bridge
-- **WHEN** a mapper contains a flavor ② SEED whose endpoints have multiple realisations on each side, none connected by a bridge
-- **THEN** `ValidatePathsPhase` emits exactly one error for that SEED (not one per realisation pair)
+No closest-miss walk is performed for did-not-converge outcomes; the per-slot round-budget exhaustion implies the chain is unbounded (typically a self-multiplying bridge fire) and the closest-miss is not informative.
 
-### Requirement: Diagnostic anchoring at @Map AnnotationMirror
+#### Scenario: DID_NOT_CONVERGE produces budget-exhaustion message
+- **WHEN** an `UNSAT_DID_NOT_CONVERGE` outcome is emitted for a slot rendering as `tgt[addresses]`
+- **THEN** the message reads `no plan for tgt[addresses]: expansion did not converge within the per-slot round budget. Likely missing: a more direct conversion strategy`
 
-Both Tier-2 and Tier-3 errors SHALL be keyed to the originating `@Map` `AnnotationMirror` carried on the SEED edge's `directive` field. Errors SHALL pass the `AnnotationMirror` to `Diagnostics.error(...)` so the IDE can underline the offending `@Map` annotation in the user's source.
+### Requirement: Diagnostics anchor on the MapperContext.mapperType
 
-When the originating SEED node has multiple incoming SEED edges (only possible if `SeedGraph` later emits convergent chains; not present in v1), the phase SHALL pick one deterministically by choosing the SEED edge whose `directive`'s source-position appears earliest in the source file.
+`RealisationDiagnosticsStage` SHALL pass `ctx.getMapperType()` (the `TypeElement` of the mapper-under-compilation) as the `Element` location argument to `Diagnostics.error(...)`. The IDE that consumes the diagnostic underlines the mapper class name (not individual `@Map` annotations).
 
-#### Scenario: Diagnostic carries the AnnotationMirror
-- **WHEN** Tier-2 or Tier-3 emits an error for an unrealised seed
-- **THEN** the call to `Diagnostics.error(...)` includes the originating SEED edge's `directive` `AnnotationMirror` as the `Element` location argument
-- **AND** the IDE that consumes the diagnostic underlines the corresponding `@Map` annotation in the source
+Anchoring at the mapper-type level is intentional: with the per-group greedy model, the failing slot's `@Map` directive is no longer the natural locus of the diagnostic — the failure is at the group/slot level, often crossing multiple directives.
 
-### Requirement: ValidationPhase contract
-
-Every `ValidationPhase` SHALL implement a single method `apply(MapperGraph, TypeElement)`. A phase SHALL emit diagnostics via the injected `Diagnostics` collaborator. A phase SHALL NOT mutate the graph (no nodes, no edges added or removed).
-
-#### Scenario: Validation phase does not mutate the graph
-- **WHEN** any `ValidationPhase.apply(graph, te)` is invoked
-- **THEN** the graph's set of nodes and edges before and after the call are equal (same instances, same membership)
+#### Scenario: Diagnostic carries the mapper TypeElement
+- **WHEN** an UNSAT outcome's diagnostic is emitted
+- **THEN** the `Diagnostics.error(...)` call passes `ctx.getMapperType()` as its location argument

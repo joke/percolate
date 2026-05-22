@@ -2,392 +2,301 @@
 
 ## Purpose
 
-This spec defines the expansion engine that turns SEED edges into REALISED, MARKER, and SUB_SEED edges through three sequential phases: source chain resolution, target chain resolution, and bridge resolution.
+This spec defines the expansion engine that turns a `MapperGraph` populated with `SEED` edges into a graph augmented with `REALISED` and `MARKER` edges, organised as a forest of `ExpansionGroup` subgraphs. Expansion proceeds target-to-source: target slots demand inputs, and the engine drives chains backwards through bridges and group targets until each slot is reachable from a source-parameter-root via REALISED edges.
+
+The realisation engine is a per-group greedy work-list driver. There is no SUB_SEED edge kind, no global fixed-point loop, and no element-seed/diamond machinery. Element scope is declared per `BridgeStep` via `ScopeTransition`; the engine allocates element-scope nodes at the right `Location` and registers a one-slot nested `ExpansionGroup` for every scope-changing bridge match.
 
 ## Requirements
 
-### Requirement: ExpandStage
+### Requirement: ExpandStage runs ExpansionPhases in declared order
 
-The processor SHALL define a stage `ExpandStage` in package `io.github.joke.percolate.processor.stages.expand` that consumes a `MapperGraph` populated with `EdgeKind.SEED` edges and augments it with `EdgeKind.REALISED`, `EdgeKind.MARKER`, and `EdgeKind.SUB_SEED` edges. `ExpandStage` SHALL be `@Inject`-constructed via Lombok `@RequiredArgsConstructor(onConstructor_ = @Inject)`.
+The processor SHALL define a stage `ExpandStage` in package `io.github.joke.percolate.processor.stages.expand` that consumes a `MapperGraph` populated with `EdgeKind.SEED` edges. `ExpandStage` SHALL be `@Inject`-constructed via Lombok `@RequiredArgsConstructor(onConstructor_ = @Inject)` taking a `List<ExpansionPhase>` and any other dependencies as constructor arguments.
 
-`ExpandStage` SHALL execute three sequential `ExpansionPhase`s in declared order: `ResolveSourceChainsPhase`, `ResolveTargetChainsPhase`, `BridgeSourceToTargetPhase`. The phase list SHALL run inside an outer fixed-point loop. Convergence SHALL be detected by comparing `MapperGraph.edgeCount()` immediately before and immediately after each pass over the phase list: if the count is unchanged, the loop terminates normally; otherwise the loop continues. The convergence check SHALL NOT depend on any signal returned by, or any field set by, `ExpansionPhase` implementations.
+`ExpandStage.run(MapperContext)` SHALL iterate the injected phase list in declared order and invoke `phase.apply(graph)` on each. There is no convergence check, no fixed-point loop, and no round counter at the `ExpandStage` level — termination is guaranteed by each phase's own bounded behaviour (see `ExpandGroupsPhase` below).
 
-`ExpandStage` SHALL maintain a round counter incremented exactly once per iteration of the outer loop, independent of phase behaviour. If the counter exceeds the constant `MAX_EXPANSION_ROUNDS`, expansion terminates with the round-cap diagnostic (see "Mapper-level expansion round budget"). The counter is the sole non-cooperative termination guarantee for the loop.
+Before invoking phases, `ExpandStage` SHALL set the `MapperContext.currentMethod` from the first SEED edge whose `from` node lives in a `MethodScope`. This ensures the context's currentMethod is available to downstream `ResolveCtx` consumers.
 
-After each phase invocation (i.e., after each individual phase, not only at the end of a full pass), `ExpandStage` SHALL run cycle detection over `EdgeKind.SEED + EdgeKind.SUB_SEED`. If the cycle guard fires, the mapper is scarred and the loop terminates immediately with the existing cycle-specific diagnostic.
+If the graph is `null` (no mapper-level graph was produced), `ExpandStage.run` SHALL return without invoking any phase.
 
-#### Scenario: ExpandStage runs the three phases in declared order on each pass
-- **WHEN** `ExpandStage.run(ctx)` is invoked
-- **THEN** within each pass, `ResolveSourceChainsPhase.apply(graph)` runs first, then `ResolveTargetChainsPhase.apply(graph)`, then `BridgeSourceToTargetPhase.apply(graph)`
+#### Scenario: ExpandStage invokes phases in declared order
+- **WHEN** `ExpandStage.run(ctx)` is invoked with phase list `[ResolveTargetChainsPhase, ExpandGroupsPhase]`
+- **THEN** `ResolveTargetChainsPhase.apply(graph)` runs first
+- **AND** `ExpandGroupsPhase.apply(graph)` runs second
 
-#### Scenario: ExpandStage terminates when edgeCount stops changing
-- **WHEN** `ExpandStage.run(ctx)` is invoked on a graph that reaches a fixed point in one pass
-- **THEN** `MapperGraph.edgeCount()` taken immediately before and immediately after the pass is identical
-- **AND** the phase list runs exactly once
-- **AND** the loop terminates without re-running
+#### Scenario: ExpandStage skips when graph is absent
+- **WHEN** `MapperContext.getGraph()` returns `null`
+- **THEN** `ExpandStage.run(ctx)` returns without invoking any phase
 
-#### Scenario: ExpandStage re-runs the phase list when edgeCount grows
-- **WHEN** `ExpandStage.run(ctx)` is invoked on a graph where the first pass emits a SUB_SEED that subsequent iterations resolve
-- **THEN** `MapperGraph.edgeCount()` increases across the first pass
-- **AND** the phase list runs at least twice
-- **AND** the loop continues until a complete pass leaves `edgeCount()` unchanged
-
-#### Scenario: Round counter ticks once per outer iteration regardless of phase behaviour
-- **WHEN** any `ExpandStage.run(ctx)` invocation completes (normally or aborted)
-- **THEN** the recorded round count equals the number of iterations of the outer loop entered
-- **AND** the count is not influenced by the number of edges added per pass, nor by any value returned by phases
-
-#### Scenario: ExpandStage uses Lombok-generated injection
-- **WHEN** the source of `ExpandStage` is inspected
-- **THEN** the class carries `@RequiredArgsConstructor(onConstructor_ = @Inject)`
-- **AND** the generated constructor accepts the three phase classes (or their list) and dependencies for the guards
+#### Scenario: ExpandStage seeds currentMethod from MethodScope SEED edges
+- **WHEN** the graph contains at least one SEED edge whose `from` node has `Scope` of type `MethodScope`
+- **THEN** `ExpandStage.run(ctx)` calls `ctx.setCurrentMethod(...)` with the `MethodScope.getMethod()` value
+- **AND** the call happens before any phase is invoked
 
 ### Requirement: ExpansionPhase contract
 
-Every `ExpansionPhase` SHALL implement a single method `void apply(MapperGraph)` that augments the graph with new nodes and/or edges. A phase SHALL NOT remove edges or nodes added by an earlier phase or by `SeedGraph`. A phase MAY be tested in isolation by constructing a `MapperGraph` populated to the state expected at that phase's entry.
+Every `ExpansionPhase` SHALL implement a single method `void apply(MapperGraph)` that augments the graph with new nodes, edges, and `ExpansionGroup`s. A phase SHALL NOT remove nodes or edges produced by earlier phases or by `SeedGraph`.
 
-A phase SHALL mutate the graph exclusively through `MapperGraph.apply(GraphDelta)`. A phase SHALL NOT call `MapperGraph.addNode` or `MapperGraph.addEdge` directly. Helpers internal to a phase that compute candidate nodes and edges SHALL return values (typically `Stream<GraphDelta>` or `GraphDelta`) and SHALL NOT mutate the graph; mutation SHALL be confined to the single `MapperGraph.apply(...)` site at the top of the phase.
+Phases SHALL be testable in isolation by populating a `MapperGraph` to the state expected at the phase's entry and invoking `apply` directly.
 
-Calling `apply` on a graph that is already at the phase's locally-stable state SHALL add zero new nodes and zero new edges. This is required for the outer fixed-point loop to converge.
-
-#### Scenario: Phase apply returns no value
+#### Scenario: Phase apply returns void
 - **WHEN** any `ExpansionPhase.apply(graph)` is invoked
 - **THEN** the method returns `void`
-- **AND** there is no boolean or other change-signal exposed by the phase API
+- **AND** no change-signal is exposed via the phase API
 
-#### Scenario: Phase mutates the graph only via apply(GraphDelta)
-- **WHEN** the source of any `ExpansionPhase` implementation is inspected
-- **THEN** no helper method calls `MapperGraph.addNode` or `MapperGraph.addEdge` directly
-- **AND** the only graph-mutating call is `MapperGraph.apply(GraphDelta)` (or a stream of deltas committed via `apply`)
-
-#### Scenario: Phase preserves existing edges
+#### Scenario: Phase preserves existing seeds
 - **WHEN** a phase runs on a graph containing `n` SEED edges
 - **THEN** all `n` SEED edges remain in the graph after the phase completes
 
-#### Scenario: Idempotence on a stable graph
-- **WHEN** any `ExpansionPhase.apply(graph)` is invoked on a graph where the phase has nothing further to add
-- **THEN** `MapperGraph.edgeCount()` is unchanged after the call
-- **AND** `MapperGraph.nodeCount()` is unchanged after the call
+### Requirement: ResolveTargetChainsPhase scaffolds target chains and ExpansionGroups
 
-### Requirement: ResolveSourceChainsPhase
+`ResolveTargetChainsPhase` SHALL iterate every `Node` in the graph whose `Location` is a `TargetLocation` with empty path segments and whose `type` is present — the return-root nodes (one per `@Map`-target return). For each return root, the phase SHALL:
 
-`ResolveSourceChainsPhase` SHALL iterate every `EdgeKind.SEED` edge whose `to` node has `loc` of type `SourceLocation` (i.e., source-side seed edges including same-side `?→?` chain steps). For each such edge:
+1. Find leaf target nodes by BFS over incoming SEED edges within `TargetLocation` space, collecting nodes with no further incoming SEED edges and whose `type` is empty.
+2. Extract `targetTails` — the deepest path segments of each leaf — to feed into `GroupTarget.buildFor(returnType, targetTails, ctx)`.
+3. For every registered `GroupTarget` whose `buildFor` returns a non-empty `GroupBuild`, allocate one typed slot `Node` per `Slot`, emit a REALISED edge from each slot to the return root, optionally emit a MARKER edge from the corresponding seed node to the slot, and optionally emit a directive-binding REALISED edge if the seed's typed source side directly matches the slot's type (a same-type pass-through).
+4. Register one parent `ExpansionGroup` per `GroupTarget` match, rooted at the return root, with the slots as members and the slot→root REALISED edges in `initialEdges`. The parent group joins the graph's group list.
+5. For every directive-binding emitted in (3), register a one-slot nested `ExpansionGroup` whose root is the slot, slot is the typed source, and `initialEdges` is the directive-binding REALISED edge.
 
-- The phase SHALL resolve the typed source of the FROM end. If `from.type` is non-empty, that type is used directly. Otherwise the phase SHALL pull the realised counterpart of `from` via outgoing `EdgeKind.MARKER` edges (driver normalisation of same-side `?→?`). If neither yields a typed source, the seed edge is skipped in the current invocation and revisited on the next outer-loop iteration after later realisations.
-- The phase SHALL extract `pathTail` from `to.loc` (the deepest segment of the target's `SourceLocation`'s access path).
-- The phase SHALL invoke every registered `SourceStep` with `(typedSourceType, pathTail, ResolveCtx)`. For each returned `Step`:
-  - the phase SHALL construct a new typed `Node` whose id is derived from the step's description and the FROM node's id;
-  - the phase SHALL emit one `EdgeKind.REALISED` edge from the typed source node to the new typed node, carrying `step.weight`, `step.codegen`, and the strategy's class FQN in `Edge.strategyClassFqn`;
-  - the phase SHALL emit one `EdgeKind.MARKER` edge from the original `?`-typed seed `to` node to the new typed node.
+Phase mutation SHALL be committed to the graph via `MapperGraph.apply(GraphDelta)` for node/edge additions and `MapperGraph.addGroup(...)` for group registrations. Groups SHALL be registered AFTER all nodes/edges are added (groups require their root/slots/edges to already exist in the underlying graph).
 
-Candidate nodes and edges SHALL be accumulated as `GraphDelta` values and committed to the graph via a single `MapperGraph.apply(...)` call at the end of `apply(MapperGraph)`. The phase SHALL perform a single pass per invocation; the outer `ExpandStage` round is the fixed-point. The phase SHALL NOT contain an internal `while`/`do-while` loop over its own outputs.
+#### Scenario: Return root with one constructor candidate registers parent group
+- **WHEN** the graph contains return root `tgt[]:Human` and `ConstructorCall.buildFor(Human, [addresses, firstName, lastName], ctx)` emits a `GroupBuild` with three slots
+- **THEN** three slot nodes are allocated and added (with `TargetLocation` paths matching the slot names)
+- **AND** three REALISED edges are emitted from each slot to the return root
+- **AND** one parent `ExpansionGroup` is registered with the return root as root, three slots, and three initial REALISED edges
 
-#### Scenario: Single-segment dotted source realises a typed node
-- **WHEN** `ResolveSourceChainsPhase.apply(graph)` is invoked on a graph seeded for `@Map(target = "lastName", source = "person.lastName")` with `GetterRead` registered and `Person` declaring `String getLastName()`
-- **THEN** the resulting graph contains a `REALISED` edge from `src[person]:Person` to a new node typed `String`, weight `Weights.STEP`, `strategyClassFqn` referencing `GetterRead`
-- **AND** a `MARKER` edge from `src[person.lastName]:?` to the new typed node, weight `Weights.NOOP`
+#### Scenario: Directive-binding short-circuit emits a nested group
+- **WHEN** a slot's type matches the typed source side of its corresponding seed edge
+- **THEN** a REALISED edge `source → slot` is emitted with `strategyClassFqn = "io.github.joke.percolate.processor.stages.expand.DirectiveBinding"` and `weight = Weights.STEP`
+- **AND** a one-slot nested `ExpansionGroup` is registered with the slot as root and the source as slot
 
-#### Scenario: Multi-segment dotted source resolves across outer rounds
-- **WHEN** the phase runs once on a graph seeded for `@Map(source = "person.address.street", target = "x")` with `GetterRead` available, and the FROM end of the inner step is not yet realised at entry
-- **THEN** in this single invocation only the chain prefix whose FROM end is already typed is realised
-- **AND** the next outer-loop iteration, observing the new MARKER, realises the next prefix
-- **AND** no internal fixed-point loop runs inside the phase
+### Requirement: ExpandGroupsPhase drives per-group greedy expansion
 
-#### Scenario: Same-side ?→? edge waits for FROM realisation
-- **WHEN** the phase iterates a seed edge `src[a.b]:? → src[a.b.c]:?` while no MARKER targets `src[a.b]:?`
-- **THEN** the edge is skipped in this invocation
-- **AND** the next outer-loop iteration revisits it after the FROM end is realised
+`ExpandGroupsPhase` SHALL drain a work-list of `ExpansionGroup`s, filling each group's slots by greedy bridge expansion. Initial work-list contents are the groups present after `ResolveTargetChainsPhase` (typically: one parent group per return root + nested directive-binding groups). As scope-changing bridge matches register additional nested groups (per the "scope-changing bridges register per-match nested groups" requirement below), they join the work-list and are drained in turn.
 
-#### Scenario: No-match strategy emits no edges
-- **WHEN** the only registered `SourceStep` returns an empty stream for a given seed edge
-- **THEN** the phase emits no `REALISED` or `MARKER` edges for that seed
-- **AND** the seed edge remains present (it will surface as a Tier-2 error later)
+The phase SHALL enforce two budget constants:
 
-### Requirement: ResolveTargetChainsPhase
+- `MAX_WORK_LIST_ITERATIONS = 256` — the maximum number of groups drained per mapper. Exceeding this records `unsatDidNotConverge` on each remaining group without further processing.
+- `MAX_SLOT_ROUNDS = 64` — the maximum number of expansion rounds per slot's `resolveSlot` call. Exceeding this records `unsatDidNotConverge` for that slot's group.
 
-`ResolveTargetChainsPhase` SHALL iterate every typed return-type root node (every node with `type.isPresent()` and `loc = TargetLocation([])`). For each return root:
+For each group drained from the work-list, the phase SHALL invoke `fillGroup(group, graph, workList)` which:
 
-- The phase SHALL aggregate `targetTails`: the list of single-segment target tails from all SEED edges flowing into that root via `tgt[.X]:?` slot nodes. Order SHALL match the source-declaration order of the directives (deterministic).
-- The phase SHALL invoke every registered `GroupTarget` with `(returnType, targetTails, ResolveCtx)`. For each returned `GroupBuild`:
-  - the phase SHALL allocate a fresh `groupId`;
-  - for each `Slot` in `build.slots`, the phase SHALL create one new typed `Node` (typed by `slot.type`, with id derived from group + slot name) and one `EdgeKind.REALISED` edge from that typed slot node to the return root, carrying `slot.weight`, an `EdgeCodegen` derived from the build's `GroupCodegen`, the shared `groupId`, and the strategy's class FQN;
-  - the phase SHALL register `build.codegen` on the `MapperGraph` via `addGroupCodegen(groupId, build.codegen)`;
-  - the phase SHALL create one `EdgeKind.MARKER` edge from each matching original `tgt[.X]:?` seed node to its corresponding new typed slot node.
+1. For each slot in `group.getSlots()`, call `resolveSlot(slot, graph, sourceRoots, workList)`. If any slot returns non-SAT, record the appropriate outcome on the group (`unsatNoPlan` or `unsatDidNotConverge`) and stop.
+2. After all slots SAT, call `resolveSlot(group.getRoot(), graph, sourceRoots, workList)` to verify the group's root is also producible. This is trivially true for groups whose `initialEdges` carry slot→root REALISED edges (the standard case) — `resolveSlot` short-circuits via `slotReachable` immediately.
+3. Record `GroupOutcome.sat(group)` on success.
 
-#### Scenario: ConstructorCall realises an exact-match group
-- **WHEN** `ResolveTargetChainsPhase.apply(graph)` is invoked on a graph with seeds `tgt[.firstName]:? → tgt[]:Human` and `tgt[.lastName]:? → tgt[]:Human`, with `ConstructorCall` registered and `Human(String firstName, String lastName)` declared
-- **THEN** the resulting graph contains two `REALISED` edges sharing one `groupId`, from new typed slot nodes to `tgt[]:Human`, weight `Weights.STEP` each
-- **AND** two `MARKER` edges from the seed slot nodes to the typed slot nodes
-- **AND** the `MapperGraph` exposes a registered `GroupCodegen` for that `groupId`
+`resolveSlot` SHALL implement bounded greedy expansion: starting with `frontier = [slot]`, iterate up to `MAX_SLOT_ROUNDS` rounds. Each round calls `expandFrontier(f, graph, workList, newNodes)` for every `f` in the current frontier, and replaces the frontier with the freshly allocated `newNodes`. After each round, check `slotReachable(slot, graph, sourceRoots)`; if true, return `SAT`. If `newNodes` is empty before the slot is reached, return `UNSAT_NO_PLAN`. If the round budget is exhausted, return `UNSAT_DID_NOT_CONVERGE`.
 
-#### Scenario: Multiple GroupTarget matches emit parallel groups
-- **WHEN** two different `GroupTarget` strategies both return a `GroupBuild` for the same return root
-- **THEN** the phase emits two distinct groups with different `groupId` values
-- **AND** each group's `REALISED` edges and `GroupCodegen` are independently registered
+#### Scenario: Slot reaches source via realised chain ⇒ SAT
+- **WHEN** a slot's `resolveSlot` is invoked and a REALISED chain from a source-parameter-root to the slot already exists
+- **THEN** `slotReachable` returns true immediately
+- **AND** `resolveSlot` returns `SAT` without entering the round loop
 
-#### Scenario: No matching GroupTarget emits no edges
-- **WHEN** the phase runs against a return root for which no `GroupTarget` matches
-- **THEN** no `REALISED` or `MARKER` edges are emitted for that root
-- **AND** the seed edges remain present (they will surface as Tier-2 errors)
+#### Scenario: Slot exhausts plan ⇒ UNSAT_NO_PLAN
+- **WHEN** an expansion round produces no new nodes and the slot is still not reachable
+- **THEN** `resolveSlot` returns `UNSAT_NO_PLAN`
+- **AND** `fillGroup` records `GroupOutcome.unsatNoPlan(group, slot)` on the group
 
-### Requirement: BridgeSourceToTargetPhase
+#### Scenario: Round budget exhaustion ⇒ UNSAT_DID_NOT_CONVERGE
+- **WHEN** `MAX_SLOT_ROUNDS` rounds elapse without reaching source or running out of work
+- **THEN** `resolveSlot` returns `UNSAT_DID_NOT_CONVERGE`
 
-`BridgeSourceToTargetPhase` SHALL iterate three classes of edge on every pass:
-
-1. Every `EdgeKind.SEED` edge whose `from` node is in source space (location `SourceLocation`) and whose `to` node is in target space (location `TargetLocation`).
-2. Every `EdgeKind.SUB_SEED` edge regardless of endpoint location.
-3. Every `EdgeKind.SEED` edge whose `from` node and `to` node both have `Location` of type `ElementLocation` (element-scope SEEDs, emitted by container `Map` strategies per the element-seed emission rule).
-
-For each such edge:
-
-- The phase SHALL resolve the realised source-side counterpart of the FROM end (FROM itself if `from.type.isPresent()`, otherwise the typed node reachable via outgoing MARKER edges from FROM).
-- The phase SHALL resolve the realised target-side counterpart of the TO end the same way.
-- The phase SHALL skip the edge if either side has zero realised counterparts (the bridge is not ready and may resolve in a later iteration, or surface as a Tier-2 / Tier-3 error after the outer loop reaches its fixed point).
-- For each `(typedFromNode, typedToNode)` pair, the phase SHALL invoke every registered `Bridge` with `(typedFromNode.type, typedToNode.type, ResolveCtx)`.
-- For each `BridgeStep` in the returned stream, the phase SHALL apply the unified edge-emission rule (see "Bridge edge-emission rule").
-
-If multiple `Bridge` strategies (or one strategy emitting multiple steps) match the same query, multiple parallel REALISED edges and possibly multiple parallel intermediate nodes SHALL be emitted, in accordance with the unified rule.
-
-#### Scenario: DirectAssign realises an identity bridge
-- **WHEN** `BridgeSourceToTargetPhase.apply(graph)` is invoked on a graph with a flavor ② seed whose endpoints both realise to typed `String` nodes, with `DirectAssign` registered
-- **THEN** the resulting graph contains one new `REALISED` edge connecting the two typed `String` nodes, weight `Weights.NOOP`, `strategyClassFqn` referencing `DirectAssign`
-
-#### Scenario: Bridge is skipped without a realised target
-- **WHEN** the phase iterates a flavor ② seed whose source side has at least one MARKER but whose target side has zero MARKERs
-- **THEN** no `Bridge` strategy is invoked for that seed
-- **AND** no new `REALISED` edge is emitted for that seed in this iteration
-
-#### Scenario: Multiple Bridge strategies emit parallel REALISED edges
-- **WHEN** two `Bridge` strategies (or one strategy returning two steps) match the same `(typedFromNode, typedToNode)` pair with `inputType == sourceType` and `outputType == targetType`
-- **THEN** the phase emits two parallel `REALISED` edges with each strategy's weight and codegen
-- **AND** both edges share the same `from` and `to` nodes (multigraph)
-
-#### Scenario: Bare-parameter source bridge
-- **WHEN** the phase iterates a SEED edge `src[person]:Person → tgt[.x]:?` whose target side has been realised to a typed slot
-- **THEN** the phase invokes registered `Bridge` strategies with `(Person, slotType, ResolveCtx)` and emits matching `REALISED` edges
-
-#### Scenario: Phase processes SUB_SEED edges emitted by earlier iterations
-- **WHEN** an earlier iteration emitted a SUB_SEED `src[g]:GR → src[g]:Dog` and the phase iterates again
-- **THEN** the phase invokes registered `Bridge` strategies with `(GR, Dog, ResolveCtx)` for that SUB_SEED
-
-#### Scenario: Phase processes element-scope SEED edges
-- **WHEN** a prior iteration emitted a SEED `elem(parent=src[xs]:List<Optional<GR>>):Optional<GR> → elem(parent=src[xs]:List<Pet>):Pet` from an `OptionalMap`-style strategy
-- **THEN** in the next pass, the phase iterates that SEED
-- **AND** invokes registered `Bridge` strategies with `(Optional<GR>, Pet, ResolveCtx)` for it
-- **AND** the resulting REALISED / SUB_SEED edges are emitted by the unified rule (with parent inheritance for any element-location allocations)
-
-### Requirement: Bridge readiness predicate enforced by driver
-
-The `BridgeSourceToTargetPhase` SHALL guarantee that every `Bridge.bridge(...)` invocation receives `TypeMirror` arguments sourced from typed nodes only. Strategies SHALL never observe a `?`-typed node through the SPI. The phase enforces this by deferring any seed bridge whose endpoints lack realised counterparts.
-
-#### Scenario: Bridge sees only typed inputs
-- **WHEN** any `Bridge.bridge(sourceType, targetType, ctx)` is invoked by the phase
-- **THEN** both `TypeMirror` arguments came from a `Node` with `type.isPresent() == true`
+#### Scenario: Work-list budget exhaustion records remaining groups
+- **WHEN** more than `MAX_WORK_LIST_ITERATIONS` groups are drained
+- **THEN** every remaining group is recorded `unsatDidNotConverge` without `fillGroup` being called for it
 
 ### Requirement: Bridge edge-emission rule (unified)
 
-The phase SHALL apply the following rule for every `BridgeStep` returned by every `Bridge` query, regardless of whether the step represents a direct match, a chain hop, a container wrap/unwrap, or a container map:
+For every `BridgeStep` returned by every `Bridge` query during frontier expansion, the phase SHALL apply the following rule:
 
-Let `F` be the seed's resolved typed source-side counterpart and `T` be the seed's resolved typed target-side counterpart. Given a `BridgeStep(inputType, outputType, weight, codegen, elementSeeds)`:
+Let `F` be the frontier node (the node demanding an input) and `C` be a candidate node (an existing graph node with a non-empty type and the same scope as `F`, excluding `F` itself and excluding `TargetLocation` nodes). Given a `BridgeStep(inputType, outputType, weight, codegen, scopeTransition, elementRole)`:
 
-1. The phase SHALL determine `inputNode`:
-   - If `step.inputType` equals `F.type`, then `inputNode = F`.
-   - Otherwise, the phase SHALL find or allocate a `Node` with `scope = F.scope`, `loc = F.loc`, `type = step.inputType`, and `parent = F.parent` if `F.loc instanceof ElementLocation` else `parent = Optional.empty()`. If a node with this `(scope, loc, type, parent)` identity already exists in the graph, that node is reused; otherwise a new node is allocated and added to the graph.
+1. The phase SHALL verify `step.outputType` equals `F.type` (the bridge produces the frontier's type). If not, the step is skipped.
 
-2. The phase SHALL determine `outputNode`:
-   - If `step.outputType` equals `T.type`, then `outputNode = T`.
-   - Otherwise, the phase SHALL find or allocate a `Node` with `scope = F.scope`, `loc = F.loc`, `type = step.outputType`, and `parent = T.parent` if `F.loc instanceof ElementLocation` else `parent = Optional.empty()`. Find-or-allocate semantics as for `inputNode`.
+2. The phase SHALL verify `step.scopeTransition` is compatible with the frontier's location: `PRESERVING` always matches; `ENTERING` matches only when `F.loc instanceof ElementLocation`; `EXITING` matches only when `F.loc` is NOT an `ElementLocation`. Incompatible steps are skipped.
 
-3. The phase SHALL emit one `EdgeKind.REALISED` edge from `inputNode` to `outputNode`, carrying `step.weight`, `step.codegen`, and the strategy's class FQN in `Edge.strategyClassFqn`.
+3. The phase SHALL determine `inputNode` per `step.scopeTransition`:
 
-4. If `inputNode != F` (i.e. the input was allocated rather than identified with `F`), the phase SHALL emit one `EdgeKind.SUB_SEED` edge from `F` to `inputNode`, carrying weight `Weights.SENTINEL_UNREALISED` and the originating directive's `AnnotationMirror` (inherited from the seed that triggered the query). The SUB_SEED drives a subsequent outer-loop iteration to find a path from `F` to `inputNode`.
+   - **PRESERVING**: if `C.type` equals `step.inputType`, use `C`. Otherwise, find or allocate a node with `(F.scope, F.loc, step.inputType)`.
 
-5. If `outputNode != T` (i.e. the output was allocated rather than identified with `T`), the phase SHALL emit one `EdgeKind.SUB_SEED` edge from `outputNode` to `T`, carrying weight `Weights.SENTINEL_UNREALISED` and the originating directive's `AnnotationMirror`. The SUB_SEED drives a subsequent outer-loop iteration to find a path from `outputNode` to `T`.
+   - **ENTERING**: try in order — (a) a same-element-scope candidate of the right type at `F.loc`; (b) `C` if `C.type` matches and `C.loc` is NOT an `ElementLocation`; (c) fresh allocation at `F.loc` if `step.inputType` equals `step.outputType` (the rare same-type ENTERING case) else at `F.loc` — both fall under "fresh at frontier's loc". The fresh allocation flag is set so the new node is added to `newNodes`.
 
-6. For each `ElementSeed(role, innerInputType, innerOutputType)` in `step.elementSeeds`, the phase SHALL:
-   - Find or allocate an element `Node` `eFrom` with `scope = F.scope`, `loc = ElementLocation(role)`, `type = innerInputType`, `parent = Optional.of(inputNode)`.
-   - Find or allocate an element `Node` `eTo` with `scope = F.scope`, `loc = ElementLocation(role)`, `type = innerOutputType`, `parent = Optional.of(outputNode)`.
-   - Emit one `EdgeKind.SEED` edge from `eFrom` to `eTo`, carrying weight `Weights.SENTINEL_UNREALISED`, the emitting strategy's class FQN, and `Optional.empty()` for the directive.
+   - **EXITING**: try (a) `C` if `C.type` matches and `C.loc.equals(new ElementLocation(step.elementRole))`; (b) any existing graph node at `(F.scope, ElementLocation(step.elementRole), step.inputType)`; (c) fresh allocation at `ElementLocation(step.elementRole)` in `F.scope`.
 
-The rule preserves the node-identity invariant: nodes are uniquely identified by `(scope, location, type, parent)`, and two emissions converging on the same identity reuse the same node, becoming parallel edges.
+4. If `inputNode.equals(F)` (which can happen when a PRESERVING step matches with `inputType == F.type` — a no-op), the step is skipped.
 
-#### Scenario: Direct match emits one REALISED edge with no allocation and no SUB_SEED
-- **WHEN** a `BridgeStep` is emitted whose `inputType == F.type`, `outputType == T.type`, and `elementSeeds` is empty
-- **THEN** the phase emits one REALISED edge `F → T`
+5. The phase SHALL emit one `REALISED` edge from `inputNode` to `F`, carrying `step.weight`, `step.codegen`, and the strategy's class FQN in `Edge.strategyClassFqn`.
+
+6. If `step.scopeTransition != PRESERVING`, the phase SHALL register a fresh one-slot nested `ExpansionGroup` with `inputNode` as the sole slot, `F` as the root, and the just-emitted REALISED edge in `initialEdges`. The new group joins the work-list. Each scope-changing bridge match is its own nested group — no fusion across matches.
+
+7. If `inputNode` was freshly allocated, it is added to `newNodes` for the next expansion round.
+
+The rule preserves the node-identity invariant: nodes are uniquely identified by `Node.equals` instance identity; same-shape allocation does not collapse nodes.
+
+#### Scenario: PRESERVING direct match emits one REALISED edge with no allocation
+- **WHEN** a `BridgeStep` with `scopeTransition == PRESERVING` is emitted, `inputType` matches a candidate's type, and `candidate.loc.equals(frontier.loc)`
+- **THEN** the phase emits one REALISED edge `candidate → frontier`
 - **AND** no new node is allocated
-- **AND** no SUB_SEED is emitted
-- **AND** no element node or element SEED is emitted
+- **AND** no nested group is registered
 
-#### Scenario: Chain hop allocates an input intermediate and emits SUB_SEED
-- **WHEN** a `BridgeStep` is emitted whose `inputType` is not equal to `F.type`, whose `outputType` equals `T.type`, and `elementSeeds` is empty
-- **THEN** the phase finds or allocates an intermediate node `I` with `(F.scope, F.loc, step.inputType, parent: as F)`
-- **AND** the phase emits a REALISED edge `I → T`
-- **AND** the phase emits a SUB_SEED edge `F → I`
-- **AND** no element node or element SEED is emitted
+#### Scenario: PRESERVING chain hop allocates intermediate at frontier loc
+- **WHEN** a `BridgeStep` with `scopeTransition == PRESERVING` is emitted whose `inputType` matches no candidate
+- **THEN** the phase allocates a fresh input node at the frontier's location
+- **AND** emits one REALISED edge from the fresh node to the frontier
+- **AND** no nested group is registered
 
-#### Scenario: Two strategies emitting the same intermediate type collapse on identity
-- **WHEN** two `Bridge` strategies each emit a `BridgeStep` with the same `inputType = X` (different from `F.type`) for the same seed
-- **THEN** the phase allocates exactly one intermediate node with `(F.scope, F.loc, X)` (the second strategy reuses the first's node)
-- **AND** the phase emits two parallel REALISED edges, both with target equal to the same shared intermediate (or its successor, depending on the steps' outputs)
+#### Scenario: ENTERING bridge matches an existing same-element-scope candidate
+- **WHEN** a `BridgeStep` with `scopeTransition == ENTERING` is emitted, frontier is at `ElementLocation("element")`, and a graph node at the same `ElementLocation("element")` carries the bridge's input type
+- **THEN** `inputNode` is that existing node (no fresh allocation)
+- **AND** the phase emits one REALISED edge from it to the frontier
+- **AND** the phase registers a nested `ExpansionGroup`
 
-#### Scenario: Output type differs from T.type allocates an output intermediate AND emits a SUB_SEED
-- **WHEN** a `BridgeStep` is emitted whose `outputType` is not equal to `T.type`
-- **THEN** the phase finds or allocates an intermediate node `O` with `(F.scope, F.loc, step.outputType)`
-- **AND** the phase emits a REALISED edge from `inputNode` to `O`
-- **AND** the phase emits a SUB_SEED edge from `O` to `T`
+#### Scenario: ENTERING bridge prefers regular-scope candidate when no same-scope match
+- **WHEN** a `BridgeStep` with `scopeTransition == ENTERING` is emitted, no same-element-scope candidate exists, but a regular-scope (non-`ElementLocation`) candidate matches the bridge's input type
+- **THEN** `inputNode` is that regular-scope candidate
+- **AND** the phase emits one REALISED edge and registers a nested group
 
-#### Scenario: Container-map step emits outer REALISED edge AND element-scope seed
-- **WHEN** a `BridgeStep` is emitted whose `inputType == F.type`, `outputType == T.type`, and `elementSeeds = [ElementSeed("element", innerIn, innerOut)]`
-- **THEN** the phase emits one REALISED edge `F → T`
-- **AND** the phase allocates an element node `eFrom` with `(F.scope, ElementLocation("element"), innerIn, parent = F)`
-- **AND** the phase allocates an element node `eTo` with `(F.scope, ElementLocation("element"), innerOut, parent = T)`
-- **AND** the phase emits one SEED edge `eFrom → eTo`
-- **AND** no SUB_SEED is emitted at the outer level (both input and output match F and T)
+#### Scenario: ENTERING bridge fresh-allocates when neither candidate exists
+- **WHEN** a `BridgeStep` with `scopeTransition == ENTERING` is emitted and neither same-element-scope nor regular-scope candidate matches
+- **THEN** the phase fresh-allocates the input at the frontier's location (the flatMap fallback)
+- **AND** the fresh node is added to `newNodes` and the next round expands it
 
-#### Scenario: Element-location intermediate inherits parent
-- **WHEN** the phase processes an element-scope SEED `eFrom → eTo` (both with `loc instanceof ElementLocation`) and a strategy emits a step whose `outputType != eTo.type`
-- **THEN** the phase allocates a new element node with `(eFrom.scope, eFrom.loc, step.outputType, parent = eTo.parent)`
-- **AND** that new node's `id()` correctly resolves through `parent.id()`
+#### Scenario: EXITING bridge allocates input at ElementLocation
+- **WHEN** a `BridgeStep` with `scopeTransition == EXITING` is emitted, frontier is regular-scope, and no element-scope candidate of the input type exists
+- **THEN** the phase fresh-allocates an input node at `ElementLocation(step.elementRole)` in the frontier's scope
+- **AND** emits one REALISED edge from the fresh element-scope node to the frontier
+- **AND** registers a nested `ExpansionGroup`
 
-### Requirement: SUB_SEED edges drive outer-loop iteration
+#### Scenario: EXITING bridge reuses an existing element-scope candidate
+- **WHEN** a `BridgeStep` with `scopeTransition == EXITING` is emitted and an existing element-scope candidate at `ElementLocation(step.elementRole)` has the right input type
+- **THEN** `inputNode` is that existing candidate
+- **AND** the phase emits one REALISED edge to the frontier and registers a nested group
 
-`EdgeKind.SUB_SEED` edges emitted by `BridgeSourceToTargetPhase` per the unified edge-emission rule SHALL participate in subsequent outer-loop iterations the same way SEED edges do: `BridgeSourceToTargetPhase` (and any other phase that iterates seed-shaped edges) SHALL include SUB_SEED edges in its work-list on every pass.
+### Requirement: Multi-fire per frontier; parallel chains coexist
 
-A SUB_SEED edge is processed identically to a SEED edge during expansion: the phase resolves the FROM and TO endpoints' realised counterparts and queries each registered `Bridge` for the resulting type pair. Newly emitted edges from a SUB_SEED's processing again follow the unified edge-emission rule.
+`ExpandGroupsPhase.tryBridges` SHALL commit every matching bridge at each frontier. Multiple bridges that produce the frontier's type SHALL each emit their own REALISED edge and, if scope-changing, their own nested group. Parallel chains coexist in the graph; dead branches (chains that never reach a source-parameter-root) remain in the graph as unresolved REALISED edges and unsatisfied nested groups. Slot reachability over REALISED edges picks the alive chain.
 
-A SUB_SEED is "resolved" once a path of REALISED edges connects its FROM endpoint to its TO endpoint. The expansion driver does not explicitly track resolution; the outer fixed-point terminates when no phase has further work.
+Within one `Bridge`, the first matching candidate wins — a single `Bridge` may return multiple `BridgeStep`s describing alternative shapes, and the engine commits the first that matches and stops within that bridge.
 
-SUB_SEED endpoints MAY belong to different parent nodes (e.g., an element-scope SUB_SEED whose FROM endpoint is parented by the source-side container node and whose TO endpoint is parented by the target-side container node). The driver SHALL NOT reject such SUB_SEEDs; they represent legitimate cross-parent chain segments within a single per-element computation.
+#### Scenario: Two matching bridges at the same frontier both commit
+- **WHEN** the frontier is `tgt[addresses]:Optional<Set<HA>>` and both `OptionalCollect` (EXITING) and `OptionalWrap` (PRESERVING) match
+- **THEN** the phase commits both REALISED edges
+- **AND** `OptionalCollect` registers a nested group (scope-changing); `OptionalWrap` does not (PRESERVING)
+- **AND** subsequent rounds expand both chains until one reaches a source-parameter-root
 
-#### Scenario: SUB_SEED is iterated as a seed in subsequent passes
-- **WHEN** an iteration emits a SUB_SEED `F → I` and the outer loop re-runs the phase list
-- **THEN** in the next pass, `BridgeSourceToTargetPhase` queries every registered `Bridge` with `(F.type, I.type, ctx)`
+#### Scenario: Dead branches lie unresolved without blocking the alive chain
+- **WHEN** two parallel chains exist after multi-fire and only one reaches a source-parameter-root via REALISED edges
+- **THEN** `slotReachable` returns true for the slot via the alive chain
+- **AND** the parent group SATs
+- **AND** the dead chain's nested groups remain in the graph with `unsatNoPlan` outcomes; these do not contribute REALISED edges from a source root, so they are correctly excluded from the alive subgraph
 
-#### Scenario: A chain closes when a SUB_SEED's input matches a parameter root
-- **WHEN** the chain `F → I1 → I2 → … → In → T` is being expanded and the strategy emits a step whose input type equals `F.type` for some intermediate
-- **THEN** the phase emits a REALISED edge from `F` to that intermediate without emitting a further SUB_SEED
-- **AND** subsequent iterations report no changes; the outer loop terminates
+### Requirement: Scope inheritance under target-to-source expansion
 
-#### Scenario: Cross-parent element-scope SUB_SEED is accepted
-- **WHEN** the unified rule emits a SUB_SEED from an element node `eA` (parented by node `cA`) to an element node `eB` (parented by node `cB`) where `cA != cB`
-- **THEN** the edge is added to the graph
-- **AND** subsequent iterations process this SUB_SEED like any other
+`ExpandGroupsPhase.allocateOrReuseInputNode` is the SOLE place in the engine where `BridgeStep.scopeTransition` and `BridgeStep.elementRole` are consulted. No other phase, no strategy, and no other call site SHALL inspect these fields to decide allocation behaviour. Strategies remain myopic: they declare their scope transition in the `BridgeStep` and let the driver materialise the consequences.
 
-### Requirement: Container-Map outer REALISED edge represents an iteration
+Every fresh node allocated by `allocateOrReuseInputNode` SHALL be born holding the REALISED edge to the frontier that demanded it. No node SHALL be created without an immediately-attached outgoing edge to an already-demanded node — the target-to-source invariant.
 
-A REALISED edge whose emitting strategy is a container "map"-shaped strategy (e.g., `OptionalMap`, `ListMap`, `SetMap`) SHALL be:
+#### Scenario: Scope allocation is the only scope-aware engine surface
+- **WHEN** the source of `processor/.../stages/expand/*.java` is inspected
+- **THEN** `BridgeStep.getScopeTransition()` is invoked exactly once per `commitBridgeStep` call site, inside `allocateOrReuseInputNode` (or a helper it calls)
+- **AND** no other engine class invokes `BridgeStep.getScopeTransition()` or `BridgeStep.getElementRole()`
 
-- A single edge in the graph between the strategy's source-container node and target-container node, carrying the strategy's class FQN in `Edge.strategyClassFqn`.
-- Paired with at least one element-scope SEED whose endpoints are parented by this edge's `from` and `to` nodes respectively. The element-scope SEEDs SHALL exist in the graph as separate edges and be expanded by subsequent outer-loop iterations into element-scope REALISED edges (and possibly further SUB_SEEDs).
+#### Scenario: Every freshly allocated node is born with the outgoing edge
+- **WHEN** `allocateOrReuseInputNode` returns a fresh node
+- **THEN** the next instruction in `commitBridgeStep` emits a REALISED edge from that fresh node to the frontier
+- **AND** the fresh node never exists in the graph without that outgoing edge
 
-The container-map edge's `codegen` field SHALL contain a lambda that, on `render(VarNames, IncomingValues)`, throws `UnsupportedOperationException` until the future codegen capability ships. The graph shape — the outer REALISED edge plus the parent-linked element-scope subgraph — is the complete container-expansion contract today.
+### Requirement: Scope-changing bridges register per-match nested groups
 
-#### Scenario: Outer ListMap edge co-exists with its element-scope SEED
-- **WHEN** an outer REALISED edge `src[xs]:List<Dog> → tgt[]:List<Pet>` is emitted by `ListMap`
-- **THEN** the graph also contains an element-scope SEED edge whose FROM is `elem(parent=src[xs]:List<Dog>):Dog` and TO is `elem(parent=tgt[]:List<Pet>):Pet`
+`ExpandGroupsPhase.commitBridgeStep` SHALL register a fresh nested `ExpansionGroup` for every `BridgeStep` whose `scopeTransition` is `ENTERING` or `EXITING`. Each scope-changing bridge match is its own nested group; no fusion across matches. `PRESERVING` matches do NOT register a nested group — they only emit a REALISED edge.
 
-#### Scenario: Outer container-map edge codegen throws
-- **WHEN** the `EdgeCodegen.render(VarNames, IncomingValues)` of an outer container-map REALISED edge is invoked
-- **THEN** an `UnsupportedOperationException` is thrown
-- **AND** the message names the future codegen capability
+The nested group SHALL have:
+- `root` = the current frontier `F`.
+- `slots` = `[inputNode]` (a single-slot group).
+- `initialEdges` = `{inputNode → F REALISED}` (the just-emitted edge).
+- `codegen` = `step.getCodegen()::render` lifted to a `GroupCodegen` shape.
+- `strategyClassFqn` = the originating bridge's class FQN.
 
-### Requirement: Self-call REALISED edges allowed
+The new group SHALL join the work-list and SHALL be drained by `fillGroup` like any other group.
 
-When a `Bridge` strategy emits a step that, applied via the unified edge-emission rule, results in a REALISED edge whose codegen would invoke the currently-expanding method (`ctx.currentMethod()`), the phase SHALL emit the edge unconditionally. The phase does NOT detect or filter self-calls. The expansion's correctness is unaffected: at codegen time, the generated method body may contain a recursive call, which is well-formed Java and terminates if the user's directive structure recurses on a structurally smaller value.
+`ExpandGroupsPhase.registerElementSeedGroup` and any "fused element-seed group" machinery SHALL NOT exist in the engine. The element-seed-group concept is retired alongside the `ElementSeed` SPI type.
 
-#### Scenario: Self-call edge is emitted without filtering
-- **WHEN** `MethodCallBridge` (or any other `Bridge`) emits a step whose codegen invokes `ctx.currentMethod()`, and the unified rule applies
-- **THEN** the phase emits the REALISED edge for that step
-- **AND** the phase does not emit any diagnostic
+#### Scenario: ENTERING bridge match registers a nested ExpansionGroup
+- **WHEN** `commitBridgeStep` runs for a `BridgeStep` whose `scopeTransition == ENTERING`
+- **THEN** the phase adds an `ExpansionGroup` rooted at the frontier with the just-allocated input node as its sole slot to the graph
+- **AND** the new group joins the work list
+- **AND** the group's `initialEdges` contains the just-emitted REALISED edge
 
-### Requirement: Driver-emitted MARKER edges
+#### Scenario: EXITING bridge match registers a nested ExpansionGroup
+- **WHEN** `commitBridgeStep` runs for a `BridgeStep` whose `scopeTransition == EXITING`
+- **THEN** the same is true as for ENTERING (a one-slot nested group joins the work list)
 
-The expansion phases SHALL emit `EdgeKind.MARKER` edges only from driver-side code. Strategies SHALL NOT construct MARKER edges. Every MARKER edge SHALL have:
-- `weight = Weights.NOOP`,
-- a `?`-typed seed node as `from`,
-- a typed realised node as `to`,
-- empty `directive`, empty `codegen`, empty `strategyClassFqn`, empty `groupId`.
+#### Scenario: PRESERVING bridge match does NOT register a nested ExpansionGroup
+- **WHEN** `commitBridgeStep` runs for a `BridgeStep` whose `scopeTransition == PRESERVING`
+- **THEN** the phase emits only the REALISED edge
+- **AND** no new `ExpansionGroup` is added to the graph or work list
 
-`MapperGraph.realisedSubgraph()` SHALL exclude all MARKER edges.
+### Requirement: GroupTarget matches register nested groups via tryGroupTargets
 
-#### Scenario: Marker edge weight is zero
-- **WHEN** any phase emits a `MARKER` edge
-- **THEN** the edge's `weight` equals `Weights.NOOP`
+`ExpandGroupsPhase.tryGroupTargets` SHALL run for every frontier that no bridge matched. For each registered `GroupTarget`, the phase SHALL call `groupTarget.buildFor(frontier.type, List.of(), ctx)`. The first non-empty `GroupBuild` SHALL:
 
-#### Scenario: Marker edges are excluded from realised subgraph
-- **WHEN** `MapperGraph.realisedSubgraph()` is invoked on a graph containing both REALISED and MARKER edges
-- **THEN** the returned view contains every REALISED edge and zero MARKER edges
+1. Allocate one slot node per `Slot`, with `Location = ElementLocation(slot.name)` and `Scope = frontier.scope`.
+2. Emit one REALISED edge per slot, from the slot to the frontier.
+3. Register a nested `ExpansionGroup` with root = frontier, slots = the allocated nodes, initialEdges = the just-emitted REALISED edges.
 
-### Requirement: Multi-match parallel REALISED edges
+#### Scenario: GroupTarget match at frontier with no bridge match
+- **WHEN** the frontier is `elem:Human` and no `Bridge` matches but `ConstructorCall.buildFor(Human, [], ctx)` returns a non-empty `GroupBuild`
+- **THEN** the phase allocates one slot node per `Slot` at `ElementLocation(slot.name)` in the frontier's scope
+- **AND** emits one REALISED edge from each slot to the frontier
+- **AND** registers a nested `ExpansionGroup` with the frontier as root and the slot nodes as slots
 
-The phases SHALL emit one `REALISED` edge per matching result when a strategy invocation produces multiple matches (e.g., multiple `Step` results in one `SourceStep.stepsFrom(...)` call, or matching results from two distinct strategy instances). Parallel `REALISED` edges SHALL coexist between the same pair of nodes — the underlying `DirectedMultigraph` supports this, and the future codegen change will select among them via Dijkstra.
+### Requirement: Source reachability gates slot SAT
 
-#### Scenario: Two SourceSteps return matches for one input
-- **WHEN** a `SourceStep` invocation returns two `Step` results (e.g., `getX()` and the same path tail's lenient match)
-- **THEN** the phase emits two distinct `REALISED` edges from the same source node, each terminating at its own new typed node
-- **AND** each edge carries its respective `Step.weight` and `Step.codegen`
+`SourceReachability.slotReachable(slot, graph, sourceRoots)` SHALL return true iff there exists a directed path of REALISED edges from any node in `sourceRoots` to `slot` in the underlying graph. `sourceRoots` is the set of nodes whose `Location` is a single-segment `SourceLocation` and whose type is present.
 
-### Requirement: Same-side `?→?` driver normalisation
+`slotReachable` uses a JGraphT `MaskSubgraph` view that filters edges by `EdgeKind == REALISED` and traverses with a BFS.
 
-The driver SHALL normalise same-side `?→?` SEED edges (the inner segments of dotted source paths) by pulling the realised counterpart of the FROM end (via outgoing MARKER edges) and invoking `SourceStep.stepsFrom(realisedType, pathTail, ctx)` with that typed input. Strategies SHALL NEVER receive a `?`-typed input through the SPI.
+#### Scenario: Slot is reachable when a REALISED chain exists from source
+- **WHEN** a chain `src[person] → ... → slot` exists composed entirely of REALISED edges
+- **THEN** `slotReachable(slot, graph, sourceRoots)` returns true
 
-#### Scenario: SourceStep sees only typed inputs
-- **WHEN** any `SourceStep.stepsFrom(sourceType, pathTail, ctx)` is invoked by the phase
-- **THEN** the `sourceType` argument came from a `Node` with `type.isPresent() == true` (either typed at seed time or via a MARKER realisation)
+#### Scenario: Slot is not reachable via non-REALISED edges alone
+- **WHEN** the only path from a source-parameter-root to a slot includes a MARKER or SEED edge
+- **THEN** `slotReachable` returns false (only REALISED edges count for reachability)
 
-### Requirement: ConstructorCall hint aggregation by driver
+### Requirement: Candidate inputs are scope-filtered, non-target, non-frontier
 
-The driver SHALL aggregate the set of single-segment target tails sharing a typed return root by walking incoming SEED edges to the root (via the `tgt[.X]:?` slot nodes) and collecting the deepest target segment of each. The aggregated `List<String>` SHALL be passed to `GroupTarget.buildFor(returnType, targetTails, ctx)`. Order SHALL be determined by the source position of each directive (stable across runs).
+`SourceReachability.candidateInputs(scope, graph)` SHALL return the list of nodes in the graph satisfying ALL of:
+- `node.getScope().equals(scope)` (same scope as the requesting frontier)
+- `node.getType().isPresent()` (typed node)
+- NOT `(node.getLoc() instanceof TargetLocation)` (target slots cannot be candidates — they are demand, not supply)
 
-#### Scenario: Aggregation collects all directive targets for a return root
-- **WHEN** a graph has two SEED edges flowing into `tgt[]:Human` via slot nodes `tgt[.firstName]:?` and `tgt[.lastName]:?`
-- **THEN** the driver invokes `GroupTarget.buildFor(<Human>, ["firstName", "lastName"], ctx)` once
-- **AND** the order matches the directive declaration order in the source
+The returned list SHALL be sorted by `Node.id()` for determinism.
 
-### Requirement: Driver-emitted SUB_SEED edges (forward-compat)
+`expandFrontier` SHALL additionally filter out the frontier itself before passing candidates to `tryBridges`.
 
-The expansion driver SHALL be capable of emitting `EdgeKind.SUB_SEED` edges to represent typed slots that have no source-side counterpart at the time of group emission. SUB_SEED edges SHALL carry weight `Weights.SENTINEL_UNREALISED` and re-enter the work queue for the relevant phase. In v1, no built-in strategy triggers sub-directive emission; the driver path SHALL exist for forward-compat with future strategies (e.g., `HybridConstructorSetter`, auto-recursion).
+#### Scenario: Candidate list excludes target nodes
+- **WHEN** `candidateInputs(scope, graph)` is invoked
+- **THEN** no node in the result has `Location` of type `TargetLocation`
 
-#### Scenario: No SUB_SEED edges in v1 demo
-- **WHEN** `ExpandStage.apply(graph)` runs on the v1 demo mapper using only the v1 built-in strategies
-- **THEN** the resulting graph contains zero `EdgeKind.SUB_SEED` edges
+#### Scenario: Candidate list is deterministically ordered
+- **WHEN** `candidateInputs(scope, graph)` is invoked twice on the same graph state
+- **THEN** the two returned lists are equal element-wise (sorted by `Node.id()`)
 
-### Requirement: Cycle detection over SEED + SUB_SEED subgraph
+### Requirement: GroupOutcome records per-group SAT/UNSAT verdicts
 
-After each `ExpansionPhase` completes, `ExpandStage` SHALL run JGraphT `CycleDetector` over the subgraph filtered to `EdgeKind.SEED` and `EdgeKind.SUB_SEED` edges only. Cycles in this subgraph indicate a sub-directive lineage looping back on itself (a malformed user strategy). On detection, `ExpandStage` SHALL emit one `Diagnostics.error` per cycle keyed to one of the cycle's seed edges' `directive` `AnnotationMirror`. The affected mapper SHALL be scarred so subsequent phases skip it.
+The graph SHALL retain a `GroupOutcome` for every registered `ExpansionGroup`, recorded via `MapperGraph.recordGroupOutcome(...)` during `fillGroup`. Outcomes are one of:
 
-#### Scenario: V1 demo has no cycles
-- **WHEN** `ExpandStage.apply(graph)` completes on the v1 demo mapper
-- **THEN** the cycle detector reports zero cycles
-- **AND** no cycle-related error diagnostic is emitted
+- `GroupOutcome.sat(group)` — every slot and the root SAT'd via REALISED reachability.
+- `GroupOutcome.unsatNoPlan(group, failingSlot)` — `resolveSlot(failingSlot)` exhausted its expansion without producing new nodes.
+- `GroupOutcome.unsatDidNotConverge(group, failingSlot)` — `resolveSlot(failingSlot)` exceeded `MAX_SLOT_ROUNDS` or the work-list budget was exhausted.
 
-#### Scenario: A constructed cycle is detected and reported
-- **WHEN** a synthetic test mapper produces a SUB_SEED lineage with a cycle
-- **THEN** `ExpandStage` emits one error diagnostic referencing the cycling directive's `AnnotationMirror`
-- **AND** the mapper is scarred
+Outcomes are consumed by downstream validation phases (see `realisation-validation`) to surface closest-miss diagnostics.
 
-### Requirement: Mapper-level expansion round budget
+#### Scenario: SAT outcome recorded when all slots and root SAT
+- **WHEN** `fillGroup(group, graph, workList)` completes with all slots and the root reaching source
+- **THEN** `MapperGraph.recordGroupOutcome(GroupOutcome.sat(group))` is called
 
-The expansion driver SHALL track a per-mapper round counter incremented exactly once per iteration of the outer fixed-point loop in `ExpandStage`. The cap SHALL be a constant `MAX_EXPANSION_ROUNDS` defined in `ExpandStage` (initial value `64`). The counter ticks regardless of how many edges or nodes any phase adds in a given round, regardless of any value returned or stored by phases, and regardless of cycle-detection state.
-
-If the round counter exceeds `MAX_EXPANSION_ROUNDS` before convergence, `ExpandStage` SHALL emit exactly one `Diagnostics.error` keyed to the mapper `TypeElement` itself (no directive `AnnotationMirror` argument) carrying a generic message stating that expansion did not converge within the configured number of rounds. The mapper SHALL be scarred and the loop SHALL terminate immediately. No per-directive blame heuristic SHALL be applied at this site; the directive-specific diagnostic surface is reserved for cycle detection.
-
-#### Scenario: Round counter increments once per outer pass
-- **WHEN** `ExpandStage.run(ctx)` runs `k` outer iterations before converging
-- **THEN** the round counter at termination equals `k`
-
-#### Scenario: V1 mappers do not exhaust the round budget
-- **WHEN** `ExpandStage.run(ctx)` runs on any v1 demo mapper
-- **THEN** the round counter at termination is below `MAX_EXPANSION_ROUNDS`
-- **AND** no round-cap error diagnostic is emitted
-
-#### Scenario: Round-cap fires at the mapper level with a generic message
-- **WHEN** a synthetic test harness forces the outer loop past `MAX_EXPANSION_ROUNDS` (e.g., a strategy that emits new edges each round without converging)
-- **THEN** exactly one error diagnostic is emitted against the mapper `TypeElement`
-- **AND** the diagnostic does not reference any specific directive `AnnotationMirror`
-- **AND** the mapper is scarred so subsequent stages skip it
-
-#### Scenario: Round counter is independent of phase-reported signals
-- **WHEN** a phase adds many edges in a single invocation but the harness inspects round count
-- **THEN** the round counter increments by exactly one for that outer pass
-- **AND** counts are not influenced by the size of any per-pass `GraphDelta`
+#### Scenario: UNSAT_NO_PLAN recorded with the failing slot
+- **WHEN** a slot's `resolveSlot` returns `UNSAT_NO_PLAN`
+- **THEN** `fillGroup` records `GroupOutcome.unsatNoPlan(group, slot)` and returns early without processing remaining slots

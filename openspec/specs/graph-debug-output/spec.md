@@ -10,7 +10,7 @@ This spec defines the DumpGraph stage and deterministic DOT renderer that serial
 
 `MapperGraph` SHALL expose an accessor `expandedView()` that returns an `ExpandedGraphView` — a non-destructive, pure-function filter over the underlying graph. The view SHALL be implemented as a JGraphT `MaskSubgraph` so the full graph is not copied, modified, or rebuilt. The view SHALL expose `Stream<Node> nodes()`, `Stream<Edge> edges()`, and `Stream<Node> nodesByScope(Scope)` with the same ordering guarantees as the corresponding `MapperGraph` methods.
 
-The view's edge mask SHALL hide every `Edge` whose `kind` is `EdgeKind.SEED` or `EdgeKind.MARKER`. Edges of kind `EdgeKind.REALISED` and `EdgeKind.SUB_SEED` SHALL pass through.
+The view's edge mask SHALL hide every `Edge` whose `kind` is `EdgeKind.SEED` or `EdgeKind.MARKER`. Edges of kind `EdgeKind.REALISED` SHALL pass through.
 
 The view's vertex mask SHALL hide every untyped placeholder node (a `Node` whose type segment is the placeholder rendering used for nodes without a concrete type) when, and only when, another `Node` in the underlying graph shares the same `(scope, loc)` pair and carries a concrete (non-placeholder) type. Untyped nodes with no typed counterpart at the same `(scope, loc)` SHALL be retained — they are diagnostic evidence of an unresolved slot.
 
@@ -21,17 +21,16 @@ The view SHALL NOT mutate the underlying `MapperGraph`.
 - **THEN** the returned `ExpandedGraphView` instance exposes `nodes()`, `edges()`, and `nodesByScope(Scope)` methods returning streams in the documented order
 
 #### Scenario: SEED edges are filtered out of the view
-- **WHEN** a graph containing edges of kind `SEED`, `REALISED`, `SUB_SEED`, and `MARKER` is exposed via `expandedView()`
+- **WHEN** a graph containing edges of kind `SEED`, `REALISED`, and `MARKER` is exposed via `expandedView()`
 - **THEN** the stream returned by `edges()` contains no edge with `kind == EdgeKind.SEED`
 
 #### Scenario: MARKER edges are filtered out of the view
-- **WHEN** a graph containing edges of kind `SEED`, `REALISED`, `SUB_SEED`, and `MARKER` is exposed via `expandedView()`
+- **WHEN** a graph containing edges of kind `SEED`, `REALISED`, and `MARKER` is exposed via `expandedView()`
 - **THEN** the stream returned by `edges()` contains no edge with `kind == EdgeKind.MARKER`
 
-#### Scenario: REALISED and SUB_SEED edges are retained in the view
-- **WHEN** a graph containing edges of kind `SEED`, `REALISED`, `SUB_SEED`, and `MARKER` is exposed via `expandedView()`
+#### Scenario: REALISED edges are retained in the view
+- **WHEN** a graph containing edges of kind `SEED`, `REALISED`, and `MARKER` is exposed via `expandedView()`
 - **THEN** the stream returned by `edges()` contains every `REALISED` edge from the underlying graph
-- **AND** the stream returned by `edges()` contains every `SUB_SEED` edge from the underlying graph
 
 #### Scenario: Untyped placeholder is hidden when a typed counterpart exists
 - **WHEN** the underlying graph contains a node `Nu` with the untyped placeholder type AND another node `Nt` with the same `(scope, loc)` pair as `Nu` but a concrete type
@@ -166,7 +165,6 @@ In this change `SeedGraph` does NOT emit phantom nodes; this requirement applies
 Each rendered edge's `kind` SHALL be identifiable from the DOT output without consulting the source graph data. The required identifier varies by kind:
 
 - For `EdgeKind.SEED` edges, the edge `label` attribute SHALL include the literal token `SEED`.
-- For `EdgeKind.SUB_SEED` edges, the edge `label` attribute SHALL contain the literal token `SUB_SEED` (and no other content — see the "Node and edge visual distinction" requirement).
 - For `EdgeKind.REALISED` edges, the kind is identified by the combination of the edge's style attributes and the strategy short name in its label (see the "Node and edge visual distinction" requirement); the explicit token `REALISED` is not required in the label.
 - For `EdgeKind.MARKER` edges (rendered only when the renderer is given such an edge directly, outside the expanded view), the `label` attribute SHALL include the literal token `MARKER`.
 
@@ -174,14 +172,10 @@ Each rendered edge's `kind` SHALL be identifiable from the DOT output without co
 - **WHEN** the renderer writes an edge with `kind == EdgeKind.SEED`
 - **THEN** the edge's `label` attribute contains the literal `SEED`
 
-#### Scenario: SUB_SEED edge label is the SUB_SEED token
-- **WHEN** the renderer writes an edge with `kind == EdgeKind.SUB_SEED`
-- **THEN** the edge's `label` attribute is the literal `SUB_SEED`
-
 #### Scenario: REALISED edge kind is identified by style and strategy
-- **WHEN** the renderer writes an edge with `kind == EdgeKind.REALISED` and `strategyClassFqn == Optional.of("io.github.joke.percolate.spi.builtins.GetterRead")`
-- **THEN** the edge's `label` attribute contains the simple class name `GetterRead`
-- **AND** the edge's style attributes match the documented REALISED styling (distinct from SEED and SUB_SEED)
+- **WHEN** the renderer writes an edge with `kind == EdgeKind.REALISED` and `strategyClassFqn == Optional.of("io.github.joke.percolate.spi.builtins.IterableUnwrap")`
+- **THEN** the edge's `label` attribute contains the simple class name `IterableUnwrap`
+- **AND** the edge's style attributes match the documented REALISED styling (distinct from SEED)
 - **AND** the edge's `label` attribute does NOT contain the literal token `REALISED`
 
 #### Scenario: MARKER edge rendered directly retains the MARKER token
@@ -192,11 +186,9 @@ Each rendered edge's `kind` SHALL be identifiable from the DOT output without co
 
 The DOT renderer SHALL render nodes with shape attributes that visually distinguish source-located, target-located, and phantom container element nodes. Source-located nodes SHALL render with one shape (e.g., `box`); target-located nodes SHALL render with another (e.g., `oval`); phantom container element nodes SHALL render with a third distinct shape (e.g., `diamond`).
 
-The DOT renderer SHALL render edges with style attributes (colour and/or line style) keyed off `Edge.kind`. The styling table SHALL define a distinct visual for each of `SEED`, `REALISED`, and `SUB_SEED`. REALISED edges SHALL render with the heaviest visible stroke (e.g., `solid` line with elevated `penwidth`) — they represent the load-bearing transformations of the graph and SHALL dominate the visual hierarchy. SUB_SEED edges SHALL render with a visually secondary style (e.g., `solid` line, low `penwidth`, gray colour) so the eye lands on REALISED first. SEED edges SHALL retain their prior styling (relevant for `seed.dot` rendering where they are the only edge kind present). MARKER edges, when rendered directly (outside the expanded view), MAY use the default fallback style; no dedicated MARKER style is required. The exact style attribute values are implementation-defined but SHALL be stable across runs.
+The DOT renderer SHALL render edges with style attributes (colour and/or line style) keyed off `Edge.kind`. The styling table SHALL define a distinct visual for each of `SEED` and `REALISED`. REALISED edges SHALL render with the heaviest visible stroke (e.g., `solid` line with elevated `penwidth`) — they represent the load-bearing transformations of the graph and SHALL dominate the visual hierarchy. SEED edges SHALL retain their prior styling (relevant for `seed.dot` rendering where they are the only edge kind present). MARKER edges, when rendered directly (outside the expanded view), MAY use the default fallback style; no dedicated MARKER style is required. The exact style attribute values are implementation-defined but SHALL be stable across runs.
 
-For REALISED edges, the `label` attribute SHALL include the simple class name derived from `strategyClassFqn` and the edge's `weight`, formatted in a stable, byte-deterministic way (e.g., `GetterRead (1)`). When `weight == Weights.SENTINEL_UNREALISED` the renderer SHALL emit the literal `∞` (U+221E) in place of the numeric value. For REALISED edges with a non-empty `groupId`, the renderer SHALL include the `groupId` value as an edge attribute (or as part of the label) so grouped edges (e.g., constructor argument bundles) are visually identifiable.
-
-For SUB_SEED edges, the `label` attribute SHALL contain only the literal token `SUB_SEED`. The strategy attribution, weight, and directive marker SHALL NOT appear in SUB_SEED edge labels — they are intentionally omitted to reduce visual clutter. The strategy that emitted a SUB_SEED is recoverable from the REALISED edge the same strategy contributes elsewhere in the graph.
+For REALISED edges, the `label` attribute SHALL include the simple class name derived from `strategyClassFqn` and the edge's `weight`, formatted in a stable, byte-deterministic way (e.g., `IterableUnwrap (2)`). When `weight == Weights.SENTINEL_UNREALISED` the renderer SHALL emit the literal `∞` (U+221E) in place of the numeric value.
 
 For SEED edges (relevant in `seed.dot`), the prior label format is retained: kind token, weight (with `∞` rendering for the sentinel), and a directive marker when `directive` is non-empty.
 
@@ -217,27 +209,16 @@ The renderer SHALL NOT attempt to render `Edge.codegen` — codegen closures are
 #### Scenario: REALISED edge style is heaviest visible stroke
 - **WHEN** the renderer writes an edge with `kind == EdgeKind.REALISED`
 - **THEN** the edge's style attributes are the documented REALISED styling
-- **AND** that styling is visually heavier than the SUB_SEED and SEED stylings
-
-#### Scenario: SUB_SEED edge style is visually secondary
-- **WHEN** the renderer writes an edge with `kind == EdgeKind.SUB_SEED`
-- **THEN** the edge's style attributes are the documented SUB_SEED styling, distinct from REALISED and SEED
+- **AND** that styling is visually heavier than the SEED styling
 
 #### Scenario: Sentinel weight renders as infinity in REALISED labels
 - **WHEN** the renderer writes a REALISED edge with `weight == Weights.SENTINEL_UNREALISED`
 - **THEN** the edge's `label` attribute contains the literal `∞` (U+221E) instead of the numeric value
 
 #### Scenario: REALISED edge label contains strategy short name and weight
-- **WHEN** rendering a REALISED edge with `strategyClassFqn == Optional.of("io.github.joke.percolate.spi.builtins.GetterRead")` and `weight == 1`
-- **THEN** the edge's `label` attribute contains both the literal `GetterRead` and the literal `1`
+- **WHEN** rendering a REALISED edge with `strategyClassFqn == Optional.of("io.github.joke.percolate.spi.builtins.IterableUnwrap")` and `weight == 2`
+- **THEN** the edge's `label` attribute contains both the literal `IterableUnwrap` and the literal `2`
 - **AND** the `label` does NOT contain the package prefix `io.github.joke.percolate.spi.builtins`
-
-#### Scenario: SUB_SEED edge label contains only the kind token
-- **WHEN** rendering a SUB_SEED edge with `strategyClassFqn == Optional.of("io.github.joke.percolate.spi.builtins.OptionalWrap")`, `weight == Weights.SENTINEL_UNREALISED`, and a non-empty `directive`
-- **THEN** the edge's `label` attribute is exactly `SUB_SEED`
-- **AND** the `label` does NOT contain the strategy class name (full or simple)
-- **AND** the `label` does NOT contain the literal `∞` (since the weight is omitted)
-- **AND** the `label` does NOT contain the literal `directive`
 
 #### Scenario: SEED edge label retains kind, weight, and directive marker
 - **WHEN** rendering a SEED edge with `weight == Weights.SENTINEL_UNREALISED` and a non-empty `directive`
@@ -245,10 +226,10 @@ The renderer SHALL NOT attempt to render `Edge.codegen` — codegen closures are
 - **AND** the `label` contains the literal `∞`
 - **AND** the `label` contains a marker (e.g., the literal `directive`) indicating its directive origin
 
-#### Scenario: groupId appears in REALISED edge label when present
-- **WHEN** the renderer writes a REALISED edge whose `groupId` is non-empty
-- **THEN** the edge's attributes include the `groupId` value (rendered as a stable string)
-- **AND** edges sharing the same `groupId` render with the same `groupId` value
+#### Scenario: Group membership rendered via subgraph cluster
+- **WHEN** the renderer writes a graph containing one or more registered `ExpansionGroup`s
+- **THEN** each group is rendered as a DOT subgraph cluster grouping its root, slots, and slot-incoming REALISED edges
+- **AND** edges belonging to multiple groups appear in each cluster their group's view contains them
 
 #### Scenario: Codegen closures are not rendered
 - **WHEN** rendering an edge with non-empty `codegen`
@@ -270,7 +251,7 @@ The processor SHALL define a stage `DumpExpandedGraph` in package `io.github.jok
 
 `DumpExpandedGraph` SHALL run after `ValidateRealisationStage` in the pipeline. It SHALL write its file *regardless* of whether the mapper was scarred by validation — debug output is most valuable on failure.
 
-The dumped file SHALL contain only the nodes and edges exposed by the expanded view (REALISED and SUB_SEED edges; typed nodes plus any untyped placeholder nodes with no typed counterpart). SEED edges, MARKER edges, and hidden untyped placeholder nodes SHALL NOT appear in the file.
+The dumped file SHALL contain only the nodes and edges exposed by the expanded view (REALISED edges only; typed nodes plus any untyped placeholder nodes with no typed counterpart). SEED edges, MARKER edges, and hidden untyped placeholder nodes SHALL NOT appear in the file.
 
 #### Scenario: Option off does not write a file
 - **WHEN** `DumpExpandedGraph.apply(...)` is invoked with `ProcessorOptions.debugGraphs == false`
@@ -285,7 +266,7 @@ The dumped file SHALL contain only the nodes and edges exposed by the expanded v
 #### Scenario: File is written even when mapper has validation errors
 - **WHEN** `DumpExpandedGraph.apply(...)` is invoked with `ProcessorOptions.debugGraphs == true` for a `MapperGraph` whose mapper was scarred by `ValidateMarkersPhase` or had Tier-3 errors emitted
 - **THEN** the `.expanded.dot` file is still written
-- **AND** the file contents include every REALISED and SUB_SEED edge exposed by the expanded view at the time of the dump
+- **AND** the file contents include every REALISED edge exposed by the expanded view at the time of the dump
 - **AND** the file contents do not include any SEED edge or MARKER edge
 
 #### Scenario: Empty graph does not write a file even when option is on
@@ -311,17 +292,54 @@ The expanded-graph DOT file SHALL be named `<MapperFQN>.expanded.dot`. The `.exp
 - **WHEN** the pipeline completes for `com.example.PersonMapper` with `ProcessorOptions.debugGraphs == true` and a non-empty graph
 - **THEN** both `com.example.PersonMapper.seed.dot` and `com.example.PersonMapper.expanded.dot` are present in `SOURCE_OUTPUT`
 
-### Requirement: DOT renderer renders REALISED, MARKER, and SUB_SEED edges
+### Requirement: DOT renderer renders all EdgeKind values
 
-The DOT renderer SHALL emit DOT statements for `EdgeKind.REALISED`, `EdgeKind.MARKER`, and `EdgeKind.SUB_SEED` edges in addition to `EdgeKind.SEED`. Edge ordering SHALL remain ascending natural `Edge` order across all kinds (no kind-based grouping at the top level — the visual styling discriminates).
+The DOT renderer SHALL emit DOT statements for `EdgeKind.SEED`, `EdgeKind.REALISED`, and `EdgeKind.MARKER` edges. Edge ordering SHALL remain ascending natural `Edge` order across all kinds (no kind-based grouping at the top level — the visual styling discriminates).
 
-Per the "Node and edge visual distinction" requirement, REALISED edges SHALL include the strategy short name and weight in their label, and SUB_SEED edges SHALL include only the kind token. SEED and MARKER edges retain their prior label content when rendered.
+Per the "Node and edge visual distinction" requirement, REALISED edges SHALL include the strategy short name and weight in their label. SEED and MARKER edges retain their prior label content when rendered.
 
 #### Scenario: All edge kinds are emitted when given to the renderer
-- **WHEN** rendering a graph containing one edge of each kind (`SEED`, `REALISED`, `SUB_SEED`, `MARKER`)
+- **WHEN** rendering a graph containing one edge of each kind (`SEED`, `REALISED`, `MARKER`)
 - **THEN** the DOT output contains exactly one edge statement per input edge
 - **AND** each statement is keyed off its endpoints in the documented edge ordering
 
 #### Scenario: Edge ordering is the natural edge order across all kinds
 - **WHEN** rendering a graph with mixed-kind edges
 - **THEN** edge statements appear in ascending natural `Edge` order regardless of `kind`
+
+### Requirement: New container bridges render with their simple class name
+
+The deterministic DOT renderer SHALL render REALISED edges emitted by the new container built-ins (`IterableUnwrap`, `OptionalCollect`, `SetCollect`, `ListCollect`, `ArrayCollect`) with `label` attributes containing the bridge's simple class name and weight, formatted by the same rule that applies to every REALISED edge (per the existing `Node and edge visual distinction` requirement).
+
+No REALISED edge in any rendered DOT file SHALL carry a `strategyClassFqn` ending in `.SetMap`, `.ListMap`, or `.OptionalMap` — those classes are deleted by `split-container-bridges`. Any DOT file produced by the processor for a mapper compiled against the post-change classpath SHALL be free of those tokens in every edge label.
+
+#### Scenario: IterableUnwrap REALISED edge label contains its simple name and weight
+- **WHEN** the renderer writes a REALISED edge with `strategyClassFqn == Optional.of("io.github.joke.percolate.spi.builtins.IterableUnwrap")` and `weight == Weights.CONTAINER`
+- **THEN** the edge's `label` attribute contains both the literal `IterableUnwrap` and the literal value of `Weights.CONTAINER` (rendered as the configured integer, e.g. `2`)
+- **AND** the `label` does NOT contain the package prefix `io.github.joke.percolate.spi.builtins`
+
+#### Scenario: SetCollect / ListCollect / ArrayCollect / OptionalCollect REALISED edge labels contain their simple names
+- **WHEN** the renderer writes a REALISED edge whose `strategyClassFqn` resolves to one of `SetCollect`, `ListCollect`, `ArrayCollect`, or `OptionalCollect` under `io.github.joke.percolate.spi.builtins`
+- **THEN** the edge's `label` attribute contains the simple class name verbatim
+- **AND** the `label` does NOT contain the package prefix
+
+#### Scenario: No DOT file contains the deleted container-map bridge names
+- **WHEN** any `<MapperFQN>.seed.dot`, `<MapperFQN>.full.dot`, or `<MapperFQN>.transforms.dot` is produced for a mapper compiled with the post-change `strategies-builtin` module
+- **THEN** no edge `label` attribute and no edge attribute string contains the literal token `SetMap`, `ListMap`, or `OptionalMap`
+
+### Requirement: Linear container chains render without diamond shortcuts
+
+The DOT renderer's output for any container-bearing chain (a chain involving an `*Unwrap` and a matching `*Collect`) SHALL be a linear sequence of REALISED edges from the regular-scope source candidate through `ElementLocation` nodes back to the regular-scope target candidate. No additional "outer" REALISED edge SHALL connect the source container directly to the target container in parallel with the chain.
+
+This requirement formalises, at the rendering level, the structural invariant established by `graph-expansion`: chains are linear by construction; the renderer simply renders what the engine produces.
+
+#### Scenario: Integration mapper addresses chain renders linearly in transforms.dot
+- **WHEN** the integration mapper at `~/Projects/joke/percolate-integration/mappers` is rebuilt with `ProcessorOptions.debugGraphs == true` and the produced `PersonMapper.transforms.dot` is inspected
+- **THEN** for the subgraph rooted at `tgt[addresses]:Optional<Set<Human.Address>>`, the REALISED edges trace at least one linear path back to `src[person]:Person`, passing through `elem(element):Optional<Person.Address>`, `elem(element):Person.Address`, `elem(element):Human.Address`, and a `Set<Human.Address>` node
+- **AND** no `elem(element)` node in the alive chain has zero outgoing REALISED edges except where it represents the source-parameter-root boundary
+- **AND** no parallel REALISED edge connects `src[person.addresses]:List<Optional<Person.Address>>` directly to a `Set<Human.Address>` node with a `*Map`-style label (the old diamond's outer edge)
+
+#### Scenario: No outer container-map shortcut edges in full.dot either
+- **WHEN** `PersonMapper.full.dot` is inspected for the same mapper
+- **THEN** for every pair of container-typed nodes joined by the chain pattern (Unwrap → … → Collect), the REALISED edges between them traverse `ElementLocation` nodes
+- **AND** no REALISED edge connects two regular-scope container-typed nodes directly with a `*Map`-style strategy label

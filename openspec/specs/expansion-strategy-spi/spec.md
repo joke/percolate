@@ -8,18 +8,31 @@ This spec defines the strategy author surface for the expansion engine: immutabl
 
 ### Requirement: SPI package isolation
 
-The percolate-spi Gradle module SHALL ship a package `io.github.joke.percolate.spi` containing exactly the strategy-author surface: three interfaces (`SourceStep`, `GroupTarget`, `Bridge`), four immutable result types (`Step`, `BridgeStep`, `Slot`, `GroupBuild`), the `ResolveCtx` interface, the codegen interfaces (`EdgeCodegen`, `GroupCodegen`, `IncomingValues`, `VarNames`), the `Receiver` / `ThisReceiver` / `CallableMethods` / `MethodCandidate` / `ElementSeed` types, and the `Containers` and `Weights` utilities. The module SHALL depend only on JDK types plus `com.palantir.javapoet` (because `CodeBlock` is part of the codegen interface surface). It SHALL NOT depend on `percolate-annotations` or `percolate-processor`.
+The percolate-spi Gradle module SHALL ship a package `io.github.joke.percolate.spi` containing exactly the strategy-author surface: three interfaces (`GroupTarget`, `Bridge`, `PathSegmentResolver`), three immutable result types (`BridgeStep`, `Slot`, `GroupBuild`, `ResolvedSegment`), the `ResolveCtx` interface, the codegen interfaces (`EdgeCodegen`, `GroupCodegen`, `IncomingValues`, `VarNames`), the `Receiver` / `ThisReceiver` / `CallableMethods` / `MethodCandidate` types, the `ScopeTransition` enum, and the `Containers` and `Weights` utilities. The module SHALL depend only on JDK types plus `com.palantir.javapoet` (because `CodeBlock` is part of the codegen interface surface). It SHALL NOT depend on `percolate-annotations` or `percolate-processor`.
+
+The package SHALL NOT contain `SourceStep` or `Step` — those types were removed when seed-time path resolution (`PathSegmentResolver`) replaced expansion-time getter walks.
 
 The package SHALL declare `@NullMarked` via `package-info.java`.
 
-Built-in strategies (`GetterRead`, `ConstructorCall`, `DirectAssign`, the seven container bridges, `MethodCallBridge`) SHALL ship from a separate Gradle module `percolate-strategies-builtin` whose only compile dependency is `percolate-spi`. They SHALL NOT import any class from `io.github.joke.percolate.processor.graph` or `io.github.joke.percolate.processor.stages.expand`. This invariant SHALL be enforced structurally by the module compile graph: `percolate-strategies-builtin`'s `build.gradle` declares no compile dependency on `percolate-processor`, so engine internals are unreachable from built-in sources.
+The package SHALL NOT contain `ElementSeed` — that type is removed in `split-container-bridges`.
+
+Built-in strategies (`ConstructorCall`, `DirectAssign`, the container Unwrap/Collect/Wrap bridges, `MethodCallBridge`, and the `*PathResolver`s) SHALL ship from a separate Gradle module `percolate-strategies-builtin` whose only compile dependency is `percolate-spi`. They SHALL NOT import any class from `io.github.joke.percolate.processor.graph` or `io.github.joke.percolate.processor.stages.expand`. This invariant SHALL be enforced structurally by the module compile graph: `percolate-strategies-builtin`'s `build.gradle` declares no compile dependency on `percolate-processor`, so engine internals are unreachable from built-in sources.
 
 #### Scenario: spi package has @NullMarked
 - **WHEN** the source of `spi/src/main/java/io/github/joke/percolate/spi/package-info.java` is inspected
 - **THEN** the package declaration carries `@org.jspecify.annotations.NullMarked`
 
+#### Scenario: ElementSeed type does not exist
+- **WHEN** the `io.github.joke.percolate.spi` package source tree is inspected
+- **THEN** no class named `ElementSeed.java` exists
+- **AND** no source file imports or references `io.github.joke.percolate.spi.ElementSeed`
+
+#### Scenario: ScopeTransition enum exists in spi package
+- **WHEN** the `io.github.joke.percolate.spi` package is inspected
+- **THEN** a public enum `ScopeTransition` exists with three constants: `PRESERVING`, `ENTERING`, `EXITING`
+
 #### Scenario: Built-in strategies have no forbidden imports
-- **WHEN** the import statements of `GetterRead`, `ConstructorCall`, `DirectAssign`, and the seven container bridges are inspected
+- **WHEN** the import statements of `ConstructorCall`, `DirectAssign`, the container bridges, and `MethodCallBridge` are inspected
 - **THEN** none reference any class in `io.github.joke.percolate.processor.graph.*` or `io.github.joke.percolate.processor.stages.expand.*`
 - **AND** the enforcement is structural: `strategies-builtin`'s `build.gradle` declares no compile dependency on `processor`, so attempting such an import would fail compilation
 
@@ -27,28 +40,6 @@ Built-in strategies (`GetterRead`, `ConstructorCall`, `DirectAssign`, the seven 
 - **WHEN** `spi/build.gradle` is inspected
 - **THEN** it declares neither `project(':annotations')` nor `project(':processor')` on any `compile` / `implementation` / `api` configuration
 - **AND** its only non-JDK `api` dependency is `com.palantir.javapoet:javapoet`
-
-### Requirement: SourceStep interface
-
-The percolate-spi module SHALL define a Java interface `io.github.joke.percolate.spi.SourceStep` with the following shape:
-
-```java
-public interface SourceStep {
-    Stream<Step> stepsFrom(TypeMirror sourceType, String pathTail, ResolveCtx ctx);
-    default int priority() { return 0; }
-}
-```
-
-Implementations SHALL return zero or more `Step` results describing realisations from a typed source value into a typed step keyed by the path tail. An empty stream signals "this strategy does not apply". Implementations MUST NOT throw on a non-applicable input — they SHALL return `Stream.empty()` instead.
-
-#### Scenario: SourceStep with no match returns empty stream
-- **WHEN** an implementor decides nothing matches the inputs
-- **THEN** `stepsFrom(...)` returns `Stream.empty()`
-- **AND** does not throw
-
-#### Scenario: SourceStep priority defaults to zero
-- **WHEN** an implementor does not override `priority()`
-- **THEN** `priority()` returns `0`
 
 ### Requirement: GroupTarget interface
 
@@ -139,21 +130,6 @@ The interface SHALL NOT expose any reference to `MapperGraph`, `Edge`, `Node`, `
 - **WHEN** `resolveCtx.callableMethods()` is invoked
 - **THEN** it returns the `CallableMethods` instance produced by `DiscoverCallableMethods` for the current mapper
 
-### Requirement: Step result type
-
-The percolate-spi module SHALL define an immutable Lombok `@Value` type `io.github.joke.percolate.spi.Step` with these fields, in this order:
-- `TypeMirror produces` — the type the step produces.
-- `int weight` — the cost; documented to use values from `Weights` (`NOOP`, `STEP`, `COPY`, `EXPENSIVE`).
-- `EdgeCodegen codegen` — the codegen lambda that renders the step.
-
-#### Scenario: Step exposes its three fields
-- **WHEN** a `Step` is constructed with `produces`, `weight`, and `codegen`
-- **THEN** `getProduces()`, `getWeight()`, and `getCodegen()` return those values
-
-#### Scenario: Step is value-equal
-- **WHEN** two `Step` instances are constructed with equal `produces`, `weight`, and `codegen`
-- **THEN** they are `equal` and have equal `hashCode`s
-
 ### Requirement: BridgeStep result type
 
 The percolate-spi module SHALL define an immutable Lombok `@Value` type `io.github.joke.percolate.spi.BridgeStep` with these fields, in this order:
@@ -162,32 +138,38 @@ The percolate-spi module SHALL define an immutable Lombok `@Value` type `io.gith
 - `TypeMirror outputType` — the type the strategy produces.
 - `int weight` — the cost; documented to use values from `Weights`.
 - `EdgeCodegen codegen` — the codegen lambda that renders the step.
-- `List<ElementSeed> elementSeeds` — zero or more inner-scope conversion requests the driver SHALL spawn alongside the outer REALISED edge produced from this step. Empty for same-location bridge steps (existing strategies); non-empty for container "map" steps that need element-scope sub-conversions.
+- `ScopeTransition scopeTransition` — how this step relates to element scope. Default `ScopeTransition.PRESERVING`. See the `ScopeTransition enum` requirement.
+- `String elementRole` — the role name for the element scope this step participates in. Consulted only when `scopeTransition != PRESERVING`. Default `"element"`. Container authors may pass a non-default role to disambiguate parallel element scopes within one chain (e.g., `Map<K,V>` could ship two bridges using `"key"` and `"value"`).
 
-For a direct bridge (the strategy emits an edge between the two endpoints of the seed query), `inputType` equals the seed's source-side type and `outputType` equals the seed's target-side type.
+For a direct same-scope bridge (the strategy emits an edge whose input and output live at the same scope — DirectAssign, MethodCallBridge, GetterPathResolver, conversion strategies), `scopeTransition = PRESERVING`.
 
-For a chain-step bridge (the strategy emits an edge that requires an upstream value of a type not present in the seed's source side), `inputType` is the type the strategy needs and `outputType` is the type the strategy produces. The driver materialises the input and output endpoints accordingly (see `graph-expansion`).
+For a scope-entering bridge (the strategy crosses from a regular-scope container into element scope — `IterableUnwrap`, `OptionalUnwrap`, user-authored `MonoUnwrap` / `FluxUnwrap` / etc.), `scopeTransition = ENTERING`. The bridge's output is structurally at `ElementLocation(elementRole)`; the driver allocates the output node accordingly. Input is typically at regular scope; the driver's `allocateOrReuseInputNode` may match an existing same-element-scope candidate first (flatMap composition; see `graph-expansion`).
 
-For a container "map" step (the strategy emits an outer edge between two container-typed nodes, requiring an inner per-element sub-conversion), `inputType` and `outputType` describe the OUTER container endpoints; the inner element-level conversion is described by `elementSeeds` and resolved by the driver and downstream strategies through the same fixed-point machinery.
+For a scope-exiting bridge (the strategy collects element-scope values into a regular-scope container — `SetCollect`, `ListCollect`, `ArrayCollect`, `OptionalCollect`, user-authored `MonoCollect` / `FluxCollect` / etc.), `scopeTransition = EXITING`. The bridge's input is at `ElementLocation(elementRole)`; the bridge's output is at the surrounding scope (typically regular).
 
-`elementSeeds` SHALL be a defensive copy held by the value type; mutations to a caller-passed list after construction SHALL NOT affect the constructed step.
-
-#### Scenario: BridgeStep exposes its five fields
-- **WHEN** a `BridgeStep` is constructed with `inputType`, `outputType`, `weight`, `codegen`, and `elementSeeds`
-- **THEN** `getInputType()`, `getOutputType()`, `getWeight()`, `getCodegen()`, and `getElementSeeds()` return those values
+#### Scenario: BridgeStep exposes its six fields
+- **WHEN** a `BridgeStep` is constructed with `inputType`, `outputType`, `weight`, `codegen`, `scopeTransition`, and `elementRole`
+- **THEN** `getInputType()`, `getOutputType()`, `getWeight()`, `getCodegen()`, `getScopeTransition()`, and `getElementRole()` return those values
 
 #### Scenario: BridgeStep is value-equal
-- **WHEN** two `BridgeStep` instances are constructed with equal field values (including equal `elementSeeds` lists)
+- **WHEN** two `BridgeStep` instances are constructed with equal field values
 - **THEN** they are `equal` and have equal `hashCode`s
 
-#### Scenario: BridgeStep with empty elementSeeds behaves as a same-location step
-- **WHEN** a `BridgeStep` is constructed with `elementSeeds = List.of()`
-- **THEN** the step describes a single-edge emission with no inner element-scope work
-- **AND** the driver applies the unified edge-emission rule without spawning element nodes
+#### Scenario: BridgeStep with PRESERVING scope is the default for same-scope bridges
+- **WHEN** a `BridgeStep` is constructed with the four-argument constructor (omitting `scopeTransition` and `elementRole`)
+- **THEN** `getScopeTransition()` returns `ScopeTransition.PRESERVING`
+- **AND** `getElementRole()` returns `"element"`
+- **AND** the step describes a single-edge emission with no scope change
 
-#### Scenario: BridgeStep with non-empty elementSeeds describes a container map
-- **WHEN** a `BridgeStep` is constructed with `elementSeeds = [ElementSeed("element", innerIn, innerOut)]`
-- **THEN** the driver emits the outer REALISED edge between the step's `inputType` and `outputType` endpoints AND spawns a pair of parent-linked element nodes plus a SEED between them (see `graph-expansion`)
+#### Scenario: BridgeStep with ENTERING scope identifies a scope-enter bridge
+- **WHEN** a `BridgeStep` is constructed with `scopeTransition = ScopeTransition.ENTERING`, `elementRole = "element"`, `inputType = List<String>`, and `outputType = String`
+- **THEN** the driver allocates the bridge's output node at `ElementLocation("element")`
+- **AND** the input matches a regular-scope `List<String>` candidate via standard candidate selection
+
+#### Scenario: BridgeStep with EXITING scope identifies a scope-exit bridge
+- **WHEN** a `BridgeStep` is constructed with `scopeTransition = ScopeTransition.EXITING`, `elementRole = "element"`, `inputType = String`, and `outputType = Set<String>`
+- **THEN** the driver requires the bridge's input node to be at `ElementLocation("element")` (allocating fresh if necessary)
+- **AND** the bridge's output is at the frontier's scope (typically regular)
 
 ### Requirement: Slot result type
 
@@ -211,11 +193,11 @@ The `slots` list SHALL be retained by reference; the driver SHALL preserve order
 #### Scenario: GroupBuild slots are positional
 - **WHEN** a `GroupBuild` is constructed with `[Slot("firstName", String, 1), Slot("lastName", String, 1)]`
 - **THEN** `getSlots()` returns the list in that exact order
-- **AND** the driver's emitted REALISED edges respect the order via the shared `groupId` and the codegen's positional binding
+- **AND** the driver's emitted REALISED edges respect the order via membership in the registered `ExpansionGroup`'s view and the codegen's positional binding
 
 ### Requirement: Strategy registration via ServiceLoader and AutoService
 
-Strategies SHALL be discovered uniformly via Java `ServiceLoader<Interface>` for each strategy interface (`SourceStep`, `GroupTarget`, `Bridge`). Built-in strategies — shipped from the `percolate-strategies-builtin` module — SHALL declare their service registration via Google `@AutoService(<Interface>.class)` so that the `auto-service`-generated `META-INF/services/...` files ship inside that module's JAR. User-supplied strategies in third-party JARs SHALL register the same way.
+Strategies SHALL be discovered uniformly via Java `ServiceLoader<Interface>` for each strategy interface (`GroupTarget`, `Bridge`, `PathSegmentResolver`). Built-in strategies — shipped from the `percolate-strategies-builtin` module — SHALL declare their service registration via Google `@AutoService(<Interface>.class)` so that the `auto-service`-generated `META-INF/services/...` files ship inside that module's JAR. User-supplied strategies in third-party JARs SHALL register the same way.
 
 The processor's Dagger module SHALL provide each strategy list as `@Singleton List<Interface>` by:
 1. Calling `ServiceLoader.load(<Interface>.class, classLoader)` exactly once.
@@ -224,10 +206,6 @@ The processor's Dagger module SHALL provide each strategy list as `@Singleton Li
 4. Wrapping in `Collections.unmodifiableList(...)` before publishing.
 
 The processor module SHALL declare `percolate-strategies-builtin` as a `runtimeOnly` Gradle dependency so that, by default, end users receive the built-in strategies on their annotation-processor classpath without an explicit declaration. End users wanting a custom-only setup MAY `exclude` the `strategies-builtin` artifact.
-
-#### Scenario: Built-in GetterRead is annotated AutoService
-- **WHEN** the source of `GetterRead` (in `strategies-builtin/src/main/java/io/github/joke/percolate/spi/builtins/`) is inspected
-- **THEN** the class carries `@AutoService(SourceStep.class)`
 
 #### Scenario: Built-in ConstructorCall is annotated AutoService
 - **WHEN** the source of `ConstructorCall` (in `strategies-builtin/src/main/java/io/github/joke/percolate/spi/builtins/`) is inspected
@@ -238,12 +216,12 @@ The processor module SHALL declare `percolate-strategies-builtin` as a `runtimeO
 - **THEN** the class carries `@AutoService(Bridge.class)`
 
 #### Scenario: Provided strategy list is sorted by FQN
-- **WHEN** Dagger provides the `List<SourceStep>` for a round
+- **WHEN** Dagger provides the `List<Bridge>` for a round
 - **THEN** the list is sorted ascending by `getClass().getName()` for each element
 
 #### Scenario: User strategy registered via META-INF/services is discovered
-- **WHEN** a JAR on the annotation-processor classpath contains `META-INF/services/io.github.joke.percolate.spi.SourceStep` referencing a user class
-- **THEN** the user class is included in the `List<SourceStep>` provided by Dagger
+- **WHEN** a JAR on the annotation-processor classpath contains `META-INF/services/io.github.joke.percolate.spi.Bridge` referencing a user class
+- **THEN** the user class is included in the `List<Bridge>` provided by Dagger
 - **AND** the list remains sorted by FQN including the user class
 
 #### Scenario: ServiceLoader is invoked once per round
@@ -255,34 +233,54 @@ The processor module SHALL declare `percolate-strategies-builtin` as a `runtimeO
 - **THEN** it declares `runtimeOnly project(':strategies-builtin')`
 - **AND** no `compile` / `implementation` / `api` configuration mentions `:strategies-builtin`
 
-### Requirement: GetterRead built-in
+### Requirement: PathSegmentResolver interface
 
-The `percolate-strategies-builtin` module SHALL ship `io.github.joke.percolate.spi.builtins.GetterRead` implementing `SourceStep`. `GetterRead` SHALL inspect `ctx.elements().getAllMembers(<TypeElement of sourceType>)` for a zero-argument method whose simple name matches conventional getter naming for the given `pathTail`:
-- `get<PathTailCapitalised>` (e.g., `lastName` → `getLastName`),
-- `is<PathTailCapitalised>` if the method's return type is `boolean` or `Boolean`.
+The percolate-spi module SHALL define a Java interface `io.github.joke.percolate.spi.PathSegmentResolver` with the following shape:
 
-For each matching method, `GetterRead` SHALL emit one `Step` whose `produces` is the method's return type, `weight` is `Weights.STEP`, and `codegen` renders `<input>.<methodName>()` where `<input>` is the single incoming variable supplied by `IncomingValues.single()`.
+```java
+public interface PathSegmentResolver {
+    Optional<ResolvedSegment> resolve(
+        TypeMirror parentType,
+        String segment,
+        ResolveCtx ctx);
+}
+```
 
-`GetterRead` SHALL NOT consider methods declared on `java.lang.Object` or its subclasses up to (but not including) the `sourceType`'s declaring element — i.e., `getClass()` is excluded.
+Implementations SHALL return `Optional.of(ResolvedSegment)` describing a typed access for `segment` against a value of `parentType`, or `Optional.empty()` if the resolver does not apply. Implementations MUST NOT throw on a non-applicable input — they SHALL return `Optional.empty()` instead.
 
-#### Scenario: GetterRead finds a public getter
-- **WHEN** `GetterRead.stepsFrom(<Person>, "lastName", ctx)` is invoked and `Person` declares `String getLastName()`
-- **THEN** the result stream contains one `Step`
-- **AND** the step's `produces` is the `TypeMirror` for `String`
-- **AND** the step's `weight` equals `Weights.STEP`
-- **AND** the step's `codegen` renders `personVar.getLastName()` when given variable name `"personVar"`
+`PathSegmentResolver` is part of the SPI package surface defined in *SPI package isolation* and SHALL therefore live in `io.github.joke.percolate.spi` under the same `@NullMarked` declaration as the other SPI types.
 
-#### Scenario: GetterRead finds a boolean is-getter
-- **WHEN** `GetterRead.stepsFrom(<Foo>, "active", ctx)` is invoked and `Foo` declares `boolean isActive()`
-- **THEN** the result stream contains one `Step` whose `codegen` renders `fooVar.isActive()`
+The full per-resolver semantics (probe order, codegen shape, weight) are defined in the `source-path-resolution` capability.
 
-#### Scenario: GetterRead returns empty when no getter exists
-- **WHEN** `GetterRead.stepsFrom(<Person>, "nonexistent", ctx)` is invoked and no matching accessor exists
-- **THEN** the result stream is empty
+#### Scenario: PathSegmentResolver with no match returns empty
+- **WHEN** an implementor decides nothing matches the inputs
+- **THEN** `resolve(...)` returns `Optional.empty()`
+- **AND** does not throw
 
-#### Scenario: GetterRead excludes Object members
-- **WHEN** `GetterRead.stepsFrom(<Person>, "class", ctx)` is invoked
-- **THEN** the result stream is empty (`getClass()` from Object is excluded)
+### Requirement: ResolvedSegment result type
+
+The percolate-spi module SHALL define an immutable value type `io.github.joke.percolate.spi.ResolvedSegment` with three fields:
+
+- `TypeMirror getReturnType()` — the type produced by the access.
+- `EdgeCodegen getCodegen()` — renders the access expression.
+- `int getWeight()` — strategy weight.
+
+The type SHALL be Lombok `@Value`-style: final fields, all-args constructor, value semantics, equality field-by-field. The codegen SHALL receive one slot through `IncomingValues` (representing the parent value) and a `VarNames` placeholder.
+
+#### Scenario: ResolvedSegment is immutable
+- **WHEN** a `ResolvedSegment` is constructed via its all-args constructor
+- **THEN** none of the three fields can be reassigned (no setters)
+
+### Requirement: PathSegmentResolver registration via ServiceLoader and AutoService
+
+Concrete `PathSegmentResolver` implementations SHALL register through `java.util.ServiceLoader` by adding the resource `META-INF/services/io.github.joke.percolate.spi.PathSegmentResolver`. The recommended mechanism for built-ins is `@com.google.auto.service.AutoService(PathSegmentResolver.class)` on the implementing class, which Google AutoService translates into the service file at compile time.
+
+`ProcessorModule.pathSegmentResolvers()` SHALL collect the resolvers via `ServiceLoader.load(PathSegmentResolver.class, ProcessorModule.class.getClassLoader())`, sort by `Class.getName()` ascending, and return as `@Singleton` `List<PathSegmentResolver>`.
+
+#### Scenario: ProcessorModule provides a sorted, singleton resolver list
+- **WHEN** the `pathSegmentResolvers()` `@Provides` method is invoked twice
+- **THEN** both invocations return lists in `Class.getName()` ascending order
+- **AND** the iteration order is identical across invocations
 
 ### Requirement: ConstructorCall built-in (exact match)
 
@@ -403,41 +401,49 @@ For each emitted step:
 - **WHEN** the source of `MethodCallBridge` is inspected
 - **THEN** the class carries `@AutoService(Bridge.class)`
 
-### Requirement: ElementSeed result type
+### Requirement: ScopeTransition enum
 
-The percolate-spi module SHALL define an immutable Lombok `@Value` type
-`io.github.joke.percolate.spi.ElementSeed` with three fields:
+The percolate-spi module SHALL define a Java enum `io.github.joke.percolate.spi.ScopeTransition` with exactly three constants:
 
-- `String role` — a stable discriminator naming the element scope's
-  role within its container. The default value for single-element-
-  scope containers is the literal string `"element"`. Future multi-
-  role containers (e.g., `Map<K,V>` with `"key"` and `"value"`) use
-  this field to distinguish their scopes.
-- `TypeMirror inputType` — the type of the element-scope value
-  flowing FROM the container's input side.
-- `TypeMirror outputType` — the type of the element-scope value
-  flowing INTO the container's output side.
+```java
+public enum ScopeTransition {
+    PRESERVING,  // input and output at the same scope as the frontier
+    ENTERING,    // output at ElementLocation; input typically at regular scope
+    EXITING      // input at ElementLocation; output at the surrounding (typically regular) scope
+}
+```
 
-`ElementSeed` SHALL be value-equal by all three fields. Two
-`ElementSeed`s with the same role but different types are distinct
-seeds and produce distinct element-scope SEEDs in the graph.
+The enum SHALL be the type of the `BridgeStep.scopeTransition` field. The driver SHALL consult this enum to:
 
-The `role` field SHALL be a non-empty `String`. The driver uses the
-role as part of the `ElementLocation` segment and consequently as
-part of `Node.id()` for element nodes; an empty role would produce
-ambiguous ids.
+1. Decide whether a bridge step matches the current frontier (an `ENTERING` step matches only when the frontier is at `ElementLocation`; an `EXITING` step matches only when the frontier is at regular scope).
+2. Allocate fresh input nodes at the correct `Location` (an `ENTERING` step allocates input at the surrounding scope of the frontier; an `EXITING` step allocates input at `ElementLocation`).
+3. Apply the same-element-scope candidate preference rule (`ENTERING` bridges may match an existing element-scope candidate of the right type in the same scope as the frontier — flatMap composition; see `graph-expansion`).
 
-#### Scenario: ElementSeed exposes its three fields
-- **WHEN** an `ElementSeed` is constructed with `role`, `inputType`, and `outputType`
-- **THEN** `getRole()`, `getInputType()`, and `getOutputType()` return those values
+The default value of `BridgeStep.scopeTransition` is `PRESERVING`. Strategies that do not interact with element scope (the majority — DirectAssign, MethodCallBridge, GetterPathResolver, future conversion strategies) SHALL use the default by omitting the field from their `BridgeStep` construction.
 
-#### Scenario: ElementSeed is value-equal
-- **WHEN** two `ElementSeed` instances are constructed with equal field values
-- **THEN** they are `equal` and have equal `hashCode`s
+#### Scenario: ScopeTransition has exactly three constants
+- **WHEN** the source of `ScopeTransition` is inspected
+- **THEN** the enum declares exactly `PRESERVING`, `ENTERING`, and `EXITING`
+- **AND** no other constants exist
 
-#### Scenario: ElementSeed default role for single-scope containers is "element"
-- **WHEN** a container `Bridge` strategy ships for a single-element-scope container (Optional, List, Set, …)
-- **THEN** its emitted `ElementSeed`s SHALL carry `role = "element"`
+#### Scenario: BridgeStep default scope transition is PRESERVING
+- **WHEN** a `BridgeStep` is constructed using the four-argument constructor (no scope-transition argument)
+- **THEN** `getScopeTransition()` returns `ScopeTransition.PRESERVING`
+
+#### Scenario: ENTERING bridges declare ElementLocation output structurally
+- **WHEN** any built-in `Bridge` emits a `BridgeStep` with `scopeTransition == ENTERING`
+- **THEN** the driver allocates the bridge's output node at `ElementLocation(step.getElementRole())`
+- **AND** the bridge's `outputType` is the element type (not a container of that type)
+
+#### Scenario: EXITING bridges declare ElementLocation input structurally
+- **WHEN** any built-in `Bridge` emits a `BridgeStep` with `scopeTransition == EXITING`
+- **THEN** the driver requires the matching input candidate to be at `ElementLocation(step.getElementRole())`
+- **AND** if no such candidate exists, the driver allocates a fresh input node at `ElementLocation(step.getElementRole())`
+
+#### Scenario: PRESERVING bridges propagate frontier scope to input
+- **WHEN** any built-in `Bridge` emits a `BridgeStep` with `scopeTransition == PRESERVING`
+- **THEN** the driver allocates the bridge's input at the same `Location` as the frontier
+- **AND** scope inheritance is automatic: a PRESERVING bridge match against an `ElementLocation` frontier produces an `ElementLocation` input at the same role
 
 ### Requirement: Weights.CONTAINER constant
 
@@ -448,9 +454,10 @@ base cost of a container-shaped hop.
 For v1, `Weights.CONTAINER` SHALL equal `2`, slightly heavier than
 `Weights.STEP` and `Weights.METHOD` (both `1`) and cheaper than
 `Weights.EXPENSIVE` (`3`). Container built-in strategies
-(`OptionalWrap`, `OptionalUnwrap`, `OptionalMap`, `ListWrap`,
-`ListMap`, `SetWrap`, `SetMap`) SHALL use this constant unmodified
-as the `weight` field of every emitted `BridgeStep`. No per-shape
+(`OptionalWrap`, `OptionalUnwrap`, `OptionalCollect`, `ListWrap`,
+`ListCollect`, `SetWrap`, `SetCollect`, `ArrayCollect`,
+`IterableUnwrap`) SHALL use this constant unmodified as the
+`weight` field of every emitted `BridgeStep`. No per-shape
 weight variation is defined for v1.
 
 #### Scenario: Weights.CONTAINER exists and is positive
@@ -466,25 +473,32 @@ weight variation is defined for v1.
 
 The `percolate-strategies-builtin` module SHALL contain a Spock specification at `strategies-builtin/src/test/groovy/io/github/joke/percolate/spi/builtins/BuiltinServiceRegistrationSpec.groovy` that asserts the contract between modules: when `percolate-strategies-builtin` is on the classpath, `ServiceLoader.load(...)` discovers exactly the expected built-in classes for each SPI interface.
 
-The spec SHALL load each of `Bridge`, `SourceStep`, and `GroupTarget` via `ServiceLoader.load(<Interface>.class)` and assert that the discovered set contains, at minimum, the eleven shipped built-ins:
+The spec SHALL load each of `Bridge`, `GroupTarget`, and `PathSegmentResolver` via `ServiceLoader.load(<Interface>.class)` and assert that the discovered set contains, at minimum, the shipped built-ins:
 
-- `Bridge`: `DirectAssign`, `ListMap`, `ListWrap`, `SetMap`, `SetWrap`, `OptionalMap`, `OptionalUnwrap`, `OptionalWrap`, `MethodCallBridge`.
-- `SourceStep`: `GetterRead`.
+- `Bridge`: `DirectAssign`, `MethodCallBridge`, `IterableUnwrap`, `OptionalUnwrap`, `SetCollect`, `ListCollect`, `ArrayCollect`, `OptionalCollect`, `SetWrap`, `ListWrap`, `OptionalWrap`.
 - `GroupTarget`: `ConstructorCall`.
+- `PathSegmentResolver`: `GetterPathResolver`, `FieldPathResolver`, `RecordPathResolver`.
+
+The spec SHALL additionally assert that `SetMap`, `ListMap`, and `OptionalMap` are NOT discovered — those classes are removed by `split-container-bridges`.
 
 The spec SHALL be tagged `@spock.lang.Tag('unit')` and SHALL NOT invoke `ExpansionHarness` or any expansion-pipeline code. Its sole concern is verifying that the `META-INF/services/...` files generated by `auto-service` correctly register the strategy classes.
 
 #### Scenario: ServiceLoader discovers all expected Bridge builtins
 - **WHEN** `ServiceLoader.load(Bridge.class)` is invoked from `BuiltinServiceRegistrationSpec`
-- **THEN** the returned stream's classes contain, as a subset, `DirectAssign`, `ListMap`, `ListWrap`, `SetMap`, `SetWrap`, `OptionalMap`, `OptionalUnwrap`, `OptionalWrap`, and `MethodCallBridge`
+- **THEN** the returned stream's classes contain, as a subset, `DirectAssign`, `MethodCallBridge`, `IterableUnwrap`, `OptionalUnwrap`, `SetCollect`, `ListCollect`, `ArrayCollect`, `OptionalCollect`, `SetWrap`, `ListWrap`, and `OptionalWrap`
 
-#### Scenario: ServiceLoader discovers all expected SourceStep builtins
-- **WHEN** `ServiceLoader.load(SourceStep.class)` is invoked from `BuiltinServiceRegistrationSpec`
-- **THEN** the returned stream's classes contain `GetterRead`
+#### Scenario: ServiceLoader does NOT discover removed fused container bridges
+- **WHEN** `ServiceLoader.load(Bridge.class)` is invoked from `BuiltinServiceRegistrationSpec`
+- **THEN** the returned stream's classes do NOT contain `SetMap`, `ListMap`, or `OptionalMap`
+- **AND** the source files `SetMap.java`, `ListMap.java`, `OptionalMap.java` do not exist in `strategies-builtin/src/main/`
 
 #### Scenario: ServiceLoader discovers all expected GroupTarget builtins
 - **WHEN** `ServiceLoader.load(GroupTarget.class)` is invoked from `BuiltinServiceRegistrationSpec`
 - **THEN** the returned stream's classes contain `ConstructorCall`
+
+#### Scenario: ServiceLoader discovers all expected PathSegmentResolver builtins
+- **WHEN** `ServiceLoader.load(PathSegmentResolver.class)` is invoked from `BuiltinServiceRegistrationSpec`
+- **THEN** the returned stream's classes contain `GetterPathResolver`, `FieldPathResolver`, and `RecordPathResolver`
 
 #### Scenario: Spec does not depend on the expansion pipeline
 - **WHEN** the source of `BuiltinServiceRegistrationSpec` is inspected

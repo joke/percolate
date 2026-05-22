@@ -75,31 +75,28 @@ the caller violates the precondition (e.g., calling
 
 ### Requirement: OptionalWrap built-in
 
-The `percolate-strategies-builtin` module SHALL ship `io.github.joke.percolate.spi.builtins.OptionalWrap`
-implementing `Bridge` and annotated `@AutoService(Bridge.class)`.
+The `percolate-strategies-builtin` module SHALL ship `io.github.joke.percolate.spi.builtins.OptionalWrap` implementing `Bridge` and annotated `@AutoService(Bridge.class)`.
 
-`OptionalWrap.bridge(from, to, ctx)` SHALL emit a single `BridgeStep`
-when `to` is an `Optional<X>` declared type. The emitted step SHALL
-have:
+`OptionalWrap.bridge(from, to, ctx)` SHALL emit a single `BridgeStep` when `to` is an `Optional<X>` declared type AND `from` is the element type `X`. The emitted step SHALL have:
 
 - `inputType` = the type argument `X` of `to`.
 - `outputType` = `to` itself (the `Optional<X>` type).
 - `weight` = `Weights.CONTAINER`.
-- `codegen` rendering `Optional.ofNullable(<input>)` where
-  `<input>` is the single incoming variable supplied by
-  `IncomingValues.single()`.
-- `elementSeeds` = `List.of()`.
+- `codegen` = a lambda rendering `Optional.ofNullable(<input>)` where `<input>` is the single incoming variable.
+- `scopeTransition` = `ScopeTransition.PRESERVING`.
+- `elementRole` = `"element"` (default; not consulted for PRESERVING).
 
-When `to` is not an `Optional`, `OptionalWrap.bridge` SHALL return
-`Stream.empty()`.
+When `to` is not an `Optional`, `OptionalWrap.bridge` SHALL return `Stream.empty()`.
+
+`OptionalWrap` covers the regular-scope `T → Optional<T>` direct case. It coexists with `OptionalCollect` (scope-exit); the engine picks via weight tie-break (`OptionalWrap.weight == OptionalCollect.weight == Weights.CONTAINER`).
 
 #### Scenario: OptionalWrap emits for Optional target
-- **WHEN** `OptionalWrap.bridge(<Dog>, <Optional<Pet>>, ctx)` is invoked
+- **WHEN** `OptionalWrap.bridge(<Dog>, <Optional<Dog>>, ctx)` is invoked
 - **THEN** the stream contains one `BridgeStep`
-- **AND** the step's `inputType` is `<Pet>` and `outputType` is `<Optional<Pet>>`
+- **AND** the step's `inputType` is `<Dog>` and `outputType` is `<Optional<Dog>>`
 - **AND** the step's `weight` equals `Weights.CONTAINER`
+- **AND** the step's `scopeTransition` equals `ScopeTransition.PRESERVING`
 - **AND** the step's `codegen` renders `Optional.ofNullable(<inputVar>)`
-- **AND** the step's `elementSeeds` is empty
 
 #### Scenario: OptionalWrap declines non-Optional target
 - **WHEN** `OptionalWrap.bridge(<Dog>, <Pet>, ctx)` is invoked
@@ -107,250 +104,188 @@ When `to` is not an `Optional`, `OptionalWrap.bridge` SHALL return
 
 ### Requirement: OptionalUnwrap built-in
 
-The processor SHALL ship `io.github.joke.percolate.spi.builtins.OptionalUnwrap`
-implementing `Bridge` and annotated `@AutoService(Bridge.class)`.
+The `percolate-strategies-builtin` module SHALL ship `io.github.joke.percolate.spi.builtins.OptionalUnwrap` implementing `Bridge` and annotated `@AutoService(Bridge.class)`.
 
-`OptionalUnwrap.bridge(from, to, ctx)` SHALL emit a single
-`BridgeStep` when `from` is an `Optional<X>` declared type. The
-emitted step SHALL have:
+`OptionalUnwrap.bridge(from, to, ctx)` SHALL emit a single `BridgeStep` when `from` is an `Optional<X>` declared type AND `to` is the element type `X`. The emitted step SHALL have:
 
 - `inputType` = `from` itself (the `Optional<X>` type).
 - `outputType` = the type argument `X` of `from`.
 - `weight` = `Weights.CONTAINER`.
-- `codegen` rendering `<input>.orElse(null)` where `<input>` is the
-  single incoming variable supplied by `IncomingValues.single()`.
-- `elementSeeds` = `List.of()`.
+- `codegen` = a pass-through lambda rendering `<input>`. The actual `.orElse(null)` / `.stream().findFirst()` materialisation is deferred to a future codegen capability that selects iteration style.
+- `scopeTransition` = `ScopeTransition.ENTERING`.
+- `elementRole` = `"element"`.
 
-When `from` is not an `Optional`, `OptionalUnwrap.bridge` SHALL
-return `Stream.empty()`.
-
-The v1 codegen unconditionally emits `.orElse(null)`. Future
-changes will refine this based on `@Nullable` / `@Default`
-enrichment; that is out of scope here.
+When `from` is not an `Optional`, or when `to` is not the type argument of `from`, `OptionalUnwrap.bridge` SHALL return `Stream.empty()`.
 
 #### Scenario: OptionalUnwrap emits for Optional source
-- **WHEN** `OptionalUnwrap.bridge(<Optional<Dog>>, <Pet>, ctx)` is invoked
+- **WHEN** `OptionalUnwrap.bridge(<Optional<Dog>>, <Dog>, ctx)` is invoked
 - **THEN** the stream contains one `BridgeStep`
 - **AND** the step's `inputType` is `<Optional<Dog>>` and `outputType` is `<Dog>`
 - **AND** the step's `weight` equals `Weights.CONTAINER`
-- **AND** the step's `codegen` renders `<inputVar>.orElse(null)`
-- **AND** the step's `elementSeeds` is empty
+- **AND** the step's `scopeTransition` equals `ScopeTransition.ENTERING`
+- **AND** the step's `elementRole` equals `"element"`
+- **AND** the step's `codegen` renders `<inputVar>` (pass-through)
 
 #### Scenario: OptionalUnwrap declines non-Optional source
 - **WHEN** `OptionalUnwrap.bridge(<Dog>, <Pet>, ctx)` is invoked
 - **THEN** the result is `Stream.empty()`
 
-### Requirement: OptionalMap built-in
+### Requirement: IterableUnwrap built-in
 
-The processor SHALL ship `io.github.joke.percolate.spi.builtins.OptionalMap`
-implementing `Bridge` and annotated `@AutoService(Bridge.class)`.
+The `percolate-strategies-builtin` module SHALL ship `io.github.joke.percolate.spi.builtins.IterableUnwrap` implementing `Bridge` and annotated `@AutoService(Bridge.class)`.
 
-`OptionalMap.bridge(from, to, ctx)` SHALL emit a single
-`BridgeStep` when both `from` and `to` are `Optional<...>` declared
-types. The emitted step SHALL have:
+`IterableUnwrap.bridge(from, to, ctx)` SHALL emit a single `BridgeStep` when:
 
-- `inputType` = `from`.
-- `outputType` = `to`.
-- `weight` = `Weights.CONTAINER`.
-- `codegen` lambda that, when invoked, throws
-  `UnsupportedOperationException` with a message naming the future
-  codegen capability. (The graph shape is the contract today; the
-  renderer that interprets it is a future change.)
-- `elementSeeds` = a single-element list `[ElementSeed("element",
-  innerFrom, innerTo)]` where `innerFrom` is `from`'s type argument
-  and `innerTo` is `to`'s type argument.
+- `from` is either an `Iterable<X>` declared type (or a subtype: `Collection`, `List`, `Set`, `Queue`, `Deque`, etc.) or an array type `X[]`, AND
+- `to` is the element type `X`.
 
-When either `from` or `to` is not an `Optional`, `OptionalMap.bridge`
-SHALL return `Stream.empty()`.
+`from` MUST NOT be an `Optional` (Optional handling is owned by `OptionalUnwrap`).
 
-#### Scenario: OptionalMap emits for Optional → Optional
-- **WHEN** `OptionalMap.bridge(<Optional<Dog>>, <Optional<Pet>>, ctx)` is invoked
-- **THEN** the stream contains one `BridgeStep`
-- **AND** the step's `inputType` is `<Optional<Dog>>` and `outputType` is `<Optional<Pet>>`
-- **AND** the step's `weight` equals `Weights.CONTAINER`
-- **AND** the step's `elementSeeds` is a single entry with `role = "element"`, `inputType = <Dog>`, `outputType = <Pet>`
+The emitted step SHALL have `inputType = from`, `outputType = X`, `weight = Weights.CONTAINER`, pass-through codegen, `scopeTransition = ScopeTransition.ENTERING`, `elementRole = "element"`.
 
-#### Scenario: OptionalMap codegen lambda throws
-- **WHEN** the codegen lambda of an `OptionalMap`-emitted step is invoked
-- **THEN** it throws `UnsupportedOperationException`
-- **AND** the exception message names the future codegen capability
+#### Scenario: IterableUnwrap emits for List source
+- **WHEN** `IterableUnwrap.bridge(<List<Dog>>, <Dog>, ctx)` is invoked
+- **THEN** the stream contains one `BridgeStep` whose `inputType` is `<List<Dog>>` and `outputType` is `<Dog>`
+- **AND** the step's `scopeTransition` equals `ScopeTransition.ENTERING`
 
-#### Scenario: OptionalMap declines mixed source/target
-- **WHEN** `OptionalMap.bridge(<Dog>, <Optional<Pet>>, ctx)` is invoked
+#### Scenario: IterableUnwrap emits for Set source
+- **WHEN** `IterableUnwrap.bridge(<Set<Dog>>, <Dog>, ctx)` is invoked
+- **THEN** the stream contains one `BridgeStep` whose `inputType` is `<Set<Dog>>` and `outputType` is `<Dog>`
+
+#### Scenario: IterableUnwrap emits for array source
+- **WHEN** `IterableUnwrap.bridge(<Dog[]>, <Dog>, ctx)` is invoked
+- **THEN** the stream contains one `BridgeStep` whose `inputType` is `<Dog[]>` and `outputType` is `<Dog>`
+
+#### Scenario: IterableUnwrap declines Optional source
+- **WHEN** `IterableUnwrap.bridge(<Optional<Dog>>, <Dog>, ctx)` is invoked
 - **THEN** the result is `Stream.empty()`
-- **WHEN** `OptionalMap.bridge(<Optional<Dog>>, <Pet>, ctx)` is invoked
+
+#### Scenario: IterableUnwrap declines non-iterable source
+- **WHEN** `IterableUnwrap.bridge(<Dog>, <Pet>, ctx)` is invoked
 - **THEN** the result is `Stream.empty()`
 
 ### Requirement: ListWrap built-in
 
-The processor SHALL ship `io.github.joke.percolate.spi.builtins.ListWrap`
-implementing `Bridge` and annotated `@AutoService(Bridge.class)`.
+The `percolate-strategies-builtin` module SHALL ship `io.github.joke.percolate.spi.builtins.ListWrap` implementing `Bridge` and annotated `@AutoService(Bridge.class)`.
 
-`ListWrap.bridge(from, to, ctx)` SHALL emit a single `BridgeStep`
-when `to` is a `List<X>` declared type. The emitted step SHALL have:
+`ListWrap.bridge(from, to, ctx)` SHALL emit a single `BridgeStep` when `to` is a `List<X>` declared type AND `from` is the element type `X`. Step fields: `inputType = X`, `outputType = to`, `weight = Weights.CONTAINER`, codegen renders `List.of(<input>)`, `scopeTransition = ScopeTransition.PRESERVING`, `elementRole = "element"` (default).
 
-- `inputType` = the type argument `X` of `to`.
-- `outputType` = `to`.
-- `weight` = `Weights.CONTAINER`.
-- `codegen` rendering `List.of(<input>)` (a single-element list).
-- `elementSeeds` = `List.of()`.
+This covers the regular-scope `T → List<T>` singleton case. Coexists with `ListCollect` (scope-exit); engine picks via weight tie-break.
 
-When `to` is not a `List`, `ListWrap.bridge` SHALL return
-`Stream.empty()`.
-
-#### Scenario: ListWrap emits for List target
-- **WHEN** `ListWrap.bridge(<Dog>, <List<Pet>>, ctx)` is invoked
-- **THEN** the stream contains one `BridgeStep`
-- **AND** the step's `inputType` is `<Pet>` and `outputType` is `<List<Pet>>`
-- **AND** the step's `codegen` renders `List.of(<inputVar>)`
+#### Scenario: ListWrap emits for List target with singleton element
+- **WHEN** `ListWrap.bridge(<Dog>, <List<Dog>>, ctx)` is invoked
+- **THEN** the stream contains one `BridgeStep` whose `inputType` is `<Dog>`, `outputType` is `<List<Dog>>`, `scopeTransition` is `PRESERVING`, and `codegen` renders `List.of(<inputVar>)`
 
 #### Scenario: ListWrap declines non-List target
-- **WHEN** `ListWrap.bridge(<Dog>, <Set<Pet>>, ctx)` is invoked
+- **WHEN** `ListWrap.bridge(<Dog>, <Pet>, ctx)` is invoked
 - **THEN** the result is `Stream.empty()`
-
-### Requirement: ListMap built-in
-
-The processor SHALL ship `io.github.joke.percolate.spi.builtins.ListMap`
-implementing `Bridge` and annotated `@AutoService(Bridge.class)`.
-
-`ListMap.bridge(from, to, ctx)` SHALL emit a single `BridgeStep`
-when `to` is a `List<B>` declared type AND `from` is one of the
-following input shapes:
-
-- `Iterable<A>` (and subtypes — `Collection<A>`, `List<A>`, `Set<A>`,
-  etc.).
-- `A[]` (array type).
-- `Optional<A>` (treated as a 0-or-1 element iterable via
-  `Optional.stream()`).
-
-For each accepted input shape, the emitted step SHALL have:
-
-- `inputType` = `from`.
-- `outputType` = `to`.
-- `weight` = `Weights.CONTAINER`.
-- `codegen` lambda that throws `UnsupportedOperationException` (per
-  the codegen-deferred policy).
-- `elementSeeds` = `[ElementSeed("element", innerFrom, innerTo)]`
-  where `innerFrom` is the element type of `from` (the type
-  argument for parameterised types, or the component type for
-  arrays) and `innerTo` is `to`'s type argument.
-
-When `to` is not a `List` or `from` is none of the recognised input
-shapes, `ListMap.bridge` SHALL return `Stream.empty()`.
-
-#### Scenario: ListMap emits for List → List
-- **WHEN** `ListMap.bridge(<List<Dog>>, <List<Pet>>, ctx)` is invoked
-- **THEN** the stream contains one `BridgeStep`
-- **AND** the step's `inputType` is `<List<Dog>>` and `outputType` is `<List<Pet>>`
-- **AND** the step's `elementSeeds` is a single entry with `role = "element"`, `inputType = <Dog>`, `outputType = <Pet>`
-
-#### Scenario: ListMap emits for Set → List (cross-container)
-- **WHEN** `ListMap.bridge(<Set<Dog>>, <List<Pet>>, ctx)` is invoked
-- **THEN** the stream contains one `BridgeStep`
-- **AND** the step's `elementSeeds` carries `inputType = <Dog>`, `outputType = <Pet>`
-
-#### Scenario: ListMap emits for Optional → List
-- **WHEN** `ListMap.bridge(<Optional<Dog>>, <List<Pet>>, ctx)` is invoked
-- **THEN** the stream contains one `BridgeStep`
-- **AND** the step's `elementSeeds` carries `inputType = <Dog>`, `outputType = <Pet>`
-
-#### Scenario: ListMap emits for array → List
-- **WHEN** `ListMap.bridge(<Dog[]>, <List<Pet>>, ctx)` is invoked
-- **THEN** the stream contains one `BridgeStep`
-- **AND** the step's `elementSeeds` carries `inputType = <Dog>`, `outputType = <Pet>`
-
-#### Scenario: ListMap declines non-List target
-- **WHEN** `ListMap.bridge(<List<Dog>>, <Set<Pet>>, ctx)` is invoked
-- **THEN** the result is `Stream.empty()`
-
-#### Scenario: ListMap declines unsupported source
-- **WHEN** `ListMap.bridge(<Dog>, <List<Pet>>, ctx)` is invoked
-- **THEN** the result is `Stream.empty()` (single non-container source uses `ListWrap` if applicable)
 
 ### Requirement: SetWrap built-in
 
-The processor SHALL ship `io.github.joke.percolate.spi.builtins.SetWrap`
-implementing `Bridge` and annotated `@AutoService(Bridge.class)`.
+The `percolate-strategies-builtin` module SHALL ship `io.github.joke.percolate.spi.builtins.SetWrap` implementing `Bridge` and annotated `@AutoService(Bridge.class)`.
 
-`SetWrap.bridge(from, to, ctx)` SHALL emit a single `BridgeStep`
-when `to` is a `Set<X>` declared type. The emitted step SHALL have:
+`SetWrap.bridge(from, to, ctx)` SHALL emit a single `BridgeStep` when `to` is a `Set<X>` declared type AND `from` is the element type `X`. Step fields: `inputType = X`, `outputType = to`, `weight = Weights.CONTAINER`, codegen renders `Set.of(<input>)`, `scopeTransition = ScopeTransition.PRESERVING`, `elementRole = "element"` (default).
 
-- `inputType` = the type argument `X` of `to`.
-- `outputType` = `to`.
-- `weight` = `Weights.CONTAINER`.
-- `codegen` rendering `Set.of(<input>)` (a single-element set).
-- `elementSeeds` = `List.of()`.
+This covers the regular-scope `T → Set<T>` singleton case. Coexists with `SetCollect` (scope-exit); engine picks via weight tie-break.
 
-When `to` is not a `Set`, `SetWrap.bridge` SHALL return
-`Stream.empty()`.
-
-#### Scenario: SetWrap emits for Set target
-- **WHEN** `SetWrap.bridge(<Dog>, <Set<Pet>>, ctx)` is invoked
-- **THEN** the stream contains one `BridgeStep`
-- **AND** the step's `inputType` is `<Pet>` and `outputType` is `<Set<Pet>>`
-- **AND** the step's `codegen` renders `Set.of(<inputVar>)`
+#### Scenario: SetWrap emits for Set target with singleton element
+- **WHEN** `SetWrap.bridge(<Dog>, <Set<Dog>>, ctx)` is invoked
+- **THEN** the stream contains one `BridgeStep` whose `inputType` is `<Dog>`, `outputType` is `<Set<Dog>>`, `scopeTransition` is `PRESERVING`, and `codegen` renders `Set.of(<inputVar>)`
 
 #### Scenario: SetWrap declines non-Set target
-- **WHEN** `SetWrap.bridge(<Dog>, <List<Pet>>, ctx)` is invoked
+- **WHEN** `SetWrap.bridge(<Dog>, <Pet>, ctx)` is invoked
 - **THEN** the result is `Stream.empty()`
 
-### Requirement: SetMap built-in
+### Requirement: OptionalCollect built-in
 
-The processor SHALL ship `io.github.joke.percolate.spi.builtins.SetMap`
-implementing `Bridge` and annotated `@AutoService(Bridge.class)`.
+The `percolate-strategies-builtin` module SHALL ship `io.github.joke.percolate.spi.builtins.OptionalCollect` implementing `Bridge` and annotated `@AutoService(Bridge.class)`.
 
-`SetMap.bridge(from, to, ctx)` SHALL emit a single `BridgeStep` when
-`to` is a `Set<B>` declared type AND `from` is one of the accepted
-input shapes (same set as `ListMap`: iterables, arrays, `Optional`).
+`OptionalCollect.bridge(from, to, ctx)` SHALL emit a single `BridgeStep` when `to` is an `Optional<X>` declared type AND `from` is the element type `X`. Step fields: `inputType = X`, `outputType = Optional<X>`, `weight = Weights.CONTAINER`, pass-through codegen, `scopeTransition = ScopeTransition.EXITING`, `elementRole = "element"`.
 
-The emitted step SHALL have:
+#### Scenario: OptionalCollect emits for Optional target with element source
+- **WHEN** `OptionalCollect.bridge(<Dog>, <Optional<Dog>>, ctx)` is invoked
+- **THEN** the stream contains one `BridgeStep` whose `scopeTransition` is `EXITING` and `elementRole` is `"element"`
 
-- `inputType` = `from`.
-- `outputType` = `to`.
-- `weight` = `Weights.CONTAINER`.
-- `codegen` lambda that throws `UnsupportedOperationException`.
-- `elementSeeds` = `[ElementSeed("element", innerFrom, innerTo)]`
-  with element types determined the same way as `ListMap`.
-
-When `to` is not a `Set` or `from` is none of the recognised input
-shapes, `SetMap.bridge` SHALL return `Stream.empty()`.
-
-#### Scenario: SetMap emits for Set → Set
-- **WHEN** `SetMap.bridge(<Set<Dog>>, <Set<Pet>>, ctx)` is invoked
-- **THEN** the stream contains one `BridgeStep`
-- **AND** the step's `elementSeeds` carries `inputType = <Dog>`, `outputType = <Pet>`
-
-#### Scenario: SetMap emits for List → Set (cross-container)
-- **WHEN** `SetMap.bridge(<List<Dog>>, <Set<Pet>>, ctx)` is invoked
-- **THEN** the stream contains one `BridgeStep`
-
-#### Scenario: SetMap declines non-Set target
-- **WHEN** `SetMap.bridge(<List<Dog>>, <List<Pet>>, ctx)` is invoked
+#### Scenario: OptionalCollect declines non-Optional target
+- **WHEN** `OptionalCollect.bridge(<Dog>, <Set<Dog>>, ctx)` is invoked
 - **THEN** the result is `Stream.empty()`
 
-### Requirement: Container-map codegen seam deferred
+### Requirement: SetCollect built-in
 
-Each container Map-shaped strategy SHALL construct an `EdgeCodegen` lambda whose `render(...)` method throws `UnsupportedOperationException`. This applies to `OptionalMap`, `ListMap`, and `SetMap`. The exception message SHALL name the future codegen capability (e.g., "rendered by the codegen capability; element-scope inlining is not implemented in this change").
+The `percolate-strategies-builtin` module SHALL ship `io.github.joke.percolate.spi.builtins.SetCollect` implementing `Bridge` and annotated `@AutoService(Bridge.class)`.
 
-The current renderer (none today) does not invoke these lambdas;
-the future codegen change is responsible for widening `EdgeCodegen`
-to accept inner-path resolution and updating these strategies'
-codegen to use the widened contract.
+`SetCollect.bridge(from, to, ctx)` SHALL emit a single `BridgeStep` when `to` is a `Set<X>` declared type AND `from` is the element type `X`. Step fields: `inputType = X`, `outputType = Set<X>`, `weight = Weights.CONTAINER`, pass-through codegen, `scopeTransition = ScopeTransition.EXITING`, `elementRole = "element"`.
 
-#### Scenario: Container-map codegen throws on render
-- **WHEN** the codegen lambda of any step emitted by `OptionalMap`,
-  `ListMap`, or `SetMap` is invoked via its `render(VarNames, IncomingValues)`
-  method
-- **THEN** the call throws `UnsupportedOperationException`
-- **AND** the exception's message references the future codegen capability
+#### Scenario: SetCollect emits for Set target with element source
+- **WHEN** `SetCollect.bridge(<Dog>, <Set<Dog>>, ctx)` is invoked
+- **THEN** the stream contains one `BridgeStep` whose `scopeTransition` is `EXITING`
+
+#### Scenario: SetCollect declines non-Set target
+- **WHEN** `SetCollect.bridge(<Dog>, <List<Dog>>, ctx)` is invoked
+- **THEN** the result is `Stream.empty()`
+
+### Requirement: ListCollect built-in
+
+The `percolate-strategies-builtin` module SHALL ship `io.github.joke.percolate.spi.builtins.ListCollect` implementing `Bridge` and annotated `@AutoService(Bridge.class)`.
+
+`ListCollect.bridge(from, to, ctx)` SHALL emit a single `BridgeStep` when `to` is a `List<X>` declared type AND `from` is `X`. Step fields: `inputType = X`, `outputType = List<X>`, `weight = Weights.CONTAINER`, pass-through codegen, `scopeTransition = ScopeTransition.EXITING`, `elementRole = "element"`.
+
+#### Scenario: ListCollect emits for List target with element source
+- **WHEN** `ListCollect.bridge(<Dog>, <List<Dog>>, ctx)` is invoked
+- **THEN** the stream contains one `BridgeStep` whose `scopeTransition` is `EXITING`
+
+#### Scenario: ListCollect declines non-List target
+- **WHEN** `ListCollect.bridge(<Dog>, <Set<Dog>>, ctx)` is invoked
+- **THEN** the result is `Stream.empty()`
+
+### Requirement: ArrayCollect built-in
+
+The `percolate-strategies-builtin` module SHALL ship `io.github.joke.percolate.spi.builtins.ArrayCollect` implementing `Bridge` and annotated `@AutoService(Bridge.class)`.
+
+`ArrayCollect.bridge(from, to, ctx)` SHALL emit a single `BridgeStep` when `to` is an array type `X[]` AND `from` is `X`. Step fields: `inputType = X`, `outputType = X[]`, `weight = Weights.CONTAINER`, pass-through codegen, `scopeTransition = ScopeTransition.EXITING`, `elementRole = "element"`.
+
+#### Scenario: ArrayCollect emits for array target with element source
+- **WHEN** `ArrayCollect.bridge(<Dog>, <Dog[]>, ctx)` is invoked
+- **THEN** the stream contains one `BridgeStep` whose `scopeTransition` is `EXITING`
+
+#### Scenario: ArrayCollect declines non-array target
+- **WHEN** `ArrayCollect.bridge(<Dog>, <List<Dog>>, ctx)` is invoked
+- **THEN** the result is `Stream.empty()`
 
 ### Requirement: Container strategies registered via AutoService
 
-Every container built-in strategy SHALL be annotated `@AutoService(Bridge.class)`. The seven strategies covered are `OptionalWrap`, `OptionalUnwrap`, `OptionalMap`, `ListWrap`, `ListMap`, `SetWrap`, and `SetMap`. The compile-time-generated `META-INF/services/io.github.joke.percolate.spi.Bridge` file (produced from the `percolate-strategies-builtin` module's compilation) SHALL list all seven strategies.
+The `percolate-strategies-builtin` module SHALL ship the following container `Bridge` strategies, each annotated `@AutoService(Bridge.class)`:
 
-#### Scenario: All seven container strategies are registered
-- **WHEN** the generated `META-INF/services/io.github.joke.percolate.spi.Bridge`
-  is inspected (inside the `percolate-strategies-builtin` JAR)
-- **THEN** the file lists `OptionalWrap`, `OptionalUnwrap`,
-  `OptionalMap`, `ListWrap`, `ListMap`, `SetWrap`, and `SetMap`
-  (with the new `io.github.joke.percolate.spi.builtins.` prefix)
+- `OptionalUnwrap` (ENTERING, scope-enter from `Optional<T>` into element scope `T`)
+- `OptionalWrap` (PRESERVING, regular T → `Optional<T>` via `ofNullable`)
+- `OptionalCollect` (EXITING, element-scope T → regular `Optional<T>`)
+- `ListWrap` (PRESERVING, regular T → `List<T>` via `List.of`)
+- `ListCollect` (EXITING, element-scope T → regular `List<T>` via collectors)
+- `SetWrap` (PRESERVING, regular T → `Set<T>` via `Set.of`)
+- `SetCollect` (EXITING, element-scope T → regular `Set<T>` via collectors)
+- `ArrayCollect` (EXITING, element-scope T → regular `T[]`)
+- `IterableUnwrap` (ENTERING, scope-enter from `Iterable<T>` or `T[]` into element scope `T`)
+
+The strategies `OptionalMap`, `ListMap`, `SetMap` SHALL NOT exist (deleted by `split-container-bridges`).
+
+#### Scenario: All container strategies declare @AutoService(Bridge.class)
+- **WHEN** the sources of the listed container bridges are inspected
+- **THEN** each class carries `@AutoService(Bridge.class)`
+
+#### Scenario: Removed container strategies do not exist
+- **WHEN** the `strategies-builtin/src/main/java/io/github/joke/percolate/spi/builtins/` directory is inspected
+- **THEN** no source file `OptionalMap.java`, `ListMap.java`, or `SetMap.java` exists
+- **AND** no `META-INF/services/io.github.joke.percolate.spi.Bridge` entry references those classes after rebuild
+
+### Requirement: Linear container chain (no diamond)
+
+Any expansion involving the container built-ins SHALL produce a strictly linear REALISED chain — no diamonds, no parallel "outer" edges, no incoming-only `ElementLocation` leaves, no outgoing-only `ElementLocation` leaves except at the source-parameter-root boundary.
+
+Specifically, for the integration mapper `~/Projects/joke/percolate-integration/mappers/src/main/java/io/github/joke/testing/PersonMapper.java` with its `mapHuman` and `mapAddress` methods, the `*.transforms.dot` view of `mapHuman`'s expansion for `tgt[addresses]:Optional<Set<HA>>` SHALL trace a linear path through REALISED edges from `src[person]` through `IterableUnwrap → OptionalUnwrap → MethodCallBridge → SetCollect → OptionalCollect/OptionalWrap` to `tgt[addresses]`.
+
+Every `elem(...)` node in the alive chain SHALL have at least one incoming and at least one outgoing REALISED edge. Parallel dead branches from other matching bridges MAY co-exist; their presence SHALL NOT block the alive chain from satisfying the slot.
+
+#### Scenario: No outer container-map shortcut edges
+- **WHEN** any container-bearing mapper is expanded
+- **THEN** for every `Set<T>` / `List<T>` / `T[]` / `Optional<T>` target reached via the chain pattern (Unwrap → ... → Collect), the only REALISED edge incoming to that container node from a container-typed source is the `*Collect` edge from the element-scope chain
+- **AND** no parallel REALISED edge connects the source container directly to the target container with a `*Map`-style label
