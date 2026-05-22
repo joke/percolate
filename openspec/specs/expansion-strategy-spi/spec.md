@@ -336,8 +336,6 @@ The `identityCodegen` lambda SHALL render the single incoming variable from `Inc
 - **WHEN** `DirectAssign.bridge(<List<String>>, <Collection<String>>, ctx)` is invoked
 - **THEN** the result is `Stream.empty()` because `Types.isSameType` returns `false` for these types
 
-## MODIFIED Requirements
-
 ### Requirement: Weights.METHOD constant
 
 The percolate-spi module SHALL extend the `Weights` constants in `io.github.joke.percolate.spi.Weights` with a constant `METHOD`. The constant SHALL be a positive `int` representing the base cost of a method-call hop.
@@ -463,8 +461,6 @@ weight variation is defined for v1.
 #### Scenario: Weights.CONTAINER value
 - **WHEN** `Weights.CONTAINER` is read
 - **THEN** the value is `2`
-
-## ADDED Requirements
 
 ### Requirement: Built-in service registration smoke spec
 

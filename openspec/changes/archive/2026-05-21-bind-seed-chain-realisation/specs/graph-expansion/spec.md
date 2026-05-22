@@ -67,3 +67,33 @@ This iteration edge SHALL be emitted in addition to the nested `ExpansionGroup` 
 #### Scenario: Iteration edge is attributed to the parent bridge
 - **WHEN** any REALISED edge committed by `ExpandGroupsPhase` lands at an element-location node (`loc instanceof ElementLocation`) and has its `from` node not at an ElementLocation
 - **THEN** the edge's `strategyClassFqn` is the FQN of the parent bridge (`SetMap`, `ListMap`, `OptionalMap`, etc.) — not a sentinel and not the FQN of any other strategy
+
+### Requirement: Element-seed collect edge
+
+`ExpandGroupsPhase`, when committing a `BridgeStep` whose `elementSeeds` is non-empty, SHALL emit one `REALISED` edge per element seed from the element-seed output node it allocates to the parent step's outer frontier node (the container target the parent `BridgeStep` produces). The edge SHALL carry:
+- `weight` equal to the parent `BridgeStep.weight`,
+- `codegen` equal to a pass-through `(vars, inputs) -> CodeBlock.of("$L", inputs.single())`,
+- `strategyClassFqn` equal to the parent bridge's class FQN (the same `strategyClassFqn` used for the outer container-map REALISED edge and the iteration edge committed by the same `BridgeStep`).
+
+This collect edge SHALL be emitted at the moment `elemTo` is allocated, before the nested `ExpansionGroup` is registered. Together with the iteration edge, it ensures that every node `registerElementSeedGroup` allocates is born holding at least one outgoing REALISED edge to a node already in the graph — preserving the target-to-source expansion invariant that no `ExpandGroupsPhase`-allocated node may be an incoming-only leaf in the REALISED view.
+
+The collect edge SHALL coexist with the outer container-map REALISED edge committed by the same `BridgeStep`; the outer edge carries the parent bridge's `BridgeStep.codegen` while the collect edge is structural (pass-through codegen). The container target therefore has two incoming REALISED edges per matched element seed (one outer, one collect) plus any other parent producers.
+
+#### Scenario: SetMap commit emits the collect edge
+- **WHEN** `ExpandGroupsPhase.commitBridgeStep` commits a `SetMap` `BridgeStep` whose `inputType == List<Optional<PA>>`, `outputType == Set<HA>`, and `elementSeeds == [ElementSeed("element", Optional<PA>, HA)]`, against a candidate `src[person.addresses]:List<Optional<PA>>` with outer frontier `src[person.addresses]:Set<HA>`
+- **THEN** the graph gains a `REALISED` edge `elem(element):HA → src[person.addresses]:Set<HA>` with `strategyClassFqn == SetMap.class.getName()`, `weight == BridgeStep.weight`, and pass-through codegen
+- **AND** the edge is emitted in addition to (not in place of) the outer container-map edge and the iteration edge
+
+#### Scenario: Element-seed output is not an incoming-only leaf
+- **WHEN** `ExpandGroupsPhase` finishes processing any `BridgeStep` that declared a non-empty `elementSeeds` list
+- **THEN** every element-seed output node allocated for that step has at least one outgoing REALISED edge
+- **AND** no node in the resulting REALISED subgraph whose `loc instanceof ElementLocation` is an incoming-only leaf
+
+#### Scenario: Collect edge closes the element-seed diamond
+- **WHEN** a `SetMap`-style container-map step is fully expanded (outer edge, iteration edge, collect edge, and inner chain `elemFrom → ... → elemTo` all materialised)
+- **THEN** the REALISED subgraph rooted at the container target reaches the container source via two disjoint paths: (a) the outer edge directly, and (b) the iteration edge → inner chain → collect edge
+- **AND** the `*.transforms.dot` view contains no `elem(...)` node with only incoming edges
+
+#### Scenario: Collect edge is attributed to the parent bridge
+- **WHEN** any REALISED edge committed by `ExpandGroupsPhase` has its `from` node at an `ElementLocation` and its `to` node not at an `ElementLocation`
+- **THEN** the edge's `strategyClassFqn` is the FQN of the parent bridge (`SetMap`, `ListMap`, `OptionalMap`, etc.) — not a sentinel and not the FQN of any other strategy

@@ -7,7 +7,6 @@ import io.github.joke.percolate.spi.BridgeStep;
 import io.github.joke.percolate.spi.EdgeCodegen;
 import io.github.joke.percolate.spi.ResolveCtx;
 import io.github.joke.percolate.spi.Weights;
-import java.util.List;
 import java.util.stream.Stream;
 import javax.lang.model.type.TypeMirror;
 import lombok.NoArgsConstructor;
@@ -20,7 +19,7 @@ public final class DirectAssign implements Bridge {
     public Stream<BridgeStep> bridge(final TypeMirror from, final TypeMirror to, final ResolveCtx ctx) {
         if (ctx.types().isSameType(from, to)) {
             final EdgeCodegen codegen = (vars, inputs) -> CodeBlock.of("$L", inputs.single());
-            return Stream.of(new BridgeStep(from, to, Weights.NOOP, codegen, List.of()));
+            return Stream.of(new BridgeStep(from, to, Weights.NOOP, codegen));
         }
         return Stream.empty();
     }

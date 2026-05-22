@@ -24,6 +24,6 @@ public final class ListWrap implements Bridge {
         }
         final var elementType = Containers.typeArgument(to, 0);
         final EdgeCodegen codegen = (vars, inputs) -> CodeBlock.of("$T.of($L)", List.class, inputs.single());
-        return Stream.of(new BridgeStep(elementType, to, Weights.CONTAINER, codegen, List.of()));
+        return Stream.of(new BridgeStep(elementType, to, Weights.CONTAINER, codegen));
     }
 }

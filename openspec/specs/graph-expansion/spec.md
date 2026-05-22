@@ -184,8 +184,6 @@ The `BridgeSourceToTargetPhase` SHALL guarantee that every `Bridge.bridge(...)` 
 - **WHEN** any `Bridge.bridge(sourceType, targetType, ctx)` is invoked by the phase
 - **THEN** both `TypeMirror` arguments came from a `Node` with `type.isPresent() == true`
 
-## ADDED Requirements
-
 ### Requirement: Bridge edge-emission rule (unified)
 
 The phase SHALL apply the following rule for every `BridgeStep` returned by every `Bridge` query, regardless of whether the step represents a direct match, a chain hop, a container wrap/unwrap, or a container map:

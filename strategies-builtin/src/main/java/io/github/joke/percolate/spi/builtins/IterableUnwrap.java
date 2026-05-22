@@ -15,20 +15,23 @@ import lombok.NoArgsConstructor;
 
 @AutoService(Bridge.class)
 @NoArgsConstructor
-public final class OptionalUnwrap implements Bridge {
+public final class IterableUnwrap implements Bridge {
 
     @Override
     public Stream<BridgeStep> bridge(final TypeMirror from, final TypeMirror to, final ResolveCtx ctx) {
-        if (Containers.isOptional(to, ctx)) {
+        if (Containers.isOptional(from, ctx)) {
             return Stream.empty();
         }
-        final var optionalElement = ctx.elements().getTypeElement("java.util.Optional");
-        if (optionalElement == null) {
+        if (!Containers.isIterable(from, ctx) && !Containers.isArray(from)) {
             return Stream.empty();
         }
-        final var inputType = ctx.types().getDeclaredType(optionalElement, to);
+        final var elementType = Containers.isArray(from)
+                ? Containers.arrayComponentType(from)
+                : Containers.typeArgument(from, 0);
+        if (!ctx.types().isSameType(to, elementType)) {
+            return Stream.empty();
+        }
         final EdgeCodegen codegen = (vars, inputs) -> CodeBlock.of("$L", inputs.single());
-        return Stream.of(new BridgeStep(
-                inputType, to, Weights.CONTAINER, codegen, ScopeTransition.ENTERING, "element"));
+        return Stream.of(new BridgeStep(from, elementType, Weights.CONTAINER, codegen, ScopeTransition.ENTERING, "element"));
     }
 }

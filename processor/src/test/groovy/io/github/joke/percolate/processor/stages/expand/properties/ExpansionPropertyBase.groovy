@@ -35,7 +35,8 @@ abstract class ExpansionPropertyBase {
         final Bridge[] alphabet = [
                 new IdentityBridge(TypeUniverse.STRING, TypeUniverse.STRING),
                 new IdentityBridge(TypeUniverse.INT,   TypeUniverse.INT),
-                new ChainBridge(TypeUniverse.STRING, TypeUniverse.INT, TypeUniverse.LONG),
+                new ChainEnter(TypeUniverse.STRING, TypeUniverse.INT),
+                new ChainExit(TypeUniverse.INT, TypeUniverse.LONG),
                 new NoOpBridge()
         ] as Bridge[]
         Arbitraries.subsetOf(alphabet).map { it as List<Bridge> }

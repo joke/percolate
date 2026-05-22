@@ -21,4 +21,13 @@ dependencies {
     testFixturesImplementation platform(project(':dependencies'))
     testFixturesImplementation 'org.spockframework:spock-core'
     testFixturesImplementation 'org.apache.groovy:groovy'
+
+    testImplementation platform(project(':dependencies'))
+    testImplementation 'org.spockframework:spock-core'
+    testImplementation 'org.apache.groovy:groovy'
+    testImplementation 'org.jspecify:jspecify'
+    testImplementation testFixtures(project(':spi'))
+
+    testRuntimeOnly 'net.bytebuddy:byte-buddy'
+    testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
 }

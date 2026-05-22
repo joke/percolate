@@ -22,8 +22,7 @@ final class IdentityBridge implements Bridge {
     @Override
     Stream<BridgeStep> bridge(final TypeMirror from, final TypeMirror to, final ResolveCtx ctx) {
         if (TypeUniverse.types().isSameType(from, inType) && TypeUniverse.types().isSameType(to, outType)) {
-            final elementSeed = new ElementSeed('identity', inType, outType)
-            return Stream.of(new BridgeStep(inType, outType, 1, NO_OP_CODEGEN, [elementSeed]))
+            return Stream.of(new BridgeStep(inType, outType, 1, NO_OP_CODEGEN))
         }
         Stream.empty()
     }

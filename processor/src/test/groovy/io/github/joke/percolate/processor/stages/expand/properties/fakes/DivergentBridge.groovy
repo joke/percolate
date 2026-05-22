@@ -20,6 +20,6 @@ final class DivergentBridge implements Bridge {
         final inputType = ctx.types().isSameType(from, TypeUniverse.STRING)
                 ? TypeUniverse.LONG_TYPE
                 : TypeUniverse.STRING
-        Stream.of(new BridgeStep(inputType, to, 1, NO_OP_CODEGEN, []))
+        Stream.of(new BridgeStep(inputType, to, 1, NO_OP_CODEGEN))
     }
 }

@@ -1,5 +1,6 @@
 package io.github.joke.percolate.spi.builtins
 
+import io.github.joke.percolate.spi.ScopeTransition
 import io.github.joke.percolate.spi.Weights
 import io.github.joke.percolate.spi.builtins.test.ResolveCtxBuilder
 import io.github.joke.percolate.spi.test.TypeUniverse
@@ -21,7 +22,7 @@ class ListWrapSpec extends Specification {
         steps[0].inputType == TypeUniverse.STRING
         steps[0].outputType == TypeUniverse.LIST_OF_STRING
         steps[0].weight == Weights.CONTAINER
-        steps[0].elementSeeds.empty
+        steps[0].scopeTransition == ScopeTransition.PRESERVING
     }
 
     def 'returns empty when target is not List'() {

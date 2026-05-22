@@ -1,6 +1,5 @@
 package io.github.joke.percolate.processor.stages.expand;
 
-import com.palantir.javapoet.CodeBlock;
 import io.github.joke.percolate.processor.graph.Edge;
 import io.github.joke.percolate.processor.graph.ElementLocation;
 import io.github.joke.percolate.processor.graph.ExpansionGroup;
@@ -8,12 +7,13 @@ import io.github.joke.percolate.processor.graph.GroupOutcome;
 import io.github.joke.percolate.processor.graph.Location;
 import io.github.joke.percolate.processor.graph.MapperGraph;
 import io.github.joke.percolate.processor.graph.Node;
+import io.github.joke.percolate.processor.graph.Scope;
 import io.github.joke.percolate.spi.Bridge;
 import io.github.joke.percolate.spi.BridgeStep;
-import io.github.joke.percolate.spi.ElementSeed;
 import io.github.joke.percolate.spi.GroupBuild;
 import io.github.joke.percolate.spi.GroupTarget;
 import io.github.joke.percolate.spi.ResolveCtx;
+import io.github.joke.percolate.spi.ScopeTransition;
 import jakarta.inject.Inject;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
@@ -77,9 +77,8 @@ public final class ExpandGroupsPhase implements ExpansionPhase {
         }
         // A group SATs iff its root is also producible. For groups whose initialEdges contain
         // slot→root REALISED edges (ConstructorCall, DirectiveBinding, etc.), this is trivially
-        // true once the slots SAT. For element-seed nested groups (registerElementSeedGroup
-        // emits no slot→root edge), the driver materialises the slot→root chain via the same
-        // target-driven bridge expansion used for slots.
+        // true once the slots SAT — resolveSlot returns immediately because the root is already
+        // reachable.
         final var rootOutcome = resolveSlot(group.getRoot(), graph, sourceRoots, workList);
         if (rootOutcome != SlotOutcome.SAT) {
             graph.recordGroupOutcome(
@@ -147,18 +146,21 @@ public final class ExpandGroupsPhase implements ExpansionPhase {
             final MapperGraph graph,
             final Deque<ExpansionGroup> workList,
             final List<Node> newNodes) {
+        var anyMatched = false;
         for (final var bridge : bridges) {
             for (final var candidate : candidates) {
-                final var match = tryBridgeOnCandidate(bridge, candidate, frontierNode, frontierType, graph, workList);
+                final var match =
+                        tryBridgeOnCandidate(bridge, candidate, frontierNode, frontierType, graph, workList);
                 if (match.matched) {
                     if (match.allocated != null) {
                         newNodes.add(match.allocated);
                     }
-                    return true;
+                    anyMatched = true;
+                    break;
                 }
             }
         }
-        return false;
+        return anyMatched;
     }
 
     private BridgeMatch tryBridgeOnCandidate(
@@ -174,13 +176,30 @@ public final class ExpandGroupsPhase implements ExpansionPhase {
         }
         final var steps = bridge.bridge(candidateType, frontierType, resolveCtx).collect(Collectors.toList());
         for (final var step : steps) {
-            if (resolveCtx.types().isSameType(step.getOutputType(), frontierType)) {
-                final var allocated = commitBridgeStep(
-                        graph, frontierNode, candidate, step, bridge.getClass().getName(), workList);
-                return new BridgeMatch(true, allocated);
+            if (!resolveCtx.types().isSameType(step.getOutputType(), frontierType)) {
+                continue;
             }
+            if (!stepMatchesFrontierScope(step, frontierNode)) {
+                continue;
+            }
+            final var allocated =
+                    commitBridgeStep(graph, workList, frontierNode, candidate, step, bridge.getClass().getName());
+            return new BridgeMatch(true, allocated);
         }
         return BridgeMatch.noMatch();
+    }
+
+    private static boolean stepMatchesFrontierScope(final BridgeStep step, final Node frontierNode) {
+        switch (step.getScopeTransition()) {
+            case PRESERVING:
+                return true;
+            case ENTERING:
+                return frontierNode.getLoc() instanceof ElementLocation;
+            case EXITING:
+                return !(frontierNode.getLoc() instanceof ElementLocation);
+            default:
+                return false;
+        }
     }
 
     private boolean tryGroupTargets(
@@ -215,34 +234,109 @@ public final class ExpandGroupsPhase implements ExpansionPhase {
 
     private @Nullable Node commitBridgeStep(
             final MapperGraph graph,
+            final Deque<ExpansionGroup> workList,
             final Node frontierNode,
             final Node candidate,
             final BridgeStep step,
-            final String strategyFqn,
-            final Deque<ExpansionGroup> workList) {
+            final String strategyFqn) {
         final var allocation = allocateOrReuseInputNode(graph, frontierNode, candidate, step);
         final var inputNode = allocation.node;
         final var fresh = allocation.fresh ? inputNode : null;
         if (inputNode.equals(frontierNode)) {
             return fresh;
         }
-        graph.addEdge(Edge.realised(inputNode, frontierNode, step.getWeight(), step.getCodegen(), strategyFqn));
-        for (final var elementSeed : step.getElementSeeds()) {
-            registerElementSeedGroup(elementSeed, inputNode, step.getWeight(), strategyFqn, graph, workList);
+        final var edge = Edge.realised(
+                inputNode, frontierNode, step.getWeight(), step.getCodegen(), strategyFqn);
+        graph.addEdge(edge);
+        if (step.getScopeTransition() != ScopeTransition.PRESERVING) {
+            final var bridgeCodegen = step.getCodegen();
+            final var nested = ExpansionGroup.of(
+                    frontierNode,
+                    List.of(inputNode),
+                    bridgeCodegen::render,
+                    strategyFqn,
+                    Set.of(edge),
+                    graph);
+            graph.addGroup(nested);
+            workList.add(nested);
         }
         return fresh;
     }
 
     private InputAllocation allocateOrReuseInputNode(
             final MapperGraph graph, final Node frontierNode, final Node candidate, final BridgeStep step) {
-        final var inputTypeMatches = candidate.getType().isPresent()
-                && resolveCtx
-                        .types()
-                        .isSameType(step.getInputType(), candidate.getType().get());
-        if (inputTypeMatches) {
+        switch (step.getScopeTransition()) {
+            case PRESERVING:
+                return allocateForPreserving(graph, frontierNode, candidate, step);
+            case ENTERING:
+                return allocateForEntering(graph, frontierNode, candidate, step);
+            case EXITING:
+                return allocateForExiting(graph, frontierNode, candidate, step);
+            default:
+                throw new IllegalStateException("Unknown scope transition: " + step.getScopeTransition());
+        }
+    }
+
+    private InputAllocation allocateForPreserving(
+            final MapperGraph graph, final Node frontierNode, final Node candidate, final BridgeStep step) {
+        if (candidateTypeMatches(candidate, step.getInputType())) {
             return new InputAllocation(candidate, false);
         }
-        final var fresh = new Node(Optional.of(step.getInputType()), candidate.getLoc(), frontierNode.getScope());
+        return allocateFresh(graph, step.getInputType(), frontierNode.getLoc(), frontierNode.getScope());
+    }
+
+    private InputAllocation allocateForEntering(
+            final MapperGraph graph, final Node frontierNode, final Node candidate, final BridgeStep step) {
+        final var sameElement = findExistingNode(
+                graph, frontierNode.getScope(), frontierNode.getLoc(), step.getInputType(), frontierNode);
+        if (sameElement.isPresent()) {
+            return new InputAllocation(sameElement.get(), false);
+        }
+        if (candidateTypeMatches(candidate, step.getInputType())
+                && !(candidate.getLoc() instanceof ElementLocation)) {
+            return new InputAllocation(candidate, false);
+        }
+        final var sameType = resolveCtx.types().isSameType(step.getInputType(), step.getOutputType());
+        final var freshLoc = sameType ? candidate.getLoc() : frontierNode.getLoc();
+        return allocateFresh(graph, step.getInputType(), freshLoc, frontierNode.getScope());
+    }
+
+    private InputAllocation allocateForExiting(
+            final MapperGraph graph, final Node frontierNode, final Node candidate, final BridgeStep step) {
+        final Location elementLoc = new ElementLocation(step.getElementRole());
+        if (candidateTypeMatches(candidate, step.getInputType()) && candidate.getLoc().equals(elementLoc)) {
+            return new InputAllocation(candidate, false);
+        }
+        final var existing = findExistingNode(graph, frontierNode.getScope(), elementLoc, step.getInputType(), null);
+        if (existing.isPresent()) {
+            return new InputAllocation(existing.get(), false);
+        }
+        return allocateFresh(graph, step.getInputType(), elementLoc, frontierNode.getScope());
+    }
+
+    private boolean candidateTypeMatches(final Node candidate, final TypeMirror inputType) {
+        return candidate.getType().isPresent()
+                && resolveCtx.types().isSameType(inputType, candidate.getType().get());
+    }
+
+    private Optional<Node> findExistingNode(
+            final MapperGraph graph,
+            final Scope scope,
+            final Location loc,
+            final TypeMirror type,
+            final @Nullable Node exclude) {
+        return graph.nodes()
+                .filter(n -> exclude == null || !n.equals(exclude))
+                .filter(n -> n.getScope().equals(scope))
+                .filter(n -> n.getLoc().equals(loc))
+                .filter(n -> n.getType().isPresent()
+                        && resolveCtx.types().isSameType(n.getType().get(), type))
+                .findFirst();
+    }
+
+    private InputAllocation allocateFresh(
+            final MapperGraph graph, final TypeMirror type, final Location loc, final Scope scope) {
+        final var fresh = new Node(Optional.of(type), loc, scope);
         graph.addNode(fresh);
         return new InputAllocation(fresh, true);
     }
@@ -255,36 +349,6 @@ public final class ExpandGroupsPhase implements ExpansionPhase {
             this.node = node;
             this.fresh = fresh;
         }
-    }
-
-    private void registerElementSeedGroup(
-            final ElementSeed elementSeed,
-            final Node parentInputCandidate,
-            final int parentWeight,
-            final String strategyFqn,
-            final MapperGraph graph,
-            final Deque<ExpansionGroup> workList) {
-        final Location elementLoc = new ElementLocation(elementSeed.getRole());
-        final var scope = parentInputCandidate.getScope();
-        final var elemFrom = new Node(Optional.of(elementSeed.getInputType()), elementLoc, scope);
-        final var elemTo = new Node(Optional.of(elementSeed.getOutputType()), elementLoc, scope);
-        graph.addNode(elemFrom);
-        graph.addNode(elemTo);
-        graph.addEdge(Edge.realised(
-                parentInputCandidate,
-                elemFrom,
-                parentWeight,
-                (vars, inputs) -> CodeBlock.of("$L", inputs.single()),
-                strategyFqn));
-        final var nested = ExpansionGroup.of(
-                elemTo,
-                List.of(elemFrom),
-                (vars, inputs) -> CodeBlock.of("/* element seed */"),
-                strategyFqn,
-                Set.of(),
-                graph);
-        graph.addGroup(nested);
-        workList.add(nested);
     }
 
     private void registerNestedGroup(

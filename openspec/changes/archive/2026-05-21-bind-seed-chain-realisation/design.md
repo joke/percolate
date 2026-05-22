@@ -5,7 +5,7 @@ After `target-to-source-expansion` (2026-05-17), the realisation engine is a thi
 Two pre-existing engine gaps then surface, both blocking integration on `~/Projects/joke/percolate-integration/mappers`:
 
 1. The SEED chain from typed source to untyped target leaf to typed target slot (via the MARKER edge `ResolveTargetChainsPhase` already emits) encodes the directive's pinning structurally, but `ResolveTargetChainsPhase` never consumes it to bind the typed slot to a specific source. The driver in `ExpandGroupsPhase` then chooses any same-typed candidate by `Node::id` and silently picks the wrong source.
-2. `ExpandGroupsPhase.registerElementSeedGroup` materialises the element-seed input/output nodes and the nested group declared by container bridges via `BridgeStep.elementSeeds`, but emits no REALISED edge from the parent step's input candidate to the element-seed input. The slot is disconnected from any source-parameter-root, the driver falls through to bridges, `OptionalWrap` misfires and synthesises an unproducible intermediate, and the chain dead-ends.
+2. `ExpandGroupsPhase.registerElementSeedGroup` materialises the element-seed input/output nodes and the nested group declared by container bridges via `BridgeStep.elementSeeds`, but emits no REALISED edges connecting those nodes back to the outer container chain. The element-seed *input* (`elemFrom`) lacks an incoming iteration edge from the outer iterable candidate — so it is unreachable from any source-parameter-root, the driver falls through to bridges, `OptionalWrap` misfires and synthesises an unproducible intermediate, and the chain dead-ends. Symmetrically, the element-seed *output* (`elemTo`) lacks an outgoing collect edge to the outer frontier — so once the inner chain is materialised (`Optional<PA> → PA → HA`), the `elemTo` node sits in the graph as an incoming-only leaf. That shape is impossible under target-driven expansion, where every emitted node is born holding an edge to a node already in the graph ([[feedback-never-forward-expansion]]); its presence today is a direct symptom of `registerElementSeedGroup` allocating `elemTo` as a free-floating "group root" without giving it the structural consumer that the parent bridge's semantics demand.
 
 Both gaps live in scaffolding/driver code. The fix preserves the locked-in invariants ([[project-expansion-direction]], [[project-expansion-mental-model]]) and changes no SPI. Bundled with both is the deferred removal of `GetterRead`-as-`Bridge`, whose role (resolving getter-shaped source chains) has been superseded by `GetterPathResolver` (seed-time) + directive-pinning (scaffold-time).
 
@@ -37,7 +37,7 @@ graph TD
 **Goals:**
 
 - Make the realisation engine consume the directive-carrying SEED+MARKER chain structurally, so the typed source named by `@Map` always reaches its corresponding typed target slot — without `ExpandGroupsPhase` running type-only bridge searches for those slots.
-- Make every container bridge's `ElementSeed` declaration materialise as a complete subgraph: the element-seed input has an incoming REALISED edge from the outer iterable input, so `SourceReachability.slotReachable` succeeds without driver misfires.
+- Make every container bridge's `ElementSeed` declaration materialise as a complete subgraph diamond: the element-seed input has an incoming REALISED iteration edge from the outer iterable input, the element-seed output has an outgoing REALISED collect edge to the outer container target, and the inner per-element chain is filled by ordinary bridges. The resulting graph contains no incoming-only `elem(...)` leaves and no fictitious "direct" container-to-container realisation that skips the per-element transformation.
 - Remove `GetterRead`-as-`Bridge` in the same commit as the engine fix, so the "engine green" milestone is the one where the legacy fallback disappears.
 - Land the change at the integration boundary: `~/Projects/joke/percolate-integration/mappers` compiles green with `mapAddress` present, and generated `PersonMapper.java` reads each directive's named receiver.
 
@@ -91,25 +91,54 @@ The directive-binding REALISED edge carries:
 - *Reuse `DirectAssign.class.getName()` as the FQN.* Rejected: collapses the provenance distinction; you can't tell from a dot dump whether the edge came from directive pinning or type-only matching.
 - *Introduce a real `DirectiveBinding` class implementing `Bridge`.* Rejected: a class that exists only to provide a label is dead code; a sentinel string is honest about what it is.
 
-### Decision 3: Element-seed iteration edge in `registerElementSeedGroup`, attributed to the parent bridge
+### Decision 3: Element-seed iteration and collect edges in `registerElementSeedGroup`, attributed to the parent bridge
 
-`ExpandGroupsPhase.commitBridgeStep` already has both `candidate` (the outer iterable source node) and the `BridgeStep` in scope when it calls `registerElementSeedGroup`. We thread `candidate` and the parent step's `strategyClassFqn` + `weight` into `registerElementSeedGroup` so it can emit `Edge.realised(candidate, elemFromNode, parentWeight, passThroughCodegen, parentStrategyFqn)` alongside the nested group it already registers.
+`ExpandGroupsPhase.commitBridgeStep` already has the outer iterable source candidate, the outer container target frontier (`frontierNode`), and the `BridgeStep` in scope when it calls `registerElementSeedGroup`. We thread all three (plus the parent step's `strategyClassFqn` and `weight`) into `registerElementSeedGroup` so it can emit, alongside the nested group it already registers, *two* REALISED edges per element seed:
 
-**Why attribute the edge to the parent bridge (SetMap/ListMap/OptionalMap), not a sentinel:**
+- **Iteration edge:** `Edge.realised(candidate, elemFromNode, parentWeight, passThroughCodegen, parentStrategyFqn)` — "this element-source comes out of the iteration over the container source."
+- **Collect edge:** `Edge.realised(elemToNode, frontierNode, parentWeight, passThroughCodegen, parentStrategyFqn)` — "this element-target is one of the values that fills the container target."
 
-- Semantically, the iteration *is* part of the parent bridge's transformation. SetMap, by virtue of its container-map nature, expands "outer iterable" into "element scope" — the iteration edge belongs to the same conceptual unit as the outer SetMap REALISED edge.
-- The dot label `SetMap (2)` on the element-seed-input incoming edge correctly tells the reader "this value comes from the SetMap iteration."
+Together with the inner per-element chain (filled by ordinary bridge expansion against `elemTo` as a frontier — `MethodCallBridge`, `OptionalUnwrap`, etc.), these edges close a four-edge diamond around the outer container-map step:
+
+```
+candidate ─── outer container-map ───► frontierNode
+   │                                       ▲
+   │ iteration                       collect│
+   ▼                                       │
+elemFrom ─── inner chain (Unwrap, ...) ──► elemTo
+```
+
+**Why both edges are required, not just iteration:**
+
+- Under target-to-source expansion ([[project-expansion-direction]], [[feedback-never-forward-expansion]]) every emitted node is born holding an edge to a node already in the graph. `elemFrom` is born holding the iteration edge to `candidate`; `elemTo` must symmetrically be born holding the collect edge to `frontierNode`. Without it, `elemTo` is an incoming-only leaf — the canonical signature of forward expansion — and the inner chain materialised by subsequent bridge work has nowhere to deliver its result.
+- `*.transforms.dot` becomes a faithful recipe of the realisation. Today, with only the outer container-map edge, the dot view shows `Set<HA>` as a direct descendant of `List<Optional<PA>>` even though codegen will not (and structurally cannot) skip the per-element transformation. The collect edge makes the dependency on `elemTo` (and therefore on `mapAddress`) visible in the graph instead of hidden inside the parent codegen.
+- The "lone exception" pattern in `registerElementSeedGroup` (nested group with `initialEdges = Set.of()`, see [[project-group-sat-rule]]) goes away: with both edges present, the slot→root→containerTarget chain materialises during the same commit, and the element-seed group satisfies the standard group-SAT rule by construction. The explicit `resolveSlot(group.getRoot(), …)` added to `fillGroup` by §2 of this change continues to apply uniformly to every group; the carve-out described in [[project-group-sat-rule]] for element-seed groups simply becomes a special case of the general rule rather than an exception.
+
+**Why attribute both edges to the parent bridge (SetMap/ListMap/OptionalMap), not a sentinel:**
+
+- Semantically, both the iteration and the collect *are* part of the parent bridge's transformation. SetMap, by virtue of its container-map nature, expands "outer iterable" into "element scope" (iteration) and gathers the element-scope results back into the outer container (collect) — both belong to the same conceptual unit as the outer SetMap REALISED edge.
+- The dot labels (`SetMap (2)`) on the element-seed-input incoming edge and the element-seed-output outgoing edge correctly tell the reader "these values come from / feed into the SetMap iteration/collect."
 - A separate sentinel would imply a separate strategy match; there isn't one.
 
-**Why pass-through codegen on this edge too:**
+**Why pass-through codegen on both edges:**
 
-- The actual iteration code is generated by the parent SetMap step (its codegen emits `for (...) { ... }` or `stream().map(...)`). The element-seed input is just "the iteration variable" — its incoming edge is structural, not code-emitting.
-- A throw-on-render codegen (`new UnsupportedOperationException`) would be honest about "this edge generates no code on its own," but pass-through is simpler and matches Decision 2's pattern.
+- The actual iteration and collect code is generated by the parent SetMap step (its codegen emits `src.stream().map(elementFn).collect(toSet())` or equivalent). The element-seed input is just "the iteration variable" and the element-seed output is just "the value being collected" — their structural edges are not code-emitting on their own.
+- Pass-through `$L` codegen matches Decision 2's pattern and signals that the edge is structural rather than code-emitting.
+
+**Why keep the outer container-map edge in addition to the collect edge:**
+
+- **Parent-slot reachability under FIFO group processing.** The parent constructor group at `tgt[]:Human` SATs only when every slot — including `tgt[addresses]:Optional<Set<HA>>` — is reachable from a source-parameter-root via REALISED edges. With the outer edge present, the parent's `slotReachable(Set<HA>)` check passes in the same round as SetMap's match (one-hop edge from `List<Opt<PA>>`, itself reachable via the GetterPathResolver chain from `src[person]`). Without the outer edge, the only path from a source root to `Set<HA>` runs through the nested element-seed group's still-empty inner chain (`Opt<PA> → PA → HA`), which is built only when that nested group is dequeued — *after* the parent group's current round. The parent group then trips `UNSAT_NO_PLAN` with empty `newNodes`, even though the diamond eventually closes once the nested group runs. The outer edge is, today, a load-bearing **connectivity scaffold** that lets the parent SAT without synchronising on the nested group's processing.
+- The outer edge nominally carries `BridgeStep.codegen`. In practice the current built-in container bridges (`SetMap`, `ListMap`, `OptionalMap`) all stub `codegen` to throw `UnsupportedOperationException` ("element-scope inlining is not implemented in this change"), so the codegen claim is aspirational and not real today.
+- Keeping both edges makes the dot view a complete description but mildly redundant: outer edge = "what the bridge does as a unit"; iteration + inner chain + collect = "what happens per element". Future codegen could read either path; transforms.dot consumers see both.
+
+> **Retirement.** The connectivity-scaffold role of the outer edge is the cleanest motivation for the planned follow-up change that splits `SetMap`/`ListMap`/`OptionalMap` into orthogonal `IterableUnwrap` / `*Collect` bridges (mirroring `OptionalUnwrap` / `OptionalWrap`). With the split there is no fused container-map step, no `ElementSeed` SPI, no nested element-seed group, and therefore no diamond — the realisation chain is linear. The outer edge dissolves naturally because there is no single bridge step that produces the container target in one hop. Until that change lands, the outer edge stays.
 
 **Alternatives considered:**
 
-- *Special-case `slotReachable` to treat element-seed inputs as implicitly reachable when their containing iterable is reachable.* Rejected: hides the structural relationship behind a reachability rule; the dot output stops being a faithful recipe.
-- *Make `ElementSeed` carry the iterable type so the driver can find the candidate.* Rejected: the driver already has the candidate locally in `commitBridgeStep`; the SPI shouldn't grow to expose it.
+- *Emit only the iteration edge; rely on codegen-time inlining to connect the inner chain back to `frontierNode`.* Rejected: this is today's broken state. The graph misleads structural readers (transforms.dot looks like a direct container-to-container assignment), violates the T→S birth-with-outgoing-edge invariant, and forces codegen to special-case "find the element-seed nested group, render its chain inline" instead of just reading edges.
+- *Replace the outer container-map edge with the collect edge (no shortcut).* Rejected: forces all codegen for the parent bridge onto an element-scope-to-container-scope edge, where the "iterate this container" intent is implicit rather than declared. Keeping both edges is honest about the structure.
+- *Special-case `slotReachable` to treat element-seed inputs/outputs as implicitly reachable.* Rejected: hides the structural relationship behind a reachability rule; the dot output stops being a faithful recipe.
+- *Make `ElementSeed` carry the iterable type so the driver can find the candidate.* Rejected: the driver already has both the candidate and the frontier locally in `commitBridgeStep`; the SPI shouldn't grow to expose them.
 - *Move `registerElementSeedGroup` into the strategy.* Rejected by [[feedback-strategies-stay-myopic]].
 
 ### Decision 4: Bundle `GetterRead` removal in the same change
@@ -185,7 +214,7 @@ graph LR
 
 [**Risk**] `GetterRead`-as-`Bridge` removal could break a test fixture or scenario that relied on implicit getter-bridging without a `@Map` directive. → **Mitigation:** the integration mapper has `@Map` directives everywhere; processor tests using fake bridges (`processor/src/test/groovy/.../expand/properties/fakes/`) don't use `GetterRead`. The strategies-builtin unit specs for `GetterRead` are deleted alongside the implementation. If any other test fails after deletion, the corrective action is to add an explicit `@Map` directive, not to revive the bridge.
 
-[**Risk**] Element-seed iteration edge attribution to the parent bridge means a SetMap step emits two REALISED edges (the outer container-map edge plus the element-seed iteration edge) with the same `strategyClassFqn`. → **Mitigation:** acceptable. Existing tests counting "REALISED edges with `strategyClassFqn == SetMap`" need updating to expect two per matched SetMap step instead of one. The dot renderer can disambiguate via edge labels (`SetMap (2)` vs `SetMap iteration`); the spec leaves the label to the renderer.
+[**Risk**] Element-seed iteration and collect edge attribution to the parent bridge means a SetMap step emits three REALISED edges (the outer container-map edge, the iteration edge, and the collect edge) all with the same `strategyClassFqn`. → **Mitigation:** acceptable. Existing tests counting "REALISED edges with `strategyClassFqn == SetMap`" need updating to expect three per matched SetMap step instead of one. The dot renderer can disambiguate via edge labels (outer container-map, iteration, collect); the spec leaves the label to the renderer.
 
 [**Risk**] `DirectiveBinding` as a sentinel `strategyClassFqn` means no class with that FQN exists. → **Mitigation:** the dot renderer derives the simple name by string split; no class lookup is performed. Diagnostic output similarly uses the FQN as an opaque tag.
 

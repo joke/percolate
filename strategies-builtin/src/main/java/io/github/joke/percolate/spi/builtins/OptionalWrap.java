@@ -8,7 +8,6 @@ import io.github.joke.percolate.spi.Containers;
 import io.github.joke.percolate.spi.EdgeCodegen;
 import io.github.joke.percolate.spi.ResolveCtx;
 import io.github.joke.percolate.spi.Weights;
-import java.util.List;
 import java.util.stream.Stream;
 import javax.lang.model.type.TypeMirror;
 import lombok.NoArgsConstructor;
@@ -25,6 +24,6 @@ public final class OptionalWrap implements Bridge {
         final var elementType = Containers.typeArgument(to, 0);
         final EdgeCodegen codegen =
                 (vars, inputs) -> CodeBlock.of("$T.ofNullable($L)", java.util.Optional.class, inputs.single());
-        return Stream.of(new BridgeStep(elementType, to, Weights.CONTAINER, codegen, List.of()));
+        return Stream.of(new BridgeStep(elementType, to, Weights.CONTAINER, codegen));
     }
 }

@@ -22,7 +22,15 @@ public class Containers {
     }
 
     public boolean isCollection(final TypeMirror t, final ResolveCtx ctx) {
-        return isDeclaredTypeErasureMatch(t, "java.util.Collection", ctx);
+        if (t.getKind() != TypeKind.DECLARED) {
+            return false;
+        }
+        final var collectionElement = ctx.elements().getTypeElement("java.util.Collection");
+        if (collectionElement == null) {
+            return false;
+        }
+        final var types = ctx.types();
+        return types.isAssignable(types.erasure(t), types.erasure(collectionElement.asType()));
     }
 
     public boolean isIterable(final TypeMirror t, final ResolveCtx ctx) {
