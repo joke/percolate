@@ -42,6 +42,20 @@ public final class MapperGraph implements GraphSource {
         return true;
     }
 
+    public boolean addEdgeIfAcyclic(final Edge edge) {
+        if (!addEdge(edge)) {
+            return false;
+        }
+        final var mask = new MaskSubgraph<>(graph, v -> false, e -> e.getKind() != EdgeKind.REALISED);
+        if (new CycleDetector<>(mask).detectCycles()) {
+            edgeIndex.remove(edge);
+            graph.removeEdge(edge);
+            sortedEdgesDirty = true;
+            return false;
+        }
+        return true;
+    }
+
     public void addGroup(final ExpansionGroup group) {
         if (!graph.containsVertex(group.getRoot())) {
             throw new IllegalArgumentException("ExpansionGroup root is not a vertex of this graph");

@@ -24,6 +24,7 @@ public final class OptionalCollect implements Bridge {
         }
         final var elementType = Containers.typeArgument(to, 0);
         final EdgeCodegen codegen = (vars, inputs) -> CodeBlock.of("$L", inputs.single());
-        return Stream.of(new BridgeStep(elementType, to, Weights.CONTAINER, codegen, ScopeTransition.EXITING, "element"));
+        return Stream.of(
+                new BridgeStep(elementType, to, Weights.CONTAINER, codegen, ScopeTransition.EXITING, "element"));
     }
 }

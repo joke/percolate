@@ -1,33 +1,46 @@
 package io.github.joke.percolate.processor.graph;
 
+import lombok.Getter;
+
 import java.util.Optional;
 import javax.lang.model.type.TypeMirror;
 
+@Getter
 public final class Node implements Comparable<Node> {
-    private final Optional<TypeMirror> type;
+    private static final String UNKNOWN_TYPE = "?";
+
+    private Optional<TypeMirror> type;
     private final Location loc;
     private final Scope scope;
+    private final Optional<Node> parent;
 
     public Node(final Optional<TypeMirror> type, final Location loc, final Scope scope) {
+        this(type, loc, scope, Optional.empty());
+    }
+
+    public Node(final Optional<TypeMirror> type, final Location loc, final Scope scope, final Optional<Node> parent) {
         this.type = type;
         this.loc = loc;
         this.scope = scope;
+        this.parent = parent;
     }
 
-    public Optional<TypeMirror> getType() {
-        return type;
-    }
-
-    public Location getLoc() {
-        return loc;
-    }
-
-    public Scope getScope() {
-        return scope;
+    public void setType(final TypeMirror newType) {
+        if (type.isPresent()) {
+            throw new IllegalStateException(
+                    "Node.type is already set; setType() requires the current type to be empty");
+        }
+        this.type = Optional.of(newType);
     }
 
     public String id() {
-        return "node@" + System.identityHashCode(this);
+        final String prefix =
+                (loc instanceof ElementLocation) ? parent.map(Node::id).orElseGet(scope::encode) : scope.encode();
+        return prefix + "::" + loc.segment() + "::" + typeEncode() + "@" + System.identityHashCode(this);
+    }
+
+    private String typeEncode() {
+        return type.map(TypeMirror::toString).orElse(UNKNOWN_TYPE);
     }
 
     @Override
@@ -42,6 +55,6 @@ public final class Node implements Comparable<Node> {
 
     @Override
     public int compareTo(final Node other) {
-        return Integer.compare(System.identityHashCode(this), System.identityHashCode(other));
+        return id().compareTo(other.id());
     }
 }

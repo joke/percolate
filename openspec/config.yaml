@@ -10,6 +10,9 @@ rules:
   proposal:
   - Identify affected teams
   design:
+  - NEVER break the architecture! If a concept is a shift in the architecture warn explicitly
+  - ALWAYS prefer clear architecture over direct solutions to a problem
+  - Prefer mermaid diagrams in all markdown files
   - Include mermaid diagrams for complex flows
   tasks:
   - Always add a final task to run `./gradlew check` to verify everything. NEVER continue if there are violations!

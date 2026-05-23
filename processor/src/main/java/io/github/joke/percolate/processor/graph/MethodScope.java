@@ -4,7 +4,7 @@ import javax.lang.model.element.ExecutableElement;
 import lombok.Value;
 
 @Value
-public final class MethodScope implements Scope {
+public class MethodScope implements Scope {
     ExecutableElement method;
 
     @Override

@@ -34,15 +34,24 @@ final class ExpansionHarness {
             final MapperGraph seed,
             final List<Bridge> bridges,
             final List<GroupTarget> groupTargets) {
+        expand(seed, bridges, groupTargets, List.of())
+    }
+
+    static ExpansionResult expand(
+            final MapperGraph seed,
+            final List<Bridge> bridges,
+            final List<GroupTarget> groupTargets,
+            final List<io.github.joke.percolate.spi.PathSegmentResolver> pathSegmentResolvers) {
         synchronized (EXPAND_LOCK) {
-            expandLocked(seed, bridges, groupTargets)
+            expandLocked(seed, bridges, groupTargets, pathSegmentResolvers)
         }
     }
 
     private static ExpansionResult expandLocked(
             final MapperGraph seed,
             final List<Bridge> bridges,
-            final List<GroupTarget> groupTargets) {
+            final List<GroupTarget> groupTargets,
+            final List<io.github.joke.percolate.spi.PathSegmentResolver> pathSegmentResolvers) {
         final errorMessages = new CopyOnWriteArrayList<String>()
         final messager = new Messager() {
             @Override
@@ -79,7 +88,7 @@ final class ExpansionHarness {
         final resolveCtx = HarnessResolveCtx.create()
 
         final stage =
-                ProcessorModule.assembleExpansionPipeline(bridges, groupTargets, resolveCtx)
+                ProcessorModule.assembleExpansionPipeline(bridges, groupTargets, pathSegmentResolvers, resolveCtx)
 
         final ctx = new MapperContext(MAPPER_PLACEHOLDER)
         ctx.graph = seed

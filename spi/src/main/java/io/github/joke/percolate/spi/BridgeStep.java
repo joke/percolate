@@ -9,7 +9,7 @@ import lombok.Value;
  * {@link #scopeTransition} and {@link #elementRole}. See {@link ScopeTransition} for the three cases.
  */
 @Value
-public final class BridgeStep {
+public class BridgeStep {
     TypeMirror inputType;
     TypeMirror outputType;
     int weight;
@@ -35,10 +35,7 @@ public final class BridgeStep {
     }
 
     public BridgeStep(
-            final TypeMirror inputType,
-            final TypeMirror outputType,
-            final int weight,
-            final EdgeCodegen codegen) {
+            final TypeMirror inputType, final TypeMirror outputType, final int weight, final EdgeCodegen codegen) {
         this(inputType, outputType, weight, codegen, ScopeTransition.PRESERVING, "element");
     }
 }

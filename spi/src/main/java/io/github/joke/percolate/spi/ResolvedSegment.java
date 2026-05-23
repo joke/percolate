@@ -4,7 +4,7 @@ import javax.lang.model.type.TypeMirror;
 import lombok.Value;
 
 @Value
-public final class ResolvedSegment {
+public class ResolvedSegment {
     TypeMirror returnType;
     EdgeCodegen codegen;
     int weight;

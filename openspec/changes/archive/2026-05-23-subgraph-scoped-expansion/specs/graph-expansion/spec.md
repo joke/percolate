@@ -4,7 +4,7 @@
 
 `ExpandGroupsPhase.expandFrontier(frontier, group, ...)` SHALL source candidate input nodes from `group.getView().vertexSet()`, excluding the frontier itself and excluding any node whose `Location` is a `TargetLocation`. No global scan over `MapperGraph.nodes()` SHALL occur during expansion.
 
-The view-scoped search is the structural fix for cross-group cycles and multi-parameter directive ambiguity. Combined with `Node` instance-identity (see `graph-model`) it makes it impossible for a sibling sub-group's downstream-of-frontier node to be picked up as a candidate.
+The view-scoped search is the structural fix for sibling-leak cross-group cycles and multi-parameter directive ambiguity. Combined with `Node` instance-identity (see `graph-model`) and narrow boundary import (only `SourceLocation` nodes inherit from the parent group's view), it prevents *sibling-derived nodes* from being picked up as candidates. Inverse-bridge same-loc reuse (e.g. `OptionalWrap` after `OptionalUnwrap`) can still attempt cycle-closing matches by reusing the current group's root via `findCandidateByInputType`; those are rejected at edge commit per the cycle-rollback step in the "Bridge edge-emission rule" requirement.
 
 #### Scenario: Candidates come only from the current group's view
 - **WHEN** `expandFrontier(frontier, currentGroup, graph)` is invoked
@@ -50,7 +50,7 @@ Within-group expansion stays target-to-source per the "Bridge edge-emission rule
 
 A group whose expansion in the current pass cannot proceed because a slot is still untyped (or no candidate matches) SHALL be left in **pending** state — NOT recorded as `unsatNoPlan` — and retried in the next outer pass. The group's outcome is recorded only when the outer fixed-point converges:
 - If a group is still pending at convergence and at least one slot remains unsatisfied, `unsatNoPlan(group, failingSlot)` is recorded.
-- If the per-slot round budget tripped, `unsatDidNotConverge(group, failingSlot)` is recorded.
+- If the outer-pass budget tripped (more than `MAX_OUTER_PASSES` passes without convergence), `unsatDidNotConverge(group, failingSlot)` is recorded.
 - Otherwise (every slot satisfied), `sat(group)` is recorded.
 
 The phase SHALL enforce a `MAX_OUTER_PASSES = 32` cap as a safety net. Exceeding it indicates a bug (state monotonicity guarantees convergence in O(depth) passes, typically 2–4 for realistic mappers); the phase SHALL record `unsatDidNotConverge` on every still-pending group and stop.
@@ -162,10 +162,11 @@ Phase mutation SHALL be committed via `MapperGraph.apply(GraphDelta)` for node/e
 
 `ExpandGroupsPhase` SHALL process registered `ExpansionGroup`s via a cross-group fixed-point loop (see the "Cross-group fixed-point loop" requirement): iterate every group in registration order, repeat until a full pass produces no state changes. Initial group set is the groups present after `SeedGraph` and `ResolveTargetChainsPhase` (per-SEED-edge groups + parent constructor groups). Sub-groups registered during expansion join the set and are processed in subsequent passes.
 
-The phase SHALL enforce two budget constants:
+The phase SHALL enforce a single budget constant:
 
 - `MAX_OUTER_PASSES = 32` — the maximum number of cross-group passes. Exceeding this records `unsatDidNotConverge` on every still-pending group.
-- `MAX_SLOT_ROUNDS = 64` — the maximum number of expansion rounds per slot's `resolveSlot` call within a single outer pass. Exceeding this records `unsatDidNotConverge` for that slot's group.
+
+No per-slot round budget exists. `resolveSlot` calls `expandFrontier` once per invocation and returns; further progress on a pending slot happens in the next outer pass. The cross-group fixed-point loop subsumes what an in-pass round budget would protect against, and the CycleDetector rollback in the "Bridge edge-emission rule" bounds inverse-bridge dead-branch expansion at the structural level.
 
 For each group visited in an outer pass, the phase SHALL invoke `fillGroup(group)` which:
 
@@ -179,7 +180,7 @@ For each group visited in an outer pass, the phase SHALL invoke `fillGroup(group
 4. If every slot is satisfied at the end of this pass, mark the group `SAT` and signal "state changed".
 5. Otherwise leave the group pending; outcome recording is deferred to outer-loop convergence (see "Cross-group fixed-point loop").
 
-`resolveSlot` SHALL implement bounded greedy expansion within one outer pass: starting with `frontier = [slot]`, iterate up to `MAX_SLOT_ROUNDS` rounds. Each round calls `expandFrontier(f, group, newNodes)` for every `f` in the current frontier. Sub-groups spawned during the round are added to the graph's group set (and signal "state changed" so the outer loop runs another pass). The frontier becomes the freshly allocated `newNodes`. After each round, check whether the slot has at least one SAT child sub-group; if true, return `SAT`. If `newNodes` is empty before the slot SATs, return without recording an outcome (the slot is left for the next outer pass — sibling groups may type a candidate by then). If the round budget is exhausted within this pass, signal `UNSAT_DID_NOT_CONVERGE` for the group (final outcome on convergence).
+`resolveSlot` SHALL invoke `expandFrontier(slot, group, newNodes)` once per call. Sub-groups spawned during the call are added to the graph's group set and signal "state changed" so the outer loop runs another pass. After the call, the slot is checked: if it has at least one SAT child sub-group, return `SAT`; otherwise return pending. The slot is re-visited in the next outer pass — sibling groups may type a candidate by then, or further sub-group spawning may close the chain. The outer-pass budget (`MAX_OUTER_PASSES`) is the sole convergence bound.
 
 #### Scenario: Slot is base-case SAT for parameter root
 - **WHEN** a group's slot is `src[person]:Person` and `currentMethod` has parameter `person`
@@ -195,10 +196,6 @@ For each group visited in an outer pass, the phase SHALL invoke `fillGroup(group
 - **THEN** `resolveSlot` returns without recording an outcome
 - **AND** the group remains pending for the next outer pass
 - **AND** `unsatNoPlan` is recorded ONLY when the cross-group fixed-point converges with this slot still unsatisfied
-
-#### Scenario: Round budget exhaustion within a pass ⇒ flag UNSAT_DID_NOT_CONVERGE for this group
-- **WHEN** `MAX_SLOT_ROUNDS` rounds elapse within a single outer pass without the slot reaching SAT or running out of work
-- **THEN** the group is flagged `UNSAT_DID_NOT_CONVERGE`; the final outcome is recorded on cross-group convergence
 
 #### Scenario: Outer-pass budget exhaustion records remaining groups
 - **WHEN** more than `MAX_OUTER_PASSES` cross-group passes complete without convergence
@@ -221,13 +218,13 @@ Let `F` be the frontier node (the node demanding an input) and `C` be a candidat
 
 4. If `inputNode.equals(F)` (would degenerate to a no-op), the step is skipped.
 
-5. The phase SHALL emit one `REALISED` edge from `inputNode` to `F`, carrying `step.weight`, `step.codegen`, and the bridge's class FQN.
+5. The phase SHALL emit one `REALISED` edge from `inputNode` to `F`, carrying `step.weight`, `step.codegen`, and the bridge's class FQN, via `MapperGraph.addEdgeIfAcyclic(edge)`. The call speculatively adds the edge, runs JGraphT `CycleDetector` over the REALISED `MaskSubgraph`, and returns `false` (rolling the edge back) if the addition would close a cycle in the REALISED projection. When `addEdgeIfAcyclic` returns `false` — including the duplicate-edge case — the phase SHALL skip steps 6–7 for this match; `tryBridgeOnCandidate` proceeds to the next step.
 
 6. The phase SHALL register a fresh one-slot nested `ExpansionGroup` (per the "Every bridge match spawns a one-slot nested ExpansionGroup" requirement). The new sub-group's view contains exactly `{F, inputNode, the just-emitted REALISED edge}`. The new group joins the work-list.
 
 7. If `inputNode` was freshly allocated, it is added to `newNodes` for the next expansion round.
 
-Fresh allocation uses instance-identity (per `graph-model`): every fresh-allocated input is a distinct `Node` object even when `(scope, loc, type)` would equal an existing graph node. This is the structural property that makes cross-sub-group cycles impossible.
+Fresh allocation uses instance-identity (per `graph-model`): every fresh-allocated input is a distinct `Node` object even when `(scope, loc, type)` would equal an existing graph node. Combined with narrow boundary import (only `SourceLocation` nodes inherit into spawned sub-groups), this prevents *sibling-derived* nodes from being picked up as candidates across groups. Inverse-bridge same-loc reuse (Wrap↔Unwrap pairs that reuse the parent group's root via `findCandidateByInputType`) still attempts cycle-closing matches; the cycle-rollback in step 5 drops them.
 
 #### Scenario: Every match emits one REALISED edge + one sub-group
 - **WHEN** a `BridgeStep` matches at frontier `F`
@@ -248,6 +245,14 @@ Fresh allocation uses instance-identity (per `graph-model`): every fresh-allocat
 - **WHEN** an `EXITING` step matches at a regular-scope frontier
 - **THEN** `inputNode` is fresh-allocated at `ElementLocation(step.elementRole)` in `F.scope`
 - **AND** a one-slot sub-group is registered
+
+#### Scenario: Cycle-attempting inverse-bridge match is dropped
+- **WHEN** `commitBridgeStep` runs for a sub-group with `root = X` and `slot = Y` (with existing REALISED edge `Y → X`)
+- **AND** a PRESERVING bridge (e.g. `OptionalWrap` after a parent `OptionalUnwrap`) matches at frontier `Y` with `step.inputType == X.type` and `X.loc.equals(Y.loc)`
+- **AND** `findCandidateByInputType` returns `X` as the input
+- **THEN** `MapperGraph.addEdgeIfAcyclic(X → Y)` rolls back the speculative edge (CycleDetector detects the cycle with the existing `Y → X` REALISED edge)
+- **AND** no nested sub-group is registered for this match
+- **AND** `tryBridgeOnCandidate` proceeds to the next step
 
 ### Requirement: Multi-fire per frontier; parallel sub-groups coexist
 
@@ -289,7 +294,7 @@ The graph SHALL retain a `GroupOutcome` for every registered `ExpansionGroup`, r
 
 - `GroupOutcome.sat(group)` — every slot SAT'd via either base-case SAT or at least one SAT child sub-group.
 - `GroupOutcome.unsatNoPlan(group, failingSlot)` — `resolveSlot(failingSlot)` exhausted its expansion without producing new sub-groups, AND no existing child sub-group is SAT.
-- `GroupOutcome.unsatDidNotConverge(group, failingSlot)` — `resolveSlot(failingSlot)` exceeded `MAX_SLOT_ROUNDS` or the work-list budget was exhausted.
+- `GroupOutcome.unsatDidNotConverge(group, failingSlot)` — the cross-group fixed-point loop exceeded `MAX_OUTER_PASSES` without convergence.
 
 Outcomes propagate up the dependency DAG: a parent group's slot is SAT iff at least one child sub-group rooted at that slot has outcome SAT. No global REALISED-traversal is performed at SAT time; the outcome of each group is the SAT input for its parent.
 

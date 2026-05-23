@@ -8,7 +8,7 @@ import lombok.Value;
 
 @Value
 @EqualsAndHashCode(exclude = {"codegen", "strategyClassFqn"})
-public final class Edge implements Comparable<Edge> {
+public class Edge implements Comparable<Edge> {
 
     private static final Comparator<Edge> EDGE_ORDER = Comparator.<Edge, String>comparing(e -> e.from.id())
             .thenComparing(e -> e.to.id())

@@ -3,7 +3,7 @@ package io.github.joke.percolate.processor.graph;
 import lombok.Value;
 
 @Value
-public final class ElementLocation implements Location {
+public class ElementLocation implements Location {
     String role;
 
     public ElementLocation() {

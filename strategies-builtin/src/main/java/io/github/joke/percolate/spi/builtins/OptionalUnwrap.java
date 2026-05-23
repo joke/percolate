@@ -28,7 +28,7 @@ public final class OptionalUnwrap implements Bridge {
         }
         final var inputType = ctx.types().getDeclaredType(optionalElement, to);
         final EdgeCodegen codegen = (vars, inputs) -> CodeBlock.of("$L", inputs.single());
-        return Stream.of(new BridgeStep(
-                inputType, to, Weights.CONTAINER, codegen, ScopeTransition.ENTERING, "element"));
+        return Stream.of(
+                new BridgeStep(inputType, to, Weights.CONTAINER, codegen, ScopeTransition.ENTERING, "element"));
     }
 }

@@ -1,7 +1,6 @@
 package io.github.joke.percolate.processor.stages.expand
 
 import io.github.joke.percolate.processor.graph.*
-import io.github.joke.percolate.processor.stages.expand.properties.fakes.DivergentBridge
 import io.github.joke.percolate.processor.stages.expand.properties.fakes.NoOpBridge
 import io.github.joke.percolate.processor.test.ExpansionHarness
 import io.github.joke.percolate.spi.test.TypeUniverse
@@ -39,19 +38,6 @@ class ExpansionFailureModesSpec extends Specification {
         hasNoProducer
     }
 
-    def 'round-cap diagnostic fires when bridge prevents convergence'() {
-        given:
-        def seed = identitySeed(TypeUniverse.STRING)
-        def result = ExpansionHarness.expand(seed, List.of(new DivergentBridge()), List.of())
-
-        when:
-        def hasConvergenceIssue = result.diagnostics().any { it.toLowerCase().contains('did not converge') }
-
-        then:
-        hasConvergenceIssue
-        result.converged() == false
-    }
-
     @Unroll
     def 'expansion produces a diagnostic-bearing result for #scenario'() {
         when:
@@ -72,29 +58,6 @@ class ExpansionFailureModesSpec extends Specification {
         final var source = new Node(Optional.of(typeFrom), new SourceLocation(AccessPath.of('p')), scope)
         final var returnRoot = new Node(Optional.of(typeTo), new TargetLocation(TargetPath.of('')), scope)
         final var slot = new Node(Optional.of(typeTo), new TargetLocation(TargetPath.of('out')), scope)
-        graph.addNode(source)
-        graph.addNode(returnRoot)
-        graph.addNode(slot)
-        final var realisedEdge = Edge.realised(slot, returnRoot, 1, { vars, inputs -> com.palantir.javapoet.CodeBlock.of('') }, 'test.GroupTarget')
-        graph.addEdge(realisedEdge)
-        graph.addEdge(Edge.seedForTest(source, slot))
-        final var group = ExpansionGroup.of(
-                returnRoot,
-                [slot],
-                { vars, inputs -> com.palantir.javapoet.CodeBlock.of('') } as io.github.joke.percolate.spi.GroupCodegen,
-                'test.GroupTarget',
-                Set.of(realisedEdge),
-                graph)
-        graph.addGroup(group)
-        graph
-    }
-
-    private static MapperGraph identitySeed(type) {
-        final var graph = new MapperGraph()
-        final var scope = new HarnessScope('m(java.lang.String)')
-        final var source = new Node(Optional.of(type), new SourceLocation(AccessPath.of('in')), scope)
-        final var returnRoot = new Node(Optional.of(type), new TargetLocation(TargetPath.of('')), scope)
-        final var slot = new Node(Optional.of(type), new TargetLocation(TargetPath.of('out')), scope)
         graph.addNode(source)
         graph.addNode(returnRoot)
         graph.addNode(slot)

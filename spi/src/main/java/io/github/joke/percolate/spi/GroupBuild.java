@@ -4,7 +4,7 @@ import java.util.List;
 import lombok.Value;
 
 @Value
-public final class GroupBuild {
+public class GroupBuild {
     List<Slot> slots;
     GroupCodegen codegen;
 }

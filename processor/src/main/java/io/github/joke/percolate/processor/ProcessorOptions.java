@@ -4,7 +4,7 @@ import java.util.Map;
 import lombok.Value;
 
 @Value
-public final class ProcessorOptions {
+public class ProcessorOptions {
     boolean debugGraphs;
 
     static ProcessorOptions from(final Map<String, String> options) {

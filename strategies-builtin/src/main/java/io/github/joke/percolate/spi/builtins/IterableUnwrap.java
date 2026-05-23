@@ -25,13 +25,13 @@ public final class IterableUnwrap implements Bridge {
         if (!Containers.isIterable(from, ctx) && !Containers.isArray(from)) {
             return Stream.empty();
         }
-        final var elementType = Containers.isArray(from)
-                ? Containers.arrayComponentType(from)
-                : Containers.typeArgument(from, 0);
+        final var elementType =
+                Containers.isArray(from) ? Containers.arrayComponentType(from) : Containers.typeArgument(from, 0);
         if (!ctx.types().isSameType(to, elementType)) {
             return Stream.empty();
         }
         final EdgeCodegen codegen = (vars, inputs) -> CodeBlock.of("$L", inputs.single());
-        return Stream.of(new BridgeStep(from, elementType, Weights.CONTAINER, codegen, ScopeTransition.ENTERING, "element"));
+        return Stream.of(
+                new BridgeStep(from, elementType, Weights.CONTAINER, codegen, ScopeTransition.ENTERING, "element"));
     }
 }

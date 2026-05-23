@@ -20,6 +20,8 @@ import lombok.RequiredArgsConstructor;
 @RequiredArgsConstructor(onConstructor_ = @Inject)
 public final class RealisationDiagnosticsStage implements Stage {
 
+    private static final int SINGLE_SEGMENT = 1;
+
     private final Diagnostics diagnostics;
 
     @Override
@@ -28,12 +30,70 @@ public final class RealisationDiagnosticsStage implements Stage {
         if (graph == null) {
             return;
         }
+        final var satRoots = graph.groupOutcomes()
+                .filter(o -> o.getKind() == GroupOutcome.Kind.SAT)
+                .map(o -> o.getGroup().getRoot())
+                .collect(Collectors.toCollection(HashSet::new));
         final var unsatOutcomes = graph.groupOutcomes()
                 .filter(outcome -> outcome.getKind() != GroupOutcome.Kind.SAT)
+                .filter(outcome -> !hasAliveSibling(outcome, satRoots, graph))
+                .filter(outcome -> !isParameterRootFailingSlot(outcome, ctx))
                 .collect(Collectors.toUnmodifiableList());
         for (final var outcome : unsatOutcomes) {
             emitFor(graph, outcome, ctx);
         }
+    }
+
+    private boolean hasAliveSibling(final GroupOutcome outcome, final Set<Node> satRoots, final MapperGraph graph) {
+        final var root = outcome.getGroup().getRoot();
+        if (satRoots.contains(root)) {
+            return true;
+        }
+        final var realisedEdges =
+                graph.edges().filter(e -> e.getKind() == EdgeKind.REALISED).collect(Collectors.toUnmodifiableList());
+        final Set<Node> visited = new HashSet<>();
+        final Deque<Node> queue = new ArrayDeque<>();
+        queue.add(root);
+        visited.add(root);
+        while (!queue.isEmpty()) {
+            final var current = queue.removeFirst();
+            for (final var edge : realisedEdges) {
+                if (!edge.getFrom().equals(current)) {
+                    continue;
+                }
+                final var next = edge.getTo();
+                if (visited.add(next)) {
+                    if (satRoots.contains(next)) {
+                        return true;
+                    }
+                    queue.add(next);
+                }
+            }
+        }
+        return false;
+    }
+
+    private boolean isParameterRootFailingSlot(final GroupOutcome outcome, final MapperContext ctx) {
+        final var failingSlot = outcome.getFailingSlot().orElse(null);
+        if (failingSlot == null) {
+            return false;
+        }
+        if (!(failingSlot.getLoc() instanceof io.github.joke.percolate.processor.graph.SourceLocation)) {
+            return false;
+        }
+        final var segments = ((io.github.joke.percolate.processor.graph.SourceLocation) failingSlot.getLoc())
+                .getPath()
+                .getSegments();
+        if (segments.size() != SINGLE_SEGMENT) {
+            return false;
+        }
+        final var method = ctx.getCurrentMethod();
+        if (method == null) {
+            return false;
+        }
+        final var paramName = segments.get(0);
+        return method.getParameters().stream()
+                .anyMatch(p -> p.getSimpleName().toString().equals(paramName));
     }
 
     private void emitFor(final MapperGraph graph, final GroupOutcome outcome, final MapperContext ctx) {

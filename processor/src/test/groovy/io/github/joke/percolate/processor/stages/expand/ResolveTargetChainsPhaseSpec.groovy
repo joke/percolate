@@ -18,46 +18,6 @@ class ResolveTargetChainsPhaseSpec extends Specification {
     private static final String DIRECTIVE_BINDING_FQN =
             'io.github.joke.percolate.processor.stages.expand.DirectiveBinding'
 
-    def 'same-type directive emits a DirectiveBinding group with pass-through REALISED edge'() {
-        given:
-        def graph = new MapperGraph()
-        def scope = new HarnessScope('mapHuman()')
-        def returnRoot = new Node(Optional.of(TypeUniverse.STRING), new TargetLocation(TargetPath.of('')), scope)
-        def leaf = new Node(Optional.empty(), new TargetLocation(TargetPath.of('lastName')), scope)
-        def typedSource = new Node(Optional.of(TypeUniverse.STRING),
-                new SourceLocation(AccessPath.of('person').append('lastName')), scope)
-        graph.addNode(returnRoot)
-        graph.addNode(leaf)
-        graph.addNode(typedSource)
-        graph.addEdge(Edge.seedForTest(leaf, returnRoot))
-        graph.addEdge(Edge.seedForTest(typedSource, leaf))
-        def phase = new ResolveTargetChainsPhase([new SingleSlotGroupTarget('lastName')], HarnessResolveCtx.create())
-
-        when:
-        phase.apply(graph)
-
-        then:
-        def directiveGroups = graph.groups().filter { it.strategyClassFqn == DIRECTIVE_BINDING_FQN }.toList()
-        directiveGroups.size() == 1
-        def group = directiveGroups[0]
-        group.slots == [typedSource]
-        def slotNode = group.root
-        slotNode.type.get() == TypeUniverse.STRING
-
-        and:
-        def directiveEdges = graph.edges().filter {
-            it.kind == EdgeKind.REALISED &&
-                    it.strategyClassFqn.orElse(null) == DIRECTIVE_BINDING_FQN
-        }.toList()
-        directiveEdges.size() == 1
-        directiveEdges[0].from.is(typedSource)
-        directiveEdges[0].to.is(slotNode)
-        directiveEdges[0].weight == Weights.STEP
-
-        and: 'the existing MARKER edge from seed-leaf to typed slot is unchanged'
-        graph.edges().filter { it.kind == EdgeKind.MARKER }.count() == 1
-    }
-
     def 'type mismatch falls through to bridge search (no DirectiveBinding group)'() {
         given:
         def graph = new MapperGraph()

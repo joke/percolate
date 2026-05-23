@@ -50,7 +50,7 @@ class ExpandGroupsPhaseSpec extends Specification {
         result.diagnostics().size() == 2
     }
 
-    def 'group with already-reachable slot records SAT'() {
+    def 'group with a SAT child sub-group at its slot records SAT'() {
         given:
         def graph = new MapperGraph()
         def scope = new HarnessScope('m()')
@@ -60,18 +60,21 @@ class ExpandGroupsPhaseSpec extends Specification {
         graph.addNode(source)
         graph.addNode(root)
         graph.addNode(slot)
-        // Pre-existing REALISED chain from source to slot
-        def reachEdge = Edge.realised(source, slot, 1, { _, _ -> CodeBlock.of('') }, 'test.PreExisting')
-        graph.addEdge(reachEdge)
         def slotEdge = Edge.realised(slot, root, 1, { _, _ -> CodeBlock.of('') }, 'test.GroupTarget')
         graph.addEdge(slotEdge)
         graph.addGroup(ExpansionGroup.of(root, [slot], NOOP_CODEGEN, 'test.GroupTarget', [slotEdge].toSet(), graph))
+
+        // Child sub-group at the slot — already SAT (its slot is base-case SAT because src.p matches parameter)
+        def childEdge = Edge.realised(source, slot, 1, { _, _ -> CodeBlock.of('') }, 'test.Child')
+        graph.addEdge(childEdge)
+        def childGroup = ExpansionGroup.of(slot, [source], NOOP_CODEGEN, 'test.Child', [childEdge].toSet(), graph)
+        graph.addGroup(childGroup)
+        graph.recordGroupOutcome(GroupOutcome.sat(childGroup))
 
         when:
         def result = ExpansionHarness.expand(graph, List.of(new NoOpBridge()), List.of())
 
         then:
-        // No diagnostics — the group is SAT because source → slot exists via REALISED
         result.diagnostics().empty
     }
 }

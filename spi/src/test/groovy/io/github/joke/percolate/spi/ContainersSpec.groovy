@@ -5,8 +5,6 @@ import spock.lang.Shared
 import spock.lang.Specification
 import spock.lang.Tag
 
-import javax.lang.model.type.ArrayType
-import javax.lang.model.type.TypeKind
 import javax.lang.model.type.TypeMirror
 
 @Tag('unit')

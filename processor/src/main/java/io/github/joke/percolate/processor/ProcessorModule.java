@@ -113,8 +113,8 @@ public final class ProcessorModule {
     }
 
     @Provides
-    SeedGraph seedGraph(final List<PathSegmentResolver> pathSegmentResolvers, final ResolveCtx resolveCtx) {
-        return new SeedGraph(pathSegmentResolvers, resolveCtx);
+    SeedGraph seedGraph() {
+        return new SeedGraph();
     }
 
     @Provides
@@ -127,17 +127,23 @@ public final class ProcessorModule {
     }
 
     public static ExpandStage assembleExpansionPipeline(
-            final List<Bridge> bridges, final List<GroupTarget> groupTargets, final ResolveCtx resolveCtx) {
+            final List<Bridge> bridges,
+            final List<GroupTarget> groupTargets,
+            final List<PathSegmentResolver> pathSegmentResolvers,
+            final ResolveCtx resolveCtx) {
         final var targetPhase = new ResolveTargetChainsPhase(groupTargets, resolveCtx);
-        final var groupsPhase = new ExpandGroupsPhase(bridges, groupTargets, resolveCtx);
+        final var groupsPhase = new ExpandGroupsPhase(bridges, groupTargets, pathSegmentResolvers, resolveCtx);
         final var phases = List.<ExpansionPhase>of(targetPhase, groupsPhase);
         return new ExpandStage(phases);
     }
 
     @Provides
     ExpandStage expandStage(
-            final List<Bridge> bridges, final List<GroupTarget> groupTargets, final ResolveCtx resolveCtx) {
-        return assembleExpansionPipeline(bridges, groupTargets, resolveCtx);
+            final List<Bridge> bridges,
+            final List<GroupTarget> groupTargets,
+            final List<PathSegmentResolver> pathSegmentResolvers,
+            final ResolveCtx resolveCtx) {
+        return assembleExpansionPipeline(bridges, groupTargets, pathSegmentResolvers, resolveCtx);
     }
 
     @Provides

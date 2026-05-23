@@ -113,14 +113,16 @@ The earlier "no fixed-point loop" note in `project_expansion_direction.md` (sinc
 **Alternatives considered:**
 - *Keep `SourceReachability.slotReachable(slot, graph, sourceRoots)` as the SAT check.* Works but couples SAT to a global reachability query, re-introducing the global state we're removing.
 
-### D8. Drop cycle prevention; drop ambient source-roots
+### D8. Drop ambient source-roots; cycles dropped via CycleDetector rollback
 
-**Decision:** Any cycle-prevention check in `commitBridgeStep` / `allocateOrReuseInputNode` SHALL be removed. `SourceReachability.sourceParameterRoots(...)` and the `sourceRoots` parameter threaded through `resolveSlot` / `expandFrontier` SHALL be removed.
+**Decision:** `SourceReachability.sourceParameterRoots(...)` and the `sourceRoots` parameter threaded through `resolveSlot` / `expandFrontier` SHALL be removed. The engine SHALL drop cycle-attempting REALISED edges via `MapperGraph.addEdgeIfAcyclic(edge)`: speculatively add the edge, run JGraphT `CycleDetector` over the REALISED `MaskSubgraph`, roll back on cycle. The candidate sub-group SHALL NOT be registered when its edge is rolled back; `tryBridgeOnCandidate` proceeds to the next step.
 
-**Why:** Both are structurally redundant once D1–D3 land. Cycles cannot form: instance-identity + view-scoped candidates make it impossible to import a downstream node by type into a sibling's view. Ambient source-roots are unnecessary: parameter-root SAT is structural (D7) and per-group.
+**Why:** Ambient source-roots are unnecessary — parameter-root SAT is structural (D7) and per-group. Sibling-derived nodes can't leak into a sub-group's view (instance-identity D3 + narrow boundary import restricted to `SourceLocation` nodes), so the cross-group leakage that motivated the original cycle-prevention guard from `split-container-bridges` is gone. But inverse-bridge pairs (Wrap↔Unwrap, Collect↔Unwrap) at the same `Location` still produce cycle-attempting matches: when expanding a sub-group's slot, `findCandidateByInputType` finds the parent group's root (same loc, same type as the bridge's input), and committing reuses it as input — creating a back-edge that closes the group's slot→root REALISED edge into a cycle. Letting those commits stand produces visible cycles in `transforms.dot`. Excluding root from candidates instead produces exponential dead-branch trees because each inverse match fresh-allocates a new slot rather than folding back (integration mapper grew from 28 to 1935 nodes when this was tried). Post-hoc CycleDetector + rollback gives a bounded acyclic graph: the alive chain composes via source-typed reuse (`findCandidateByInputType` returns the imported `src[…]` node), dead inverse-bridge branches drop at the first commit attempt.
 
 **Alternatives considered:**
-- *Keep cycle prevention as belt-and-braces.* Rejected. A guard that fires on an impossible condition silently masks bugs in the structural model; better to let the structural property be load-bearing.
+- *Pre-emptive reachability check via hand-rolled BFS in `commitBridgeStep`.* Rejected: duplicates JGraphT primitives. `MapperGraph` already uses `CycleDetector` via `isAcyclic()`; the same primitive is the right tool for the per-commit check.
+- *Exclude the parent group's root from candidates.* Eliminates inverse-bridge cycles at source but causes exponential dead-branch expansion. Rejected after integration mapper exploded ~70× in node count.
+- *Keep cycle prevention as a separate "guard" method.* Rejected. Encapsulating the speculative-add + cycle-check + rollback inside `MapperGraph.addEdgeIfAcyclic(...)` keeps the append-only public API invariant (`MapperGraph` exposes no `removeEdge` / `remove` / `clear` / `delete` / `evict`) while letting the engine treat "would close a cycle" as a normal SHALL-skip case.
 
 ## Group shape under the new model (worked example)
 

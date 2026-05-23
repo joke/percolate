@@ -15,18 +15,21 @@ public final class ExpansionGroup {
     private final GroupCodegen codegen;
     private final String strategyClassFqn;
     private final AsSubgraph<Node, Edge> view;
+    private final MapperGraph parent;
 
     private ExpansionGroup(
             final Node root,
             final List<Node> slots,
             final GroupCodegen codegen,
             final String strategyClassFqn,
-            final AsSubgraph<Node, Edge> view) {
+            final AsSubgraph<Node, Edge> view,
+            final MapperGraph parent) {
         this.root = root;
         this.slots = slots;
         this.codegen = codegen;
         this.strategyClassFqn = strategyClassFqn;
         this.view = view;
+        this.parent = parent;
     }
 
     public static ExpansionGroup of(
@@ -42,7 +45,7 @@ public final class ExpansionGroup {
         vertices.add(root);
         vertices.addAll(slots);
         final var view = new AsSubgraph<>(underlying, vertices, new HashSet<>(initialEdges));
-        return new ExpansionGroup(root, List.copyOf(slots), codegen, strategyClassFqn, view);
+        return new ExpansionGroup(root, List.copyOf(slots), codegen, strategyClassFqn, view, parent);
     }
 
     private static void validateMembership(
@@ -74,5 +77,25 @@ public final class ExpansionGroup {
 
     public boolean contains(final Edge edge) {
         return view.containsEdge(edge);
+    }
+
+    public void addVertexToView(final Node node) {
+        if (!parent.underlyingGraph().containsVertex(node)) {
+            throw new IllegalArgumentException("addVertexToView: node is not a member of the parent graph");
+        }
+        view.addVertex(node);
+    }
+
+    public void addEdgeToView(final Edge edge) {
+        if (!parent.underlyingGraph().containsEdge(edge)) {
+            throw new IllegalArgumentException("addEdgeToView: edge is not a member of the parent graph");
+        }
+        if (edge.getKind() != EdgeKind.REALISED) {
+            throw new IllegalArgumentException("addEdgeToView: edge must be REALISED");
+        }
+        if (!view.containsVertex(edge.getFrom()) || !view.containsVertex(edge.getTo())) {
+            throw new IllegalArgumentException("addEdgeToView: both endpoints must already be in the view");
+        }
+        view.addEdge(edge.getFrom(), edge.getTo(), edge);
     }
 }

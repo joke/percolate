@@ -6,7 +6,7 @@ import java.util.stream.Stream;
 import lombok.Value;
 
 @Value
-public final class AccessPath {
+public class AccessPath {
     List<String> segments;
 
     public static AccessPath of(final String segment) {
