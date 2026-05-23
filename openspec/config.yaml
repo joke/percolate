@@ -16,7 +16,7 @@ rules:
   - Include mermaid diagrams for complex flows
   tasks:
   - Always add a final task to run `./gradlew check` to verify everything. NEVER continue if there are violations!
-  
+  - Commit the completed spec with /commit-commands:commit
 
 # Project context (optional)
 # This is shown to AI when creating artifacts.
