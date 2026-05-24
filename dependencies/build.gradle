@@ -27,7 +27,7 @@ dependencies {
         api 'org.jspecify:jspecify:1.0.0'
         api 'org.assertj:assertj-core:3.27.3'
         api 'org.mockito:mockito-junit-jupiter:5.23.0'
-        api 'org.projectlombok:lombok:1.18.44'
+        api 'org.projectlombok:lombok:1.18.46'
     }
 
 }
