@@ -3,7 +3,7 @@
 - [x] 1.1 Create package `processor/src/main/java/io/github/joke/percolate/processor/stages/generate/` with `package-info.java` carrying `@NullMarked`.
 - [x] 1.2 Add `GenerateStage` class implementing `Stage`; constructor-injected via `@RequiredArgsConstructor(onConstructor_ = @Inject)`; injects `Diagnostics`, `BuildMethodBodies`, `AssembleMapperType`. Short-circuits on validation errors, wraps phases in try/catch.
 - [x] 1.3 Register `GenerateStage` in `ProcessorModule`'s ordered `List<Stage>` provider, appended after `RealisationDiagnosticsStage`.
-- [ ] 1.4 Update the existing `Pipeline` ordering spec (`openspec/specs/processor/spec.md` — already deltaed in `specs/processor/spec.md`) by syncing once tasks complete (handled at archive time).
+- [x] 1.4 Update the existing `Pipeline` ordering spec (`openspec/specs/processor/spec.md` — already deltaed in `specs/processor/spec.md`) by syncing once tasks complete. Synced at archive time via `/opsx:sync`: processor delta merged (stage count 9→10, new "ordering invariant" paragraph, "every dump stage precedes…" scenario added) and `code-generation` capability spec created from scratch. `openspec validate --all --strict` green afterwards.
 
 ## 2. MethodImpl value type and shared helpers
 
