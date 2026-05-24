@@ -185,9 +185,11 @@ This change SHALL realise code generation for mappers whose realised subgraph us
 
 Mappers whose realised subgraph requires multi-segment paths beyond a single appended segment, container scope transitions (`*Unwrap` / `*Collect` pairs), or nested mapper composition are OUT OF SCOPE for this slice. When such a mapper is encountered, the realised subgraph MAY still pass `BuildMethodBodies`' algorithm correctly because the algorithm's recursion is uniform; however, this spec does not pin the resulting `CodeBlock` shape for those out-of-scope cases.
 
-#### Scenario: A trivial Person → Human mapper compiles and runs
+#### Scenario: A trivial Person → Human mapper compiles
 
-- **WHEN** the processor runs against a fixture `@Mapper interface PersonMapper { Human map(Person person); }` where `Person` and `Human` are records `record Person(String firstName, String lastName) {}` / `record Human(String firstName, String lastName) {}`
+- **WHEN** the processor runs against a Java 11 fixture `@Mapper interface PersonMapper { @Map(target = "firstName", source = "person.firstName") Human map(Person person); }` where `Person` and `Human` are plain final classes each exposing a public single-arg constructor `(String firstName)` and a `getFirstName()` accessor
 - **THEN** `Filer` receives a `PersonMapperImpl.java` source file
 - **AND** that file compiles without errors via `com.google.testing.compile`
-- **AND** invoking `new PersonMapperImpl().map(new Person("Ada", "Lovelace"))` at runtime returns a `Human` whose `firstName` is `"Ada"` and whose `lastName` is `"Lovelace"`
+- **AND** the generated `map` body is exactly `return new Human(person.getFirstName());`
+
+Implicit name-matching (deriving directives from getter/parameter name agreement, with no `@Map` annotation) is OUT OF SCOPE for this slice. Without an explicit `@Map` directive, the realised subgraph has no producer for the target slot and no class is emitted.

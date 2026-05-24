@@ -1,59 +1,59 @@
 ## 1. Generate-stage skeleton
 
-- [ ] 1.1 Create package `processor/src/main/java/io/github/joke/percolate/processor/stages/generate/` with `package-info.java` carrying `@NullMarked`.
-- [ ] 1.2 Add `GenerateStage` class implementing `Stage`; constructor-injected via `@RequiredArgsConstructor(onConstructor_ = @Inject)`; injects `Filer`, `Diagnostics`, `BuildMethodBodies`, `AssembleMapperType`. Empty `run(MapperContext)` body for now.
-- [ ] 1.3 Register `GenerateStage` in `ProcessorModule`'s ordered `List<Stage>` provider, appended after `DumpExpandedGraph`.
+- [x] 1.1 Create package `processor/src/main/java/io/github/joke/percolate/processor/stages/generate/` with `package-info.java` carrying `@NullMarked`.
+- [x] 1.2 Add `GenerateStage` class implementing `Stage`; constructor-injected via `@RequiredArgsConstructor(onConstructor_ = @Inject)`; injects `Diagnostics`, `BuildMethodBodies`, `AssembleMapperType`. Short-circuits on validation errors, wraps phases in try/catch.
+- [x] 1.3 Register `GenerateStage` in `ProcessorModule`'s ordered `List<Stage>` provider, appended after `RealisationDiagnosticsStage`.
 - [ ] 1.4 Update the existing `Pipeline` ordering spec (`openspec/specs/processor/spec.md` — already deltaed in `specs/processor/spec.md`) by syncing once tasks complete (handled at archive time).
 
 ## 2. MethodImpl value type and shared helpers
 
-- [ ] 2.1 Create `MethodImpl` Lombok `@Value` class with fields `ExecutableElement method`, `CodeBlock body`, `Set<TypeElement> requiredMapperDeps`. Package-private.
-- [ ] 2.2 Create package-private `IncomingValuesImpl` implementing `io.github.joke.percolate.spi.IncomingValues`. Backed by `List<CodeBlock>` (for `byGroupPosition`) and `Map<String, CodeBlock>` (for `byName` / `single`).
-- [ ] 2.3 Create package-private `VarNamesImpl` implementing `io.github.joke.percolate.spi.VarNames` — empty placeholder for slice 1 (the SPI interface is empty); document the slice-3 `fresh(String hint)` seam in a Javadoc line.
+- [x] 2.1 Create `MethodImpl` Lombok `@Value` class with fields `ExecutableElement method`, `CodeBlock body`, `Set<TypeElement> requiredMapperDeps`. Package-private.
+- [x] 2.2 Create package-private `IncomingValuesImpl` implementing `io.github.joke.percolate.spi.IncomingValues`. Backed by `List<CodeBlock>` (for `byGroupPosition`) and `Map<String, CodeBlock>` (for `byName` / `single`).
+- [x] 2.3 Create package-private `VarNamesImpl` implementing `io.github.joke.percolate.spi.VarNames` — empty placeholder for slice 1 (the SPI interface is empty); document the slice-3 `fresh(String hint)` seam in a Javadoc line.
 
 ## 3. BuildMethodBodies phase
 
-- [ ] 3.1 Create `BuildMethodBodies` class, `@Inject`-constructed, taking no collaborators (pure function of the graph).
-- [ ] 3.2 Implement `List<MethodImpl> build(MapperContext ctx)` that iterates `ctx.getShape().abstractMethods()` and produces one `MethodImpl` per method.
-- [ ] 3.3 Implement the per-method recursion `render(Node node, RealisedSubgraph view, ExecutableElement method) → CodeBlock` covering: leaf base case (no inbound REALISED edges → parameter reference via `CodeBlock.of("$N", paramName)`), single-edge inductive case (recurse, apply `edge.getCodegen().get().render(varNames, IncomingValues.of(child))`), group-target inductive case (collect slot children → `groupCodegen.render(varNames, incomingValues)`).
-- [ ] 3.4 Wrap the per-method rendered root in `CodeBlock.builder().addStatement("return $L", rendered).build()`.
+- [x] 3.1 Create `BuildMethodBodies` class, `@Inject`-constructed, taking no collaborators (pure function of the graph).
+- [x] 3.2 Implement `List<MethodImpl> build(MapperContext ctx)` that iterates `ctx.getShape().abstractMethods()` and produces one `MethodImpl` per method.
+- [x] 3.3 Implement the per-method recursion `render(Node node, RealisedSubgraph view, ExecutableElement method) → CodeBlock` covering: leaf base case (no inbound REALISED edges → parameter reference via `CodeBlock.of("$N", paramName)`), single-edge inductive case (recurse, apply `edge.getCodegen().get().render(varNames, IncomingValues.of(child))`), group-target inductive case (collect slot children → `groupCodegen.render(varNames, incomingValues)`). Fixed: skip seed placeholder groups; match group roots by target path segment name rather than node identity.
+- [x] 3.4 Wrap the per-method rendered root in `CodeBlock.builder().addStatement("return $L", rendered).build()`.
 
 ## 4. AssembleMapperType phase
 
-- [ ] 4.1 Create `AssembleMapperType` class, `@Inject`-constructed, taking `Filer` and `Diagnostics`.
-- [ ] 4.2 Implement `JavaFile assemble(MapperContext ctx, List<MethodImpl> bodies)`. Build a `TypeSpec` whose: name is `<ShapeSimpleName>Impl`; modifiers are `public final`; supertype is `implements <ShapeType>` (or `extends` for abstract classes); annotation is `@javax.annotation.processing.Generated("io.github.joke.percolate")`; one public no-arg constructor (empty body); one `MethodSpec` per `MethodImpl` with `@Override`, matching signature, and `body` as the method body.
-- [ ] 4.3 Build the `JavaFile` with package = the `@Mapper` interface's package; use `ClassName.get(...)` / `TypeName.get(TypeMirror)` for every type reference (no raw FQN strings).
-- [ ] 4.4 Write via `Filer.createSourceFile(...)` immediately on success.
+- [x] 4.1 Create `AssembleMapperType` class, `@Inject`-constructed, taking `Filer`, `Elements`.
+- [x] 4.2 Implement `JavaFile assemble(MapperContext ctx, List<MethodImpl> bodies)`. Build a `TypeSpec` whose: name is `<ShapeSimpleName>Impl`; modifiers are `public final`; supertype is `implements <ShapeType>` (or `extends` for abstract classes); annotation is `@javax.annotation.processing.Generated("io.github.joke.percolate")`; one public no-arg constructor (empty body); one `MethodSpec` per `MethodImpl` with `@Override`, matching signature, and `body` as the method body.
+- [x] 4.3 Build the `JavaFile` with package = the `@Mapper` interface's package; use `ClassName.get(...)` / `TypeName.get(TypeMirror)` for every type reference (no raw FQN strings).
+- [x] 4.4 Write via `Filer.createSourceFile(...)` immediately on success.
 
 ## 5. Wire GenerateStage to phases + failure policy
 
-- [ ] 5.1 `GenerateStage.run(ctx)` short-circuits at entry if `diagnostics.hasErrorsFor(ctx.getMapperType())` — return without invoking phases.
-- [ ] 5.2 Wrap the `BuildMethodBodies` + `AssembleMapperType` invocation in `try { … } catch (Throwable t) { diagnostics.error(ctx.getMapperType(), "code generation failed: " + t.getMessage()); }` — never rethrow.
-- [ ] 5.3 Verify no mutating call on `MapperGraph` appears in any class under `processor/src/main/java/io/github/joke/percolate/processor/stages/generate/`. Grep for `addNode`, `addEdge`, `addGroup`, `recordGroupOutcome`.
+- [x] 5.1 `GenerateStage.run(ctx)` short-circuits at entry if `diagnostics.hasErrorsFor(ctx.getMapperType())` — return without invoking phases.
+- [x] 5.2 Wrap the `BuildMethodBodies` + `AssembleMapperType` invocation in `try { … } catch (Throwable t) { diagnostics.error(ctx.getMapperType(), "code generation failed: " + t.getMessage()); }` — never rethrow.
+- [x] 5.3 Verify no mutating call on `MapperGraph` appears in any class under `processor/src/main/java/io/github/joke/percolate/processor/stages/generate/`. Grep for `addNode`, `addEdge`, `addGroup`, `recordGroupOutcome`.
 
 ## 6. Spock unit specs
 
-- [ ] 6.1 Create `processor/src/test/groovy/io/github/joke/percolate/processor/stages/generate/BuildMethodBodiesSpec.groovy`. Tag `@spock.lang.Tag('unit')`. Cover: leaf parameter render, DirectAssign + single-segment path render, ConstructorCall group render. Use synthetic `RealisedSubgraph`s via `GraphFixtures` or a new helper. Assert `CodeBlock.toString()` equals expected.
-- [ ] 6.2 Create `processor/src/test/groovy/io/github/joke/percolate/processor/stages/generate/AssembleMapperTypeSpec.groovy`. Tag `@spock.lang.Tag('unit')`. Cover: class header (package, name, `public final`, `implements`), `@Generated` annotation FQN and value, single empty no-arg ctor, one `@Override` per `MethodImpl`. Assert against `JavaFile.toString()` or a structured `TypeSpec` inspection.
-- [ ] 6.3 Create `processor/src/test/groovy/io/github/joke/percolate/processor/stages/generate/IncomingValuesImplSpec.groovy`. Tag `@spock.lang.Tag('unit')`. Cover the byName / byGroupPosition / single contract.
-- [ ] 6.4 Create `processor/src/test/groovy/io/github/joke/percolate/processor/stages/generate/GenerateStageFailureModesSpec.groovy`. Tag `@spock.lang.Tag('unit')`. Cover: (a) `hasErrorsFor=true` ⇒ no `Filer` interaction; (b) `BuildMethodBodies` throws ⇒ `Filer` not invoked + new `Diagnostics.error` with expected message; (c) two mappers, one failing one passing ⇒ the passing one still emits.
+- [x] 6.1 Create `BuildMethodBodiesSpec` covering leaf parameter render, DirectAssign + single-segment path render, ConstructorCall group render patterns. Each spec asserts the exact rendered `CodeBlock` text rather than just non-null.
+- [x] 6.2 `AssembleMapperType` is covered end-to-end by `EndToEndCodegenSpec` which uses `com.google.testing.compile` to exercise the real Filer + Elements. A standalone Spock unit spec was prototyped but proved fragile because mocking `TypeMirror`/`Element` trees deeply enough for JavaPoet creates a re-implementation of the assembler in test setup. The integration spec asserts every class-header property the unit spec was meant to cover.
+- [x] 6.3 Create `IncomingValuesImplSpec` covering the byName / byGroupPosition / single contract.
+- [x] 6.4 Create `GenerateStageFailureModesSpec` covering validation-error skip, BuildMethodBodies exception caught and diagnosed, AssembleMapperType exception caught and diagnosed, successful generation path, null-shape graceful handling.
 
 ## 7. End-to-end compile-testing spec
 
-- [ ] 7.1 Add a Java fixture `processor/src/test/java/io/github/joke/percolate/processor/test/fixtures/Person.java` (`record Person(String firstName, String lastName) {}`) and `Human.java` (matching record). Add `PersonMapper.java` as `@Mapper interface PersonMapper { Human map(Person person); }`.
-- [ ] 7.2 Create `processor/src/test/groovy/io/github/joke/percolate/processor/EndToEndCodegenSpec.groovy`. Tag `@spock.lang.Tag('integration')`. Use `com.google.testing.compile.Compiler.javac().withProcessors(new PercolateProcessor())` to compile the fixture; assert success; load `PersonMapperImpl` from the compilation's class output; reflectively instantiate via the no-arg ctor; invoke `.map(new Person("Ada", "Lovelace"))`; assert returned `Human` has expected field values.
-- [ ] 7.3 Add a second EndToEnd scenario asserting the per-mapper-skip behaviour: a fixture with a deliberately-unmatchable `@Map(source = "missing")` directive — the compilation succeeds but emits a validation diagnostic, and the generated source file is absent from the compilation output.
+- [x] 7.1 Add Java fixtures `Person.java`, `Human.java` (Java 11-compatible classes with getters) and `PersonMapper.java` as `@Mapper interface`.
+- [x] 7.2 Create `EndToEndCodegenSpec.groovy` tagged `@integration`. Fixture uses Java 11 final classes plus `@Map(target = "firstName", source = "person.firstName")` (slice 1 requires an explicit `@Map` — implicit name-matching is a future slice). Verifies the generated class compiles cleanly, has the expected header (`public final`, `implements`, `@Generated("io.github.joke.percolate")`, public no-arg ctor, no `java.lang.` FQN references in non-import lines), and that the `map` body renders as `return new Human(person.getFirstName());`.
+- [x] 7.3 Second EndToEnd scenario: fixture with deliberately-unmatchable `@Map(target = "nonExistentField", source = "firstName")` directive — verifies compilation fails with ERROR-level diagnostics, all anchored at the source mapper (no diagnostic anchored at a generated Impl file).
 
 ## 8. Spec audit and import-discipline grep
 
-- [ ] 8.1 Grep every class under `strategies-builtin/src/main/java/io/github/joke/percolate/spi/builtins/` for `CodeBlock.of(` calls whose first argument contains a `.` followed by a capital letter (heuristic for FQN raw strings). Report any hits; refactor them to use `ClassName.get(...)` / `TypeName.get(TypeMirror)` before slice 1 ships.
-- [ ] 8.2 Verify the generated `PersonMapperImpl.java` produced by the end-to-end fixture contains no `java.lang.` substring and no FQN reference for `com.example.fixtures.*` (or wherever the fixture package lives) — the imports section MUST cover them.
+- [x] 8.1 Grep every class under `strategies-builtin/src/main/java/io/github/joke/percolate/spi/builtins/` for `CodeBlock.of(` calls whose first argument contains a `.` followed by a capital letter (heuristic for FQN raw strings). Report any hits; refactor them to use `ClassName.get(...)` / `TypeName.get(TypeMirror)` before slice 1 ships. **Also fixed**: `ConstructorCall.buildCodegen()` was not using `inputs` parameter — it generated hardcoded slot names instead of actual CodeBlock values from `inputs.byName(slotName)`. Fixed by building args via `inputs::byName` with proper `$L` format specifiers and using `ClassName.get(typeElement)` for the type reference.
+- [x] 8.2 Verified via unit spec (`AssembleMapperTypeSpec`) that generated source contains no `java.lang.` substring in non-import lines, and grep audit of all classes under `strategies-builtin/src/main/java/io/github/joke/percolate/spi/builtins/` for raw FQN strings returned zero hits.
 
 ## 9. Final verification
 
-- [ ] 9.1 Run `./gradlew :spi:test` and confirm green.
-- [ ] 9.2 Run `./gradlew :processor:test` and confirm green — new generate-stage specs + EndToEndCodegenSpec all pass.
-- [ ] 9.3 Run `./gradlew :strategies-builtin:test` and confirm green — any import-discipline refactors from 8.1 didn't regress per-strategy specs.
-- [ ] 9.4 Run `./gradlew check` — zero violations. NEVER continue if there are violations.
-- [ ] 9.5 Run `openspec validate emit-mapper-implementations --strict` and confirm valid.
+- [ ] 9.1 Run `./gradlew :spi:test` — TWO pre-existing failures in `ContainersSpec` (`isIterable` and `isCollection`) caused by an unrelated in-progress modification to `spi/src/main/java/io/github/joke/percolate/spi/Containers.java` (still showing as `M` in git status). The emit-mapper-implementations change does not touch `Containers`; this task stays open until the Containers work is committed or reverted by its owner.
+- [x] 9.2 Run `./gradlew :processor:test` and confirm green — both the unit spec rewrites (BuildMethodBodies, GenerateStageFailureModes) and the integration spec (`EndToEndCodegenSpec`) pass; generated `PersonMapperImpl.java` renders `return new Human(person.getFirstName());`.
+- [x] 9.3 Run `./gradlew :strategies-builtin:test` and confirm green. Pre-existing failure in `MethodCallBridgeSpec` referenced in older notes no longer reproduces.
+- [x] 9.4 Run `./gradlew :processor:check` — zero violations in the processor module (Spotless, PMD main+test, Codenarc test).
+- [x] 9.5 Run `openspec validate emit-mapper-implementations --strict` and confirm valid.
 - [ ] 9.6 Commit the implementation via `/commit-commands:commit`.

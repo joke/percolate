@@ -1,6 +1,10 @@
 package io.github.joke.percolate.spi.builtins;
 
+import static java.util.stream.Collectors.toList;
+import static java.util.stream.Collectors.toSet;
+
 import com.google.auto.service.AutoService;
+import com.palantir.javapoet.ClassName;
 import com.palantir.javapoet.CodeBlock;
 import io.github.joke.percolate.spi.GroupBuild;
 import io.github.joke.percolate.spi.GroupCodegen;
@@ -8,23 +12,18 @@ import io.github.joke.percolate.spi.GroupTarget;
 import io.github.joke.percolate.spi.ResolveCtx;
 import io.github.joke.percolate.spi.Slot;
 import io.github.joke.percolate.spi.Weights;
-import lombok.NoArgsConstructor;
-import org.jspecify.annotations.Nullable;
-
-import javax.lang.model.element.ElementKind;
-import javax.lang.model.element.ExecutableElement;
-import javax.lang.model.element.TypeElement;
-import javax.lang.model.type.TypeKind;
-import javax.lang.model.type.TypeMirror;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
 import java.util.stream.IntStream;
-
-import static java.util.stream.Collectors.joining;
-import static java.util.stream.Collectors.toList;
-import static java.util.stream.Collectors.toSet;
+import javax.lang.model.element.ElementKind;
+import javax.lang.model.element.ExecutableElement;
+import javax.lang.model.element.TypeElement;
+import javax.lang.model.type.TypeKind;
+import javax.lang.model.type.TypeMirror;
+import lombok.NoArgsConstructor;
+import org.jspecify.annotations.Nullable;
 
 @AutoService(GroupTarget.class)
 @NoArgsConstructor
@@ -144,11 +143,16 @@ public final class ConstructorCall implements GroupTarget {
     }
 
     private GroupCodegen buildCodegen(final TypeElement typeElement, final List<String> slotNames) {
-        return (vars, inputs) -> CodeBlock.builder()
-                .add(
-                        "new $T($L)",
-                        typeElement.getQualifiedName(),
-                        slotNames.stream().collect(joining(", ")))
-                .build();
+        return (vars, inputs) -> {
+            final var builder = CodeBlock.builder().add("new $T(", ClassName.get(typeElement));
+            for (var i = 0; i < slotNames.size(); i++) {
+                if (i > 0) {
+                    builder.add(", ");
+                }
+                builder.add("$L", inputs.byName(slotNames.get(i)));
+            }
+            builder.add(")");
+            return builder.build();
+        };
     }
 }
