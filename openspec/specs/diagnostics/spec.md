@@ -1,6 +1,10 @@
 # Diagnostics Spec
 
-## Diagnostics
+## Purpose
+
+The `Diagnostics` facility centralises error and warning emission for the processor pipeline. It records which `Element`s have been "scarred" so downstream stages can short-circuit on already-broken inputs, attaches the `AnnotationMirror` and `AnnotationValue` context required for IDEs to underline the exact source token, and resets its scarring state at the start of each processor round so incremental compilation stays correct.
+
+## Requirements
 
 ### Requirement: Errors SHALL include source-position information for IDEs
 

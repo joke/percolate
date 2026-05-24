@@ -1,5 +1,11 @@
 # Processor Framework Spec
 
+## Purpose
+
+The processor framework defines the entry point and wiring contract for the annotation processor. `PercolateProcessor` extends `BasicAnnotationProcessor`, is registered via `@AutoService`, and obtains its `MapperStep` from a Dagger `ProcessorComponent` wired by `ProcessorModule`. `Pipeline` runs a fixed ordered list of `Stage`s per `@Mapper` type, constructing a fresh `MapperGraph` and per-mapper context for each invocation. This spec pins those framework choices so the behavioural specs further down the pipeline can rely on them.
+
+## Requirements
+
 ### Requirement: PercolateProcessor
 `PercolateProcessor` SHALL extend `com.google.auto.common.BasicAnnotationProcessor` (not `javax.annotation.processing.AbstractProcessor`). It SHALL be registered via `@AutoService(Processor.class)` and declare the latest supported source version via `getSupportedSourceVersion()`. It SHALL NOT use `@SupportedAnnotationTypes`; supported annotations are derived from its `Step`s.
 

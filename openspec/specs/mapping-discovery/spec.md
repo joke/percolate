@@ -1,6 +1,10 @@
 # Mapping Discovery Spec
 
-## DiscoverMappings
+## Purpose
+
+`DiscoverMappings` is the second pipeline stage. It reads each abstract method's `@Map` (and `@MapList`) annotations into a typed `MapperMappings` structure. Each `MappingDirective` retains the underlying `AnnotationMirror` and the `AnnotationValue`s for `target` and `source`, so later validation and diagnostic stages can point at the exact source token rather than the enclosing method.
+
+## Requirements
 
 ### Requirement: @Map directives SHALL be discovered for every abstract method
 

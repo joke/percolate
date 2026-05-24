@@ -1,6 +1,10 @@
 # Mapping Validation Spec
 
-## ValidateNoDuplicateTargets
+## Purpose
+
+The mapping-validation stages run after discovery and reject mapper inputs that violate locally-checkable invariants before the graph pipeline starts. `ValidateNoDuplicateTargets` rejects two `@Map` directives that bind the same `target` on a single method; `ValidateSourceParameters` rejects directives whose `source` first segment does not name a method parameter. Both emit through `Diagnostics` (never `Messager` directly) and continue processing other methods and mappers so a single bad directive does not silence the rest of the round.
+
+## Requirements
 
 ### Requirement: A method SHALL NOT have duplicate @Map targets
 
@@ -30,7 +34,7 @@ Each duplicate-target error SHALL be emitted with the offending `MappingDirectiv
 - **WHEN** `ValidateNoDuplicateTargets` reports a duplicate `target = "lastName"`
 - **THEN** the `Diagnostics.error(...)` call receives the offending `AnnotationValue` (the `target` value of the duplicate `@Map`), not the value from the original (kept) directive
 
-### Requirement: Validation SHALL NOT halt the pipeline
+### Requirement: ValidateNoDuplicateTargets SHALL NOT halt the pipeline
 
 `ValidateNoDuplicateTargets` SHALL emit errors via `Diagnostics` and return normally. The `Pipeline` SHALL continue to invoke subsequent stages on other methods of the same mapper, and SHALL continue processing other mappers in the same round.
 
@@ -43,17 +47,6 @@ Each duplicate-target error SHALL be emitted with the offending `MappingDirectiv
 
 - **WHEN** mapper `A` has duplicate targets and mapper `B` does not
 - **THEN** the pipeline emits errors for `A` and continues processing `B` without exception
-
-### Requirement: Validators SHALL emit errors via Diagnostics, not Messager directly
-
-Validator implementations SHALL route all error reporting through the `Diagnostics` collaborator, never through `Messager.printMessage` directly. This ensures uniform behaviour for scarring and future buffering.
-
-#### Scenario: Source code does not call Messager directly from validators
-
-- **WHEN** the source of any class under `io.github.joke.percolate.processor` named with the `Validate*` prefix is reviewed
-- **THEN** it contains no calls to `Messager.printMessage(...)` (only calls to `Diagnostics`)
-
-## ValidateSourceParameters
 
 ### Requirement: Every @Map directive's source first segment SHALL name a method parameter
 
@@ -84,7 +77,7 @@ On a single abstract method, the first segment of every `@Map` directive's `sour
 - **WHEN** `ValidateSourceParameters` reports an unknown source parameter
 - **THEN** the `Diagnostics.error(...)` call receives the offending `MappingDirective`'s method `Element`, `AnnotationMirror`, and the `AnnotationValue` of `source`, so that an IDE underlines the offending `source = "..."` literal
 
-### Requirement: Validation SHALL NOT halt the pipeline
+### Requirement: ValidateSourceParameters SHALL NOT halt the pipeline
 
 `ValidateSourceParameters` SHALL emit errors via `Diagnostics` and return normally. The `Pipeline` SHALL continue to invoke subsequent stages on other methods of the same mapper, and SHALL continue processing other mappers in the same round.
 
@@ -97,12 +90,3 @@ On a single abstract method, the first segment of every `@Map` directive's `sour
 
 - **WHEN** mapper `A` has unknown source parameters and mapper `B` does not
 - **THEN** the pipeline emits errors for `A` and continues processing `B` without exception
-
-### Requirement: Validators SHALL emit errors via Diagnostics, not Messager directly
-
-Validator implementations SHALL route all error reporting through the `Diagnostics` collaborator, never through `Messager.printMessage` directly. This ensures uniform behaviour for scarring and future buffering.
-
-#### Scenario: Source code does not call Messager directly from validators
-
-- **WHEN** the source of any class under `io.github.joke.percolate.processor` named with the `Validate*` prefix is reviewed
-- **THEN** it contains no calls to `Messager.printMessage(...)` (only calls to `Diagnostics`)
