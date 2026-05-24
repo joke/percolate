@@ -1,19 +1,18 @@
 package io.github.joke.percolate.processor.graph;
 
-import lombok.NoArgsConstructor;
+import static java.util.stream.Collectors.groupingBy;
+import static java.util.stream.Collectors.joining;
+import static java.util.stream.Collectors.toList;
 
-import javax.lang.model.element.TypeElement;
-import javax.lang.model.type.TypeMirror;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
 import java.util.concurrent.ConcurrentHashMap;
-
-import static java.util.stream.Collectors.groupingBy;
-import static java.util.stream.Collectors.joining;
-import static java.util.stream.Collectors.toList;
+import javax.lang.model.element.TypeElement;
+import javax.lang.model.type.TypeMirror;
+import lombok.NoArgsConstructor;
 
 @NoArgsConstructor
 public final class DotRenderer {

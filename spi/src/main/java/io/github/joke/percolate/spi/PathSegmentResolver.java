@@ -1,7 +1,7 @@
 package io.github.joke.percolate.spi;
 
-import javax.lang.model.type.TypeMirror;
 import java.util.Optional;
+import javax.lang.model.type.TypeMirror;
 
 /**
  * Resolves a single segment of a source path to a typed access. See the {@code source-path-resolution}

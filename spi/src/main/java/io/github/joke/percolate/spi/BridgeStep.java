@@ -1,8 +1,7 @@
 package io.github.joke.percolate.spi;
 
-import lombok.Value;
-
 import javax.lang.model.type.TypeMirror;
+import lombok.Value;
 
 /**
  * One hop a {@link Bridge} can emit. The driver consumes a {@code BridgeStep} per emission and decides candidacy,

@@ -9,14 +9,13 @@ import io.github.joke.percolate.processor.graph.Node;
 import io.github.joke.percolate.processor.graph.TargetLocation;
 import io.github.joke.percolate.processor.stages.Stage;
 import jakarta.inject.Inject;
-import lombok.RequiredArgsConstructor;
-
-import javax.lang.model.type.TypeMirror;
 import java.util.ArrayDeque;
 import java.util.Deque;
 import java.util.HashSet;
 import java.util.Set;
 import java.util.stream.Collectors;
+import javax.lang.model.type.TypeMirror;
+import lombok.RequiredArgsConstructor;
 
 @RequiredArgsConstructor(onConstructor_ = @Inject)
 public final class RealisationDiagnosticsStage implements Stage {

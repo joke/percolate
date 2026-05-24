@@ -1,8 +1,7 @@
 package io.github.joke.percolate.spi;
 
-import lombok.Value;
-
 import java.util.List;
+import lombok.Value;
 
 @Value
 public class GroupBuild {

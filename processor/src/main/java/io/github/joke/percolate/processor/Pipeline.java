@@ -2,11 +2,10 @@ package io.github.joke.percolate.processor;
 
 import io.github.joke.percolate.processor.stages.Stage;
 import jakarta.inject.Inject;
+import java.util.List;
+import javax.lang.model.element.TypeElement;
 import lombok.EqualsAndHashCode;
 import lombok.RequiredArgsConstructor;
-
-import javax.lang.model.element.TypeElement;
-import java.util.List;
 
 @RequiredArgsConstructor(onConstructor_ = @Inject)
 @EqualsAndHashCode(onlyExplicitlyIncluded = true)

@@ -7,14 +7,13 @@ import io.github.joke.percolate.processor.graph.DotRenderer;
 import io.github.joke.percolate.processor.graph.MapperGraph;
 import io.github.joke.percolate.processor.stages.Stage;
 import jakarta.inject.Inject;
-import lombok.RequiredArgsConstructor;
-
-import javax.annotation.processing.Filer;
-import javax.lang.model.element.TypeElement;
-import javax.tools.StandardLocation;
 import java.io.IOException;
 import java.io.OutputStreamWriter;
 import java.nio.charset.StandardCharsets;
+import javax.annotation.processing.Filer;
+import javax.lang.model.element.TypeElement;
+import javax.tools.StandardLocation;
+import lombok.RequiredArgsConstructor;
 
 @RequiredArgsConstructor(onConstructor_ = @Inject)
 public final class DumpFullGraph implements Stage {

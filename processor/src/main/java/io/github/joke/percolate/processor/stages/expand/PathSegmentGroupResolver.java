@@ -6,11 +6,10 @@ import io.github.joke.percolate.processor.graph.SourceLocation;
 import io.github.joke.percolate.spi.PathSegmentResolver;
 import io.github.joke.percolate.spi.ResolveCtx;
 import io.github.joke.percolate.spi.ResolvedSegment;
-import lombok.RequiredArgsConstructor;
-import org.jspecify.annotations.Nullable;
-
 import java.util.List;
 import java.util.Optional;
+import lombok.RequiredArgsConstructor;
+import org.jspecify.annotations.Nullable;
 
 @RequiredArgsConstructor
 final class PathSegmentGroupResolver {

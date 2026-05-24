@@ -1,13 +1,12 @@
 package io.github.joke.percolate.processor.test;
 
-import org.jspecify.annotations.NullMarked;
-
+import java.io.IOException;
 import javax.annotation.processing.Filer;
 import javax.lang.model.element.Element;
 import javax.tools.FileObject;
 import javax.tools.JavaFileManager;
 import javax.tools.JavaFileObject;
-import java.io.IOException;
+import org.jspecify.annotations.NullMarked;
 
 @NullMarked
 @SuppressWarnings("PMD.TestClassWithoutTestCases")

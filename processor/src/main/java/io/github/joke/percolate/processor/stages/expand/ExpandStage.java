@@ -8,10 +8,9 @@ import io.github.joke.percolate.processor.graph.MethodScope;
 import io.github.joke.percolate.processor.graph.Node;
 import io.github.joke.percolate.processor.stages.Stage;
 import jakarta.inject.Inject;
-import lombok.RequiredArgsConstructor;
-
 import java.util.List;
 import java.util.stream.Collectors;
+import lombok.RequiredArgsConstructor;
 
 @RequiredArgsConstructor(onConstructor_ = @Inject)
 public final class ExpandStage implements Stage {

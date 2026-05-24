@@ -3,7 +3,6 @@ package io.github.joke.percolate.processor.stages.expand;
 import io.github.joke.percolate.processor.graph.ExpansionGroup;
 import io.github.joke.percolate.processor.graph.Node;
 import io.github.joke.percolate.processor.graph.TargetLocation;
-
 import java.util.Comparator;
 import java.util.List;
 import java.util.stream.Collectors;
