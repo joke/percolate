@@ -14,6 +14,9 @@ import io.github.joke.percolate.processor.stages.expand.ExpandGroupsPhase;
 import io.github.joke.percolate.processor.stages.expand.ExpandStage;
 import io.github.joke.percolate.processor.stages.expand.ExpansionPhase;
 import io.github.joke.percolate.processor.stages.expand.ResolveTargetChainsPhase;
+import io.github.joke.percolate.processor.stages.generate.AssembleMapperType;
+import io.github.joke.percolate.processor.stages.generate.BuildMethodBodies;
+import io.github.joke.percolate.processor.stages.generate.GenerateStage;
 import io.github.joke.percolate.processor.stages.seed.SeedGraph;
 import io.github.joke.percolate.processor.stages.validate.ValidateNoDuplicateTargets;
 import io.github.joke.percolate.processor.stages.validate.ValidateSourceParameters;
@@ -165,6 +168,24 @@ public final class ProcessorModule {
     }
 
     @Provides
+    BuildMethodBodies buildMethodBodies() {
+        return new BuildMethodBodies();
+    }
+
+    @Provides
+    AssembleMapperType assembleMapperType(final Filer filer, final Elements elements) {
+        return new AssembleMapperType(filer, elements);
+    }
+
+    @Provides
+    GenerateStage generateStage(
+            final Diagnostics diagnostics,
+            final BuildMethodBodies buildMethodBodies,
+            final AssembleMapperType assembleMapperType) {
+        return new GenerateStage(diagnostics, buildMethodBodies, assembleMapperType);
+    }
+
+    @Provides
     @Named("discover")
     static List<Stage> discoverStages(
             final DiscoverAbstractMethods discoverAbstractMethods,
@@ -174,6 +195,7 @@ public final class ProcessorModule {
     }
 
     @Provides
+    @SuppressWarnings("PMD.ExcessiveParameterList")
     static List<Stage> stages(
             @Named("discover") final List<Stage> discoverStages,
             final ValidateNoDuplicateTargets validateNoDuplicateTargets,
@@ -184,7 +206,8 @@ public final class ProcessorModule {
             final DumpFullGraph dumpFullGraph,
             final DumpTransforms dumpTransforms,
             final io.github.joke.percolate.processor.stages.validate.RealisationDiagnosticsStage
-                    realisationDiagnosticsStage) {
+                    realisationDiagnosticsStage,
+            final GenerateStage generateStage) {
         final var all = new ArrayList<Stage>(discoverStages);
         all.add(validateNoDuplicateTargets);
         all.add(validateSourceParameters);
@@ -194,6 +217,7 @@ public final class ProcessorModule {
         all.add(dumpFullGraph);
         all.add(dumpTransforms);
         all.add(realisationDiagnosticsStage);
+        all.add(generateStage);
         return List.copyOf(all);
     }
 

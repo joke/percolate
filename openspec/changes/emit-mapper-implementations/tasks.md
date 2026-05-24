@@ -51,9 +51,9 @@
 
 ## 9. Final verification
 
-- [ ] 9.1 Run `./gradlew :spi:test` — TWO pre-existing failures in `ContainersSpec` (`isIterable` and `isCollection`) caused by an unrelated in-progress modification to `spi/src/main/java/io/github/joke/percolate/spi/Containers.java` (still showing as `M` in git status). The emit-mapper-implementations change does not touch `Containers`; this task stays open until the Containers work is committed or reverted by its owner.
+- [ ] 9.1 Run `./gradlew :spi:test` — TWO pre-existing failures in `ContainersSpec` (`isIterable` and `isCollection`) caused by a `TypeUniverse` test-fixture issue on Java 21+ JDKs (concurrent javac access + Collection lazy-loading SequencedCollection mid-traversal), not a `Containers.java` bug. Fix planned as a follow-up commit.
 - [x] 9.2 Run `./gradlew :processor:test` and confirm green — both the unit spec rewrites (BuildMethodBodies, GenerateStageFailureModes) and the integration spec (`EndToEndCodegenSpec`) pass; generated `PersonMapperImpl.java` renders `return new Human(person.getFirstName());`.
 - [x] 9.3 Run `./gradlew :strategies-builtin:test` and confirm green. Pre-existing failure in `MethodCallBridgeSpec` referenced in older notes no longer reproduces.
 - [x] 9.4 Run `./gradlew :processor:check` — zero violations in the processor module (Spotless, PMD main+test, Codenarc test).
 - [x] 9.5 Run `openspec validate emit-mapper-implementations --strict` and confirm valid.
-- [ ] 9.6 Commit the implementation via `/commit-commands:commit`.
+- [x] 9.6 Commit the implementation via `/commit-commands:commit` — committed as `28d1bac feat(processor): emit mapper implementations via GenerateStage` (only the generate-stage code, its specs/tests, the ConstructorCall unused-import fix, and this change's spec/tasks files; unrelated work-in-progress modifications elsewhere in the tree intentionally left uncommitted).

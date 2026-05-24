@@ -35,7 +35,7 @@ public final class RealisedSubgraph {
         return nodes().filter(n -> n.getScope().equals(scope));
     }
 
-    MapperGraph delegate() {
+    public MapperGraph delegate() {
         return mapperGraph;
     }
 }

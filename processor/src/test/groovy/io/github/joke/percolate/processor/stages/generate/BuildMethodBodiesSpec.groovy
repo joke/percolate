@@ -2,16 +2,7 @@ package io.github.joke.percolate.processor.stages.generate
 
 import com.palantir.javapoet.CodeBlock
 import io.github.joke.percolate.processor.MapperContext
-import io.github.joke.percolate.processor.graph.AccessPath
-import io.github.joke.percolate.processor.graph.Edge
-import io.github.joke.percolate.processor.graph.ExpansionGroup
-import io.github.joke.percolate.processor.graph.MapperGraph
-import io.github.joke.percolate.processor.graph.MethodScope
-import io.github.joke.percolate.processor.graph.Node
-import io.github.joke.percolate.processor.graph.Scope
-import io.github.joke.percolate.processor.graph.SourceLocation
-import io.github.joke.percolate.processor.graph.TargetLocation
-import io.github.joke.percolate.processor.graph.TargetPath
+import io.github.joke.percolate.processor.graph.*
 import io.github.joke.percolate.processor.model.MapperShape
 import io.github.joke.percolate.spi.EdgeCodegen
 import io.github.joke.percolate.spi.GroupCodegen
