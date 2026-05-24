@@ -20,7 +20,7 @@ class FieldPathResolverSpec extends Specification {
         then:
         result.present
         ctx.types().isSameType(result.get().returnType, TypeUniverse.STRING)
-        result.get().weight == Weights.STEP
+        result.get().weight == Weights.STEP_FIELD
     }
 
     def 'rejects private fields'() {

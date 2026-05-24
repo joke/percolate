@@ -2,20 +2,23 @@ package io.github.joke.percolate.processor.stages.expand
 
 import com.palantir.javapoet.CodeBlock
 import io.github.joke.percolate.processor.graph.*
-import io.github.joke.percolate.processor.stages.expand.properties.fakes.NoOpBridge
 import io.github.joke.percolate.processor.test.ExpansionHarness
 import io.github.joke.percolate.processor.test.HarnessScope
+import io.github.joke.percolate.spi.Bridge
 import io.github.joke.percolate.spi.GroupCodegen
 import io.github.joke.percolate.spi.test.TypeUniverse
 import spock.lang.Specification
 import spock.lang.Tag
 import spock.lang.Timeout
 
+import java.util.stream.Stream
+
 @Tag('unit')
 @Timeout(30)
 class ExpandGroupsPhaseSpec extends Specification {
 
     private static final GroupCodegen NOOP_CODEGEN = { vars, inputs -> CodeBlock.of('') }
+    private static final Bridge NO_OP_BRIDGE = { from, to, ctx -> Stream.empty() } as Bridge
 
     def 'all groups are processed even when some fail'() {
         given:
@@ -43,7 +46,7 @@ class ExpandGroupsPhaseSpec extends Specification {
         graph.addGroup(ExpansionGroup.of(rootB, [slotB], NOOP_CODEGEN, 'test.GroupTarget', [edgeB].toSet(), graph))
 
         when:
-        def result = ExpansionHarness.expand(graph, List.of(new NoOpBridge()), List.of())
+        def result = ExpansionHarness.expand(graph, List.of(NO_OP_BRIDGE), List.of())
 
         then:
         // Both groups should produce diagnostics
@@ -72,7 +75,7 @@ class ExpandGroupsPhaseSpec extends Specification {
         graph.recordGroupOutcome(GroupOutcome.sat(childGroup))
 
         when:
-        def result = ExpansionHarness.expand(graph, List.of(new NoOpBridge()), List.of())
+        def result = ExpansionHarness.expand(graph, List.of(NO_OP_BRIDGE), List.of())
 
         then:
         result.diagnostics().empty

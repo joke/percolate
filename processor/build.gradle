@@ -28,7 +28,6 @@ dependencies {
 
     testImplementation platform(project(':dependencies'))
     testImplementation 'com.google.testing.compile:compile-testing'
-    testImplementation 'net.jqwik:jqwik'
     testImplementation 'org.spockframework:spock-core'
     testImplementation 'org.assertj:assertj-core'
     testImplementation testFixtures(project(':spi'))
@@ -36,10 +35,6 @@ dependencies {
     testRuntimeOnly 'net.bytebuddy:byte-buddy'
     testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
     testRuntimeOnly 'org.mockito:mockito-junit-jupiter'
-}
-
-tasks.named('test') {
-    jvmArgs += ['-Djqwik.database.directory=build/jqwik-database']
 }
 
 tasks.named('jacocoTestCoverageVerification') {

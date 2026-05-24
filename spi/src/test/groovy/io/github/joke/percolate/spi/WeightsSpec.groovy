@@ -29,4 +29,13 @@ class WeightsSpec extends Specification {
         Weights.isSentinel(Weights.SENTINEL_UNREALISED)
         !Weights.isSentinel(Weights.CONTAINER)
     }
+
+    def 'path-segment access weights encode getter < method < field precedence'() {
+        expect:
+        Weights.STEP_GETTER == 1
+        Weights.STEP_METHOD == 2
+        Weights.STEP_FIELD == 3
+        Weights.STEP_GETTER < Weights.STEP_METHOD
+        Weights.STEP_METHOD < Weights.STEP_FIELD
+    }
 }

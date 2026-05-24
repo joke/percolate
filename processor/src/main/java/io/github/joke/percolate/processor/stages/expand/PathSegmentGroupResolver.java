@@ -9,6 +9,7 @@ import io.github.joke.percolate.spi.ResolvedSegment;
 import java.util.List;
 import java.util.Optional;
 import lombok.RequiredArgsConstructor;
+import org.jspecify.annotations.Nullable;
 
 @RequiredArgsConstructor
 final class PathSegmentGroupResolver {
@@ -44,13 +45,17 @@ final class PathSegmentGroupResolver {
             return Optional.empty();
         }
         final var segment = appendedSegment(group);
+        @Nullable Match best = null;
         for (final var resolver : resolvers) {
             final var resolved = resolver.resolve(slot.getType().get(), segment, ctx);
-            if (resolved.isPresent()) {
-                return Optional.of(new Match(resolved.get(), resolver.getClass().getName()));
+            if (resolved.isEmpty()) {
+                continue;
+            }
+            if (best == null || resolved.get().getWeight() < best.segment.getWeight()) {
+                best = new Match(resolved.get(), resolver.getClass().getName());
             }
         }
-        return Optional.empty();
+        return Optional.ofNullable(best);
     }
 
     static final class Match {

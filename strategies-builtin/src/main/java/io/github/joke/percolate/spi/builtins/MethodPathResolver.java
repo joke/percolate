@@ -11,29 +11,20 @@ import java.util.Optional;
 import javax.lang.model.element.Element;
 import javax.lang.model.element.ElementKind;
 import javax.lang.model.element.ExecutableElement;
-import javax.lang.model.element.TypeElement;
-import javax.lang.model.type.TypeKind;
 import javax.lang.model.type.TypeMirror;
 import lombok.NoArgsConstructor;
 
 @AutoService(PathSegmentResolver.class)
 @NoArgsConstructor
-public final class RecordPathResolver implements PathSegmentResolver {
+public final class MethodPathResolver implements PathSegmentResolver {
 
     @Override
     public Optional<ResolvedSegment> resolve(final TypeMirror parentType, final String segment, final ResolveCtx ctx) {
-        if (parentType.getKind() != TypeKind.DECLARED) {
+        final var typeElement = Members.asTypeElement(parentType, ctx);
+        if (typeElement.isEmpty()) {
             return Optional.empty();
         }
-        final var element = ctx.types().asElement(parentType);
-        if (!(element instanceof TypeElement)) {
-            return Optional.empty();
-        }
-        final var typeElement = (TypeElement) element;
-        if (!"RECORD".equals(typeElement.getKind().name())) {
-            return Optional.empty();
-        }
-        for (final var member : ctx.elements().getAllMembers(typeElement)) {
+        for (final var member : Members.declaredMembersOf(typeElement.get(), ctx)) {
             final var match = matchAccessor(member, segment);
             if (match.isPresent()) {
                 return Optional.of(buildResolved(match.get(), segment));
@@ -47,7 +38,7 @@ public final class RecordPathResolver implements PathSegmentResolver {
             return Optional.empty();
         }
         final var method = (ExecutableElement) candidate;
-        if (!method.getParameters().isEmpty()) {
+        if (Members.isInObjectClass(method) || !method.getParameters().isEmpty()) {
             return Optional.empty();
         }
         return method.getSimpleName().contentEquals(segment) ? Optional.of(method) : Optional.empty();
@@ -55,6 +46,6 @@ public final class RecordPathResolver implements PathSegmentResolver {
 
     private ResolvedSegment buildResolved(final ExecutableElement method, final String segment) {
         final EdgeCodegen codegen = (vars, inputs) -> CodeBlock.of("$L.$N()", inputs.single(), segment);
-        return new ResolvedSegment(method.getReturnType(), codegen, Weights.STEP);
+        return new ResolvedSegment(method.getReturnType(), codegen, Weights.STEP_METHOD);
     }
 }

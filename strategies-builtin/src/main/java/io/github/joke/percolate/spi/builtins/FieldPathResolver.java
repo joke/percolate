@@ -11,9 +11,7 @@ import java.util.Optional;
 import javax.lang.model.element.Element;
 import javax.lang.model.element.ElementKind;
 import javax.lang.model.element.Modifier;
-import javax.lang.model.element.TypeElement;
 import javax.lang.model.element.VariableElement;
-import javax.lang.model.type.TypeKind;
 import javax.lang.model.type.TypeMirror;
 import lombok.NoArgsConstructor;
 
@@ -23,15 +21,11 @@ public final class FieldPathResolver implements PathSegmentResolver {
 
     @Override
     public Optional<ResolvedSegment> resolve(final TypeMirror parentType, final String segment, final ResolveCtx ctx) {
-        if (parentType.getKind() != TypeKind.DECLARED) {
+        final var typeElement = Members.asTypeElement(parentType, ctx);
+        if (typeElement.isEmpty()) {
             return Optional.empty();
         }
-        final var element = ctx.types().asElement(parentType);
-        if (!(element instanceof TypeElement)) {
-            return Optional.empty();
-        }
-        final var typeElement = (TypeElement) element;
-        for (final var member : ctx.elements().getAllMembers(typeElement)) {
+        for (final var member : Members.declaredMembersOf(typeElement.get(), ctx)) {
             final var match = matchField(member, segment);
             if (match.isPresent()) {
                 return Optional.of(buildResolved(match.get(), segment));
@@ -56,6 +50,6 @@ public final class FieldPathResolver implements PathSegmentResolver {
 
     private ResolvedSegment buildResolved(final VariableElement field, final String segment) {
         final EdgeCodegen codegen = (vars, inputs) -> CodeBlock.of("$L.$N", inputs.single(), segment);
-        return new ResolvedSegment(field.asType(), codegen, Weights.STEP);
+        return new ResolvedSegment(field.asType(), codegen, Weights.STEP_FIELD);
     }
 }

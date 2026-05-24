@@ -52,7 +52,8 @@ class BuiltinServiceRegistrationSpec extends Specification {
 
         discovered.contains('io.github.joke.percolate.spi.builtins.GetterPathResolver')
         discovered.contains('io.github.joke.percolate.spi.builtins.FieldPathResolver')
-        discovered.contains('io.github.joke.percolate.spi.builtins.RecordPathResolver')
+        discovered.contains('io.github.joke.percolate.spi.builtins.MethodPathResolver')
+        !discovered.contains('io.github.joke.percolate.spi.builtins.RecordPathResolver')
     }
 
     def 'spec does not import from processor package'() {

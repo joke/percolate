@@ -22,17 +22,13 @@ public final class GetterPathResolver implements PathSegmentResolver {
 
     @Override
     public Optional<ResolvedSegment> resolve(final TypeMirror parentType, final String segment, final ResolveCtx ctx) {
-        if (parentType.getKind() != TypeKind.DECLARED) {
+        final var typeElement = Members.asTypeElement(parentType, ctx);
+        if (typeElement.isEmpty()) {
             return Optional.empty();
         }
-        final var element = ctx.types().asElement(parentType);
-        if (!(element instanceof TypeElement)) {
-            return Optional.empty();
-        }
-        final var typeElement = (TypeElement) element;
         final var getterName = "get" + capitalize(segment);
         final var isName = "is" + capitalize(segment);
-        for (final var member : ctx.elements().getAllMembers(typeElement)) {
+        for (final var member : Members.declaredMembersOf(typeElement.get(), ctx)) {
             final var getterMatch = matchGetter(member, getterName);
             if (getterMatch.isPresent()) {
                 return Optional.of(buildResolved(getterMatch.get()));
@@ -50,7 +46,7 @@ public final class GetterPathResolver implements PathSegmentResolver {
             return Optional.empty();
         }
         final var method = (ExecutableElement) candidate;
-        if (isInObjectClass(method) || !method.getParameters().isEmpty()) {
+        if (Members.isInObjectClass(method) || !method.getParameters().isEmpty()) {
             return Optional.empty();
         }
         return method.getSimpleName().contentEquals(getterName) ? Optional.of(method) : Optional.empty();
@@ -61,7 +57,7 @@ public final class GetterPathResolver implements PathSegmentResolver {
             return Optional.empty();
         }
         final var method = (ExecutableElement) candidate;
-        if (isInObjectClass(method) || !method.getParameters().isEmpty()) {
+        if (Members.isInObjectClass(method) || !method.getParameters().isEmpty()) {
             return Optional.empty();
         }
         if (!method.getSimpleName().contentEquals(isName)) {
@@ -86,13 +82,7 @@ public final class GetterPathResolver implements PathSegmentResolver {
     private ResolvedSegment buildResolved(final ExecutableElement method) {
         final var methodName = method.getSimpleName().toString();
         final EdgeCodegen codegen = (vars, inputs) -> CodeBlock.of("$L.$N()", inputs.single(), methodName);
-        return new ResolvedSegment(method.getReturnType(), codegen, Weights.STEP);
-    }
-
-    private boolean isInObjectClass(final ExecutableElement method) {
-        final var enclosing = method.getEnclosingElement();
-        return enclosing instanceof TypeElement
-                && ((TypeElement) enclosing).getQualifiedName().contentEquals("java.lang.Object");
+        return new ResolvedSegment(method.getReturnType(), codegen, Weights.STEP_GETTER);
     }
 
     private static String capitalize(final String segment) {

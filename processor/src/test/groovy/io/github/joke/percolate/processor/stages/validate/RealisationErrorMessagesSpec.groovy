@@ -1,21 +1,25 @@
 package io.github.joke.percolate.processor.stages.validate
 
 import io.github.joke.percolate.processor.graph.*
-import io.github.joke.percolate.processor.stages.expand.properties.fakes.NoOpBridge
 import io.github.joke.percolate.processor.test.ExpansionHarness
+import io.github.joke.percolate.spi.Bridge
 import io.github.joke.percolate.spi.test.TypeUniverse
 import spock.lang.Specification
 import spock.lang.Tag
 import spock.lang.Timeout
 
+import java.util.stream.Stream
+
 @Tag('unit')
 @Timeout(30)
 class RealisationErrorMessagesSpec extends Specification {
 
+    private static final Bridge NO_OP_BRIDGE = { from, to, ctx -> Stream.empty() } as Bridge
+
     def 'element-conversion miss produces canonical message'() {
         given:
         def graph = buildGraphWithNoProducer()
-        def result = ExpansionHarness.expand(graph, List.of(new NoOpBridge()), List.of())
+        def result = ExpansionHarness.expand(graph, List.of(NO_OP_BRIDGE), List.of())
 
         when:
         def diagnostics = result.diagnostics()
@@ -33,7 +37,7 @@ class RealisationErrorMessagesSpec extends Specification {
     def 'no-producer-at-all message'() {
         given:
         def graph = buildGraphWithNoProducer()
-        def result = ExpansionHarness.expand(graph, List.of(new NoOpBridge()), List.of())
+        def result = ExpansionHarness.expand(graph, List.of(NO_OP_BRIDGE), List.of())
 
         when:
         def hasNoProducerMessage = result.diagnostics().any {
@@ -48,8 +52,8 @@ class RealisationErrorMessagesSpec extends Specification {
 
     def 'diagnostic message is byte-stable across runs'() {
         when:
-        def result1 = ExpansionHarness.expand(buildGraphWithElementConversionMiss(), List.of(new NoOpBridge()), List.of())
-        def result2 = ExpansionHarness.expand(buildGraphWithElementConversionMiss(), List.of(new NoOpBridge()), List.of())
+        def result1 = ExpansionHarness.expand(buildGraphWithElementConversionMiss(), List.of(NO_OP_BRIDGE), List.of())
+        def result2 = ExpansionHarness.expand(buildGraphWithElementConversionMiss(), List.of(NO_OP_BRIDGE), List.of())
 
         then:
         result1.diagnostics() == result2.diagnostics()

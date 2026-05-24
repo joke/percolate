@@ -1,22 +1,26 @@
 package io.github.joke.percolate.processor.stages.expand
 
 import io.github.joke.percolate.processor.graph.*
-import io.github.joke.percolate.processor.stages.expand.properties.fakes.NoOpBridge
 import io.github.joke.percolate.processor.test.ExpansionHarness
+import io.github.joke.percolate.spi.Bridge
 import io.github.joke.percolate.spi.test.TypeUniverse
 import spock.lang.Specification
 import spock.lang.Tag
 import spock.lang.Timeout
 import spock.lang.Unroll
 
+import java.util.stream.Stream
+
 @Tag('unit')
 @Timeout(30)
 class ExpansionFailureModesSpec extends Specification {
 
+    private static final Bridge NO_OP_BRIDGE = { from, to, ctx -> Stream.empty() } as Bridge
+
     def 'no-path diagnostic fires when no strategy chain exists'() {
         given:
         def seed = incompatibleTypeSeed(TypeUniverse.STRING, TypeUniverse.LONG)
-        def result = ExpansionHarness.expand(seed, List.of(new NoOpBridge()), List.of())
+        def result = ExpansionHarness.expand(seed, List.of(NO_OP_BRIDGE), List.of())
 
         when:
         def hasNoProducer = result.diagnostics().any { it.toLowerCase().contains('no producer') }
@@ -28,7 +32,7 @@ class ExpansionFailureModesSpec extends Specification {
     def 'nested SEED edges are processed as independent subgraphs'() {
         given:
         def seed = incompatibleTypeSeed(TypeUniverse.INT, TypeUniverse.STRING)
-        def result = ExpansionHarness.expand(seed, List.of(new NoOpBridge()), List.of())
+        def result = ExpansionHarness.expand(seed, List.of(NO_OP_BRIDGE), List.of())
 
         when:
         // With the new target-driven model, an unresolvable group becomes UNSAT
@@ -41,7 +45,7 @@ class ExpansionFailureModesSpec extends Specification {
     @Unroll
     def 'expansion produces a diagnostic-bearing result for #scenario'() {
         when:
-        def result = ExpansionHarness.expand(seed, List.of(new NoOpBridge()), List.of())
+        def result = ExpansionHarness.expand(seed, List.of(NO_OP_BRIDGE), List.of())
 
         then:
         result.diagnostics() != null

@@ -1,9 +1,8 @@
 package io.github.joke.percolate.processor.graph;
 
-import lombok.Getter;
-
 import java.util.Optional;
 import javax.lang.model.type.TypeMirror;
+import lombok.Getter;
 
 @Getter
 public final class Node implements Comparable<Node> {

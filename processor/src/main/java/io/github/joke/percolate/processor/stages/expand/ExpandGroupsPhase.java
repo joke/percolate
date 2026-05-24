@@ -275,7 +275,8 @@ public final class ExpandGroupsPhase implements ExpansionPhase {
     }
 
     private boolean hasSatChildAt(final Node slot, final Map<ExpansionGroup, Boolean> satGroups) {
-        return satGroups.entrySet().stream().anyMatch(entry -> entry.getKey().getRoot().equals(slot));
+        return satGroups.entrySet().stream()
+                .anyMatch(entry -> entry.getKey().getRoot().equals(slot));
     }
 
     private void expandFrontier(
@@ -473,7 +474,13 @@ public final class ExpandGroupsPhase implements ExpansionPhase {
 
     @Nullable
     private Node findCandidateByInputType(final ExpansionGroup group, final Node frontier, final BridgeStep step) {
-        return group.getView().vertexSet().stream().filter(node -> !node.equals(frontier)).filter(node -> !(node.getLoc() instanceof TargetLocation)).filter(node -> node.getType().isPresent()).filter(node -> resolveCtx.types().isSameType(node.getType().get(), step.getInputType())).findFirst().orElse(null);
+        return group.getView().vertexSet().stream()
+                .filter(node -> !node.equals(frontier))
+                .filter(node -> !(node.getLoc() instanceof TargetLocation))
+                .filter(node -> node.getType().isPresent())
+                .filter(node -> resolveCtx.types().isSameType(node.getType().get(), step.getInputType()))
+                .findFirst()
+                .orElse(null);
     }
 
     private InputAllocation allocateForExiting(final MapperGraph graph, final Node frontier, final BridgeStep step) {

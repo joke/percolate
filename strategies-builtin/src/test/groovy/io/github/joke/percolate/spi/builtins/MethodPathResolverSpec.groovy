@@ -7,43 +7,43 @@ import spock.lang.Specification
 import spock.lang.Tag
 
 @Tag('unit')
-class GetterPathResolverSpec extends Specification {
+class MethodPathResolverSpec extends Specification {
 
-    def 'matches getX accessor and returns the method return type'() {
+    def 'matches a canonical record accessor'() {
         given:
         def ctx = new ResolveCtxBuilder().build()
-        def personBean = TypeUniverse.element('io.github.joke.percolate.spi.builtins.fixtures.PersonBean').asType()
+        def point = TypeUniverse.element('io.github.joke.percolate.spi.builtins.fixtures.Point').asType()
 
         when:
-        def result = new GetterPathResolver().resolve(personBean, 'name', ctx)
+        def result = new MethodPathResolver().resolve(point, 'x', ctx)
+
+        then:
+        result.present
+        result.get().returnType.kind.name() == 'INT'
+        result.get().weight == Weights.STEP_METHOD
+    }
+
+    def 'matches a non-record fluent-style accessor'() {
+        given:
+        def ctx = new ResolveCtxBuilder().build()
+        def address = TypeUniverse.element('io.github.joke.percolate.spi.builtins.fixtures.AddressFluent').asType()
+
+        when:
+        def result = new MethodPathResolver().resolve(address, 'street', ctx)
 
         then:
         result.present
         ctx.types().isSameType(result.get().returnType, TypeUniverse.STRING)
-        result.get().weight == Weights.STEP_GETTER
+        result.get().weight == Weights.STEP_METHOD
     }
 
-    def 'matches isX accessor for boolean-returning method'() {
-        given:
-        def ctx = new ResolveCtxBuilder().build()
-        def booleanBean = TypeUniverse.element('io.github.joke.percolate.spi.builtins.fixtures.BooleanBean').asType()
-
-        when:
-        def result = new GetterPathResolver().resolve(booleanBean, 'flag', ctx)
-
-        then:
-        result.present
-        result.get().returnType.kind.name() == 'BOOLEAN'
-        result.get().weight == Weights.STEP_GETTER
-    }
-
-    def 'rejects parameterized overloads when no zero-arg getter exists'() {
+    def 'rejects parameterised methods of the same name'() {
         given:
         def ctx = new ResolveCtxBuilder().build()
         def overloaded = TypeUniverse.element('io.github.joke.percolate.spi.builtins.fixtures.OverloadedGetter').asType()
 
         when:
-        def result = new GetterPathResolver().resolve(overloaded, 'name', ctx)
+        def result = new MethodPathResolver().resolve(overloaded, 'getName', ctx)
 
         then:
         !result.present
@@ -55,7 +55,7 @@ class GetterPathResolverSpec extends Specification {
         def objectType = TypeUniverse.element('java.lang.Object').asType()
 
         when:
-        def result = new GetterPathResolver().resolve(objectType, 'class', ctx)
+        def result = new MethodPathResolver().resolve(objectType, 'toString', ctx)
 
         then:
         !result.present
@@ -66,7 +66,7 @@ class GetterPathResolverSpec extends Specification {
         def ctx = new ResolveCtxBuilder().build()
 
         when:
-        def result = new GetterPathResolver().resolve(TypeUniverse.INT, 'length', ctx)
+        def result = new MethodPathResolver().resolve(TypeUniverse.INT, 'length', ctx)
 
         then:
         !result.present

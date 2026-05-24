@@ -26,6 +26,7 @@
         <exclude name="CouplingBetweenObjects"/>
         <exclude name="ExcessiveImports"/>
         <exclude name="TooManyMethods"/>
+        <exclude name="LoosePackageCoupling"/>
     </rule>
     <rule ref="category/java/errorprone.xml">
         <exclude name="UseProperClassLoader"/>
