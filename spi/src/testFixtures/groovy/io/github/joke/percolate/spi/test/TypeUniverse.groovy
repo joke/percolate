@@ -20,6 +20,17 @@ final class TypeUniverse {
     private static final Elements SYNCHRONIZED_ELEMENTS = new SynchronizedElements(ELEMENT_UTILS)
     private static final Map<String, TypeElement> ELEMENT_CACHE = new ConcurrentHashMap<>()
 
+    static {
+        // On Java 21+, `java.util.Collection` extends `SequencedCollection`. javac
+        // lazy-loads classes on first use, and if it starts filling Collection (e.g.
+        // via a type-hierarchy traversal) before SequencedCollection has ever been
+        // referenced, it hits an internal re-entrancy assertion. Preloading
+        // SequencedCollection (and the Sequenced* siblings) primes the symbol table
+        // so the recursive load chain never starts mid-traversal.
+        ['java.util.SequencedCollection', 'java.util.SequencedSet', 'java.util.SequencedMap']
+                .each { ELEMENT_UTILS.getTypeElement(it) }
+    }
+
     static final TypeMirror INT = TYPE_UTILS.getPrimitiveType(TypeKind.INT)
     static final TypeMirror LONG = TYPE_UTILS.getPrimitiveType(TypeKind.LONG)
     static final TypeMirror INTEGER = lookup('java.lang.Integer').asType()

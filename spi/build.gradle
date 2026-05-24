@@ -31,3 +31,14 @@ dependencies {
     testRuntimeOnly 'net.bytebuddy:byte-buddy'
     testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
 }
+
+// TypeUniverse hosts a single shared JavacTask. Concurrent calls into javac
+// internals (Types.isAssignable, Symbol.complete) trigger re-entrancy
+// assertions like "Filling X during Y" on Java 21+ runtimes — SynchronizedElements
+// only guards a subset of calls. Keep all test methods on one thread, same as
+// strategies-builtin already does.
+tasks.withType(Test).configureEach {
+    maxParallelForks = 1
+    systemProperty 'junit.jupiter.execution.parallel.enabled', 'false'
+    systemProperty 'spock.parallel.threads', '0'
+}

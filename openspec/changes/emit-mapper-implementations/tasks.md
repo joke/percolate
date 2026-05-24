@@ -51,7 +51,7 @@
 
 ## 9. Final verification
 
-- [ ] 9.1 Run `./gradlew :spi:test` — TWO pre-existing failures in `ContainersSpec` (`isIterable` and `isCollection`) caused by a `TypeUniverse` test-fixture issue on Java 21+ JDKs (concurrent javac access + Collection lazy-loading SequencedCollection mid-traversal), not a `Containers.java` bug. Fix planned as a follow-up commit.
+- [x] 9.1 Run `./gradlew :spi:test` and confirm green. Two `ContainersSpec` failures (`isIterable`, `isCollection`) were root-caused as a `TypeUniverse` test-fixture issue on Java 21+ JDKs (concurrent javac access + `Collection` lazy-loading `SequencedCollection` mid-traversal), not a `Containers.java` bug. Fixed by (a) preloading `SequencedCollection`/`Set`/`Map` in `TypeUniverse`'s static initialiser and (b) disabling parallel test execution for `:spi` to match `:strategies-builtin`.
 - [x] 9.2 Run `./gradlew :processor:test` and confirm green — both the unit spec rewrites (BuildMethodBodies, GenerateStageFailureModes) and the integration spec (`EndToEndCodegenSpec`) pass; generated `PersonMapperImpl.java` renders `return new Human(person.getFirstName());`.
 - [x] 9.3 Run `./gradlew :strategies-builtin:test` and confirm green. Pre-existing failure in `MethodCallBridgeSpec` referenced in older notes no longer reproduces.
 - [x] 9.4 Run `./gradlew :processor:check` — zero violations in the processor module (Spotless, PMD main+test, Codenarc test).
