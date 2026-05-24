@@ -1,11 +1,12 @@
 package io.github.joke.percolate.processor.graph;
 
 import io.github.joke.percolate.spi.GroupCodegen;
+import lombok.Getter;
+import org.jgrapht.graph.AsSubgraph;
+
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
-import lombok.Getter;
-import org.jgrapht.graph.AsSubgraph;
 
 @Getter
 public final class ExpansionGroup {

@@ -17,6 +17,10 @@ import io.github.joke.percolate.spi.GroupTarget;
 import io.github.joke.percolate.spi.PathSegmentResolver;
 import io.github.joke.percolate.spi.ResolveCtx;
 import jakarta.inject.Inject;
+import lombok.RequiredArgsConstructor;
+import org.jspecify.annotations.Nullable;
+
+import javax.lang.model.type.TypeMirror;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.IdentityHashMap;
@@ -25,9 +29,6 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
-import javax.lang.model.type.TypeMirror;
-import lombok.RequiredArgsConstructor;
-import org.jspecify.annotations.Nullable;
 
 @RequiredArgsConstructor(onConstructor_ = @Inject)
 @SuppressWarnings({"PMD.GodClass", "PMD.CyclomaticComplexity"})

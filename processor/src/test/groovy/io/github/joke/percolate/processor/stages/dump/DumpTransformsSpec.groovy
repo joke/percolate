@@ -14,11 +14,7 @@ import javax.annotation.processing.Messager
 import javax.lang.model.element.AnnotationMirror
 import javax.lang.model.element.AnnotationValue
 import javax.lang.model.element.Element
-import javax.tools.Diagnostic
-import javax.tools.FileObject
-import javax.tools.JavaFileManager
-import javax.tools.JavaFileObject
-import javax.tools.SimpleJavaFileObject
+import javax.tools.*
 
 @Tag('unit')
 class DumpTransformsSpec extends Specification {

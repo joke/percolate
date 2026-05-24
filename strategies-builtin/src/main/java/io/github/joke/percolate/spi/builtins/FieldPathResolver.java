@@ -7,13 +7,14 @@ import io.github.joke.percolate.spi.PathSegmentResolver;
 import io.github.joke.percolate.spi.ResolveCtx;
 import io.github.joke.percolate.spi.ResolvedSegment;
 import io.github.joke.percolate.spi.Weights;
-import java.util.Optional;
+import lombok.NoArgsConstructor;
+
 import javax.lang.model.element.Element;
 import javax.lang.model.element.ElementKind;
 import javax.lang.model.element.Modifier;
 import javax.lang.model.element.VariableElement;
 import javax.lang.model.type.TypeMirror;
-import lombok.NoArgsConstructor;
+import java.util.Optional;
 
 @AutoService(PathSegmentResolver.class)
 @NoArgsConstructor

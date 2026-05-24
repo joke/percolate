@@ -1,7 +1,8 @@
 package io.github.joke.percolate.processor.graph;
 
-import java.util.Optional;
 import lombok.Value;
+
+import java.util.Optional;
 
 @Value
 public class GroupOutcome {

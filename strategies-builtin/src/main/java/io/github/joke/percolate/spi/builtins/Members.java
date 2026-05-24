@@ -1,12 +1,13 @@
 package io.github.joke.percolate.spi.builtins;
 
 import io.github.joke.percolate.spi.ResolveCtx;
-import java.util.Optional;
+import lombok.experimental.UtilityClass;
+
 import javax.lang.model.element.Element;
 import javax.lang.model.element.TypeElement;
 import javax.lang.model.type.TypeKind;
 import javax.lang.model.type.TypeMirror;
-import lombok.experimental.UtilityClass;
+import java.util.Optional;
 
 @UtilityClass
 class Members {

@@ -1,10 +1,11 @@
 package io.github.joke.percolate.spi;
 
+import lombok.experimental.UtilityClass;
+
 import javax.lang.model.type.ArrayType;
 import javax.lang.model.type.DeclaredType;
 import javax.lang.model.type.TypeKind;
 import javax.lang.model.type.TypeMirror;
-import lombok.experimental.UtilityClass;
 
 @UtilityClass
 public class Containers {

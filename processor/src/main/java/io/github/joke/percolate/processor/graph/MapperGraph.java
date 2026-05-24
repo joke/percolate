@@ -1,5 +1,10 @@
 package io.github.joke.percolate.processor.graph;
 
+import lombok.NoArgsConstructor;
+import org.jgrapht.alg.cycle.CycleDetector;
+import org.jgrapht.graph.DirectedMultigraph;
+import org.jgrapht.graph.MaskSubgraph;
+
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
@@ -8,10 +13,6 @@ import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
-import lombok.NoArgsConstructor;
-import org.jgrapht.alg.cycle.CycleDetector;
-import org.jgrapht.graph.DirectedMultigraph;
-import org.jgrapht.graph.MaskSubgraph;
 
 @NoArgsConstructor
 public final class MapperGraph implements GraphSource {

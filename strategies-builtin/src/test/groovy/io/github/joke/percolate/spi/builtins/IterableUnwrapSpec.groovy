@@ -1,12 +1,7 @@
 package io.github.joke.percolate.spi.builtins
 
 import com.palantir.javapoet.CodeBlock
-import io.github.joke.percolate.spi.Containers
-import io.github.joke.percolate.spi.IncomingValues
-import io.github.joke.percolate.spi.ResolveCtx
-import io.github.joke.percolate.spi.ScopeTransition
-import io.github.joke.percolate.spi.VarNames
-import io.github.joke.percolate.spi.Weights
+import io.github.joke.percolate.spi.*
 import io.github.joke.percolate.spi.builtins.test.ResolveCtxBuilder
 import io.github.joke.percolate.spi.test.TypeUniverse
 import spock.lang.Shared

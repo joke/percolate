@@ -1,13 +1,14 @@
 package io.github.joke.percolate.processor.graph;
 
-import static java.util.stream.Collectors.toCollection;
+import org.jgrapht.graph.MaskSubgraph;
 
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashSet;
 import java.util.Set;
 import java.util.stream.Stream;
-import org.jgrapht.graph.MaskSubgraph;
+
+import static java.util.stream.Collectors.toCollection;
 
 public final class TransformsView implements GraphSource {
     private final MaskSubgraph<Node, Edge> subgraph;

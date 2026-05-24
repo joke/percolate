@@ -1,10 +1,11 @@
 package io.github.joke.percolate.processor.graph;
 
-import java.util.Comparator;
-import java.util.Optional;
-import javax.lang.model.element.AnnotationMirror;
 import lombok.EqualsAndHashCode;
 import lombok.Value;
+
+import javax.lang.model.element.AnnotationMirror;
+import java.util.Comparator;
+import java.util.Optional;
 
 @Value
 @EqualsAndHashCode(exclude = {"codegen", "strategyClassFqn"})

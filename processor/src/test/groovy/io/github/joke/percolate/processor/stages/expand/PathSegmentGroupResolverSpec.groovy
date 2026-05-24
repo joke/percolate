@@ -1,17 +1,9 @@
 package io.github.joke.percolate.processor.stages.expand
 
 import com.palantir.javapoet.CodeBlock
-import io.github.joke.percolate.processor.graph.AccessPath
-import io.github.joke.percolate.processor.graph.ExpansionGroup
-import io.github.joke.percolate.processor.graph.MapperGraph
-import io.github.joke.percolate.processor.graph.Node
-import io.github.joke.percolate.processor.graph.SourceLocation
+import io.github.joke.percolate.processor.graph.*
 import io.github.joke.percolate.processor.test.HarnessScope
-import io.github.joke.percolate.spi.EdgeCodegen
-import io.github.joke.percolate.spi.GroupCodegen
-import io.github.joke.percolate.spi.PathSegmentResolver
-import io.github.joke.percolate.spi.ResolveCtx
-import io.github.joke.percolate.spi.ResolvedSegment
+import io.github.joke.percolate.spi.*
 import io.github.joke.percolate.spi.test.HarnessResolveCtx
 import io.github.joke.percolate.spi.test.TypeUniverse
 import spock.lang.Specification

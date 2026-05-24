@@ -1,7 +1,5 @@
 package io.github.joke.percolate.processor.stages.expand;
 
-import static java.util.stream.Collectors.toUnmodifiableList;
-
 import io.github.joke.percolate.processor.graph.Edge;
 import io.github.joke.percolate.processor.graph.EdgeKind;
 import io.github.joke.percolate.processor.graph.ExpansionGroup;
@@ -12,6 +10,10 @@ import io.github.joke.percolate.processor.graph.TargetPath;
 import io.github.joke.percolate.spi.GroupTarget;
 import io.github.joke.percolate.spi.ResolveCtx;
 import io.github.joke.percolate.spi.Slot;
+import lombok.RequiredArgsConstructor;
+import org.jspecify.annotations.Nullable;
+
+import javax.lang.model.type.TypeMirror;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Deque;
@@ -19,9 +21,8 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
-import javax.lang.model.type.TypeMirror;
-import lombok.RequiredArgsConstructor;
-import org.jspecify.annotations.Nullable;
+
+import static java.util.stream.Collectors.toUnmodifiableList;
 
 @RequiredArgsConstructor
 public final class ResolveTargetChainsPhase implements ExpansionPhase {

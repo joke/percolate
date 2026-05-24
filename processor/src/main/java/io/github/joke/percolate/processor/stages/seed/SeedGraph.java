@@ -18,14 +18,15 @@ import io.github.joke.percolate.processor.model.MethodMappings;
 import io.github.joke.percolate.processor.stages.Stage;
 import io.github.joke.percolate.spi.GroupCodegen;
 import jakarta.inject.Inject;
+import lombok.RequiredArgsConstructor;
+import org.jspecify.annotations.Nullable;
+
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
-import lombok.RequiredArgsConstructor;
-import org.jspecify.annotations.Nullable;
 
 @RequiredArgsConstructor(onConstructor_ = @Inject)
 public final class SeedGraph implements Stage {

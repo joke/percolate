@@ -1,9 +1,5 @@
 package io.github.joke.percolate.spi.builtins;
 
-import static java.util.stream.Collectors.joining;
-import static java.util.stream.Collectors.toList;
-import static java.util.stream.Collectors.toSet;
-
 import com.google.auto.service.AutoService;
 import com.palantir.javapoet.CodeBlock;
 import io.github.joke.percolate.spi.GroupBuild;
@@ -12,18 +8,23 @@ import io.github.joke.percolate.spi.GroupTarget;
 import io.github.joke.percolate.spi.ResolveCtx;
 import io.github.joke.percolate.spi.Slot;
 import io.github.joke.percolate.spi.Weights;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Optional;
-import java.util.Set;
-import java.util.stream.IntStream;
+import lombok.NoArgsConstructor;
+import org.jspecify.annotations.Nullable;
+
 import javax.lang.model.element.ElementKind;
 import javax.lang.model.element.ExecutableElement;
 import javax.lang.model.element.TypeElement;
 import javax.lang.model.type.TypeKind;
 import javax.lang.model.type.TypeMirror;
-import lombok.NoArgsConstructor;
-import org.jspecify.annotations.Nullable;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Optional;
+import java.util.Set;
+import java.util.stream.IntStream;
+
+import static java.util.stream.Collectors.joining;
+import static java.util.stream.Collectors.toList;
+import static java.util.stream.Collectors.toSet;
 
 @AutoService(GroupTarget.class)
 @NoArgsConstructor
