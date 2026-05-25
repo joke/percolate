@@ -82,7 +82,7 @@ public final class GetterPathResolver implements PathSegmentResolver {
     private ResolvedSegment buildResolved(final ExecutableElement method) {
         final var methodName = method.getSimpleName().toString();
         final EdgeCodegen codegen = (vars, inputs) -> CodeBlock.of("$L.$N()", inputs.single(), methodName);
-        return new ResolvedSegment(method.getReturnType(), codegen, Weights.STEP_GETTER);
+        return new ResolvedSegment(method.getReturnType(), codegen, Weights.STEP_GETTER, method);
     }
 
     private static String capitalize(final String segment) {

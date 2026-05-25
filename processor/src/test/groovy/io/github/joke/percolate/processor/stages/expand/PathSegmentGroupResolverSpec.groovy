@@ -21,8 +21,8 @@ class PathSegmentGroupResolverSpec extends Specification {
     def 'lowest-weight match wins when multiple resolvers match'() {
         given:
         def group = pathSegmentGroup()
-        def cheap = new FakeGetterResolver(new ResolvedSegment(TypeUniverse.STRING, GETTER_CODEGEN, 1))
-        def expensive = new FakeFieldResolver(new ResolvedSegment(TypeUniverse.STRING, FIELD_CODEGEN, 3))
+        def cheap = new FakeGetterResolver(new ResolvedSegment(TypeUniverse.STRING, GETTER_CODEGEN, 1, TypeUniverse.anyConstruct()))
+        def expensive = new FakeFieldResolver(new ResolvedSegment(TypeUniverse.STRING, FIELD_CODEGEN, 3, TypeUniverse.anyConstruct()))
         // Iteration order is class-name ascending: FakeFieldResolver(3) precedes FakeGetterResolver(1).
         // Best-by-weight must still pick the cheaper (FakeGetterResolver) match.
         def resolver = new PathSegmentGroupResolver([expensive, cheap])
@@ -39,8 +39,8 @@ class PathSegmentGroupResolverSpec extends Specification {
     def 'first-by-iteration wins on tied weight'() {
         given:
         def group = pathSegmentGroup()
-        def first = new FakeGetterResolver(new ResolvedSegment(TypeUniverse.STRING, GETTER_CODEGEN, 2))
-        def second = new FakeFieldResolver(new ResolvedSegment(TypeUniverse.STRING, FIELD_CODEGEN, 2))
+        def first = new FakeGetterResolver(new ResolvedSegment(TypeUniverse.STRING, GETTER_CODEGEN, 2, TypeUniverse.anyConstruct()))
+        def second = new FakeFieldResolver(new ResolvedSegment(TypeUniverse.STRING, FIELD_CODEGEN, 2, TypeUniverse.anyConstruct()))
         def resolver = new PathSegmentGroupResolver([first, second])
 
         when:

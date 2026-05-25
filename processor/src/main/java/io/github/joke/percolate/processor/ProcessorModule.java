@@ -3,6 +3,9 @@ package io.github.joke.percolate.processor;
 import dagger.Module;
 import dagger.Provides;
 import io.github.joke.percolate.processor.graph.DotRenderer;
+import io.github.joke.percolate.processor.nullability.JspecifyNullabilityResolver;
+import io.github.joke.percolate.processor.nullability.NullabilityAnnotations;
+import io.github.joke.percolate.processor.nullability.NullabilityResolver;
 import io.github.joke.percolate.processor.stages.Stage;
 import io.github.joke.percolate.processor.stages.discover.DiscoverAbstractMethods;
 import io.github.joke.percolate.processor.stages.discover.DiscoverCallableMethods;
@@ -86,6 +89,25 @@ public final class ProcessorModule {
     }
 
     @Provides
+    @Singleton
+    NullabilityAnnotations nullabilityAnnotations(final ProcessorOptions processorOptions) {
+        final var defaults = NullabilityAnnotations.jspecifyDefaults();
+        final var custom = processorOptions.getCustomNullableAnnotations();
+        if (custom.isEmpty()) {
+            return defaults;
+        }
+        final var merged = new java.util.HashSet<String>(defaults.getNullableFqns());
+        merged.addAll(custom);
+        return new NullabilityAnnotations(merged, defaults.getMarkedFqns(), defaults.getUnmarkedFqns());
+    }
+
+    @Provides
+    @Singleton
+    NullabilityResolver nullabilityResolver(final NullabilityAnnotations annotations, final Elements elements) {
+        return new JspecifyNullabilityResolver(annotations, elements);
+    }
+
+    @Provides
     DotRenderer dotRenderer() {
         return new DotRenderer();
     }
@@ -133,9 +155,11 @@ public final class ProcessorModule {
             final List<Bridge> bridges,
             final List<GroupTarget> groupTargets,
             final List<PathSegmentResolver> pathSegmentResolvers,
-            final ResolveCtx resolveCtx) {
+            final ResolveCtx resolveCtx,
+            final NullabilityResolver nullabilityResolver) {
         final var targetPhase = new ResolveTargetChainsPhase(groupTargets, resolveCtx);
-        final var groupsPhase = new ExpandGroupsPhase(bridges, groupTargets, pathSegmentResolvers, resolveCtx);
+        final var groupsPhase =
+                new ExpandGroupsPhase(bridges, groupTargets, pathSegmentResolvers, resolveCtx, nullabilityResolver);
         final var phases = List.<ExpansionPhase>of(targetPhase, groupsPhase);
         return new ExpandStage(phases);
     }
@@ -145,8 +169,9 @@ public final class ProcessorModule {
             final List<Bridge> bridges,
             final List<GroupTarget> groupTargets,
             final List<PathSegmentResolver> pathSegmentResolvers,
-            final ResolveCtx resolveCtx) {
-        return assembleExpansionPipeline(bridges, groupTargets, pathSegmentResolvers, resolveCtx);
+            final ResolveCtx resolveCtx,
+            final NullabilityResolver nullabilityResolver) {
+        return assembleExpansionPipeline(bridges, groupTargets, pathSegmentResolvers, resolveCtx, nullabilityResolver);
     }
 
     @Provides
@@ -168,8 +193,8 @@ public final class ProcessorModule {
     }
 
     @Provides
-    BuildMethodBodies buildMethodBodies() {
-        return new BuildMethodBodies();
+    BuildMethodBodies buildMethodBodies(final NullabilityResolver nullabilityResolver) {
+        return new BuildMethodBodies(nullabilityResolver);
     }
 
     @Provides

@@ -46,6 +46,6 @@ public final class MethodPathResolver implements PathSegmentResolver {
 
     private ResolvedSegment buildResolved(final ExecutableElement method, final String segment) {
         final EdgeCodegen codegen = (vars, inputs) -> CodeBlock.of("$L.$N()", inputs.single(), segment);
-        return new ResolvedSegment(method.getReturnType(), codegen, Weights.STEP_METHOD);
+        return new ResolvedSegment(method.getReturnType(), codegen, Weights.STEP_METHOD, method);
     }
 }

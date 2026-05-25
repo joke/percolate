@@ -26,9 +26,21 @@ final class TypeUniverse {
         // via a type-hierarchy traversal) before SequencedCollection has ever been
         // referenced, it hits an internal re-entrancy assertion. Preloading
         // SequencedCollection (and the Sequenced* siblings) primes the symbol table
-        // so the recursive load chain never starts mid-traversal.
-        ['java.util.SequencedCollection', 'java.util.SequencedSet', 'java.util.SequencedMap']
-                .each { ELEMENT_UTILS.getTypeElement(it) }
+        // so the recursive load chain never starts mid-traversal. We also eagerly
+        // walk the supertype chain for collection types and the common JDK base
+        // types so subsequent isAssignable / isSubtype calls do not trigger
+        // mid-traversal class filling.
+        ['java.util.SequencedCollection', 'java.util.SequencedSet', 'java.util.SequencedMap',
+         'java.lang.Object', 'java.lang.Iterable',
+         'java.util.Collection', 'java.util.List', 'java.util.Set', 'java.util.Map',
+         'java.util.Optional'].each { fqn ->
+            final var elem = ELEMENT_UTILS.getTypeElement(fqn)
+            if (elem != null) {
+                elem.superclass
+                elem.interfaces
+                elem.enclosedElements
+            }
+        }
     }
 
     static final TypeMirror INT = TYPE_UTILS.getPrimitiveType(TypeKind.INT)
@@ -171,6 +183,15 @@ final class TypeUniverse {
 
     static TypeElement element(final String qualifiedName) {
         lookup(qualifiedName)
+    }
+
+    /**
+     * Convenience placeholder for tests that need an AnnotatedConstruct (Slot.producedFrom,
+     * ResolvedSegment.producedFrom) but do not care about its nullability annotations.
+     * Returns a real TypeElement that carries no JSpecify annotations.
+     */
+    static javax.lang.model.AnnotatedConstruct anyConstruct() {
+        lookup('java.lang.String')
     }
 
     private static JavacTask createTask() {

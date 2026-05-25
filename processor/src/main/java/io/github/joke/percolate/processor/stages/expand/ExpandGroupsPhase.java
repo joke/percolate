@@ -10,10 +10,12 @@ import io.github.joke.percolate.processor.graph.Node;
 import io.github.joke.percolate.processor.graph.Scope;
 import io.github.joke.percolate.processor.graph.SourceLocation;
 import io.github.joke.percolate.processor.graph.TargetLocation;
+import io.github.joke.percolate.processor.nullability.NullabilityResolver;
 import io.github.joke.percolate.spi.Bridge;
 import io.github.joke.percolate.spi.BridgeStep;
 import io.github.joke.percolate.spi.GroupBuild;
 import io.github.joke.percolate.spi.GroupTarget;
+import io.github.joke.percolate.spi.Nullability;
 import io.github.joke.percolate.spi.PathSegmentResolver;
 import io.github.joke.percolate.spi.ResolveCtx;
 import jakarta.inject.Inject;
@@ -40,6 +42,7 @@ public final class ExpandGroupsPhase implements ExpansionPhase {
     private final List<GroupTarget> groupTargets;
     private final List<PathSegmentResolver> pathSegmentResolvers;
     private final ResolveCtx resolveCtx;
+    private final NullabilityResolver nullabilityResolver;
 
     @Override
     public void apply(final MapperGraph graph) {
@@ -124,6 +127,10 @@ public final class ExpandGroupsPhase implements ExpansionPhase {
             return StepResult.pending(slot);
         }
         final var root = group.getRoot();
+        if (root.getType().isEmpty() && slot.getType().isPresent()) {
+            root.setTyping(slot.getType().get(), slot.getNullability().orElse(Nullability.UNKNOWN));
+            change.markTypeAssigned();
+        }
         if (root.getType().isEmpty()) {
             return StepResult.pending(root);
         }
@@ -193,7 +200,11 @@ public final class ExpandGroupsPhase implements ExpansionPhase {
         final var rs = match.get().segment;
         final var root = group.getRoot();
         if (root.getType().isEmpty()) {
-            root.setType(rs.getReturnType());
+            final var producerScope = scopeOf(rs.getProducedFrom());
+            final var nullability = producerScope == null
+                    ? Nullability.UNKNOWN
+                    : nullabilityResolver.resolve(rs.getReturnType(), producerScope);
+            root.setTyping(rs.getReturnType(), nullability);
             change.markTypeAssigned();
         }
         final var edge = Edge.realised(slot, root, rs.getWeight(), rs.getCodegen(), match.get().resolverClassName);
@@ -347,6 +358,13 @@ public final class ExpandGroupsPhase implements ExpansionPhase {
             }
         }
         return BridgeMatch.noMatch();
+    }
+
+    private static javax.lang.model.element.@Nullable Element scopeOf(
+            final javax.lang.model.AnnotatedConstruct construct) {
+        return construct instanceof javax.lang.model.element.Element
+                ? (javax.lang.model.element.Element) construct
+                : null;
     }
 
     private static boolean stepMatchesFrontierScope(final BridgeStep step, final Node frontier) {

@@ -29,7 +29,7 @@ class DumpTransformsSpec extends Specification {
     def 'Option off does not write a file'() {
         given:
         final var graph = buildGraphWithNodes()
-        final var options = new ProcessorOptions(false)
+        final var options = new ProcessorOptions(false, Set.of())
         final var renderer = new DotRenderer()
         final var messager = new Messager() {
             @Override void printMessage(Diagnostic.Kind kind, CharSequence msg, Element element, AnnotationMirror mirror, AnnotationValue value) {}
@@ -51,7 +51,7 @@ class DumpTransformsSpec extends Specification {
     def 'Empty graph does not write a file even when option is on'() {
         given:
         final var graph = new MapperGraph()
-        final var options = new ProcessorOptions(true)
+        final var options = new ProcessorOptions(true, Set.of())
         final var renderer = new DotRenderer()
         final var messager = new Messager() {
             @Override void printMessage(Diagnostic.Kind kind, CharSequence msg, Element element, AnnotationMirror mirror, AnnotationValue value) {}
@@ -92,7 +92,7 @@ class DumpTransformsSpec extends Specification {
     def 'Full DOT file naming uses .transforms.dot infix'() {
         given:
         final var graph = buildGraphWithNodes()
-        final var options = new ProcessorOptions(true)
+        final var options = new ProcessorOptions(true, Set.of())
         final var renderer = new DotRenderer()
         final var messager = new Messager() {
             @Override void printMessage(Diagnostic.Kind kind, CharSequence msg, Element element, AnnotationMirror mirror, AnnotationValue value) {}
@@ -119,7 +119,7 @@ class DumpTransformsSpec extends Specification {
     def 'Filer failure is reported as a warning, not an error'() {
         given:
         final var graph = buildGraphWithNodes()
-        final var options = new ProcessorOptions(true)
+        final var options = new ProcessorOptions(true, Set.of())
         final var renderer = new DotRenderer()
         final var messages = []
         final var messager = new Messager() {

@@ -31,7 +31,7 @@ class DumpFullGraphSpec extends Specification {
     def 'Option off does not write a file'() {
         given:
         final var graph = buildGraphWithNodes()
-        final var options = new ProcessorOptions(false)
+        final var options = new ProcessorOptions(false, Set.of())
         final var renderer = new DotRenderer()
         final var messager = new Messager() {
             @Override void printMessage(Diagnostic.Kind kind, CharSequence msg, Element element, AnnotationMirror mirror, AnnotationValue value) {}
@@ -53,7 +53,7 @@ class DumpFullGraphSpec extends Specification {
     def 'Empty graph does not write a file even when option is on'() {
         given:
         final var graph = new MapperGraph()
-        final var options = new ProcessorOptions(true)
+        final var options = new ProcessorOptions(true, Set.of())
         final var renderer = new DotRenderer()
         final var messager = new Messager() {
             @Override void printMessage(Diagnostic.Kind kind, CharSequence msg, Element element, AnnotationMirror mirror, AnnotationValue value) {}
@@ -92,7 +92,7 @@ class DumpFullGraphSpec extends Specification {
     def 'Full DOT file naming uses .full.dot infix'() {
         given:
         final var graph = buildGraphWithNodes()
-        final var options = new ProcessorOptions(true)
+        final var options = new ProcessorOptions(true, Set.of())
         final var renderer = new DotRenderer()
         final var messager = new Messager() {
             @Override void printMessage(Diagnostic.Kind kind, CharSequence msg, Element element, AnnotationMirror mirror, AnnotationValue value) {}

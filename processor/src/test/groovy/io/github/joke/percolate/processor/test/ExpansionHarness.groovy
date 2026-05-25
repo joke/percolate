@@ -86,9 +86,12 @@ final class ExpansionHarness {
 
         final diagnostics = new Diagnostics(messager)
         final resolveCtx = HarnessResolveCtx.create()
+        final nullabilityResolver = new io.github.joke.percolate.processor.nullability.JspecifyNullabilityResolver(
+                io.github.joke.percolate.processor.nullability.NullabilityAnnotations.jspecifyDefaults(),
+                TypeUniverse.elements())
 
         final stage =
-                ProcessorModule.assembleExpansionPipeline(bridges, groupTargets, pathSegmentResolvers, resolveCtx)
+                ProcessorModule.assembleExpansionPipeline(bridges, groupTargets, pathSegmentResolvers, resolveCtx, nullabilityResolver)
 
         final ctx = new MapperContext(MAPPER_PLACEHOLDER)
         ctx.graph = seed

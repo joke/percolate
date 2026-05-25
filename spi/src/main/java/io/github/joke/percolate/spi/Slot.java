@@ -1,5 +1,6 @@
 package io.github.joke.percolate.spi;
 
+import javax.lang.model.AnnotatedConstruct;
 import javax.lang.model.type.TypeMirror;
 import lombok.Value;
 
@@ -8,4 +9,5 @@ public class Slot {
     String name;
     TypeMirror type;
     int weight;
+    AnnotatedConstruct producedFrom;
 }

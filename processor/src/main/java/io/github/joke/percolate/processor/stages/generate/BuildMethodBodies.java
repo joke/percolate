@@ -12,20 +12,29 @@ import io.github.joke.percolate.processor.graph.RealisedSubgraph;
 import io.github.joke.percolate.processor.graph.Scope;
 import io.github.joke.percolate.processor.graph.SourceLocation;
 import io.github.joke.percolate.processor.graph.TargetLocation;
+import io.github.joke.percolate.processor.nullability.NullabilityResolver;
+import io.github.joke.percolate.spi.Nullability;
 import jakarta.inject.Inject;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
+import javax.lang.model.AnnotatedConstruct;
+import javax.lang.model.element.Element;
 import javax.lang.model.element.ExecutableElement;
-import lombok.NoArgsConstructor;
+import javax.lang.model.element.VariableElement;
+import javax.lang.model.type.TypeMirror;
+import lombok.RequiredArgsConstructor;
 
-@NoArgsConstructor(onConstructor_ = @Inject)
+@RequiredArgsConstructor(onConstructor_ = @Inject)
 public final class BuildMethodBodies {
 
     private static final String SEED_PACKAGE_PREFIX = "io.github.joke.percolate.processor.stages.seed.";
     private static final int SINGLE_EDGE = 1;
+
+    private final NullabilityResolver nullabilityResolver;
 
     List<MethodImpl> build(final MapperContext ctx) {
         final var shape = ctx.getShape();
@@ -87,10 +96,47 @@ public final class BuildMethodBodies {
             final Map<Node, ExpansionGroup> groupRoots) {
         final var byName = new LinkedHashMap<String, CodeBlock>();
         for (final var slot : group.getSlots()) {
-            byName.put(slotName(slot), render(slot, realised, method, groupRoots));
+            final var name = slotName(slot);
+            final var raw = render(slot, realised, method, groupRoots);
+            byName.put(name, applyNullabilityContract(group, slot, name, raw));
         }
         final var positional = List.copyOf(byName.values());
         return group.getCodegen().render(new VarNamesImpl(), new IncomingValuesImpl(positional, Map.copyOf(byName)));
+    }
+
+    private CodeBlock applyNullabilityContract(
+            final ExpansionGroup group, final Node slot, final String slotName, final CodeBlock expr) {
+        final var producer = slot.getNullability().orElse(Nullability.UNKNOWN);
+        if (producer != Nullability.NULLABLE) {
+            return expr;
+        }
+        final var consumer = resolveConsumerContract(group, slot);
+        if (consumer == Nullability.NON_NULL) {
+            final var message = "source for slot '" + slotName + "' is null but target is non-null";
+            return CodeBlock.of("$T.requireNonNull($L, $S)", Objects.class, expr, message);
+        }
+        return expr;
+    }
+
+    private Nullability resolveConsumerContract(final ExpansionGroup group, final Node slot) {
+        final AnnotatedConstruct consumer = group.consumerContractFor(slot);
+        if (consumer == null) {
+            return Nullability.UNKNOWN;
+        }
+        final TypeMirror consumerType;
+        final Element scope;
+        if (consumer instanceof VariableElement) {
+            final var ve = (VariableElement) consumer;
+            consumerType = ve.asType();
+            scope = ve;
+        } else if (consumer instanceof Element) {
+            final var e = (Element) consumer;
+            consumerType = e.asType();
+            scope = e;
+        } else {
+            return Nullability.UNKNOWN;
+        }
+        return nullabilityResolver.resolve(consumerType, scope);
     }
 
     private CodeBlock renderLeaf(final Node node, final ExecutableElement method) {

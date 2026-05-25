@@ -50,6 +50,6 @@ public final class FieldPathResolver implements PathSegmentResolver {
 
     private ResolvedSegment buildResolved(final VariableElement field, final String segment) {
         final EdgeCodegen codegen = (vars, inputs) -> CodeBlock.of("$L.$N", inputs.single(), segment);
-        return new ResolvedSegment(field.asType(), codegen, Weights.STEP_FIELD);
+        return new ResolvedSegment(field.asType(), codegen, Weights.STEP_FIELD, field);
     }
 }

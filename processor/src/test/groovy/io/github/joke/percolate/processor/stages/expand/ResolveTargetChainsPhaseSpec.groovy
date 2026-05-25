@@ -118,8 +118,8 @@ class ResolveTargetChainsPhaseSpec extends Specification {
         @Override
         Optional<GroupBuild> buildFor(final TypeMirror returnType, final List<String> targetTails, final ResolveCtx ctx) {
             def slots = [
-                    new Slot('first', TypeUniverse.STRING, 1),
-                    new Slot('second', TypeUniverse.STRING, 1)
+                    new Slot('first', TypeUniverse.STRING, 1, TypeUniverse.anyConstruct()),
+                    new Slot('second', TypeUniverse.STRING, 1, TypeUniverse.anyConstruct())
             ]
             def codegen = { vars, inputs -> com.palantir.javapoet.CodeBlock.of('') } as GroupCodegen
             Optional.of(new GroupBuild(slots, codegen))
@@ -141,7 +141,7 @@ class ResolveTargetChainsPhaseSpec extends Specification {
 
         @Override
         Optional<GroupBuild> buildFor(final TypeMirror returnType, final List<String> targetTails, final ResolveCtx ctx) {
-            def slots = [new Slot(slotName, slotType, 1)]
+            def slots = [new Slot(slotName, slotType, 1, TypeUniverse.anyConstruct())]
             def codegen = { vars, inputs -> com.palantir.javapoet.CodeBlock.of('') } as GroupCodegen
             Optional.of(new GroupBuild(slots, codegen))
         }

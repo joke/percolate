@@ -118,7 +118,7 @@ public final class ConstructorCall implements GroupTarget {
                             targetTails,
                             param.getSimpleName().toString(),
                             i);
-                    return new Slot(paramName, param.asType(), Weights.STEP);
+                    return new Slot(paramName, param.asType(), Weights.STEP, param);
                 })
                 .collect(toList());
         final List<String> slotNames = slots.stream().map(Slot::getName).collect(toList());

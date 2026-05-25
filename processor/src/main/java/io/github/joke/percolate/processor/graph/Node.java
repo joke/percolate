@@ -1,5 +1,6 @@
 package io.github.joke.percolate.processor.graph;
 
+import io.github.joke.percolate.spi.Nullability;
 import java.util.Optional;
 import javax.lang.model.type.TypeMirror;
 import lombok.Getter;
@@ -9,6 +10,7 @@ public final class Node implements Comparable<Node> {
     private static final String UNKNOWN_TYPE = "?";
 
     private Optional<TypeMirror> type;
+    private Optional<Nullability> nullability;
     private final Location loc;
     private final Scope scope;
     private final Optional<Node> parent;
@@ -19,17 +21,19 @@ public final class Node implements Comparable<Node> {
 
     public Node(final Optional<TypeMirror> type, final Location loc, final Scope scope, final Optional<Node> parent) {
         this.type = type;
+        this.nullability = type.isPresent() ? Optional.of(Nullability.UNKNOWN) : Optional.empty();
         this.loc = loc;
         this.scope = scope;
         this.parent = parent;
     }
 
-    public void setType(final TypeMirror newType) {
-        if (type.isPresent()) {
+    public void setTyping(final TypeMirror newType, final Nullability newNullability) {
+        if (type.isPresent() || nullability.isPresent()) {
             throw new IllegalStateException(
-                    "Node.type is already set; setType() requires the current type to be empty");
+                    "Node typing is already set; setTyping() requires both type and nullability to be empty");
         }
         this.type = Optional.of(newType);
+        this.nullability = Optional.of(newNullability);
     }
 
     public String id() {
