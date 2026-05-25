@@ -1,12 +1,14 @@
 package io.github.joke.percolate.processor.graph;
 
 import io.github.joke.percolate.spi.GroupCodegen;
+import io.github.joke.percolate.spi.Slot;
 import java.util.HashSet;
 import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import javax.lang.model.AnnotatedConstruct;
+import javax.lang.model.type.TypeMirror;
 import lombok.Getter;
 import org.jgrapht.graph.AsSubgraph;
 import org.jspecify.annotations.Nullable;
@@ -20,7 +22,7 @@ public final class ExpansionGroup {
     private final String strategyClassFqn;
     private final AsSubgraph<Node, Edge> view;
     private final MapperGraph parent;
-    private final Map<Node, AnnotatedConstruct> slotConsumerContracts;
+    private final Map<Node, Slot> slotMetadata;
 
     private ExpansionGroup(
             final Node root,
@@ -29,14 +31,14 @@ public final class ExpansionGroup {
             final String strategyClassFqn,
             final AsSubgraph<Node, Edge> view,
             final MapperGraph parent,
-            final Map<Node, AnnotatedConstruct> slotConsumerContracts) {
+            final Map<Node, Slot> slotMetadata) {
         this.root = root;
         this.slots = slots;
         this.codegen = codegen;
         this.strategyClassFqn = strategyClassFqn;
         this.view = view;
         this.parent = parent;
-        this.slotConsumerContracts = slotConsumerContracts;
+        this.slotMetadata = slotMetadata;
     }
 
     public static ExpansionGroup of(
@@ -56,22 +58,40 @@ public final class ExpansionGroup {
             final String strategyClassFqn,
             final Set<Edge> initialEdges,
             final MapperGraph parent,
-            final Map<Node, AnnotatedConstruct> slotConsumerContracts) {
+            final Map<Node, Slot> slotMetadata) {
         final var underlying = parent.underlyingGraph();
         validateMembership(underlying, root, slots, initialEdges);
         final var vertices = new HashSet<Node>(slots.size() + 1);
         vertices.add(root);
         vertices.addAll(slots);
         final var view = new AsSubgraph<>(underlying, vertices, new HashSet<>(initialEdges));
-        final var contractsCopy = new IdentityHashMap<Node, AnnotatedConstruct>(slotConsumerContracts.size());
-        for (final var entry : slotConsumerContracts.entrySet()) {
-            contractsCopy.put(entry.getKey(), entry.getValue());
+        @SuppressWarnings({"PMD.LooseCoupling", "IdentityHashMapUsage"})
+        final IdentityHashMap<Node, Slot> metaCopy = new IdentityHashMap<>(slotMetadata.size());
+        for (final var entry : slotMetadata.entrySet()) {
+            metaCopy.put(entry.getKey(), entry.getValue());
         }
-        return new ExpansionGroup(root, List.copyOf(slots), codegen, strategyClassFqn, view, parent, contractsCopy);
+        return new ExpansionGroup(root, List.copyOf(slots), codegen, strategyClassFqn, view, parent, metaCopy);
     }
 
+    /**
+     * The consumer-side {@link AnnotatedConstruct} (typically a constructor parameter or setter parameter
+     * {@link javax.lang.model.element.VariableElement}) that this slot represents. Used by code-generation
+     * to derive the consumer's nullability contract on demand. Returns {@code null} for slots that have
+     * no consumer metadata recorded (e.g., directive-binding source-leaf slots).
+     */
     public @Nullable AnnotatedConstruct consumerContractFor(final Node slot) {
-        return slotConsumerContracts.get(slot);
+        final var meta = slotMetadata.get(slot);
+        return meta == null ? null : meta.getProducedFrom();
+    }
+
+    /**
+     * The consumer-expected {@link TypeMirror} for this slot. Drives candidate search during expansion
+     * for slot Nodes that are created untyped (see "Slot Nodes are typed at producer commit"). Returns
+     * {@code null} for slots that have no recorded expected type.
+     */
+    public @Nullable TypeMirror expectedTypeFor(final Node slot) {
+        final var meta = slotMetadata.get(slot);
+        return meta == null ? null : meta.getType();
     }
 
     private static void validateMembership(

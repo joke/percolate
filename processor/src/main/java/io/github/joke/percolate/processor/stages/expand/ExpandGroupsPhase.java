@@ -44,8 +44,19 @@ public final class ExpandGroupsPhase implements ExpansionPhase {
     private final ResolveCtx resolveCtx;
     private final NullabilityResolver nullabilityResolver;
 
+    /**
+     * Engine-internal side-map recording, for each Node typed by {@link Node#setTyping(TypeMirror, Nullability)}
+     * during this {@code apply()} call, the {@link Element} scope that drove the resolver call. Populated at
+     * every producer-commit site; consumed at the directive-binding propagation site so it can re-invoke
+     * {@link NullabilityResolver#resolve} rather than carry an opaque {@link Nullability} forward.
+     */
+    @SuppressWarnings({"PMD.LooseCoupling", "IdentityHashMapUsage"})
+    private final IdentityHashMap<Node, javax.lang.model.element.@Nullable Element> producerScopes =
+            new IdentityHashMap<>();
+
     @Override
     public void apply(final MapperGraph graph) {
+        producerScopes.clear();
         final var pathResolver = new PathSegmentGroupResolver(pathSegmentResolvers);
         final var satGroups = new IdentityHashMap<ExpansionGroup, Boolean>();
         final var pendingFailures = new IdentityHashMap<ExpansionGroup, Node>();
@@ -128,7 +139,16 @@ public final class ExpandGroupsPhase implements ExpansionPhase {
         }
         final var root = group.getRoot();
         if (root.getType().isEmpty() && slot.getType().isPresent()) {
-            root.setTyping(slot.getType().get(), slot.getNullability().orElse(Nullability.UNKNOWN));
+            // Directive-binding propagates the source-leaf's producer commitment to the target-leaf.
+            // We re-invoke the resolver with the source-leaf's recorded producer scope so this site
+            // structurally follows the "every setTyping passes a resolver-derived Nullability" rule.
+            // Scope lookup falls back to a SourceLocation-derived parameter element when the source
+            // was typed outside this phase (e.g., by SeedGraph for a parameter root).
+            final var scope = scopeFor(slot);
+            final var type = slot.getType().get();
+            final var nullability = scope == null ? Nullability.UNKNOWN : nullabilityResolver.resolve(type, scope);
+            root.setTyping(type, nullability);
+            producerScopes.put(root, scope);
             change.markTypeAssigned();
         }
         if (root.getType().isEmpty()) {
@@ -205,6 +225,7 @@ public final class ExpandGroupsPhase implements ExpansionPhase {
                     ? Nullability.UNKNOWN
                     : nullabilityResolver.resolve(rs.getReturnType(), producerScope);
             root.setTyping(rs.getReturnType(), nullability);
+            producerScopes.put(root, producerScope);
             change.markTypeAssigned();
         }
         final var edge = Edge.realised(slot, root, rs.getWeight(), rs.getCodegen(), match.get().resolverClassName);
@@ -255,7 +276,10 @@ public final class ExpandGroupsPhase implements ExpansionPhase {
         if (hasSatChildAt(slot, satGroups)) {
             return SlotState.SAT;
         }
-        if (slot.getType().isEmpty()) {
+        // Slot Nodes from GroupTarget builds (top-level and nested) start untyped; their expansion
+        // is driven by the group-recorded expected type (Slot.type). Skip the empty-type gate when
+        // an expected type is available, so producer commits can type the slot at edge-commit time.
+        if (slot.getType().isEmpty() && group.expectedTypeFor(slot) == null) {
             return SlotState.PENDING;
         }
         if (!hasAnyChildAt(slot, group, graph)) {
@@ -296,7 +320,7 @@ public final class ExpandGroupsPhase implements ExpansionPhase {
             final MapperGraph graph,
             final ChangeTracker change,
             final List<Node> newNodes) {
-        final var frontierType = frontier.getType().orElse(null);
+        final var frontierType = effectiveType(group, frontier);
         if (frontierType == null) {
             return;
         }
@@ -305,6 +329,17 @@ public final class ExpandGroupsPhase implements ExpansionPhase {
             return;
         }
         tryGroupTargets(frontier, frontierType, graph, change);
+    }
+
+    /**
+     * Returns the frontier's effective type for candidate search: the producer-stamped {@code type} if
+     * present; otherwise the group-recorded {@link ExpansionGroup#expectedTypeFor expected type} (set by
+     * GroupTarget builds for slot Nodes that follow the producer-commit lifecycle). Returns {@code null}
+     * if neither is available.
+     */
+    private static @Nullable TypeMirror effectiveType(final ExpansionGroup group, final Node frontier) {
+        final var typed = frontier.getType().orElse(null);
+        return typed != null ? typed : group.expectedTypeFor(frontier);
     }
 
     private boolean tryBridges(
@@ -367,6 +402,36 @@ public final class ExpandGroupsPhase implements ExpansionPhase {
                 : null;
     }
 
+    /**
+     * Recovers the {@link Element} scope under which {@code node} was typed, so propagation sites can
+     * re-invoke the resolver instead of carrying an opaque {@link Nullability} forward. Prefers the
+     * engine-recorded {@code producerScopes} entry; falls back to a SourceLocation-derived parameter
+     * element when the node was typed outside this phase (e.g., SeedGraph parameter roots).
+     */
+    private javax.lang.model.element.@Nullable Element scopeFor(final Node node) {
+        if (producerScopes.containsKey(node)) {
+            return producerScopes.get(node);
+        }
+        if (!(node.getLoc() instanceof SourceLocation)) {
+            return null;
+        }
+        final var segments = ((SourceLocation) node.getLoc()).getPath().getSegments();
+        if (segments.size() != SINGLE_SLOT) {
+            return null;
+        }
+        final var method = resolveCtx.currentMethod();
+        if (method == null) {
+            return null;
+        }
+        final var paramName = segments.get(0);
+        for (final var param : method.getParameters()) {
+            if (param.getSimpleName().toString().equals(paramName)) {
+                return param;
+            }
+        }
+        return null;
+    }
+
     private static boolean stepMatchesFrontierScope(final BridgeStep step, final Node frontier) {
         switch (step.getScopeTransition()) {
             case PRESERVING:
@@ -385,7 +450,12 @@ public final class ExpandGroupsPhase implements ExpansionPhase {
             final var build = groupTarget.buildFor(frontierType, List.of(), resolveCtx);
             if (build.isPresent()) {
                 registerNestedGroupTarget(
-                        frontier, build.get(), groupTarget.getClass().getName(), graph, change);
+                        frontier,
+                        frontierType,
+                        build.get(),
+                        groupTarget.getClass().getName(),
+                        graph,
+                        change);
                 return;
             }
         }
@@ -420,6 +490,18 @@ public final class ExpandGroupsPhase implements ExpansionPhase {
         final var edge = Edge.realised(inputNode, frontier, step.getWeight(), step.getCodegen(), strategyFqn);
         if (!graph.addEdgeIfAcyclic(edge)) {
             return CommitResult.skipped();
+        }
+        // Producer-commit on a Path B untyped slot Node: the bridge step is the producer and its
+        // output type is the value the slot consumes. Bridges do not carry an Element scope, so the
+        // resolver invocation uses the inputNode's underlying scope (its containing method element)
+        // as a best-effort anchor; the type-use check on the output type fires first regardless.
+        if (frontier.getType().isEmpty()) {
+            final var scope = resolveCtx.currentMethod();
+            final var nullability =
+                    scope == null ? Nullability.UNKNOWN : nullabilityResolver.resolve(step.getOutputType(), scope);
+            frontier.setTyping(step.getOutputType(), nullability);
+            producerScopes.put(frontier, scope);
+            change.markTypeAssigned();
         }
         final var bridgeCodegen = step.getCodegen();
         final var nested = ExpansionGroup.of(
@@ -530,24 +612,42 @@ public final class ExpandGroupsPhase implements ExpansionPhase {
 
     private void registerNestedGroupTarget(
             final Node root,
+            final TypeMirror rootType,
             final GroupBuild build,
             final String strategyFqn,
             final MapperGraph graph,
             final ChangeTracker change) {
+        // Producer-commit on the parent frontier when this GroupTarget recursion was driven by an
+        // expected-type fallback (Path B nested slot). GroupTargets do not carry an Element scope;
+        // fall back to the enclosing method element so the resolver still runs at every typing site
+        // (mirrors the bridge-step commit pattern below).
+        if (root.getType().isEmpty()) {
+            final var scope = resolveCtx.currentMethod();
+            final var nullability = scope == null ? Nullability.UNKNOWN : nullabilityResolver.resolve(rootType, scope);
+            root.setTyping(rootType, nullability);
+            producerScopes.put(root, scope);
+            change.markTypeAssigned();
+        }
         final var slotNodes = new ArrayList<Node>(build.getSlots().size());
         final var slotEdges = new HashSet<Edge>(build.getSlots().size());
+        @SuppressWarnings({"PMD.LooseCoupling", "IdentityHashMapUsage"})
+        final IdentityHashMap<Node, io.github.joke.percolate.spi.Slot> slotMetadata =
+                new IdentityHashMap<>(build.getSlots().size());
         final var codegen = build.getCodegen();
         for (final var slot : build.getSlots()) {
             final Location slotLoc = new ElementLocation(slot.getName());
-            final var slotNode = new Node(Optional.of(slot.getType()), slotLoc, root.getScope(), Optional.of(root));
+            // Path B: nested slot Nodes start untyped; the engine drives candidate search via
+            // ExpansionGroup.expectedTypeFor (Slot.type) and types them at their own producer-commit.
+            final var slotNode = new Node(Optional.empty(), slotLoc, root.getScope(), Optional.of(root));
             graph.addNode(slotNode);
             slotNodes.add(slotNode);
+            slotMetadata.put(slotNode, slot);
             final var edge = Edge.realised(slotNode, root, slot.getWeight(), codegen::render, strategyFqn);
             if (graph.addEdge(edge)) {
                 slotEdges.add(edge);
             }
         }
-        final var nested = ExpansionGroup.of(root, slotNodes, codegen, strategyFqn, slotEdges, graph);
+        final var nested = ExpansionGroup.of(root, slotNodes, codegen, strategyFqn, slotEdges, graph, slotMetadata);
         graph.addGroup(nested);
         change.markGroupAdded();
     }

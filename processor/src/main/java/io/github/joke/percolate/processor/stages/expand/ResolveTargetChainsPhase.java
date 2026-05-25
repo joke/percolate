@@ -20,7 +20,6 @@ import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
-import javax.lang.model.AnnotatedConstruct;
 import javax.lang.model.type.TypeMirror;
 import lombok.RequiredArgsConstructor;
 import org.jspecify.annotations.Nullable;
@@ -65,21 +64,21 @@ public final class ResolveTargetChainsPhase implements ExpansionPhase {
             final var slotNodes = new ArrayList<Node>(groupBuild.getSlots().size());
             final var slotEdges = new HashSet<Edge>(groupBuild.getSlots().size());
             @SuppressWarnings({"PMD.LooseCoupling", "IdentityHashMapUsage"})
-            final IdentityHashMap<Node, AnnotatedConstruct> slotConsumerContracts =
+            final IdentityHashMap<Node, Slot> slotMetadata =
                     new IdentityHashMap<>(groupBuild.getSlots().size());
 
             for (final var slot : groupBuild.getSlots()) {
                 final var slotNode = obtainOrAllocateSlotNode(leafTargets, slot, rootNode, graph);
                 slotNodes.add(slotNode);
-                slotConsumerContracts.put(slotNode, slot.getProducedFrom());
+                slotMetadata.put(slotNode, slot);
                 final var edge = Edge.realised(slotNode, rootNode, slot.getWeight(), codegen::render, strategyFqn);
                 if (graph.addEdge(edge)) {
                     slotEdges.add(edge);
                 }
             }
 
-            final var group = ExpansionGroup.of(
-                    rootNode, slotNodes, codegen, strategyFqn, slotEdges, graph, slotConsumerContracts);
+            final var group =
+                    ExpansionGroup.of(rootNode, slotNodes, codegen, strategyFqn, slotEdges, graph, slotMetadata);
             graph.addGroup(group);
         }
     }
