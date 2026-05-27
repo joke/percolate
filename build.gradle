@@ -1,6 +1,6 @@
 plugins {
     id 'com.diffplug.gradle.spotless' apply false
-    id 'com.palantir.baseline' apply false
+    id 'com.palantir.baseline-config' apply false
     id 'net.ltgt.errorprone' apply false
     id 'net.ltgt.nullaway' apply false
     id 'org.danilopianini.cpd' apply false
@@ -13,16 +13,14 @@ subprojects { project ->
         mavenCentral()
     }
 
-    pluginManager.apply 'com.palantir.baseline-reproducibility'
-
     pluginManager.withPlugin('java-base') {
-        pluginManager.apply 'com.palantir.baseline-idea'
+        pluginManager.apply 'com.diffplug.spotless'
         pluginManager.apply 'com.palantir.baseline-encoding'
         pluginManager.apply 'com.palantir.baseline-java-compiler-diagnostics'
         pluginManager.apply 'com.palantir.baseline-java-properties'
-        pluginManager.apply 'com.diffplug.spotless'
-        pluginManager.apply 'net.ltgt.errorprone'
+        pluginManager.apply 'com.palantir.baseline-module-jvm-args'
         pluginManager.apply 'jacoco'
+        pluginManager.apply 'net.ltgt.errorprone'
         pluginManager.apply 'pmd'
 //        pluginManager.apply 'org.danilopianini.cpd'
         // pluginManager.apply 'com.palantir.baseline-format'
@@ -47,6 +45,7 @@ subprojects { project ->
     }
 
     pluginManager.withPlugin('java') {
+        pluginManager.apply 'com.palantir.baseline-test-heap'
         pluginManager.apply 'com.palantir.baseline-testing'
 
         tasks.named('test') {
