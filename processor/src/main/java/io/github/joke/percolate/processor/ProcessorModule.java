@@ -159,7 +159,7 @@ public final class ProcessorModule {
             final NullabilityResolver nullabilityResolver) {
         final var targetPhase = new ResolveTargetChainsPhase(groupTargets, resolveCtx);
         final var groupsPhase =
-                new ExpandGroupsPhase(bridges, groupTargets, pathSegmentResolvers, resolveCtx, nullabilityResolver);
+                ExpandGroupsPhase.create(bridges, groupTargets, pathSegmentResolvers, resolveCtx, nullabilityResolver);
         final var phases = List.<ExpansionPhase>of(targetPhase, groupsPhase);
         return new ExpandStage(phases);
     }
