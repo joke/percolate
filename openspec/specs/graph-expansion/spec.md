@@ -4,7 +4,7 @@
 
 This spec defines the expansion engine that turns a `MapperGraph` populated with `SEED` edges into a graph augmented with `REALISED` edges, organised as a forest of `ExpansionGroup` sub-graphs. Expansion proceeds target-to-source within each group: target slots demand inputs, and the engine drives chains backwards through bridges and group targets. SAT propagates from leaf groups (parameter-root base-case SAT) up through the dependency DAG via per-group `GroupOutcome` records.
 
-The realisation engine is a **cross-group fixed-point loop**: each pass iterates every registered group in registration order and re-runs them until a full pass produces no state changes (no new SAT outcome, no new sub-group, no in-place `Node.setType(...)` call). There is no SUB_SEED edge kind, no element-seed/diamond machinery, and no per-slot round budget. Element scope is declared per `BridgeStep` via `ScopeTransition`; the engine allocates element-scope nodes at the right `Location` and registers a one-slot nested `ExpansionGroup` for every bridge match (regardless of `ScopeTransition`).
+The realisation engine is a **cross-group fixed-point loop**: each pass dispatches every non-SAT group to its `GroupExpander` against a per-pass snapshot, collects the emitted `DeltaBundle`s, applies them via the single `Applier`, and re-runs until a full pass produces no state changes (the applier accepted no bundle AND no group was promoted to SAT). There is no SUB_SEED edge kind, no element-seed/diamond machinery, and no per-slot round budget. Element scope is declared per `BridgeStep` via `ScopeTransition`; expanders emit `AddNode` deltas for element-scope nodes at the right `Location` and an `AddGroup` delta for a one-slot nested `ExpansionGroup` on every bridge match (regardless of `ScopeTransition`).
 
 Candidate search during expansion is scoped to the **current group's view** (`ExpansionGroup.getView().vertexSet()`), not the global `MapperGraph`. This structural rule prevents sibling-derived nodes from leaking as candidates. Combined with `Node` instance-identity and narrow boundary import (only `SourceLocation` parents inherit), cross-sibling cycles can't form by leakage. Inverse-bridge same-loc reuse (Wrap↔Unwrap pairs) can still attempt cycle-closing matches via the parent group's root; those are caught at apply time by the `Applier`'s per-bundle dry-cycle-check (JGraphT `CycleDetector` over a temporary REALISED `DirectedMultigraph`), which drops the entire `DeltaBundle` so no orphan node survives (see "DeltaBundle atomicity").
 
@@ -81,9 +81,9 @@ Phase mutation SHALL be committed via `MapperGraph.apply(GraphDelta)` for node/e
 
 ### Requirement: Slot Nodes are typed at producer commit
 
-Slot `Node`s allocated by `ResolveTargetChainsPhase` (top-level) and `ExpandGroupsPhase.registerNestedGroupTarget` (nested sub-groups from `Bridge` matches) SHALL be created with both `type` and `nullability` empty. They SHALL be typed when their producer commits — exactly the same lifecycle that path-segment-group roots already follow (see "Path-segment-group resolution via PathSegmentResolver").
+Slot `Node`s allocated by `ResolveTargetChainsPhase` (top-level) and emitted as `AddNode` deltas during expansion — by `InputAllocator` for `Bridge` matches and by `SlotResolver`'s `GroupTarget` fallback for multi-slot matches — SHALL be created with both `type` and `nullability` empty. They SHALL be typed when their producer commits (a `TypeNode` delta applied by the `Applier`) — exactly the same lifecycle that path-segment-group roots already follow (see "Path-segment-group resolution via PathSegmentResolver").
 
-Each producer-commit site SHALL invoke `slotNode.setTyping(producerType, producerNullability)` where:
+The `Applier`, on each `TypeNode` delta, SHALL invoke `slotNode.setTyping(producerType, producerNullability)` where:
 
 - `producerType` is the actual type produced by the matched strategy (`ResolvedSegment.getReturnType()`, `BridgeStep.getOutputType()`, `MethodCandidate.method.getReturnType()`, …).
 - `producerNullability` is `NullabilityResolver.resolve(producerType, producerScope)`, with `producerScope` being the underlying `Element` of the match (`ResolvedSegment.getProducedFrom()`, `BridgeStep.getProducedFrom()`, `MethodCandidate.getMethod()`, …).
@@ -94,7 +94,7 @@ The engine SHALL NOT use the prior `Node.setType(...)` API. All typing-commit si
 
 #### Scenario: Slot Node typed at producer commit via setTyping
 - **WHEN** a slot Node is created untyped by `ResolveTargetChainsPhase`
-- **AND** a path-segment producer commits in `ExpandGroupsPhase` matching `ResolvedSegment(returnType=String, ..., producedFrom=getterMethod)`
+- **AND** `PathSegmentExpander` emits a `TypeNode` delta from `ResolvedSegment(returnType=String, ..., producedFrom=getterMethod)` and the `Applier` applies it
 - **THEN** the slot Node's `setTyping(String, NullabilityResolver.resolve(String, getterMethod))` is invoked exactly once
 - **AND** after commit, `slot.getType()` is `Optional.of(String)`
 - **AND** `slot.getNullability()` is `Optional.of(...)` matching the resolver's verdict
@@ -104,9 +104,9 @@ The engine SHALL NOT use the prior `Node.setType(...)` API. All typing-commit si
 - **THEN** no source line invokes `Node.setType(...)` (the legacy single-field accessor)
 - **AND** every typing-commit site invokes `Node.setTyping(type, nullability)`
 
-#### Scenario: Cycle rollback leaves the slot Node untyped
-- **WHEN** an expansion match attempts to type a slot Node but is rolled back by the CycleDetector
-- **THEN** the slot Node remains in its `Optional.empty()` state for both `type` and `nullability`
+#### Scenario: Cycle-rejected bundle leaves the slot Node untyped
+- **WHEN** an expansion match would type a slot Node but its `DeltaBundle` is dropped whole by the `Applier`'s per-bundle cycle check
+- **THEN** the `TypeNode` delta is never applied and the slot Node remains in its `Optional.empty()` state for both `type` and `nullability`
 - **AND** a subsequent non-cyclic match types the slot successfully
 
 ### Requirement: All graph mutation flows through the Applier
@@ -417,7 +417,7 @@ The PRESERVING / ENTERING / EXITING split in input allocation is encapsulated in
 
 ### Requirement: Multi-fire per frontier; parallel sub-groups coexist
 
-`ExpandGroupsPhase` SHALL commit every matching `BridgeStep` at each frontier. Multiple bridges that produce the frontier's type SHALL each emit their own REALISED edge and register their own one-slot sub-group. The siblings share the same root (the frontier) but have different slots and expand independently in subsequent work-list iterations.
+`FrontierMatcher` SHALL emit one `DeltaBundle` per matching `BridgeStep` at each frontier. Multiple bridges that produce the frontier's type SHALL each yield their own bundle (a REALISED `AddEdge` plus a one-slot `AddGroup`). The siblings share the same root (the frontier) but have different slots and expand independently in subsequent passes.
 
 A slot SATs iff at least one of its child sub-groups has outcome SAT. Dead branches (sub-groups that never reach SAT) remain in the graph as unsatisfied sub-groups; they do not contribute to the alive chain via outcome propagation.
 
@@ -425,8 +425,8 @@ Within one `Bridge`, the first matching candidate wins — a single `Bridge` MAY
 
 #### Scenario: Two matching bridges spawn two sibling sub-groups
 - **WHEN** the frontier is `tgt[addresses]:Optional<Set<HA>>` and both `OptionalCollect` (EXITING) and `OptionalWrap` (PRESERVING) match
-- **THEN** two one-slot `ExpansionGroup`s are registered, both with `root = tgt[addresses]`
-- **AND** the two siblings have different slots and join the work-list as DAG leaves
+- **THEN** two bundles are emitted, each with an `AddGroup` delta for a one-slot `ExpansionGroup` rooted at `tgt[addresses]`
+- **AND** the two siblings have different slots and join the next pass's snapshot as DAG leaves
 
 #### Scenario: Dead sibling sub-groups don't block the alive chain
 - **WHEN** two sibling sub-groups exist at the same root and one's outcome is SAT, the other's is `unsatNoPlan`
@@ -451,10 +451,10 @@ This is the multi-slot exception to the "every bridge match spawns a one-slot su
 
 ### Requirement: GroupOutcome records per-group SAT/UNSAT verdicts
 
-The graph SHALL retain a `GroupOutcome` for every registered `ExpansionGroup`, recorded via `MapperGraph.recordGroupOutcome(...)` during `fillGroup`. Outcomes are one of:
+The graph SHALL retain a `GroupOutcome` for every registered `ExpansionGroup`, recorded via `MapperGraph.recordGroupOutcome(...)` by the `Applier` when the driver drains outcomes at fixed-point convergence. Outcomes are one of:
 
 - `GroupOutcome.sat(group)` — every slot SAT'd via either base-case SAT or at least one SAT child sub-group.
-- `GroupOutcome.unsatNoPlan(group, failingSlot)` — `resolveSlot(failingSlot)` exhausted its expansion without producing new sub-groups, AND no existing child sub-group is SAT.
+- `GroupOutcome.unsatNoPlan(group, failingSlot)` — the group's `GroupExpander.step` returned `failingSlot` in `pendingSlots` with no bundle able to progress it, AND no existing child sub-group rooted at it is SAT.
 - `GroupOutcome.unsatDidNotConverge(group, failingSlot)` — the cross-group fixed-point loop exceeded `MAX_OUTER_PASSES` without convergence.
 
 Outcomes propagate up the dependency DAG: a parent group's slot is SAT iff at least one child sub-group rooted at that slot has outcome SAT. No global REALISED-traversal is performed at SAT time; the outcome of each group is the SAT input for its parent.
@@ -466,8 +466,8 @@ Outcomes are consumed by downstream validation phases (see `realisation-validati
 - **THEN** `MapperGraph.recordGroupOutcome(GroupOutcome.sat(group))` is called
 
 #### Scenario: UNSAT_NO_PLAN recorded with the failing slot
-- **WHEN** a slot's `resolveSlot` returns `UNSAT_NO_PLAN`
-- **THEN** `fillGroup` records `GroupOutcome.unsatNoPlan(group, slot)` and returns early without processing remaining slots
+- **WHEN** the fixed-point converges with a group whose last-pass `pendingSlots` still contains `slot` and no SAT child sub-group is rooted at it
+- **THEN** the driver records `GroupOutcome.unsatNoPlan(group, slot)` via the `Applier`
 
 #### Scenario: Parent SAT requires at least one SAT child per slot
 - **WHEN** a parent group has slot `S` with three child sub-groups rooted at `S`, all of whose outcomes are `unsatNoPlan`
