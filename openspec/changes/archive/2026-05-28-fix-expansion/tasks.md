@@ -27,5 +27,5 @@
 ## 5. Verify & commit
 
 - [x] 5.1 Run `./gradlew check` and resolve every violation before continuing.
-- [ ] 5.2 Commit the change with `/commit-commands:commit`.
+- [x] 5.2 Commit the change with `/commit-commands:commit`.
 </content>
