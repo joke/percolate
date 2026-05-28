@@ -22,7 +22,7 @@ The phase SHALL define a `GroupExpander` interface with two methods:
 - `boolean appliesTo(ExpansionGroup group)` — pure structural predicate; expanders SHALL recognise their group kind by inspecting the group's slots and locations.
 - `GroupStepResult step(ExpansionGroup group, ExpansionSnapshot snapshot)` — pure function returning `(List<DeltaBundle> bundles, List<Node> pendingSlots)`. The implementation SHALL NOT mutate the graph, the group, the snapshot, or any other shared state. The `bundles` describe intended mutations; `pendingSlots` lists the group's slots that are not yet satisfied after applying the bundles (empty list ⇔ the expander considers the group SAT).
 
-Expanders are injected via Dagger as `List<GroupExpander>`. The driver SHALL dispatch each non-SAT group to the **first** expander whose `appliesTo` predicate returns true. The `appliesTo` predicates SHALL be mutually exclusive by construction (path-segment, directive-binding, and bridge-group structural shapes do not overlap).
+Expanders are supplied to the driver as an ordered `List<GroupExpander>` assembled by the `ExpandGroupsPhase.create` factory and passed via constructor injection. The driver SHALL dispatch each non-SAT group to the **first** expander whose `appliesTo` predicate returns true. The `appliesTo` predicates SHALL be mutually exclusive by construction (path-segment, directive-binding, and bridge-group structural shapes do not overlap).
 
 #### Scenario: Expander step is pure
 - **WHEN** `GroupExpander.step(group, snapshot)` is invoked
@@ -33,9 +33,9 @@ Expanders are injected via Dagger as `List<GroupExpander>`. The driver SHALL dis
 - **WHEN** any `ExpansionGroup` is presented to the registered expander list
 - **THEN** at most one expander's `appliesTo` returns true
 
-#### Scenario: GroupExpander injection is Dagger-driven
-- **WHEN** `ExpandGroupsPhase` is constructed
-- **THEN** it receives a `List<GroupExpander>` via constructor injection
+#### Scenario: GroupExpander list is constructor-injected
+- **WHEN** `ExpandGroupsPhase` is constructed via its `create` factory
+- **THEN** it receives an ordered `List<GroupExpander>` via constructor injection
 - **AND** dispatch picks the first expander whose `appliesTo` returns true for the given group
 
 ### Requirement: DeltaBundle atomicity
@@ -66,7 +66,7 @@ No delta in a rejected bundle SHALL leave residual state in the graph — in par
 
 `ExpandGroupsPhase.apply` SHALL run a cross-group fixed-point loop where each outer pass operates against a snapshot of the state taken at pass start. All expanders in a single pass SHALL see the same snapshot; bundles emitted by one expander in pass `p` are NOT visible to other expanders in pass `p`. The applier applies all collected bundles at the end of pass `p`; pass `p+1` operates against a new snapshot reflecting those applications.
 
-The `ExpansionSnapshot` interface SHALL expose only read methods (`groups()`, `viewOf(group)`, `typeOf(node)`, `isSat(group)`, `effectiveTypeFor(node, group)`, `producerScopeOf(node)`, `currentMethod()`). The snapshot's view of a group SHALL be a `Graphs.unmodifiableGraph` wrapper over the group's underlying JGraphT subgraph. Calls to mutator methods on the returned wrapper SHALL throw `UnsupportedOperationException`.
+The `ExpansionSnapshot` interface SHALL expose only read methods (`groups()`, `viewOf(group)`, `typeOf(node)`, `isSat(group)`, `effectiveTypeFor(node, group)`, `producerScopeOf(node)`, `currentMethod()`). The snapshot's view of a group SHALL be an `AsUnmodifiableGraph` wrapper over the group's underlying JGraphT subgraph (JGraphT exposes no `Graphs.unmodifiableGraph`; `AsUnmodifiableGraph` gives the same read-only guarantee). Calls to mutator methods on the returned wrapper SHALL throw `UnsupportedOperationException`.
 
 #### Scenario: Mid-pass mutations are invisible within the same pass
 - **WHEN** a pass dispatches group `A` first and group `B` second
@@ -236,7 +236,7 @@ Let `F` be the frontier node (the node demanding an input) and `C` be a candidat
 
 6. If `F.type` is empty (Path B untyped slot), the matcher SHALL emit a `TypeNode(F, step.outputType, <scope>)` delta. The `<scope>` is the bridge step's `producedFrom` (`Element`) when present; otherwise it falls back to `snapshot.currentMethod()` as a best-effort anchor.
 
-7. The matcher SHALL emit an `AddGroup` delta for a fresh one-slot nested `ExpansionGroup` (per the "Every bridge match spawns a one-slot nested ExpansionGroup" requirement). The nested group's initial view contains exactly `{F, inputNode, the just-emitted REALISED edge}`. Boundary import of parent `SourceLocation` nodes happens via additional `ImportToView` deltas appended to the same bundle.
+7. The matcher SHALL emit an `AddGroup` delta for a fresh one-slot nested `ExpansionGroup` (per the "Every bridge match spawns a one-slot nested ExpansionGroup" requirement). The nested group's initial view contains exactly `{F, inputNode, the just-emitted REALISED edge}`. Boundary import of parent `SourceLocation` nodes is carried on the `AddGroup` delta's `boundaryImports` field, not a separate `ImportToView` delta (a pure expander cannot reference a not-yet-built nested group, so boundary import ships as `AddGroup` ingredients — the taxonomy has five delta variants).
 
 All deltas in steps 3, 5, 6, 7 are emitted as a single atomic `DeltaBundle`. The applier accepts or rejects the bundle as a unit per the "DeltaBundle atomicity" requirement; cycle rejection of the `AddEdge` in step 5 drops the whole bundle, leaving no orphan input `Node` in the graph.
 
@@ -245,7 +245,7 @@ Fresh allocation uses instance-identity (per `graph-model`): every fresh-allocat
 #### Scenario: Every match emits one REALISED edge + one sub-group as one bundle
 - **WHEN** a `BridgeStep` matches at frontier `F`
 - **THEN** the matcher emits one `DeltaBundle` containing one `AddEdge` delta (for the input → F REALISED edge) and one `AddGroup` delta (for the one-slot sub-group rooted at `F`)
-- **AND** the bundle may also contain `AddNode` (fresh input), `TypeNode` (if F was untyped), `AddEdgeToView`, and `ImportToView` deltas
+- **AND** the bundle may also contain `AddNode` (fresh input), `TypeNode` (if F was untyped), and `AddEdgeToView` deltas; boundary `SourceLocation` nodes ride on the `AddGroup` delta's `boundaryImports` field
 
 #### Scenario: PRESERVING reuses same-loc candidate from current view
 - **WHEN** a `PRESERVING` step's `inputType` matches a candidate `C` in `snapshot.viewOf(group).vertexSet()` with `C.loc.equals(F.loc)`
@@ -278,7 +278,7 @@ The PRESERVING / ENTERING / EXITING split in input allocation is encapsulated in
 #### Scenario: PRESERVING bridge match spawns a sub-group
 - **WHEN** `FrontierMatcher` matches a `BridgeStep` with `scopeTransition == PRESERVING`
 - **THEN** the emitted bundle contains an `AddGroup` delta with the frontier as root and the input as the sole slot
-- **AND** the parent group's view is NOT mutated to add the input node directly (no `ImportToView` delta for the input is emitted)
+- **AND** the parent group's view is NOT mutated to add the input node directly (the input node is not listed in the `AddGroup` delta's `boundaryImports`)
 
 #### Scenario: ENTERING bridge match spawns a sub-group
 - **WHEN** `FrontierMatcher` matches a `BridgeStep` with `scopeTransition == ENTERING`

@@ -72,46 +72,6 @@ in `Applier`, `ChangeTracker` is gone, and the loop is per-pass snapshot/batched
 - [x] 6.5 Added Javadoc to `Delta`, `DeltaBundle`, `GroupExpander`, `ExpansionSnapshot`, `Applier` (and the driver + every new collaborator)
 - [x] 6.6 Verify the "no legacy phase methods remain" spec scenario (checked by inspection after rewrite)
 
-## 3. Extract PathSegmentExpander
-
-- [ ] 3.1 Create `PathSegmentExpander implements GroupExpander` in `stages.expand` package; constructor-injected with `PathSegmentGroupResolver`
-- [ ] 3.2 Implement `appliesTo`: delegate to existing `PathSegmentGroupResolver.isPathSegmentGroup(group)` structural check
-- [ ] 3.3 Implement `step`: invoke resolver; on match, emit one bundle `{ TypeNode(root, returnType, producedFrom), AddEdge(slot→root REALISED), AddEdgeToView }`; return `pendingSlots = []`. On no match, return `(bundles = [], pendingSlots = [slot])`
-- [ ] 3.4 Remove `expandPathSegmentGroup` from `ExpandGroupsPhase`; route dispatch via the new expander
-- [ ] 3.5 Bind `PathSegmentExpander` via Dagger `@IntoSet` (or equivalent `List<GroupExpander>` binding); set ordering so it comes before `DirectiveBindingExpander` and `BridgeExpander`
-- [ ] 3.6 Run `./gradlew test --tests "*PathSegment*" --tests "*ExpansionTestHarness*"` — all green
-
-## 4. Extract DirectiveBindingExpander
-
-- [ ] 4.1 Create `DirectiveBindingExpander implements GroupExpander`; constructor-injected with `ResolveCtx`
-- [ ] 4.2 Implement `appliesTo`: single-slot AND root.loc is `TargetLocation` AND slot.loc is `SourceLocation`
-- [ ] 4.3 Implement `step` mirroring the current `expandDirectiveBindingGroup` semantics: resolve the source slot via snapshot; once typed, emit `TypeNode(root, slot.type, snapshot.producerScopeOf(slot))` and an `AddEdge` for the direct-assign edge when types match; otherwise expand frontier via `FrontierMatcher`
-- [ ] 4.4 Direct-assign codegen: extract the inline `(vars, inputs) -> CodeBlock.of("$L", inputs.single())` lambda into a named constant `DirectAssignCodegen` to avoid the inline lambda
-- [ ] 4.5 Remove `expandDirectiveBindingGroup` and `ensureDirectAssignEdge` from `ExpandGroupsPhase`
-- [ ] 4.6 Bind `DirectiveBindingExpander` via Dagger; verify it doesn't overlap `PathSegmentExpander.appliesTo`
-- [ ] 4.7 Run `./gradlew test --tests "*DirectiveBinding*" --tests "*ExpansionTestHarness*"` — all green
-
-## 5. Extract BridgeExpander, FrontierMatcher, InputAllocator
-
-- [ ] 5.1 Create `InputAllocator` class (constructor-injected with `ResolveCtx`); methods return `InputAllocation { Node node; @Nullable AddNode delta }` for `PRESERVING` / `ENTERING` / `EXITING` transitions
-- [ ] 5.2 Create `FrontierMatcher` class (constructor-injected with `bridges`, `InputAllocator`, `ResolveCtx`); method `Optional<DeltaBundle> matchAt(Node frontier, ExpansionGroup group, ExpansionSnapshot snapshot)` returning a single bundle (or empty) describing the first matching bridge step
-- [ ] 5.3 `FrontierMatcher` produces the atomic bundle `{ maybe AddNode, AddEdge(input→frontier REALISED), maybe TypeNode(frontier, outputType, scope), AddGroup(nested one-slot), AddEdgeToView, ImportToView for SourceLocation boundary nodes }`
-- [ ] 5.4 Create `BridgeExpander implements GroupExpander` constructor-injected with `FrontierMatcher` and `groupTargets`
-- [ ] 5.5 Implement `appliesTo`: fallback case (any group not handled by path-segment or directive-binding expander)
-- [ ] 5.6 Implement `step`: iterate slots; for each unsatisfied slot call `FrontierMatcher.matchAt`; if no bridge matches, fall back to `GroupTarget.buildFor` producing the multi-slot bundle (`AddNode×N + AddEdge×N + AddGroup + maybe TypeNode`); collect all bundles + remaining pending slots
-- [ ] 5.7 Remove from `ExpandGroupsPhase`: `expandBridgeGroup`, `resolveSlot`, `expandFrontier`, `effectiveType`, `tryBridges`, `tryBridgeOnCandidate`, `commitBridgeStep`, `tryGroupTargets`, `registerNestedGroupTarget`, `allocateInputNode`, `allocateForPreserving`, `allocateForEntering`, `allocateForExiting`, `allocateFresh`, `findCandidateByInputType`, `importBoundaryNodes`, `stepMatchesFrontierScope`, `hasAnyChildAt`, `hasSatChildAt`, `isParameterRootSlot`, `scopeFor`, `scopeOf`; the inner classes `BridgeMatch`, `CommitResult`, `InputAllocation`, `StepResult`, `SlotState`
-- [ ] 5.8 Bind `BridgeExpander` via Dagger
-- [ ] 5.9 Run `./gradlew test --tests "*Bridge*" --tests "*ExpansionTestHarness*"` — all green; orphan-node bug must be fixed (verify with a regression test on a cycle-attempting bridge match)
-
-## 6. Slim driver and finalise
-
-- [ ] 6.1 `ExpandGroupsPhase.apply(graph)` reduces to: `state.initial(graph)` → fixed-point loop (snapshot → dispatch → collect → apply → progress check) → `state.recordOutcomes(graph)`; target ~80 lines for the class file
-- [ ] 6.2 Remove the class-level `@SuppressWarnings({"PMD.GodClass", "PMD.CyclomaticComplexity"})` annotation (no longer needed)
-- [ ] 6.3 Drop fully-qualified imports that crept in (`com.palantir.javapoet.CodeBlock`, `io.github.joke.percolate.processor.graph.EdgeKind`, `javax.lang.model.element.Element` mid-method); use regular imports
-- [ ] 6.4 Collapse `StepResult.pending` / `.failed` factories (they were identical) — replaced by `GroupStepResult` with `pendingSlots`
-- [ ] 6.5 Add Javadoc to `Delta`, `DeltaBundle`, `GroupExpander`, `ExpansionSnapshot`, `Applier` explaining the architectural roles
-- [ ] 6.6 Verify the "no legacy phase methods remain" spec scenario passes (compile-time check via inspection)
-
 ## 7. Replace tests
 
 - [x] 7.1 Delete `ExpandGroupsPhaseSpec.groovy`
@@ -128,4 +88,4 @@ in `Applier`, `ChangeTracker` is gone, and the loop is per-pass snapshot/batched
 - [x] 8.1 Run `./gradlew check` — passes with zero violations (all modules' tests, spotless, PMD, NullAway/errorprone, CodeNarc, JaCoCo)
 - [x] 8.2 Reran the harness regression specs (`ExpansionFailureModesSpec`, `RealisedEdgeCanarySpec`, `PathSegmentGroupResolverSpec`, `ResolveTargetChainsPhaseSpec`) — green
 - [x] 8.3 Orphan-node fix verified by `ApplierSpec` 'cycle-rejected bundle is dropped whole and leaves no orphan node' — the deterministic, focused test of the exact mechanism (an `AddNode` preceding a cycle-rejected `AddEdge` is not applied). A pure end-to-end harness reproduction is not reliably constructible: a freshly-allocated input node has no back-path, so only reused (already-present, non-orphan) candidates can close a cycle.
-- [ ] 8.4 Commit completed change with `/commit-commands:commit`
+- [x] 8.4 Committed as `e14e741` — refactor(processor): delta-driven expansion pipeline
