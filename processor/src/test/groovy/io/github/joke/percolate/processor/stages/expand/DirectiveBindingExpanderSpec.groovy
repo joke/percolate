@@ -6,7 +6,7 @@ import io.github.joke.percolate.processor.nullability.JspecifyNullabilityResolve
 import io.github.joke.percolate.processor.nullability.NullabilityAnnotations
 import io.github.joke.percolate.processor.test.HarnessScope
 import io.github.joke.percolate.spi.GroupCodegen
-import io.github.joke.percolate.spi.Nullability
+import io.github.joke.percolate.spi.Slot
 import io.github.joke.percolate.spi.test.HarnessResolveCtx
 import io.github.joke.percolate.spi.test.TypeUniverse
 import spock.lang.Specification
@@ -29,7 +29,7 @@ class DirectiveBindingExpanderSpec extends Specification {
     @Subject
     DirectiveBindingExpander expander = new DirectiveBindingExpander(slotResolver, ctx)
 
-    def 'propagates the source slot type onto an untyped target root'() {
+    def 'stays pending without typing the root when the declared target type is unknown'() {
         given:
         def group = bindingGroup(TypeUniverse.STRING, null)
 
@@ -38,39 +38,78 @@ class DirectiveBindingExpanderSpec extends Specification {
 
         then:
         result.pendingSlots == [group.root]
-        def typings = result.bundles.collectMany { it.deltas }.findAll { it instanceof TypeNode }
-        typings.size() == 1
-        typings[0].node.is(group.root)
-        TypeUniverse.types().isSameType(typings[0].type, TypeUniverse.STRING)
+        result.bundles.collectMany { it.deltas }.findAll { it instanceof TypeNode && it.node.is(group.root) }.empty
     }
 
-    def 'emits a direct-assign edge and SATs once the types match'() {
+    def 'types the root with the target type and emits a NOOP direct-assign edge then SATs when source and target match'() {
         given:
         def group = bindingGroup(TypeUniverse.STRING, null)
-        group.root.setTyping(TypeUniverse.STRING, Nullability.UNKNOWN)
+        pinTargetType(group, TypeUniverse.STRING)
 
         when:
         def result = expander.step(group, state)
 
         then:
         result.pendingSlots.empty
-        def edges = result.bundles.collectMany { it.deltas }.findAll { it instanceof AddEdge }
+        def deltas = result.bundles.collectMany { it.deltas }
+        def edges = deltas.findAll { it instanceof AddEdge }
         edges.size() == 1
         edges[0].edge.from.is(group.slots[0])
         edges[0].edge.to.is(group.root)
-        result.bundles.collectMany { it.deltas }.any { it instanceof AddEdgeToView }
+        edges[0].edge.weight == Weights.NOOP
+        deltas.any { it instanceof AddEdgeToView }
+        def typings = deltas.findAll { it instanceof TypeNode && it.node.is(group.root) }
+        typings.size() == 1
+        TypeUniverse.types().isSameType(typings[0].type, TypeUniverse.STRING)
     }
 
-    def 'leaves the slot pending when types differ and no producer exists'() {
+    def 'never stamps the source slot type onto the root'() {
         given:
-        def group = bindingGroup(TypeUniverse.STRING, TypeUniverse.LONG)
+        def group = bindingGroup(TypeUniverse.STRING, null)
+        pinTargetType(group, TypeUniverse.LONG)
 
         when:
         def result = expander.step(group, state)
 
         then:
-        result.bundles.empty
+        result.bundles.collectMany { it.deltas }
+                .findAll { it instanceof TypeNode && it.node.is(group.root) }
+                .every { TypeUniverse.types().isSameType(it.type, TypeUniverse.LONG) }
+    }
+
+    def 'differing types with no producer emit no direct-assign edge and leave the slot pending'() {
+        given:
+        def group = bindingGroup(TypeUniverse.STRING, null)
+        pinTargetType(group, TypeUniverse.LONG)
+
+        when:
+        def result = expander.step(group, state)
+
+        then:
+        result.bundles.collectMany { it.deltas }.findAll { it instanceof AddEdge }.empty
         result.pendingSlots == [group.slots[0]]
+    }
+
+    def 'differing types SAT via a SAT child sub-group without emitting a direct-assign edge'() {
+        given:
+        def group = bindingGroup(TypeUniverse.STRING, null)
+        pinTargetType(group, TypeUniverse.LONG)
+        def childSlot = new Node(Optional.empty(), new ElementLocation('element'), scope)
+        graph.addNode(childSlot)
+        def child = ExpansionGroup.of(group.root, [childSlot], GROUP_NOOP, 'test.Child', [].toSet(), graph)
+        graph.addGroup(child)
+        state.markSat(child)
+
+        when:
+        def result = expander.step(group, state)
+
+        then:
+        result.pendingSlots.empty
+        result.bundles.collectMany { it.deltas }.findAll { it instanceof AddEdge }.empty
+    }
+
+    private void pinTargetType(final ExpansionGroup group, final TypeMirror targetType) {
+        group.recordExpectedType(group.root, new Slot('out', targetType, 1, TypeUniverse.anyConstruct()))
     }
 
     private ExpansionGroup bindingGroup(final TypeMirror slotType, final TypeMirror rootType) {

@@ -7,14 +7,16 @@ import io.github.joke.percolate.processor.graph.Weights;
 import io.github.joke.percolate.spi.ResolveCtx;
 import java.util.ArrayList;
 import java.util.List;
+import javax.lang.model.type.TypeMirror;
 import lombok.RequiredArgsConstructor;
 
 /**
- * Binds a target leaf (root) to a source leaf (slot). Once the source slot is satisfied it propagates the
- * slot's type to the root; when their types match it emits a direct-assign edge and SATs; otherwise it expands
- * the root as a frontier (bridge / GroupTarget) to convert the source type into the target type, SATing once a
- * spawned child SATs. Type propagation and the subsequent root resolution land in successive passes, since a
- * pass observes only the previous pass's applied deltas.
+ * Binds a target leaf (root) to a source leaf (slot). The root's type is the declared target type, supplied by
+ * its target chain (read via {@code effectiveTypeFor}, which the chain pins onto this group's metadata) — the
+ * source slot's type is never stamped onto the root. While the root's target type is unknown the group stays
+ * pending. When the resolved source and declared target types match it emits a direct-assign edge (typing the
+ * root with the target type at this producer commit) and SATs; otherwise it expands the root as a frontier
+ * (bridge / GroupTarget) to convert the source type into the target type, SATing once a spawned child SATs.
  */
 @RequiredArgsConstructor
 final class DirectiveBindingExpander implements GroupExpander {
@@ -37,14 +39,13 @@ final class DirectiveBindingExpander implements GroupExpander {
             return new GroupStepResult(deltas, List.of(slot));
         }
         final var root = group.getRoot();
-        final var slotType = snapshot.typeOf(slot);
-        if (snapshot.typeOf(root).isEmpty()) {
-            slotType.ifPresent(type -> deltas.add(directAssignTyping(root, slot, type, snapshot)));
+        final var rootType = snapshot.effectiveTypeFor(root, group);
+        if (rootType == null) {
             return new GroupStepResult(deltas, List.of(root));
         }
-        final var rootType = snapshot.typeOf(root).orElseThrow();
+        final var slotType = snapshot.typeOf(slot);
         if (slotType.isPresent() && resolveCtx.types().isSameType(slotType.get(), rootType)) {
-            deltas.add(directAssignEdge(group, slot, root));
+            deltas.add(directAssignEdge(group, slot, root, rootType, snapshot));
             return new GroupStepResult(deltas, List.of());
         }
         if (slotResolver.resolve(root, group, snapshot, deltas)) {
@@ -53,16 +54,19 @@ final class DirectiveBindingExpander implements GroupExpander {
         return new GroupStepResult(deltas, List.of(slot));
     }
 
-    private DeltaBundle directAssignTyping(
-            final Node root,
+    private DeltaBundle directAssignEdge(
+            final ExpansionGroup group,
             final Node slot,
-            final javax.lang.model.type.TypeMirror type,
+            final Node root,
+            final TypeMirror rootType,
             final ExpansionSnapshot snapshot) {
-        return new DeltaBundle(DIRECT_ASSIGN_FQN, List.of(new TypeNode(root, type, snapshot.producerScopeOf(slot))));
-    }
-
-    private DeltaBundle directAssignEdge(final ExpansionGroup group, final Node slot, final Node root) {
         final var edge = Edge.realised(slot, root, Weights.NOOP, DirectAssignCodegen.INSTANCE, DIRECT_ASSIGN_FQN);
-        return new DeltaBundle(DIRECT_ASSIGN_FQN, List.of(new AddEdge(edge), new AddEdgeToView(group, edge)));
+        final var deltas = new ArrayList<Delta>();
+        if (snapshot.typeOf(root).isEmpty()) {
+            deltas.add(new TypeNode(root, rootType, snapshot.producerScopeOf(slot)));
+        }
+        deltas.add(new AddEdge(edge));
+        deltas.add(new AddEdgeToView(group, edge));
+        return new DeltaBundle(DIRECT_ASSIGN_FQN, deltas);
     }
 }

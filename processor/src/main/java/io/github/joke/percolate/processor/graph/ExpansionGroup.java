@@ -94,6 +94,16 @@ public final class ExpansionGroup {
         return meta == null ? null : meta.getType();
     }
 
+    /**
+     * Records the consumer-expected {@link Slot} (declared target type) for a node already present in this
+     * group. Used by target-chain scaffolding to pin the declared type onto the directive-binding group that
+     * shares the node as its root, so the directive-binding expander can read it via {@link #expectedTypeFor}
+     * without a cross-group scan. Scaffolding-only: call before the expansion driver runs.
+     */
+    public void recordExpectedType(final Node node, final Slot slot) {
+        slotMetadata.put(node, slot);
+    }
+
     private static void validateMembership(
             final org.jgrapht.Graph<Node, Edge> underlying,
             final Node root,

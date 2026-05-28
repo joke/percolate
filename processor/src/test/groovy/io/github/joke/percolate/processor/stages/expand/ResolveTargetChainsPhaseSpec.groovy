@@ -101,6 +101,57 @@ class ResolveTargetChainsPhaseSpec extends Specification {
         graph.groups().count() == 0
     }
 
+    def 'pins the declared target type onto the directive-binding group sharing the reused slot node'() {
+        given:
+        def graph = new MapperGraph()
+        def scope = new HarnessScope('mapHuman()')
+        def returnRoot = new Node(Optional.of(TypeUniverse.STRING), new TargetLocation(TargetPath.of('')), scope)
+        def leaf = new Node(Optional.empty(), new TargetLocation(TargetPath.of('lastName')), scope)
+        def source = new Node(Optional.empty(),
+                new SourceLocation(AccessPath.of('person').append('lastName')), scope)
+        [returnRoot, leaf, source].each { graph.addNode(it) }
+        graph.addEdge(Edge.seedForTest(leaf, returnRoot))
+        graph.addEdge(Edge.seedForTest(source, leaf))
+        def codegen = { vars, inputs -> com.palantir.javapoet.CodeBlock.of('') } as GroupCodegen
+        def bindingGroup = ExpansionGroup.of(leaf, [source], codegen, DIRECTIVE_BINDING_FQN, [].toSet(), graph)
+        graph.addGroup(bindingGroup)
+        def phase = new ResolveTargetChainsPhase([new SingleSlotGroupTarget('lastName', TypeUniverse.STRING)],
+                HarnessResolveCtx.create())
+
+        when:
+        phase.apply(graph)
+
+        then:
+        def expected = bindingGroup.expectedTypeFor(leaf)
+        expected != null
+        TypeUniverse.types().isSameType(expected, TypeUniverse.STRING)
+    }
+
+    def 'leaves a directive-binding group unpinned when no GroupTarget slot matches its leaf'() {
+        given:
+        def graph = new MapperGraph()
+        def scope = new HarnessScope('mapHuman()')
+        def returnRoot = new Node(Optional.of(TypeUniverse.STRING), new TargetLocation(TargetPath.of('')), scope)
+        def leaf = new Node(Optional.empty(), new TargetLocation(TargetPath.of('nickname')), scope)
+        def source = new Node(Optional.empty(),
+                new SourceLocation(AccessPath.of('person').append('nickname')), scope)
+        [returnRoot, leaf, source].each { graph.addNode(it) }
+        graph.addEdge(Edge.seedForTest(leaf, returnRoot))
+        graph.addEdge(Edge.seedForTest(source, leaf))
+        def codegen = { vars, inputs -> com.palantir.javapoet.CodeBlock.of('') } as GroupCodegen
+        def bindingGroup = ExpansionGroup.of(leaf, [source], codegen, DIRECTIVE_BINDING_FQN, [].toSet(), graph)
+        graph.addGroup(bindingGroup)
+        // GroupTarget only builds a 'lastName' slot — nothing corresponds to 'nickname'
+        def phase = new ResolveTargetChainsPhase([new SingleSlotGroupTarget('lastName', TypeUniverse.STRING)],
+                HarnessResolveCtx.create())
+
+        when:
+        phase.apply(graph)
+
+        then:
+        bindingGroup.expectedTypeFor(leaf) == null
+    }
+
     private static MapperGraph seedGraphWithTargetLeaves(List<String> slotNames) {
         def graph = new MapperGraph()
         def scope = new HarnessScope('mapHuman()')

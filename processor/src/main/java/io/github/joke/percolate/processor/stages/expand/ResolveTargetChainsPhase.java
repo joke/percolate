@@ -71,6 +71,7 @@ public final class ResolveTargetChainsPhase implements ExpansionPhase {
                 final var slotNode = obtainOrAllocateSlotNode(leafTargets, slot, rootNode, graph);
                 slotNodes.add(slotNode);
                 slotMetadata.put(slotNode, slot);
+                pinExpectedTypeOnDirectiveBinding(graph, slotNode, slot);
                 final var edge = Edge.realised(slotNode, rootNode, slot.getWeight(), codegen::render, strategyFqn);
                 if (graph.addEdge(edge)) {
                     slotEdges.add(edge);
@@ -81,6 +82,13 @@ public final class ResolveTargetChainsPhase implements ExpansionPhase {
                     ExpansionGroup.of(rootNode, slotNodes, codegen, strategyFqn, slotEdges, graph, slotMetadata);
             graph.addGroup(group);
         }
+    }
+
+    private void pinExpectedTypeOnDirectiveBinding(final MapperGraph graph, final Node slotNode, final Slot slot) {
+        graph.groups()
+                .filter(GroupShapes::isDirectiveBinding)
+                .filter(group -> group.getRoot().equals(slotNode))
+                .forEach(group -> group.recordExpectedType(slotNode, slot));
     }
 
     private Node obtainOrAllocateSlotNode(
