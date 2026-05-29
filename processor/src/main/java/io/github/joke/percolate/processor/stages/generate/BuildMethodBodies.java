@@ -9,7 +9,7 @@ import io.github.joke.percolate.processor.graph.ElementLocation;
 import io.github.joke.percolate.processor.graph.ExpansionGroup;
 import io.github.joke.percolate.processor.graph.MethodScope;
 import io.github.joke.percolate.processor.graph.Node;
-import io.github.joke.percolate.processor.graph.RealisedSubgraph;
+import io.github.joke.percolate.processor.graph.PlanView;
 import io.github.joke.percolate.processor.graph.Scope;
 import io.github.joke.percolate.processor.graph.SourceLocation;
 import io.github.joke.percolate.processor.graph.TargetLocation;
@@ -43,13 +43,13 @@ public final class BuildMethodBodies {
         if (shape == null || graph == null) {
             return List.of();
         }
-        final var realised = graph.realisedSubgraph();
+        final var realised = graph.planView();
         return shape.getAbstractMethods().stream()
                 .map(method -> renderMethod(realised, method))
                 .collect(toUnmodifiableList());
     }
 
-    private MethodImpl renderMethod(final RealisedSubgraph realised, final ExecutableElement method) {
+    private MethodImpl renderMethod(final PlanView realised, final ExecutableElement method) {
         final var scope = new MethodScope(method);
         final var groupRoots = indexGroupRootsByNode(realised, scope);
         final var root = findReturnRoot(realised, scope);
@@ -61,7 +61,7 @@ public final class BuildMethodBodies {
 
     private CodeBlock render(
             final Node node,
-            final RealisedSubgraph realised,
+            final PlanView realised,
             final ExecutableElement method,
             final Map<Node, ExpansionGroup> groupRoots) {
         final var group = groupRoots.get(node);
@@ -81,7 +81,7 @@ public final class BuildMethodBodies {
 
     private CodeBlock renderSingleEdge(
             final Edge edge,
-            final RealisedSubgraph realised,
+            final PlanView realised,
             final ExecutableElement method,
             final Map<Node, ExpansionGroup> groupRoots) {
         final var child = render(edge.getFrom(), realised, method, groupRoots);
@@ -92,7 +92,7 @@ public final class BuildMethodBodies {
 
     private CodeBlock renderGroupTarget(
             final ExpansionGroup group,
-            final RealisedSubgraph realised,
+            final PlanView realised,
             final ExecutableElement method,
             final Map<Node, ExpansionGroup> groupRoots) {
         final var byName = new LinkedHashMap<String, CodeBlock>();
@@ -158,7 +158,7 @@ public final class BuildMethodBodies {
         return CodeBlock.of("$N", paramName);
     }
 
-    private Node findReturnRoot(final RealisedSubgraph realised, final Scope scope) {
+    private Node findReturnRoot(final PlanView realised, final Scope scope) {
         return realised.nodes()
                 .filter(n -> n.getScope().equals(scope))
                 .filter(BuildMethodBodies::isReturnRoot)
@@ -171,23 +171,28 @@ public final class BuildMethodBodies {
                 && ((TargetLocation) node.getLoc()).getPath().getSegments().isEmpty();
     }
 
-    private Map<Node, ExpansionGroup> indexGroupRootsByNode(final RealisedSubgraph realised, final Scope scope) {
+    private Map<Node, ExpansionGroup> indexGroupRootsByNode(final PlanView realised, final Scope scope) {
         final var index = new HashMap<Node, ExpansionGroup>();
-        realised.delegate()
-                .groups()
+        realised.groups()
                 .filter(g -> g.getRoot().getScope().equals(scope))
                 .filter(g -> !g.getStrategyClassFqn().startsWith(SEED_PACKAGE_PREFIX))
-                .forEach(g -> index.putIfAbsent(g.getRoot(), g));
+                .forEach(g -> index.put(g.getRoot(), g));
         return index;
     }
 
-    private List<Edge> inboundRealisedEdges(final Node node, final RealisedSubgraph realised) {
+    private List<Edge> inboundRealisedEdges(final Node node, final PlanView realised) {
         return realised.edges().filter(e -> e.getTo().equals(node)).collect(toUnmodifiableList());
     }
 
     private static String slotName(final Node slot) {
         if (slot.getLoc() instanceof TargetLocation) {
             final var segments = ((TargetLocation) slot.getLoc()).getPath().getSegments();
+            if (!segments.isEmpty()) {
+                return segments.get(segments.size() - 1);
+            }
+        }
+        if (slot.getLoc() instanceof SourceLocation) {
+            final var segments = ((SourceLocation) slot.getLoc()).getPath().getSegments();
             if (!segments.isEmpty()) {
                 return segments.get(segments.size() - 1);
             }

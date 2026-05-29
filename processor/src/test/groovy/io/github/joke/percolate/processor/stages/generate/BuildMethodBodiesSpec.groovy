@@ -104,13 +104,15 @@ class BuildMethodBodiesSpec extends Specification {
         def lastEdge = Edge.realised(lastNameSlot, returnRoot, Weights.STEP, passThrough, 'io.github.joke.percolate.spi.builtins.ConstructorCall')
         graph.addEdge(firstEdge)
         graph.addEdge(lastEdge)
-        graph.addGroup(ExpansionGroup.of(
+        def ctorGroup = ExpansionGroup.of(
                 returnRoot,
                 [firstNameSlot, lastNameSlot],
                 ctorCodegen,
                 'io.github.joke.percolate.spi.builtins.ConstructorCall',
                 [firstEdge, lastEdge] as Set,
-                graph))
+                graph)
+        graph.addGroup(ctorGroup)
+        graph.recordGroupOutcome(GroupOutcome.sat(ctorGroup))
 
         def ctx = ctxWith(graph, method)
 
@@ -138,13 +140,15 @@ class BuildMethodBodiesSpec extends Specification {
         graph.addEdge(collectEdge)
 
         GroupCodegen listCodegen = { vars, inputs -> CodeBlock.of('$T.of($L)', List, inputs.single()) } as GroupCodegen
-        graph.addGroup(ExpansionGroup.of(
+        def listGroup = ExpansionGroup.of(
                 returnRoot,
                 [elemSlot],
                 listCodegen,
                 'io.github.joke.percolate.spi.builtins.ListCollect',
                 [collectEdge] as Set,
-                graph))
+                graph)
+        graph.addGroup(listGroup)
+        graph.recordGroupOutcome(GroupOutcome.sat(listGroup))
 
         def ctx = ctxWith(graph, method)
 
@@ -177,20 +181,24 @@ class BuildMethodBodiesSpec extends Specification {
 
         GroupCodegen setCodegen = { vars, inputs -> CodeBlock.of('$T.of($L)', Set, inputs.single()) } as GroupCodegen
         GroupCodegen optCodegen = { vars, inputs -> CodeBlock.of('$T.of($L)', Optional, inputs.single()) } as GroupCodegen
-        graph.addGroup(ExpansionGroup.of(
+        def setGroup = ExpansionGroup.of(
                 outerElem,
                 [innerElem],
                 setCodegen,
                 'io.github.joke.percolate.spi.builtins.SetCollect',
                 [setEdge] as Set,
-                graph))
-        graph.addGroup(ExpansionGroup.of(
+                graph)
+        def optGroup = ExpansionGroup.of(
                 returnRoot,
                 [outerElem],
                 optCodegen,
                 'io.github.joke.percolate.spi.builtins.OptionalCollect',
                 [optEdge] as Set,
-                graph))
+                graph)
+        graph.addGroup(setGroup)
+        graph.addGroup(optGroup)
+        graph.recordGroupOutcome(GroupOutcome.sat(setGroup))
+        graph.recordGroupOutcome(GroupOutcome.sat(optGroup))
 
         def ctx = ctxWith(graph, method)
 
@@ -201,6 +209,48 @@ class BuildMethodBodiesSpec extends Specification {
         noExceptionThrown()
         bodies.size() == 1
         bodies[0].body.toString().trim() == 'return java.util.Optional.of(java.util.Set.of(value));'
+    }
+
+    def 'dead UNSAT sibling group is not rendered'() {
+        given:
+        def method = mockMethod('map', [mockParam('value')], TypeUniverse.STRING)
+        def scope = new MethodScope(method)
+        def graph = new MapperGraph()
+        def param = node(scope, sourceLoc('value'), TypeUniverse.STRING)
+        def aliveSlot = node(scope, new ElementLocation(), TypeUniverse.STRING)
+        def deadSlot = node(scope, new ElementLocation('dead'), TypeUniverse.STRING)
+        def returnRoot = node(scope, returnRootLoc(), TypeUniverse.STRING)
+
+        [param, aliveSlot, deadSlot, returnRoot].each { graph.addNode(it) }
+
+        graph.addEdge(Edge.realised(param, aliveSlot, Weights.NOOP, DIRECT_ASSIGN, 'DirectAssign'))
+        def aliveEdge = Edge.realised(aliveSlot, returnRoot, Weights.CONTAINER, DIRECT_ASSIGN, 'io.github.joke.percolate.spi.builtins.ListCollect')
+        def deadEdge = Edge.realised(deadSlot, returnRoot, Weights.CONTAINER, DIRECT_ASSIGN, 'io.github.joke.percolate.spi.builtins.OptionalUnwrap')
+        graph.addEdge(aliveEdge)
+        graph.addEdge(deadEdge)
+
+        GroupCodegen aliveCodegen = { vars, inputs -> CodeBlock.of('$T.of($L)', List, inputs.single()) } as GroupCodegen
+        GroupCodegen deadCodegen = { vars, inputs -> CodeBlock.of('DEAD($L)', inputs.single()) } as GroupCodegen
+        def aliveGroup = ExpansionGroup.of(
+                returnRoot, [aliveSlot], aliveCodegen,
+                'io.github.joke.percolate.spi.builtins.ListCollect', [aliveEdge] as Set, graph)
+        def deadGroup = ExpansionGroup.of(
+                returnRoot, [deadSlot], deadCodegen,
+                'io.github.joke.percolate.spi.builtins.OptionalUnwrap', [deadEdge] as Set, graph)
+        graph.addGroup(aliveGroup)
+        graph.addGroup(deadGroup)
+        graph.recordGroupOutcome(GroupOutcome.sat(aliveGroup))
+        graph.recordGroupOutcome(GroupOutcome.unsatNoPlan(deadGroup, deadSlot))
+
+        def ctx = ctxWith(graph, method)
+
+        when:
+        def bodies = new BuildMethodBodies().build(ctx)
+
+        then:
+        noExceptionThrown()
+        bodies.size() == 1
+        bodies[0].body.toString().trim() == 'return java.util.List.of(value);'
     }
 
     private MapperContext ctxWith(final MapperGraph graph, final ExecutableElement method) {

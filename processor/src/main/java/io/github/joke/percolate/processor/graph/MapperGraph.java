@@ -128,6 +128,10 @@ public final class MapperGraph implements GraphSource {
         return new TransformsView(mask, this);
     }
 
+    public PlanView planView() {
+        return PlanView.of(this);
+    }
+
     public boolean isAcyclic() {
         return !new CycleDetector<>(graph).detectCycles();
     }

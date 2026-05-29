@@ -12,6 +12,7 @@ import io.github.joke.percolate.processor.stages.discover.DiscoverCallableMethod
 import io.github.joke.percolate.processor.stages.discover.DiscoverMappings;
 import io.github.joke.percolate.processor.stages.dump.DumpFullGraph;
 import io.github.joke.percolate.processor.stages.dump.DumpGraph;
+import io.github.joke.percolate.processor.stages.dump.DumpPlan;
 import io.github.joke.percolate.processor.stages.dump.DumpTransforms;
 import io.github.joke.percolate.processor.stages.expand.ExpandGroupsPhase;
 import io.github.joke.percolate.processor.stages.expand.ExpandStage;
@@ -193,6 +194,15 @@ public final class ProcessorModule {
     }
 
     @Provides
+    DumpPlan dumpPlan(
+            final Filer filer,
+            final Diagnostics diagnostics,
+            final ProcessorOptions processorOptions,
+            final DotRenderer dotRenderer) {
+        return new DumpPlan(filer, diagnostics, processorOptions, dotRenderer);
+    }
+
+    @Provides
     BuildMethodBodies buildMethodBodies(final NullabilityResolver nullabilityResolver) {
         return new BuildMethodBodies(nullabilityResolver);
     }
@@ -230,6 +240,7 @@ public final class ProcessorModule {
             final ExpandStage expandStage,
             final DumpFullGraph dumpFullGraph,
             final DumpTransforms dumpTransforms,
+            final DumpPlan dumpPlan,
             final io.github.joke.percolate.processor.stages.validate.RealisationDiagnosticsStage
                     realisationDiagnosticsStage,
             final GenerateStage generateStage) {
@@ -241,6 +252,7 @@ public final class ProcessorModule {
         all.add(expandStage);
         all.add(dumpFullGraph);
         all.add(dumpTransforms);
+        all.add(dumpPlan);
         all.add(realisationDiagnosticsStage);
         all.add(generateStage);
         return List.copyOf(all);
