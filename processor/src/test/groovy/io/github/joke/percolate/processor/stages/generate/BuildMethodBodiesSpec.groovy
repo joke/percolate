@@ -122,6 +122,87 @@ class BuildMethodBodiesSpec extends Specification {
         bodies[0].body.toString().trim() == 'return new Human(person.getFirstName(), person.getLastName());'
     }
 
+    def 'container group slot is named by its element role'() {
+        given:
+        def method = mockMethod('map', [mockParam('value')], TypeUniverse.STRING)
+        def scope = new MethodScope(method)
+        def graph = new MapperGraph()
+        def param = node(scope, sourceLoc('value'), TypeUniverse.STRING)
+        def elemSlot = node(scope, new ElementLocation(), TypeUniverse.STRING)
+        def returnRoot = node(scope, returnRootLoc(), TypeUniverse.STRING)
+
+        [param, elemSlot, returnRoot].each { graph.addNode(it) }
+
+        graph.addEdge(Edge.realised(param, elemSlot, Weights.NOOP, DIRECT_ASSIGN, 'DirectAssign'))
+        def collectEdge = Edge.realised(elemSlot, returnRoot, Weights.CONTAINER, DIRECT_ASSIGN, 'io.github.joke.percolate.spi.builtins.ListCollect')
+        graph.addEdge(collectEdge)
+
+        GroupCodegen listCodegen = { vars, inputs -> CodeBlock.of('$T.of($L)', List, inputs.single()) } as GroupCodegen
+        graph.addGroup(ExpansionGroup.of(
+                returnRoot,
+                [elemSlot],
+                listCodegen,
+                'io.github.joke.percolate.spi.builtins.ListCollect',
+                [collectEdge] as Set,
+                graph))
+
+        def ctx = ctxWith(graph, method)
+
+        when:
+        def bodies = new BuildMethodBodies().build(ctx)
+
+        then:
+        noExceptionThrown()
+        bodies.size() == 1
+        bodies[0].body.toString().trim() == 'return java.util.List.of(value);'
+    }
+
+    def 'nested container groups compose without slot-name failure'() {
+        given:
+        def method = mockMethod('map', [mockParam('value')], TypeUniverse.STRING)
+        def scope = new MethodScope(method)
+        def graph = new MapperGraph()
+        def param = node(scope, sourceLoc('value'), TypeUniverse.STRING)
+        def innerElem = node(scope, new ElementLocation(), TypeUniverse.STRING)
+        def outerElem = node(scope, new ElementLocation(), TypeUniverse.STRING)
+        def returnRoot = node(scope, returnRootLoc(), TypeUniverse.STRING)
+
+        [param, innerElem, outerElem, returnRoot].each { graph.addNode(it) }
+
+        graph.addEdge(Edge.realised(param, innerElem, Weights.NOOP, DIRECT_ASSIGN, 'DirectAssign'))
+        def setEdge = Edge.realised(innerElem, outerElem, Weights.CONTAINER, DIRECT_ASSIGN, 'io.github.joke.percolate.spi.builtins.SetCollect')
+        def optEdge = Edge.realised(outerElem, returnRoot, Weights.CONTAINER, DIRECT_ASSIGN, 'io.github.joke.percolate.spi.builtins.OptionalCollect')
+        graph.addEdge(setEdge)
+        graph.addEdge(optEdge)
+
+        GroupCodegen setCodegen = { vars, inputs -> CodeBlock.of('$T.of($L)', Set, inputs.single()) } as GroupCodegen
+        GroupCodegen optCodegen = { vars, inputs -> CodeBlock.of('$T.of($L)', Optional, inputs.single()) } as GroupCodegen
+        graph.addGroup(ExpansionGroup.of(
+                outerElem,
+                [innerElem],
+                setCodegen,
+                'io.github.joke.percolate.spi.builtins.SetCollect',
+                [setEdge] as Set,
+                graph))
+        graph.addGroup(ExpansionGroup.of(
+                returnRoot,
+                [outerElem],
+                optCodegen,
+                'io.github.joke.percolate.spi.builtins.OptionalCollect',
+                [optEdge] as Set,
+                graph))
+
+        def ctx = ctxWith(graph, method)
+
+        when:
+        def bodies = new BuildMethodBodies().build(ctx)
+
+        then:
+        noExceptionThrown()
+        bodies.size() == 1
+        bodies[0].body.toString().trim() == 'return java.util.Optional.of(java.util.Set.of(value));'
+    }
+
     private MapperContext ctxWith(final MapperGraph graph, final ExecutableElement method) {
         def ctx = new MapperContext(null)
         ctx.shape = new MapperShape(null, List.of(method))
@@ -134,6 +215,10 @@ class BuildMethodBodiesSpec extends Specification {
     }
 
     private Node node(final Scope scope, final TargetLocation loc, final TypeMirror type) {
+        new Node(Optional.of(type), loc, scope)
+    }
+
+    private Node node(final Scope scope, final ElementLocation loc, final TypeMirror type) {
         new Node(Optional.of(type), loc, scope)
     }
 

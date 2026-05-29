@@ -5,6 +5,7 @@ import static java.util.stream.Collectors.toUnmodifiableList;
 import com.palantir.javapoet.CodeBlock;
 import io.github.joke.percolate.processor.MapperContext;
 import io.github.joke.percolate.processor.graph.Edge;
+import io.github.joke.percolate.processor.graph.ElementLocation;
 import io.github.joke.percolate.processor.graph.ExpansionGroup;
 import io.github.joke.percolate.processor.graph.MethodScope;
 import io.github.joke.percolate.processor.graph.Node;
@@ -190,6 +191,9 @@ public final class BuildMethodBodies {
             if (!segments.isEmpty()) {
                 return segments.get(segments.size() - 1);
             }
+        }
+        if (slot.getLoc() instanceof ElementLocation) {
+            return ((ElementLocation) slot.getLoc()).getRole();
         }
         throw new IllegalStateException("cannot derive slot name from node: " + slot.id());
     }
