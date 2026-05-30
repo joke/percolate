@@ -40,7 +40,6 @@ class ContainerWeavingSpec extends Specification {
         CodeBlock iterate(CodeBlock c) { CodeBlock.of('$L.stream()', c) }
         CodeBlock mapElements(CodeBlock s, String v, CodeBlock b) { CodeBlock.of('$L.map($N -> $L)', s, v, b) }
         CodeBlock flatMapElements(CodeBlock s, String v, CodeBlock i) { CodeBlock.of('$L.flatMap($N -> $L)', s, v, i) }
-        CodeBlock collect(CodeBlock s) { CodeBlock.of('$L.findFirst()', s) }
         CodeBlock mapPresence(CodeBlock w, String v, CodeBlock b) { CodeBlock.of('$L.map($N -> $L)', w, v, b) }
         CodeBlock wrap(CodeBlock x) { CodeBlock.of('opt($L)', x) }
         CodeBlock unwrap(CodeBlock w, Nullability n) {

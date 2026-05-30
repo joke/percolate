@@ -55,11 +55,6 @@ public final class OptionalContainer extends WrapperContainer {
     }
 
     @Override
-    public CodeBlock collect(final CodeBlock stream) {
-        return CodeBlock.of("$L.findFirst()", stream);
-    }
-
-    @Override
     public CodeBlock mapPresence(final CodeBlock wrapper, final String var, final CodeBlock body) {
         return CodeBlock.of("$L.map($N -> $L)", wrapper, var, body);
     }

@@ -44,17 +44,16 @@ class OptionalContainerSpec extends Specification {
         steps[0].codegen instanceof WrapperCodegen
     }
 
-    def 'Optional<E> target emits EXITING collect (provider) + PRESERVING ofNullable wrap (EdgeCodegen)'() {
+    def 'Optional<E> target emits only a PRESERVING ofNullable wrap (no collect — wrappers never collect)'() {
         when:
         def steps = new OptionalContainer().bridge(TypeUniverse.STRING, optionalOfString, ctx).toList()
 
         then:
-        steps.size() == 2
-        def collect = steps.find { it.scopeTransition == ScopeTransition.EXITING }
-        def wrap = steps.find { it.scopeTransition == ScopeTransition.PRESERVING }
-        collect.codegen instanceof WrapperCodegen
-        wrap.codegen instanceof EdgeCodegen
-        renderEdge(wrap.codegen, 'x') == 'java.util.Optional.ofNullable(x)'
+        steps.size() == 1
+        steps[0].scopeTransition == ScopeTransition.PRESERVING
+        steps[0].codegen instanceof EdgeCodegen
+        renderEdge(steps[0].codegen, 'x') == 'java.util.Optional.ofNullable(x)'
+        steps.every { it.scopeTransition != ScopeTransition.EXITING }
     }
 
     def 'presence snippets render the Optional paradigm'() {

@@ -7,9 +7,12 @@ import javax.lang.model.type.TypeMirror;
 /**
  * Base for a presence container (Optional, Mono). Like {@link SequenceContainer} the developer supplies only
  * {@link #matches}, {@link #element}, and the snippet methods ({@link WrapperCodegen}); the base derives
- * candidacy and emits the unwrap ({@code ENTERING}), collect ({@code EXITING}), and single-element wrap
- * ({@code PRESERVING}) {@link BridgeStep}s. The provider steps carry this container as their codegen handle;
- * the wrap step carries a scalar {@link EdgeCodegen} built from {@link #wrap(com.palantir.javapoet.CodeBlock)}.
+ * candidacy and emits the unwrap ({@code ENTERING}) and single-element wrap ({@code PRESERVING})
+ * {@link BridgeStep}s. The unwrap step carries this container as its codegen handle; the wrap step carries a
+ * scalar {@link EdgeCodegen} built from {@link #wrap(com.palantir.javapoet.CodeBlock)}.
+ *
+ * <p>A presence wrapper has <b>no collect step</b>: {@code collect} is a sequence terminal (close a stream into
+ * a container), which is meaningless for a 0-or-1 presence container. Only sequences collect.
  */
 public abstract class WrapperContainer implements Bridge, WrapperCodegen {
 
@@ -34,15 +37,14 @@ public abstract class WrapperContainer implements Bridge, WrapperCodegen {
     /**
      * Unlike a sequence (which iterates an <em>existing</em> source), a wrapper's unwrap is offered for a scalar
      * target by synthesising the wrapper type ({@code Optional<to>}) as its input — so a wrapped source can be
-     * reached even when no wrapper node exists yet. When {@code to} is itself the wrapper, the base emits the
-     * collect ({@code EXITING}) and single-element wrap ({@code PRESERVING}) steps instead.
+     * reached even when no wrapper node exists yet. When {@code to} is itself the wrapper, the base emits only the
+     * single-element wrap ({@code PRESERVING}) step; a wrapper never emits a collect step.
      */
     @Override
     public final Stream<BridgeStep> bridge(final TypeMirror from, final TypeMirror to, final ResolveCtx ctx) {
         final var steps = Stream.<BridgeStep>builder();
         if (matches(to, ctx)) {
             final var elementType = element(to);
-            steps.add(new BridgeStep(elementType, to, Weights.CONTAINER, this, ScopeTransition.EXITING, "element"));
             final EdgeCodegen wrap = (vars, inputs) -> wrap(inputs.single());
             steps.add(new BridgeStep(elementType, to, Weights.CONTAINER, wrap));
         } else {

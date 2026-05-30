@@ -8,26 +8,36 @@ The container-codegen SPI is the strategy-supplied seam through which a develope
 
 ### Requirement: Container-codegen handle family
 
-The percolate-spi module SHALL define a `Codegen` marker interface and two container-codegen handles extending it, providing the per-operation snippets the composer weaves. The composer SHALL obtain every container-touching `CodeBlock` from one of these handles and SHALL contain no literal container syntax.
+The percolate-spi module SHALL define a `Codegen` marker interface and a `StreamOps` base of paradigm-generic stream operations, with a sequence handle (`ContainerCodegen`) and a presence handle (`WrapperCodegen`) extending it. The composer SHALL obtain every container-touching `CodeBlock` from one of these handles and SHALL contain no literal container syntax.
 
 ```java
 public interface Codegen { }
 
-public interface ContainerCodegen extends Codegen {            // List, Set, array, Flux
+public interface StreamOps extends Codegen {                   // shared by every container kind
     CodeBlock iterate(CodeBlock container);                    // open an element stream
     CodeBlock mapElements(CodeBlock stream, String var, CodeBlock body);
     CodeBlock flatMapElements(CodeBlock stream, String var, CodeBlock inner);
+}
+
+public interface ContainerCodegen extends StreamOps {          // List, Set, array, Flux
     CodeBlock collect(CodeBlock stream);                       // close the stream into this container
 }
 
-public interface WrapperCodegen extends ContainerCodegen {     // Optional, Mono
+public interface WrapperCodegen extends StreamOps {            // Optional, Mono — NO collect
     CodeBlock mapPresence(CodeBlock wrapper, String var, CodeBlock body);
     CodeBlock wrap(CodeBlock scalar);
     CodeBlock unwrap(CodeBlock wrapper, Nullability targetNullability);
 }
 ```
 
+`collect` (close a stream back into a container) is a **sequence** terminal and SHALL live only on `ContainerCodegen`. A presence wrapper SHALL NOT expose or emit a `collect`: closing a stream into a 0-or-1 container is meaningless for the presence axis (only sequences collect). A wrapper still participates in a stream via the shared `iterate` (its 0-or-1 element stream is how the composer drops empties with a flat-map).
+
 `unwrap` SHALL render the empty-collapse chosen by `targetNullability`: a non-null target collapses by throwing (`orElseThrow`-equivalent); a `@Nullable` target collapses to `null` (`orElse(null)`-equivalent). A `WrapperCodegen` MAY leave `unwrap` unsupported when its container cannot collapse to a synchronous scalar (e.g. `Mono`), in which case the framework SHALL NOT offer a wrapper-to-scalar mapping for that container.
+
+#### Scenario: A presence wrapper has no collect
+- **WHEN** `WrapperCodegen` is inspected
+- **THEN** it extends `StreamOps` (not `ContainerCodegen`) and declares no `collect`
+- **AND** a `WrapperContainer` base emits no `EXITING` collect step, so the framework never renders a stream-collapse (`findFirst`-style) into a wrapper
 
 #### Scenario: A sequence handle supplies stream snippets
 - **WHEN** the composer renders a sequence container hop
@@ -62,11 +72,10 @@ public abstract class WrapperContainer implements Bridge, WrapperCodegen {
 }
 ```
 
-The base's `bridge(from, to, ctx)` SHALL derive candidacy from `matches`/`element`. A **sequence** and a **wrapper** are asymmetric in their scope-entering step, because a sequence iterates an *existing* source while a wrapper must *synthesise* its wrapped type from a scalar target:
+The base's `bridge(from, to, ctx)` SHALL derive candidacy from `matches`/`element`. A **sequence** and a **wrapper** are asymmetric, because a sequence iterates an *existing* source and closes a stream into itself, while a wrapper only wraps/unwraps a scalar and never collects:
 
-- When `matches(to)`, both bases emit the collect (`EXITING`, carrying the container as provider) step; they also emit the single-element wrap (`PRESERVING`) step as a scalar `EdgeCodegen` when supported (`List.of`/`Set.of` for sequences via `singleElementWrap()`, `ofNullable` for wrappers via `wrap`; arrays omit it).
-- A `SequenceContainer` additionally, when `matches(from)`, emits the iterate (`ENTERING`, provider) step with input `from` and output `element(from)`.
-- A `WrapperContainer` additionally, when `to` is **not** itself the wrapper, emits the unwrap (`ENTERING`, provider) step with input `wrapped(to)` (e.g. `Optional<to>`) and output `to`.
+- A `SequenceContainer`, when `matches(to)`, emits the collect (`EXITING`, carrying the container as provider) step and, when supported, the single-element wrap (`PRESERVING`, scalar `EdgeCodegen` from `singleElementWrap()`, e.g. `List.of`/`Set.of`; arrays omit it); when `matches(from)`, it emits the iterate (`ENTERING`, provider) step with input `from` and output `element(from)`.
+- A `WrapperContainer`, when `matches(to)`, emits **only** the single-element wrap (`PRESERVING`, scalar `EdgeCodegen` from `wrap`, e.g. `ofNullable`) — **no collect step** (a wrapper is not a sequence); when `to` is **not** itself the wrapper, it emits the unwrap (`ENTERING`, provider) step with input `wrapped(to)` (e.g. `Optional<to>`) and output `to`.
 
 Each scope-entering / scope-exiting step SHALL carry the container as its codegen provider; the single-element wrap step SHALL carry a scalar `EdgeCodegen` (see the `expansion-strategy-spi` BridgeStep modification). The developer SHALL NOT write graph or `BridgeStep` logic by hand. Registration SHALL be via `@AutoService(Bridge.class)` / `ServiceLoader`, identical to existing bridges.
 
@@ -96,7 +105,7 @@ The built-in List, Set, array, and Optional containers SHALL be implemented as `
 
 ### Requirement: Composer container weaving
 
-`BuildMethodBodies` SHALL weave container hops as an extension of its recursive `PlanView` walk, threading a single boolean — whether the rendered child is already an element stream — **up** the recursion, alongside the `ContainerCodegen` handle that owns the open stream. There SHALL be no intermediate representation, mutable plan graph, or lowering pass. Each container hop SHALL render per the child-stream state:
+`BuildMethodBodies` SHALL weave container hops as an extension of its recursive `PlanView` walk, threading a single boolean — whether the rendered child is already an element stream — **up** the recursion, alongside the `StreamOps` handle that owns the open stream (a `ContainerCodegen` or a `WrapperCodegen`). There SHALL be no intermediate representation, mutable plan graph, or lowering pass. Each container hop SHALL render per the child-stream state:
 
 - An `ENTERING` sequence hop whose child is **not** a stream SHALL open a stream (`iterate`) and mark the result a stream.
 - An `ENTERING` wrapper hop whose child **is** a stream SHALL drop empties by `flatMapElements(child, v, iterate(v))` and stay a stream (the `FilterPresent` behaviour, emergent — not a distinct operation).

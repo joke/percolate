@@ -3,12 +3,14 @@ package io.github.joke.percolate.spi;
 import com.palantir.javapoet.CodeBlock;
 
 /**
- * Per-operation snippets for a presence container (Optional, Mono). Extends {@link ContainerCodegen} because a
- * wrapper can also participate in a stream (its {@link #iterate} yields a 0-or-1 element stream, which is how the
- * composer drops empties via a flat-map). Adds the presence operations: {@link #mapPresence} maps the wrapped
- * value, {@link #wrap} lifts a scalar in, and {@link #unwrap} collapses to a scalar under the target's nullability.
+ * Codegen handle for a presence container (Optional, Mono). Extends the shared {@link StreamOps} — a wrapper
+ * participates in a stream via {@link #iterate} (its 0-or-1 element stream is how the composer drops empties with
+ * a flat-map) — and adds the presence operations. It deliberately does <b>not</b> extend {@link ContainerCodegen}:
+ * a presence wrapper has no {@code collect} terminal, because closing a stream into a 0-or-1 container is a
+ * sequence concern, not a presence one. {@link #mapPresence} maps the wrapped value, {@link #wrap} lifts a scalar
+ * in, {@link #unwrap} collapses to a scalar under the target's nullability.
  */
-public interface WrapperCodegen extends ContainerCodegen {
+public interface WrapperCodegen extends StreamOps {
 
     /** Map the wrapped value of {@code wrapper} through {@code body}, binding it to {@code var}. */
     CodeBlock mapPresence(CodeBlock wrapper, String var, CodeBlock body);

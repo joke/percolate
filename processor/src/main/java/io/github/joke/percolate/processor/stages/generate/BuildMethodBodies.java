@@ -17,6 +17,7 @@ import io.github.joke.percolate.processor.nullability.NullabilityResolver;
 import io.github.joke.percolate.spi.ContainerCodegen;
 import io.github.joke.percolate.spi.EdgeCodegen;
 import io.github.joke.percolate.spi.Nullability;
+import io.github.joke.percolate.spi.StreamOps;
 import io.github.joke.percolate.spi.WrapperCodegen;
 import jakarta.inject.Inject;
 import java.util.HashMap;
@@ -95,7 +96,7 @@ public final class BuildMethodBodies {
     }
 
     private static boolean isContainerEdge(final Edge edge) {
-        return edge.getCodegen().map(c -> c instanceof ContainerCodegen).orElse(false);
+        return edge.getCodegen().map(c -> c instanceof StreamOps).orElse(false);
     }
 
     /** Scalar single-edge case. Inline when the child is not a stream; per-element {@code mapElements} when it is. */
@@ -128,13 +129,14 @@ public final class BuildMethodBodies {
             final ExecutableElement method,
             final Map<Node, ExpansionGroup> groupRoots,
             final VarGen varGen) {
-        final var provider = (ContainerCodegen) edge.getCodegen().orElseThrow();
+        final var provider = (StreamOps) edge.getCodegen().orElseThrow();
         final var child = render(edge.getFrom(), realised, method, groupRoots, varGen);
         switch (edge.getScopeTransition()) {
             case ENTERING:
                 return renderEntering(edge, provider, child, varGen);
             case EXITING:
-                return Rendered.scalar(provider.collect(child.getBlock()));
+                // collect closes a stream back into a container — a sequence terminal only.
+                return Rendered.scalar(((ContainerCodegen) provider).collect(child.getBlock()));
             case PRESERVING:
             default:
                 throw new IllegalStateException("container provider on a non-container scope transition: " + edge);
@@ -142,7 +144,7 @@ public final class BuildMethodBodies {
     }
 
     private Rendered renderEntering(
-            final Edge edge, final ContainerCodegen provider, final Rendered child, final VarGen varGen) {
+            final Edge edge, final StreamOps provider, final Rendered child, final VarGen varGen) {
         if (provider instanceof WrapperCodegen) {
             final var wrapper = (WrapperCodegen) provider;
             if (!child.isStream()) {
@@ -282,7 +284,7 @@ public final class BuildMethodBodies {
     private static class Rendered {
         CodeBlock block;
         boolean isStream;
-        Optional<ContainerCodegen> streamHandle;
+        Optional<StreamOps> streamHandle;
 
         static Rendered scalar(final CodeBlock block) {
             return new Rendered(block, false, Optional.empty());
