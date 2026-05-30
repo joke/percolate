@@ -13,7 +13,12 @@ public class BridgeStep {
     TypeMirror inputType;
     TypeMirror outputType;
     int weight;
-    EdgeCodegen codegen;
+    /**
+     * The codegen handle this step attaches to its realised edge. A scalar step carries an {@link EdgeCodegen};
+     * a container step (sequence iterate/collect or wrapper unwrap/collect) carries the container's codegen
+     * provider ({@link ContainerCodegen} / {@link WrapperCodegen}). Both are {@link Codegen}.
+     */
+    Codegen codegen;
     /** How this step relates to element scope. Defaults to {@link ScopeTransition#PRESERVING}. */
     ScopeTransition scopeTransition;
     /** Role name for the element scope this step participates in. Consulted only when {@code scopeTransition != PRESERVING}. */
@@ -23,7 +28,7 @@ public class BridgeStep {
             final TypeMirror inputType,
             final TypeMirror outputType,
             final int weight,
-            final EdgeCodegen codegen,
+            final Codegen codegen,
             final ScopeTransition scopeTransition,
             final String elementRole) {
         this.inputType = inputType;

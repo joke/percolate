@@ -8,12 +8,13 @@ import io.github.joke.percolate.processor.graph.SourceLocation;
 import io.github.joke.percolate.processor.graph.TargetLocation;
 import io.github.joke.percolate.spi.Bridge;
 import io.github.joke.percolate.spi.BridgeStep;
+import io.github.joke.percolate.spi.EdgeCodegen;
+import io.github.joke.percolate.spi.GroupCodegen;
 import io.github.joke.percolate.spi.ResolveCtx;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
 import javax.lang.model.type.TypeMirror;
@@ -42,9 +43,9 @@ final class FrontierMatcher {
         final var bundles = new ArrayList<DeltaBundle>();
         for (final var bridge : bridges) {
             for (final var candidate : candidates) {
-                final var bundle = tryBridge(bridge, candidate, frontier, frontierType, group, snapshot);
-                if (bundle.isPresent()) {
-                    bundles.add(bundle.get());
+                final var matched = tryBridge(bridge, candidate, frontier, frontierType, group, snapshot);
+                if (!matched.isEmpty()) {
+                    bundles.addAll(matched);
                     break;
                 }
             }
@@ -62,7 +63,12 @@ final class FrontierMatcher {
                 .collect(Collectors.toUnmodifiableList());
     }
 
-    private Optional<DeltaBundle> tryBridge(
+    /**
+     * Emits one bundle per matching {@link BridgeStep}. A single {@link Bridge} (e.g. a container that supplies
+     * collect/wrap/iterate in one class) may yield several steps for the same frontier; each becomes its own
+     * multi-fire sibling sub-group, exactly as separate per-op bridges did before consolidation.
+     */
+    private List<DeltaBundle> tryBridge(
             final Bridge bridge,
             final Node candidate,
             final Node frontier,
@@ -71,19 +77,18 @@ final class FrontierMatcher {
             final ExpansionSnapshot snapshot) {
         final var candidateType = candidate.getType().orElseThrow();
         final var steps = bridge.bridge(candidateType, frontierType, resolveCtx).collect(Collectors.toList());
-        DeltaBundle matched = null;
+        final var matched = new ArrayList<DeltaBundle>();
         for (final var step : steps) {
             if (!resolveCtx.types().isSameType(step.getOutputType(), frontierType) || !scopeMatches(step, frontier)) {
                 continue;
             }
             final var allocation = inputAllocator.allocate(step, frontier, group, snapshot);
             if (!allocation.getNode().equals(frontier)) {
-                matched = buildBundle(
-                        frontier, step, allocation, bridge.getClass().getName(), group, snapshot);
-                break;
+                matched.add(buildBundle(
+                        frontier, step, allocation, bridge.getClass().getName(), group, snapshot));
             }
         }
-        return Optional.ofNullable(matched);
+        return matched;
     }
 
     private DeltaBundle buildBundle(
@@ -98,7 +103,19 @@ final class FrontierMatcher {
             deltas.add(allocation.getAddNode());
         }
         final var input = allocation.getNode();
-        final var edge = Edge.realised(input, frontier, step.getWeight(), step.getCodegen(), bridgeFqn);
+        final var codegen = step.getCodegen();
+        final Edge edge;
+        final GroupCodegen groupCodegen;
+        if (codegen instanceof EdgeCodegen) {
+            final var scalar = (EdgeCodegen) codegen;
+            edge = Edge.realised(input, frontier, step.getWeight(), scalar, bridgeFqn);
+            groupCodegen = scalar::render;
+        } else {
+            // Container step: the realised edge carries the provider + its scope transition; the composer renders
+            // it as a single-edge container case off the edge. The group's codegen is a dead passthrough.
+            edge = Edge.realised(input, frontier, step.getWeight(), codegen, step.getScopeTransition(), bridgeFqn);
+            groupCodegen = (vars, inputs) -> inputs.single();
+        }
         deltas.add(new AddEdge(edge));
         if (snapshot.typeOf(frontier).isEmpty()) {
             deltas.add(new TypeNode(frontier, step.getOutputType(), snapshot.currentMethod()));
@@ -106,7 +123,7 @@ final class FrontierMatcher {
         deltas.add(new AddGroup(
                 frontier,
                 List.of(input),
-                step.getCodegen()::render,
+                groupCodegen,
                 bridgeFqn,
                 Set.of(edge),
                 Map.of(),

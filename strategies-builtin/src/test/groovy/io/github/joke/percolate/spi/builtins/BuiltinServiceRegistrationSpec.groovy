@@ -19,19 +19,17 @@ class BuiltinServiceRegistrationSpec extends Specification {
 
         discovered.contains('io.github.joke.percolate.spi.builtins.DirectAssign')
         discovered.contains('io.github.joke.percolate.spi.builtins.MethodCallBridge')
-        discovered.contains('io.github.joke.percolate.spi.builtins.IterableUnwrap')
-        discovered.contains('io.github.joke.percolate.spi.builtins.OptionalUnwrap')
-        discovered.contains('io.github.joke.percolate.spi.builtins.SetCollect')
-        discovered.contains('io.github.joke.percolate.spi.builtins.ListCollect')
-        discovered.contains('io.github.joke.percolate.spi.builtins.ArrayCollect')
-        discovered.contains('io.github.joke.percolate.spi.builtins.OptionalCollect')
-        discovered.contains('io.github.joke.percolate.spi.builtins.SetWrap')
-        discovered.contains('io.github.joke.percolate.spi.builtins.ListWrap')
-        discovered.contains('io.github.joke.percolate.spi.builtins.OptionalWrap')
+        discovered.contains('io.github.joke.percolate.spi.builtins.ListContainer')
+        discovered.contains('io.github.joke.percolate.spi.builtins.SetContainer')
+        discovered.contains('io.github.joke.percolate.spi.builtins.ArrayContainer')
+        discovered.contains('io.github.joke.percolate.spi.builtins.OptionalContainer')
 
-        !discovered.contains('io.github.joke.percolate.spi.builtins.SetMap')
-        !discovered.contains('io.github.joke.percolate.spi.builtins.ListMap')
-        !discovered.contains('io.github.joke.percolate.spi.builtins.OptionalMap')
+        // The nine per-operation container bridges were consolidated into the four container classes above.
+        !discovered.contains('io.github.joke.percolate.spi.builtins.IterableUnwrap')
+        !discovered.contains('io.github.joke.percolate.spi.builtins.OptionalUnwrap')
+        !discovered.contains('io.github.joke.percolate.spi.builtins.SetCollect')
+        !discovered.contains('io.github.joke.percolate.spi.builtins.ListCollect')
+        !discovered.contains('io.github.joke.percolate.spi.builtins.ListWrap')
         !discovered.contains('io.github.joke.percolate.spi.builtins.GetterRead')
     }
 

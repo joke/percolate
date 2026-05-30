@@ -41,6 +41,18 @@ final class TypeUniverse {
                 elem.enclosedElements
             }
         }
+        // Force the supertype-assignability fill eagerly. javac fills the List/Set -> ... -> Iterable
+        // hierarchy lazily on first isAssignable; priming it here (rather than mid-test) makes isIterable /
+        // isCollection deterministic regardless of which spec touches the symbol table first.
+        final var iterable = ELEMENT_UTILS.getTypeElement('java.lang.Iterable')
+        if (iterable != null) {
+            ['java.util.List', 'java.util.Set', 'java.util.Collection'].each { fqn ->
+                final var elem = ELEMENT_UTILS.getTypeElement(fqn)
+                if (elem != null) {
+                    TYPE_UTILS.isAssignable(TYPE_UTILS.erasure(elem.asType()), TYPE_UTILS.erasure(iterable.asType()))
+                }
+            }
+        }
     }
 
     static final TypeMirror INT = TYPE_UTILS.getPrimitiveType(TypeKind.INT)

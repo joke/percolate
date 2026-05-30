@@ -14,13 +14,17 @@ import io.github.joke.percolate.processor.graph.Scope;
 import io.github.joke.percolate.processor.graph.SourceLocation;
 import io.github.joke.percolate.processor.graph.TargetLocation;
 import io.github.joke.percolate.processor.nullability.NullabilityResolver;
+import io.github.joke.percolate.spi.ContainerCodegen;
+import io.github.joke.percolate.spi.EdgeCodegen;
 import io.github.joke.percolate.spi.Nullability;
+import io.github.joke.percolate.spi.WrapperCodegen;
 import jakarta.inject.Inject;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
 import javax.lang.model.AnnotatedConstruct;
 import javax.lang.model.element.Element;
@@ -53,52 +57,118 @@ public final class BuildMethodBodies {
         final var scope = new MethodScope(method);
         final var groupRoots = indexGroupRootsByNode(realised, scope);
         final var root = findReturnRoot(realised, scope);
-        final var expression = render(root, realised, method, groupRoots);
-        final var body =
-                CodeBlock.builder().addStatement("return $L", expression).build();
+        final var expression = render(root, realised, method, groupRoots, new VarGen());
+        final var body = CodeBlock.builder()
+                .addStatement("return $L", expression.getBlock())
+                .build();
         return new MethodImpl(method, body, Set.of());
     }
 
-    private CodeBlock render(
+    /**
+     * Renders {@code node} as an expression, threading {@code isStream} — whether the rendered expression is an
+     * open element stream — and, when streaming, the {@link ContainerCodegen} handle that owns the stream (so a
+     * scalar element transform can ask it for {@code mapElements}). Container hops are intercepted before the
+     * group/leaf cases: a node whose single inbound edge carries a container provider is woven per the rules.
+     */
+    private Rendered render(
             final Node node,
             final PlanView realised,
             final ExecutableElement method,
-            final Map<Node, ExpansionGroup> groupRoots) {
+            final Map<Node, ExpansionGroup> groupRoots,
+            final VarGen varGen) {
+        final var inbound = inboundRealisedEdges(node, realised);
+        if (inbound.size() == SINGLE_EDGE && isContainerEdge(inbound.get(0))) {
+            return renderContainerEdge(inbound.get(0), realised, method, groupRoots, varGen);
+        }
         final var group = groupRoots.get(node);
         if (group != null) {
-            return renderGroupTarget(group, realised, method, groupRoots);
+            return Rendered.scalar(renderGroupTarget(group, realised, method, groupRoots, varGen));
         }
-        final var inbound = inboundRealisedEdges(node, realised);
         if (inbound.isEmpty()) {
-            return renderLeaf(node, method);
+            return Rendered.scalar(renderLeaf(node, method));
         }
         if (inbound.size() == SINGLE_EDGE) {
-            return renderSingleEdge(inbound.get(0), realised, method, groupRoots);
+            return renderScalarEdge(inbound.get(0), realised, method, groupRoots, varGen);
         }
         throw new IllegalStateException(
                 "node has " + inbound.size() + " inbound edges but is not a registered group root: " + node.id());
     }
 
-    private CodeBlock renderSingleEdge(
+    private static boolean isContainerEdge(final Edge edge) {
+        return edge.getCodegen().map(c -> c instanceof ContainerCodegen).orElse(false);
+    }
+
+    /** Scalar single-edge case. Inline when the child is not a stream; per-element {@code mapElements} when it is. */
+    private Rendered renderScalarEdge(
             final Edge edge,
             final PlanView realised,
             final ExecutableElement method,
-            final Map<Node, ExpansionGroup> groupRoots) {
-        final var child = render(edge.getFrom(), realised, method, groupRoots);
-        return edge.getCodegen()
-                .orElseThrow(() -> new IllegalStateException("REALISED edge has no codegen: " + edge))
-                .render(new VarNamesImpl(), IncomingValuesImpl.of(child));
+            final Map<Node, ExpansionGroup> groupRoots,
+            final VarGen varGen) {
+        final var child = render(edge.getFrom(), realised, method, groupRoots, varGen);
+        final var scalar = (EdgeCodegen)
+                edge.getCodegen().orElseThrow(() -> new IllegalStateException("REALISED edge has no codegen: " + edge));
+        if (!child.isStream()) {
+            return Rendered.scalar(scalar.render(new VarNamesImpl(), IncomingValuesImpl.of(child.getBlock())));
+        }
+        final var handle = child.getStreamHandle()
+                .orElseThrow(() -> new IllegalStateException("stream child has no container handle: " + edge));
+        final var var = varGen.fresh();
+        final var body = scalar.render(new VarNamesImpl(), IncomingValuesImpl.of(CodeBlock.of("$N", var)));
+        return new Rendered(handle.mapElements(child.getBlock(), var, body), true, child.getStreamHandle());
+    }
+
+    /**
+     * Container single-edge case. The provider + the edge's {@link io.github.joke.percolate.spi.ScopeTransition}
+     * (plus the child's {@code isStream}) select the operation; every {@code CodeBlock} comes from the provider.
+     */
+    private Rendered renderContainerEdge(
+            final Edge edge,
+            final PlanView realised,
+            final ExecutableElement method,
+            final Map<Node, ExpansionGroup> groupRoots,
+            final VarGen varGen) {
+        final var provider = (ContainerCodegen) edge.getCodegen().orElseThrow();
+        final var child = render(edge.getFrom(), realised, method, groupRoots, varGen);
+        switch (edge.getScopeTransition()) {
+            case ENTERING:
+                return renderEntering(edge, provider, child, varGen);
+            case EXITING:
+                return Rendered.scalar(provider.collect(child.getBlock()));
+            case PRESERVING:
+            default:
+                throw new IllegalStateException("container provider on a non-container scope transition: " + edge);
+        }
+    }
+
+    private Rendered renderEntering(
+            final Edge edge, final ContainerCodegen provider, final Rendered child, final VarGen varGen) {
+        if (provider instanceof WrapperCodegen) {
+            final var wrapper = (WrapperCodegen) provider;
+            if (!child.isStream()) {
+                // Top-level wrapper: collapse to a scalar under the target's nullability.
+                final var nullability = edge.getTo().getNullability().orElse(Nullability.UNKNOWN);
+                return Rendered.scalar(wrapper.unwrap(child.getBlock(), nullability));
+            }
+            // Wrapper inside a stream: flat-map its element stream, dropping empties (FilterPresent).
+            final var var = varGen.fresh();
+            final var inner = provider.iterate(CodeBlock.of("$N", var));
+            return new Rendered(provider.flatMapElements(child.getBlock(), var, inner), true, Optional.of(provider));
+        }
+        // Sequence: open an element stream.
+        return new Rendered(provider.iterate(child.getBlock()), true, Optional.of(provider));
     }
 
     private CodeBlock renderGroupTarget(
             final ExpansionGroup group,
             final PlanView realised,
             final ExecutableElement method,
-            final Map<Node, ExpansionGroup> groupRoots) {
+            final Map<Node, ExpansionGroup> groupRoots,
+            final VarGen varGen) {
         final var byName = new LinkedHashMap<String, CodeBlock>();
         for (final var slot : group.getSlots()) {
             final var name = slotName(slot);
-            final var raw = render(slot, realised, method, groupRoots);
+            final var raw = render(slot, realised, method, groupRoots, varGen).getBlock();
             byName.put(name, applyNullabilityContract(group, slot, name, raw));
         }
         final var positional = List.copyOf(byName.values());
@@ -201,5 +271,30 @@ public final class BuildMethodBodies {
             return ((ElementLocation) slot.getLoc()).getRole();
         }
         throw new IllegalStateException("cannot derive slot name from node: " + slot.id());
+    }
+
+    /**
+     * A rendered expression plus the cross-hop facts that ride up the recursion: whether it is an open element
+     * stream and, if so, the {@link ContainerCodegen} handle that owns the stream (consulted by a scalar element
+     * transform for {@code mapElements}).
+     */
+    @lombok.Value
+    private static class Rendered {
+        CodeBlock block;
+        boolean isStream;
+        Optional<ContainerCodegen> streamHandle;
+
+        static Rendered scalar(final CodeBlock block) {
+            return new Rendered(block, false, Optional.empty());
+        }
+    }
+
+    /** Generates fresh, deterministic lambda-parameter names per rendered method. */
+    private static final class VarGen {
+        private int next;
+
+        String fresh() {
+            return "v" + next++;
+        }
     }
 }

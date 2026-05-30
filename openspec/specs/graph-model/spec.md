@@ -73,19 +73,23 @@ Two `ElementLocation` instances SHALL compare equal iff their `role` fields are 
 - **THEN** they are NOT `equal`
 
 ### Requirement: EdgeCodegen marker interface
-The processor SHALL define an interface `EdgeCodegen` in `io.github.joke.percolate.processor.graph` representing a closure attached to a `REALISED` edge that renders its corresponding code fragment at codegen time. The interface SHALL declare:
+`EdgeCodegen` SHALL be a member of the `Codegen` handle family: it SHALL extend the `Codegen` marker interface defined by the container-codegen SPI. It represents a scalar closure attached to a `REALISED` edge that renders one expression at codegen time:
 
 ```java
-interface EdgeCodegen {
+interface EdgeCodegen extends Codegen {
     CodeBlock render(VarNames vars, IncomingValues inputs);
 }
 ```
 
-No implementation is shipped in this change. `Edge.codegen` references this type.
+`Edge.codegen` references the `Codegen` family (an `EdgeCodegen` for a scalar edge, a container provider for a container edge), not `EdgeCodegen` exclusively.
 
-#### Scenario: EdgeCodegen is referenced by Edge.codegen
+#### Scenario: EdgeCodegen is a Codegen
+- **WHEN** the `EdgeCodegen` interface is inspected
+- **THEN** it extends `Codegen`
+
+#### Scenario: Edge.codegen holds the Codegen family
 - **WHEN** an `Edge` instance is inspected for the type of `codegen`
-- **THEN** the field type is `Optional<EdgeCodegen>`
+- **THEN** the field type is `Optional<Codegen>`
 
 ### Requirement: IncomingValues interface
 The processor SHALL define an interface `IncomingValues` in `io.github.joke.percolate.processor.graph` exposing the upstream-rendered inputs to an `EdgeCodegen` closure. The interface SHALL declare:
@@ -314,18 +318,20 @@ The processor SHALL define a Lombok `@Value` class `Edge` in `io.github.joke.per
 - `int weight` — uses the scale documented in `Weights`. `SEED` edges use `Weights.SENTINEL_UNREALISED`. `REALISED` edges use a value in `{0, 1, 2, 3}`. `MARKER` edges use `Weights.NOOP`.
 - `EdgeKind kind` — categorises the edge for view filtering, DOT styling, and dispatch.
 - `Optional<AnnotationMirror> directive` — present when the edge was seeded by a user `@Map` directive (i.e., `kind == SEED` and emitted from `SeedGraph`); empty for `REALISED` and `MARKER` edges.
-- `Optional<EdgeCodegen> codegen` — present on `REALISED` edges; empty on `SEED` and `MARKER` edges.
+- `Optional<Codegen> codegen` — present on `REALISED` edges; empty on `SEED` and `MARKER` edges. The value is a member of the `Codegen` family: an `EdgeCodegen` for a scalar edge, or a **container provider** (`ContainerCodegen`/`WrapperCodegen`) for a container edge. The composer reads it and, for a container provider, asks for the paradigm-appropriate snippet.
+- `ScopeTransition scopeTransition` — `PRESERVING`/`ENTERING`/`EXITING`, persisted from the producing `BridgeStep`. For container edges the composer derives the container operation (iterate/collect/unwrap/map) from `(scopeTransition, isStream-of-child, handle-kind)`. Scalar edges (including the single-element `wrap`) are `PRESERVING`.
 - `Optional<String> strategyClassFqn` — fully-qualified class name of the strategy that emitted this edge; populated by strategies via `getClass().getName()` at edge construction; empty for edges emitted by `SeedGraph` (which is not a strategy).
 
-`Edge` SHALL be annotated `@Value @EqualsAndHashCode(exclude = {"codegen", "strategyClassFqn"})` so that equality and hashing are structural over `(from, to, weight, kind, directive)`. The `codegen` and `strategyClassFqn` fields are metadata and SHALL NOT participate in equality.
+`Edge` SHALL be annotated `@Value @EqualsAndHashCode(exclude = {"codegen", "scopeTransition", "strategyClassFqn"})` so that equality and hashing are structural over `(from, to, weight, kind, directive)`. The `codegen`, `scopeTransition`, and `strategyClassFqn` fields are emission metadata and SHALL NOT participate in equality.
 
 `Edge` SHALL implement `Comparable<Edge>` ordered by `(from.id(), to.id(), weight, kind, presence-of-directive)` so that sorted iteration of edges is well-defined.
 
-`Edge` SHALL provide exactly three static factory methods. The all-args constructor SHALL be package-private; consumers SHALL go through the factories:
+`Edge` SHALL provide static factory methods. The all-args constructor SHALL be package-private; consumers SHALL go through the factories:
 
-- `Edge.seed(Node from, Node to, Optional<AnnotationMirror> directive, Optional<String> strategyClassFqn)` — produces a SEED edge with `kind = SEED`, `weight = Weights.SENTINEL_UNREALISED`, the supplied `directive` and `strategyClassFqn`, empty `codegen`. User-directive seeds pass non-empty `directive` and empty `strategyClassFqn`.
-- `Edge.realised(Node from, Node to, int weight, EdgeCodegen codegen, String strategyClassFqn)` — produces a REALISED edge with `kind = REALISED`, the supplied weight, `directive` empty, `codegen` populated, `strategyClassFqn` populated.
-- `Edge.marker(Node from, Node to, String strategyClassFqn)` — produces a MARKER edge with `kind = MARKER`, `weight = Weights.NOOP`, `directive` and `codegen` empty, `strategyClassFqn` populated.
+- `Edge.seed(Node from, Node to, Optional<AnnotationMirror> directive, Optional<String> strategyClassFqn)` — produces a SEED edge with `kind = SEED`, `weight = Weights.SENTINEL_UNREALISED`, the supplied `directive` and `strategyClassFqn`, empty `codegen`, `scopeTransition = PRESERVING`. User-directive seeds pass non-empty `directive` and empty `strategyClassFqn`.
+- `Edge.realised(Node from, Node to, int weight, EdgeCodegen codegen, String strategyClassFqn)` — scalar REALISED edge with `kind = REALISED`, the supplied weight, `directive` empty, `codegen` populated, `scopeTransition = PRESERVING`, `strategyClassFqn` populated.
+- `Edge.realised(Node from, Node to, int weight, Codegen provider, ScopeTransition transition, String strategyClassFqn)` — container REALISED edge carrying the container provider and its `transition`.
+- `Edge.marker(Node from, Node to, String strategyClassFqn)` — produces a MARKER edge with `kind = MARKER`, `weight = Weights.NOOP`, `directive` and `codegen` empty, `scopeTransition = PRESERVING`, `strategyClassFqn` populated.
 
 The forward-expansion factories `Edge.subSeed(...)` and `Edge.elementSeed(...)` are removed. Group membership of a `REALISED` edge is determined by membership in an `ExpansionGroup.view().edgeSet()`; `Edge` does NOT carry a `groupId` field.
 
@@ -335,14 +341,18 @@ The forward-expansion factories `Edge.subSeed(...)` and `Edge.elementSeed(...)` 
 
 #### Scenario: Realised edge factory populates codegen and strategyClassFqn
 - **WHEN** `Edge.realised(from, to, Weights.STEP, <closure>, "com.example.SomeBridge")` is invoked
-- **THEN** the resulting edge has `kind == EdgeKind.REALISED`, `weight == 1`, empty `directive`, non-empty `codegen`, `strategyClassFqn == "com.example.SomeBridge"`
+- **THEN** the resulting edge has `kind == EdgeKind.REALISED`, `weight == 1`, empty `directive`, non-empty `codegen`, `scopeTransition == PRESERVING`, `strategyClassFqn == "com.example.SomeBridge"`
+
+#### Scenario: Container realised edge carries provider and transition
+- **WHEN** `Edge.realised(from, to, Weights.CONTAINER, <SequenceContainer>, ScopeTransition.EXITING, "io.github.joke.percolate.spi.builtins.SetContainer")` is invoked
+- **THEN** the edge has `kind == REALISED`, `codegen` holding the container provider, `scopeTransition == EXITING`
 
 #### Scenario: Marker edge has weight zero, no codegen
 - **WHEN** `Edge.marker(seedNode, realisedNode, "com.example.SomeResolver")` is invoked
 - **THEN** the resulting edge has `kind == EdgeKind.MARKER`, `weight == 0`, empty `directive`, empty `codegen`, non-empty `strategyClassFqn`
 
-#### Scenario: Edge equality excludes codegen and strategyClassFqn
-- **WHEN** two `Edge` instances are constructed with field-equal `(from, to, weight, kind, directive)` but different `codegen` closures and different `strategyClassFqn` strings
+#### Scenario: Edge equality excludes codegen, scopeTransition, and strategyClassFqn
+- **WHEN** two `Edge` instances are constructed with field-equal `(from, to, weight, kind, directive)` but different `codegen`, `scopeTransition`, or `strategyClassFqn`
 - **THEN** they compare equal under `equals` and produce identical hash codes
 
 #### Scenario: Edge equality includes kind

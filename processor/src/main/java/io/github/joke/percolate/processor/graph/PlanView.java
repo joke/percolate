@@ -64,16 +64,14 @@ public final class PlanView implements GraphSource {
         // must never be pruned. At a node rooted by more than one competing group, drop the losers' edges.
         final var cost = costToSource(underlying, keep);
         final var byRoot = new HashMap<Node, List<ExpansionGroup>>();
-        satGroups.stream()
-                .filter(PlanView::isBridgeGroup)
-                .forEach(g -> byRoot.computeIfAbsent(g.getRoot(), k -> new ArrayList<>()).add(g));
+        satGroups.stream().filter(PlanView::isBridgeGroup).forEach(g -> byRoot.computeIfAbsent(
+                        g.getRoot(), k -> new ArrayList<>())
+                .add(g));
         final var loserEdges = byRoot.values().stream()
                 .filter(groups -> groups.size() > 1)
                 .flatMap(groups -> {
                     final var chosen = cheapest(groups, keep, cost);
-                    return groups.stream()
-                            .filter(g -> g != chosen)
-                            .flatMap(loser -> groupEdges(loser, keep));
+                    return groups.stream().filter(g -> g != chosen).flatMap(loser -> groupEdges(loser, keep));
                 })
                 .collect(toCollection(HashSet::new));
         keep.removeAll(loserEdges);
@@ -160,17 +158,13 @@ public final class PlanView implements GraphSource {
     private static double groupCost(
             final ExpansionGroup group, final Set<Edge> eligible, final Map<Node, Double> cost) {
         return group.getSlots().stream()
-                .mapToDouble(slot -> minSlotEdgeWeight(group, slot, eligible)
-                        + cost.getOrDefault(slot, Double.POSITIVE_INFINITY))
+                .mapToDouble(slot ->
+                        minSlotEdgeWeight(group, slot, eligible) + cost.getOrDefault(slot, Double.POSITIVE_INFINITY))
                 .sum();
     }
 
-    private static double minSlotEdgeWeight(
-            final ExpansionGroup group, final Node slot, final Set<Edge> eligible) {
-        return slotEdges(group, slot, eligible)
-                .mapToInt(Edge::getWeight)
-                .min()
-                .orElse(0);
+    private static double minSlotEdgeWeight(final ExpansionGroup group, final Node slot, final Set<Edge> eligible) {
+        return slotEdges(group, slot, eligible).mapToInt(Edge::getWeight).min().orElse(0);
     }
 
     private static Stream<Edge> groupEdges(final ExpansionGroup group, final Set<Edge> edges) {

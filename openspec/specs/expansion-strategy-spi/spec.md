@@ -137,19 +137,25 @@ The percolate-spi module SHALL define an immutable Lombok `@Value` type `io.gith
 - `TypeMirror inputType` — the type the strategy consumes.
 - `TypeMirror outputType` — the type the strategy produces.
 - `int weight` — the cost; documented to use values from `Weights`.
-- `EdgeCodegen codegen` — the codegen lambda that renders the step.
+- `Codegen codegen` — the codegen handle the step attaches to its realised edge. For a scalar step this is an `EdgeCodegen` (rendered as one expression). For a container provider step (sequence iterate/collect or wrapper unwrap/collect) this is the container's **codegen provider** (`SequenceContainer`/`WrapperContainer`, which `implement ContainerCodegen`/`WrapperCodegen`); the realised edge carries the provider plus the step's `scopeTransition`, and the composer asks the provider for the paradigm-appropriate snippet. The single-element `wrap` step is a scalar `EdgeCodegen`, not a provider. `EdgeCodegen` and the container handles are all `Codegen`.
 - `ScopeTransition scopeTransition` — how this step relates to element scope. Default `ScopeTransition.PRESERVING`. See the `ScopeTransition enum` requirement.
 - `String elementRole` — the role name for the element scope this step participates in. Consulted only when `scopeTransition != PRESERVING`. Default `"element"`. Container authors may pass a non-default role to disambiguate parallel element scopes within one chain (e.g., `Map<K,V>` could ship two bridges using `"key"` and `"value"`).
 
-For a direct same-scope bridge (the strategy emits an edge whose input and output live at the same scope — DirectAssign, MethodCallBridge, GetterPathResolver, conversion strategies), `scopeTransition = PRESERVING`.
+For a direct same-scope bridge (DirectAssign, MethodCallBridge, GetterPathResolver, conversion strategies, and a container's single-element `wrap`), `scopeTransition = PRESERVING` and `codegen` is an `EdgeCodegen`.
 
-For a scope-entering bridge (the strategy crosses from a regular-scope container into element scope — `IterableUnwrap`, `OptionalUnwrap`, user-authored `MonoUnwrap` / `FluxUnwrap` / etc.), `scopeTransition = ENTERING`. The bridge's output is structurally at `ElementLocation(elementRole)`; the driver allocates the output node accordingly. Input is typically at regular scope; the driver's `allocateOrReuseInputNode` may match an existing same-element-scope candidate first (flatMap composition; see `graph-expansion`).
+For a scope-entering bridge (a sequence container's iterate or a wrapper's unwrap — including developer `FluxContainer`/`OptionalContainer`-style classes), `scopeTransition = ENTERING` and `codegen` is the container provider. The output is structurally at `ElementLocation(elementRole)`. A **sequence** keys its iterate on `matches(from)` (it iterates an existing source); a **wrapper** keys its unwrap on a scalar `to`, synthesising `Optional<to>` (or the wrapper-of-`to`) as the input so a wrapped source can be reached before any wrapper node exists.
 
-For a scope-exiting bridge (the strategy collects element-scope values into a regular-scope container — `SetCollect`, `ListCollect`, `ArrayCollect`, `OptionalCollect`, user-authored `MonoCollect` / `FluxCollect` / etc.), `scopeTransition = EXITING`. The bridge's input is at `ElementLocation(elementRole)`; the bridge's output is at the surrounding scope (typically regular).
+For a scope-exiting bridge (a container's collect — `SetContainer`/`ListContainer`-style, including developer classes), `scopeTransition = EXITING` and `codegen` is the container provider. The input is at `ElementLocation(elementRole)`; the output is at the surrounding (typically regular) scope.
 
 #### Scenario: BridgeStep exposes its six fields
 - **WHEN** a `BridgeStep` is constructed with `inputType`, `outputType`, `weight`, `codegen`, `scopeTransition`, and `elementRole`
 - **THEN** `getInputType()`, `getOutputType()`, `getWeight()`, `getCodegen()`, `getScopeTransition()`, and `getElementRole()` return those values
+- **AND** `getCodegen()` returns a `Codegen` (an `EdgeCodegen` for a scalar step, a container provider for an iterate/collect/unwrap step)
+
+#### Scenario: A container provider BridgeStep carries the container instance
+- **WHEN** a `SequenceContainer`/`WrapperContainer` base emits an iterate/collect/unwrap step
+- **THEN** the step's `codegen` is the container instance itself (a `ContainerCodegen`/`WrapperCodegen`)
+- **AND** the realised edge built from it carries that provider plus the step's `scopeTransition`
 
 #### Scenario: BridgeStep is value-equal
 - **WHEN** two `BridgeStep` instances are constructed with equal field values
