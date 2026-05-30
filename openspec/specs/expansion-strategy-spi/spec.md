@@ -469,6 +469,7 @@ The default value of `BridgeStep.scopeTransition` is `PRESERVING`. Strategies th
 - **WHEN** any built-in `Bridge` emits a `BridgeStep` with `scopeTransition == PRESERVING`
 - **THEN** the driver allocates the bridge's input at the same `Location` as the frontier
 - **AND** scope inheritance is automatic: a PRESERVING bridge match against an `ElementLocation` frontier produces an `ElementLocation` input at the same role
+- **AND** a freshly allocated input is a **sibling** of the frontier — it shares the frontier's `parent` — not a child of it, so the same-scope edge does not sink the input one element-level deeper
 
 ### Requirement: Weights.CONTAINER constant
 

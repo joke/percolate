@@ -87,7 +87,7 @@ The recursion `render(node)` SHALL return both a `CodeBlock` and a boolean **`is
 1. **Leaf base case** — if `node` has no inbound plan edge, then `node` MUST be a `SourceLocation` whose `path.first()` matches the simple name of one of `m`'s parameters. The result is `CodeBlock.of("$N", parameter.getSimpleName())`, `isStream = false`.
 2. **Scalar single-edge case** — if `node`'s single inbound plan edge `e` carries a scalar `EdgeCodegen`, recurse on `e.getFrom()` and return `e.getCodegen().render(varNames, IncomingValues.of(child))`. When the child is an open stream this scalar transform SHALL be applied per element (`mapElements`, via the stream's container handle) rather than to the stream as a whole; otherwise it is applied inline. The result preserves the child's `isStream`.
 3. **Container single-edge case** — if `node`'s single inbound plan edge `e` carries a **container provider + operation** (see the `graph-model` Edge modification), recurse on `e.getFrom()` and weave per the container-codegen weaving rules (see the `container-codegen-spi` capability): an `ENTERING` sequence opens a stream via the provider's `iterate`; an `ENTERING` wrapper drops empties via `flatMapElements` when the child is a stream, or renders a top-level `unwrap` otherwise; an `EXITING` hop closes the stream via `collect`. The single-element `wrap` (`PRESERVING`) is a scalar `EdgeCodegen` step rendered by case 2, not a container-provider edge. Every container `CodeBlock` SHALL come from the provider's handle; `BuildMethodBodies` SHALL hardcode no container syntax.
-4. **Group-target case (`ConstructorCall`-style only)** — if `node` is the root of a group carrying a `GroupCodegen`, render each slot's child, key each by the slot-name rule below, and return `groupCodegen.render(varNames, incomingValues)`, `isStream = false`. The container provider hops (iterate/collect/unwrap) are **not** rendered here — they are single-edge container cases (case 3) intercepted before the group lookup.
+4. **Group-target case** — if `node` is the root of a group carrying a `GroupCodegen`, render each slot's child and apply the group codegen. A multi-slot group (`ConstructorCall`-style) keys each child by the slot-name rule below and returns `groupCodegen.render(varNames, incomingValues)`, `isStream = false`. A **single-slot** group whose slot renders as an open element stream (a scalar bridge sub-group such as a conversion or method call) SHALL apply the group codegen **per element** — `mapElements(slotStream, v, groupCodegen.render(single = v))` via the threaded stream handle — and preserve `isStream = true`; otherwise the single-slot group renders inline like a multi-slot group with `isStream = false`. The container provider hops (iterate/collect/unwrap) are **not** rendered here — they are single-edge container cases (case 3) intercepted before the group lookup.
 
 When deriving the `slotName` key for a `GroupCodegen` slot, `BuildMethodBodies` SHALL apply this rule on the slot Node's `Location`: a `TargetLocation`/`SourceLocation` with a non-empty path → its last segment; an `ElementLocation` → its `role`; otherwise raise an `IllegalStateException` naming the node.
 
@@ -109,6 +109,12 @@ The full method body SHALL be `CodeBlock.builder().addStatement("return $L", ren
 
 - **WHEN** the plan view has a root `GroupCodegen` `new Human($L, $L)` with slots `firstName` and `lastName` each fed by a single-segment path
 - **THEN** the rendered body is equivalent to `return new Human(person.getFirstName(), person.getLastName());`
+
+#### Scenario: Single-slot scalar group over a stream maps per element
+
+- **WHEN** a single-slot group whose codegen is a scalar conversion (e.g. a method call) has its slot fed by an open element stream
+- **THEN** the group codegen is applied per element via the stream handle's `mapElements` (e.g. `stream.map(v -> conv(v))`), and the result stays a stream (`isStream = true`)
+- **AND** a multi-slot group, or a single-slot group whose slot is not a stream, renders directly with `isStream = false` (unchanged)
 
 #### Scenario: Sequence container target weaves via the container handle
 

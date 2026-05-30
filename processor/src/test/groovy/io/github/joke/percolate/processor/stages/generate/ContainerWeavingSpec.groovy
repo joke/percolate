@@ -6,6 +6,7 @@ import io.github.joke.percolate.processor.graph.*
 import io.github.joke.percolate.processor.model.MapperShape
 import io.github.joke.percolate.spi.ContainerCodegen
 import io.github.joke.percolate.spi.EdgeCodegen
+import io.github.joke.percolate.spi.GroupCodegen
 import io.github.joke.percolate.spi.Nullability
 import io.github.joke.percolate.spi.ScopeTransition
 import io.github.joke.percolate.spi.WrapperCodegen
@@ -121,6 +122,30 @@ class ContainerWeavingSpec extends Specification {
 
         expect:
         body(graph, method) == 'return p.stream().map(v0 -> mapX(v0)).collect(toList());'
+    }
+
+    def 'a single-slot scalar group fed by a stream maps per element (does not drop isStream)'() {
+        given:
+        // A scalar bridge (e.g. a conversion / method call) registers a single-slot group. When its slot renders
+        // as an open stream, the group codegen must be applied per element, not to the stream as a whole.
+        def method = mockMethod('map', [mockParam('p')])
+        def scope = new MethodScope(method)
+        def graph = new MapperGraph()
+        def src = node(scope, sourceLoc('p'))
+        def elem = node(scope, new ElementLocation())
+        def root = node(scope, returnRootLoc())
+        [src, elem, root].each { graph.addNode(it) }
+        graph.addEdge(Edge.realised(src, elem, Weights.CONTAINER, SEQ, ScopeTransition.ENTERING, 'Seq'))
+        def convEdge = Edge.realised(elem, root, Weights.STEP, MAP_X, 'Conv')
+        graph.addEdge(convEdge)
+
+        GroupCodegen conv = { vars, inputs -> CodeBlock.of('conv($L)', inputs.single()) } as GroupCodegen
+        def group = ExpansionGroup.of(root, [elem], conv, 'Conv', [convEdge] as Set, graph)
+        graph.addGroup(group)
+        graph.recordGroupOutcome(GroupOutcome.sat(group))
+
+        expect:
+        body(graph, method) == 'return p.stream().map(v0 -> conv(v0));'
     }
 
     def '@Nullable Optional<@Nullable X>: presence collapse reads nullability, distinct from the inner ref'() {

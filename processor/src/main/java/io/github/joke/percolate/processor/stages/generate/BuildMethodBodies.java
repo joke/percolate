@@ -83,7 +83,7 @@ public final class BuildMethodBodies {
         }
         final var group = groupRoots.get(node);
         if (group != null) {
-            return Rendered.scalar(renderGroupTarget(group, realised, method, groupRoots, varGen));
+            return renderGroupTarget(group, realised, method, groupRoots, varGen);
         }
         if (inbound.isEmpty()) {
             return Rendered.scalar(renderLeaf(node, method));
@@ -161,20 +161,42 @@ public final class BuildMethodBodies {
         return new Rendered(provider.iterate(child.getBlock()), true, Optional.of(provider));
     }
 
-    private CodeBlock renderGroupTarget(
+    private Rendered renderGroupTarget(
             final ExpansionGroup group,
             final PlanView realised,
             final ExecutableElement method,
             final Map<Node, ExpansionGroup> groupRoots,
             final VarGen varGen) {
+        final var slots = group.getSlots();
+        final var rendered = slots.stream()
+                .map(slot -> render(slot, realised, method, groupRoots, varGen))
+                .collect(toUnmodifiableList());
+
+        // A single-slot group fed by an open element stream (a scalar bridge sub-group such as a conversion or
+        // method call) applies its codegen per element: map(v -> codegen(v)), staying a stream. Multi-slot groups
+        // (ConstructorCall) and non-streaming single slots assemble their inputs directly (isStream = false).
+        if (slots.size() == SINGLE_EDGE && rendered.get(0).isStream()) {
+            final var child = rendered.get(0);
+            final var handle = child.getStreamHandle()
+                    .orElseThrow(() -> new IllegalStateException("stream slot has no container handle: "
+                            + group.getRoot().id()));
+            final var var = varGen.fresh();
+            final var body =
+                    group.getCodegen().render(new VarNamesImpl(), IncomingValuesImpl.of(CodeBlock.of("$N", var)));
+            return new Rendered(handle.mapElements(child.getBlock(), var, body), true, child.getStreamHandle());
+        }
+
         final var byName = new LinkedHashMap<String, CodeBlock>();
-        for (final var slot : group.getSlots()) {
+        for (var i = 0; i < slots.size(); i++) {
+            final var slot = slots.get(i);
             final var name = slotName(slot);
-            final var raw = render(slot, realised, method, groupRoots, varGen).getBlock();
-            byName.put(name, applyNullabilityContract(group, slot, name, raw));
+            byName.put(
+                    name,
+                    applyNullabilityContract(group, slot, name, rendered.get(i).getBlock()));
         }
         final var positional = List.copyOf(byName.values());
-        return group.getCodegen().render(new VarNamesImpl(), new IncomingValuesImpl(positional, Map.copyOf(byName)));
+        return Rendered.scalar(
+                group.getCodegen().render(new VarNamesImpl(), new IncomingValuesImpl(positional, Map.copyOf(byName))));
     }
 
     private CodeBlock applyNullabilityContract(

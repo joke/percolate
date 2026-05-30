@@ -42,7 +42,10 @@ final class InputAllocator {
         if (typeMatch != null && typeMatch.getLoc().equals(frontier.getLoc())) {
             return new InputAllocation(typeMatch, null);
         }
-        return allocateFresh(step, frontier.getLoc(), frontier);
+        // Same scope as the frontier: the fresh input is a SIBLING — it shares the frontier's parent, not a
+        // child of it. (A child would sink the input one element-level deeper and make this same-scope edge
+        // span two different element scopes.)
+        return allocateFresh(step, frontier.getLoc(), frontier, frontier.getParent());
     }
 
     private InputAllocation allocateForEntering(
@@ -51,15 +54,17 @@ final class InputAllocator {
         if (typeMatch != null && !(typeMatch.getLoc() instanceof ElementLocation)) {
             return new InputAllocation(typeMatch, null);
         }
-        return allocateFresh(step, frontier.getLoc(), frontier);
+        final Optional<Node> parent =
+                frontier.getLoc() instanceof ElementLocation ? Optional.of(frontier) : Optional.empty();
+        return allocateFresh(step, frontier.getLoc(), frontier, parent);
     }
 
     private InputAllocation allocateForExiting(final BridgeStep step, final Node frontier) {
-        return allocateFresh(step, new ElementLocation(step.getElementRole()), frontier);
+        return allocateFresh(step, new ElementLocation(step.getElementRole()), frontier, Optional.of(frontier));
     }
 
-    private InputAllocation allocateFresh(final BridgeStep step, final Location loc, final Node frontier) {
-        final Optional<Node> parent = loc instanceof ElementLocation ? Optional.of(frontier) : Optional.empty();
+    private InputAllocation allocateFresh(
+            final BridgeStep step, final Location loc, final Node frontier, final Optional<Node> parent) {
         final var fresh = new Node(Optional.of(step.getInputType()), loc, frontier.getScope(), parent);
         return new InputAllocation(fresh, new AddNode(fresh));
     }
