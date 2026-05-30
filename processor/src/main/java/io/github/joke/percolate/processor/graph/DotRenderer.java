@@ -122,7 +122,7 @@ public final class DotRenderer {
         attrs.put("style", style);
 
         final var penwidth = edgePenwidth(edge.getKind());
-        attrs.put("penwidth", String.valueOf(penwidth));
+        attrs.put("penwidth", penwidth);
 
         final var colorOpt = edgeColor(edge.getKind());
         if (colorOpt.isPresent()) {

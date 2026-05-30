@@ -30,7 +30,7 @@ public final class AssembleMapperType {
 
     void assemble(final MapperContext ctx, final List<MethodImpl> bodies) throws IOException {
         final var mapperType = ctx.getMapperType();
-        final var simpleName = mapperType.getSimpleName().toString() + "Impl";
+        final var simpleName = mapperType.getSimpleName() + "Impl";
         final var packageName =
                 elements.getPackageOf(mapperType).getQualifiedName().toString();
 

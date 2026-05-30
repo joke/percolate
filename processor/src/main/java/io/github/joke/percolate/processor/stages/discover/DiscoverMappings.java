@@ -76,15 +76,6 @@ public final class DiscoverMappings implements Stage {
         return annotationValues.stream().map(av -> toDirective((AnnotationMirror) av.getValue()));
     }
 
-    MappingDirective createDirective(
-            final String target,
-            final String source,
-            final AnnotationMirror mirror,
-            final AnnotationValue targetValue,
-            final AnnotationValue sourceValue) {
-        return new MappingDirective(target, source, mirror, targetValue, sourceValue);
-    }
-
     private MethodMappings toMethodMappings(final ExecutableElement method) {
         return new MethodMappings(method, extractDirectives(method.getAnnotationMirrors()));
     }

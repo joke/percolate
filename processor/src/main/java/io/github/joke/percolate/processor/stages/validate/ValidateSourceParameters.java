@@ -77,7 +77,7 @@ public final class ValidateSourceParameters implements Stage {
         if (mirror instanceof javax.lang.model.type.DeclaredType) {
             final var elem = ((javax.lang.model.type.DeclaredType) mirror).asElement();
             if (elem instanceof TypeElement) {
-                return ((TypeElement) elem).getSimpleName().toString();
+                return elem.getSimpleName().toString();
             }
         }
         return mirror.toString();

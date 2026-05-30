@@ -161,7 +161,7 @@ public final class ProcessorModule {
         final var targetPhase = new ResolveTargetChainsPhase(groupTargets, resolveCtx);
         final var groupsPhase =
                 ExpandGroupsPhase.create(bridges, groupTargets, pathSegmentResolvers, resolveCtx, nullabilityResolver);
-        final var phases = List.<ExpansionPhase>of(targetPhase, groupsPhase);
+        final var phases = List.of(targetPhase, groupsPhase);
         return new ExpandStage(phases);
     }
 
