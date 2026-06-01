@@ -82,7 +82,7 @@ The `percolate-spi` module SHALL define a `io.github.joke.percolate.spi.Directiv
 
 ### Requirement: Candidate snapshot type
 
-The `percolate-spi` module SHALL define an immutable `io.github.joke.percolate.spi.Candidate` carrying at least the candidate's `TypeMirror type()` and an opaque handle identifying the source value. The handle SHALL NOT permit graph traversal from a strategy.
+The `percolate-spi` module SHALL define an immutable `io.github.joke.percolate.spi.Candidate` carrying the candidate's `TypeMirror type`. A strategy reads only the type; the driver binds a step's input `Slot` back to a graph node by type. `Candidate` SHALL expose no handle from which a strategy could traverse the graph.
 
 #### Scenario: Candidate exposes type but not traversal
 - **WHEN** the `Candidate` type is inspected

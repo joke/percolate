@@ -5,14 +5,14 @@
 
 ## 2. New unified SPI surface (`percolate-spi`)
 
-- [ ] 2.1 Add `Intent` enum (`CONVERSION`, `BOUNDARY`) and `ElementScope` enum (`ENTERING`, `EXITING`).
-- [ ] 2.2 Add immutable `ExpansionStep` (`List<Slot> inputs` 0..N, `TypeMirror output`, `Codegen codegen`, `Intent intent`, `Optional<ElementScope> scope`, `int weight`) with invariants: `CONVERSION` ⇒ exactly one input; `scope` present only on container boundary steps.
-- [ ] 2.3 Add `Directive` type exposing `@Map` configuration (source path/segment access, declared attributes) without raw `AnnotationMirror` as the primary surface.
-- [ ] 2.4 Add `Candidate` (opaque, non-traversable: `TypeMirror type()` + opaque handle).
-- [ ] 2.5 Add `Frontier` interface (`targetType()`, `Optional<Directive> directive()`, `List<Candidate> candidates()`) — no graph/group/traversal accessor.
-- [ ] 2.6 Add `ExpansionStrategy` interface (`Stream<ExpansionStep> expand(Frontier, ResolveCtx)`, default `priority()`).
-- [ ] 2.7 Add `CombinatorialMatch` mixin (default `expand` iterates `candidates()` → per-pair method) and `ContainerMatch` mixin (default `expand` emits iterate/collect/unwrap/wrap boundary steps with `ElementScope`).
-- [ ] 2.8 Update `package-info.java`/surface so the package contains exactly the new surface; ensure `@NullMarked`.
+- [x] 2.1 Add `Intent` enum (`CONVERSION`, `BOUNDARY`) and `ElementScope` enum (`ENTERING`, `EXITING`).
+- [x] 2.2 Add immutable `ExpansionStep` (`List<Slot> inputs` 0..N, `TypeMirror output`, `Codegen codegen`, `Intent intent`, `Optional<ElementScope> scope`, `int weight`) with invariants: `CONVERSION` ⇒ exactly one input. Factories `conversion`/`boundary`/`containerBoundary`.
+- [x] 2.3 Add `Directive` type exposing `@Map` configuration (`sourcePath()`, `attribute(name)`) without raw `AnnotationMirror` as the primary surface.
+- [x] 2.4 Add `Candidate` (`TypeMirror type` only; binding is by type — opaque handle dropped as dead API, spec updated).
+- [x] 2.5 Add `Frontier` interface (`targetType()`, `Optional<Directive> directive()`, `List<Candidate> candidates()`) — no graph/group/traversal accessor.
+- [x] 2.6 Add `ExpansionStrategy` interface (`Stream<ExpansionStep> expand(Frontier, ResolveCtx)`, default `priority()`).
+- [x] 2.7 Add `CombinatorialMatch` mixin (default `expand` iterates `candidates()` → per-pair `bridge(from,to)`). NOTE: `ContainerMatch` deferred to task 4.4 (built with the actual sequence/wrapper container bases rather than guessed in isolation).
+- [x] 2.8 New types added under the existing `@NullMarked` package; old types retained until group 5 (the "exactly the new surface" cleanup is task 5.1). `:spi:compileJava` green.
 
 ## 3. Driver rebuild (`processor` expand stage)
 
