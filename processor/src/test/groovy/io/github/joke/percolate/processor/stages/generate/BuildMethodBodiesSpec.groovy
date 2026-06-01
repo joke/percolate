@@ -28,6 +28,12 @@ class BuildMethodBodiesSpec extends Specification {
     static final EdgeCodegen DIRECT_ASSIGN = { vars, inputs ->
         CodeBlock.of('$L', inputs.single())
     } as EdgeCodegen
+    static final EdgeCodegen GETTER_AGE = { vars, inputs ->
+        CodeBlock.of('$L.getAge()', inputs.single())
+    } as EdgeCodegen
+    static final EdgeCodegen BOX_LONG = { vars, inputs ->
+        CodeBlock.of('$T.valueOf($L)', Long, inputs.single())
+    } as EdgeCodegen
 
     def 'build returns empty list when shape is null'() {
         expect:
@@ -122,6 +128,51 @@ class BuildMethodBodiesSpec extends Specification {
         then:
         bodies.size() == 1
         bodies[0].body.toString().trim() == 'return new Human(person.getFirstName(), person.getLastName());'
+    }
+
+    def 'folded conversion edge renders mid-chain without its own group (unify-expansion-spi de-risk)'() {
+        // Post-fold shape: a CONVERSION step (box) is NOT its own ExpansionGroup; it is a realised edge
+        // inside the constructor slot's producer chain. Proves BuildMethodBodies renders the conversion from
+        // its edge via renderScalarEdge regardless of group-root status — the gating risk for the fold design.
+        given:
+        def method = mockMethod('map', [mockParam('person')], TypeUniverse.STRING)
+        def scope = new MethodScope(method)
+        def graph = new MapperGraph()
+        def param = node(scope, sourceLoc('person'), TypeUniverse.STRING)
+        def ageSrc = node(scope, sourceLoc('person', 'age'), TypeUniverse.INT)
+        def ageSlot = node(scope, targetLoc('age'), TypeUniverse.LONG)
+        def returnRoot = node(scope, returnRootLoc(), TypeUniverse.STRING)
+
+        [param, ageSrc, ageSlot, returnRoot].each { graph.addNode(it) }
+
+        graph.addEdge(Edge.realised(param, ageSrc, Weights.STEP_GETTER, GETTER_AGE, 'GetterPathResolver'))
+        // the folded conversion: a plain realised edge, no enclosing single-slot group
+        graph.addEdge(Edge.realised(ageSrc, ageSlot, Weights.STEP, BOX_LONG, 'io.github.joke.percolate.spi.builtins.BoxingBridge'))
+
+        GroupCodegen ctorCodegen = { vars, inputs ->
+            CodeBlock.of('new Person($L)', inputs.byName('age'))
+        } as GroupCodegen
+        def passThrough = { vars, inputs -> CodeBlock.of('$L', inputs.single()) } as EdgeCodegen
+        def ctorEdge = Edge.realised(ageSlot, returnRoot, Weights.STEP, passThrough, 'io.github.joke.percolate.spi.builtins.ConstructorCall')
+        graph.addEdge(ctorEdge)
+        def ctorGroup = ExpansionGroup.of(
+                returnRoot,
+                [ageSlot],
+                ctorCodegen,
+                'io.github.joke.percolate.spi.builtins.ConstructorCall',
+                [ctorEdge] as Set,
+                graph)
+        graph.addGroup(ctorGroup)
+        graph.recordGroupOutcome(GroupOutcome.sat(ctorGroup))
+
+        def ctx = ctxWith(graph, method)
+
+        when:
+        def bodies = new BuildMethodBodies().build(ctx)
+
+        then:
+        bodies.size() == 1
+        bodies[0].body.toString().trim() == 'return new Person(java.lang.Long.valueOf(person.getAge()));'
     }
 
     def 'container group slot is named by its element role'() {

@@ -1,7 +1,7 @@
 ## 1. De-risk before cutover
 
-- [ ] 1.1 Confirm `BuildMethodBodies` renders a realised conversion edge from *inside* a group's chain (not only at group roots); add a focused codegen spec proving a folded in-group conversion edge is emitted. Block the cutover if it does not.
-- [ ] 1.2 Confirm `ExpansionGroup.addVertexToView`/`addEdgeToView` suffice to fold a synthesized node+edge into an existing group's `AsSubgraph` view during a pass (spike, no production code).
+- [x] 1.1 Confirm `BuildMethodBodies` renders a realised conversion edge from *inside* a group's chain (not only at group roots); add a focused codegen spec proving a folded in-group conversion edge is emitted. Block the cutover if it does not. **CLEARED**: `render()` uses `renderScalarEdge` for any single-inbound-edge node regardless of group-root status (`BuildMethodBodies.java:91-93`); the realised edge carries the `EdgeCodegen`. Proven by `BuildMethodBodiesSpec` "folded conversion edge renders mid-chain without its own group".
+- [x] 1.2 Confirm `ExpansionGroup.addVertexToView`/`addEdgeToView` suffice to fold a synthesized node+edge into an existing group's `AsSubgraph` view during a pass (spike, no production code). **CONFIRMED**: both mutate the `AsSubgraph` view, requiring the node/edge in the parent graph and both endpoints in the view (`ExpansionGroup.java:138-156`) — exactly the fold primitive.
 
 ## 2. New unified SPI surface (`percolate-spi`)
 
