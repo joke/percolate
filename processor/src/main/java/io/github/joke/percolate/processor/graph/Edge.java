@@ -2,7 +2,7 @@ package io.github.joke.percolate.processor.graph;
 
 import io.github.joke.percolate.spi.Codegen;
 import io.github.joke.percolate.spi.EdgeCodegen;
-import io.github.joke.percolate.spi.ScopeTransition;
+import io.github.joke.percolate.spi.ElementScope;
 import java.util.Comparator;
 import java.util.Optional;
 import javax.lang.model.element.AnnotationMirror;
@@ -10,7 +10,7 @@ import lombok.EqualsAndHashCode;
 import lombok.Value;
 
 @Value
-@EqualsAndHashCode(exclude = {"codegen", "scopeTransition", "strategyClassFqn"})
+@EqualsAndHashCode(exclude = {"codegen", "elementScope", "strategyClassFqn"})
 public class Edge implements Comparable<Edge> {
 
     private static final Comparator<Edge> EDGE_ORDER = Comparator.<Edge, String>comparing(e -> e.from.id())
@@ -24,8 +24,12 @@ public class Edge implements Comparable<Edge> {
     EdgeKind kind;
     Optional<AnnotationMirror> directive;
     Optional<Codegen> codegen;
-    /** {@code PRESERVING}/{@code ENTERING}/{@code EXITING}, persisted from the producing {@code BridgeStep}. */
-    ScopeTransition scopeTransition;
+    /**
+     * The element-scope crossing of a container edge ({@code ENTERING} / {@code EXITING}), or empty for a scalar
+     * (scope-preserving) edge. Persisted from the producing {@link io.github.joke.percolate.spi.ExpansionStep}'s
+     * {@link ElementScope}; consumed by code-generation to weave the container operation.
+     */
+    Optional<ElementScope> elementScope;
 
     Optional<String> strategyClassFqn;
 
@@ -36,7 +40,7 @@ public class Edge implements Comparable<Edge> {
             final EdgeKind kind,
             final Optional<AnnotationMirror> directive,
             final Optional<Codegen> codegen,
-            final ScopeTransition scopeTransition,
+            final Optional<ElementScope> elementScope,
             final Optional<String> strategyClassFqn) {
         this.from = from;
         this.to = to;
@@ -44,7 +48,7 @@ public class Edge implements Comparable<Edge> {
         this.kind = kind;
         this.directive = directive;
         this.codegen = codegen;
-        this.scopeTransition = scopeTransition;
+        this.elementScope = elementScope;
         this.strategyClassFqn = strategyClassFqn;
     }
 
@@ -60,7 +64,7 @@ public class Edge implements Comparable<Edge> {
                 EdgeKind.SEED,
                 directive,
                 Optional.empty(),
-                ScopeTransition.PRESERVING,
+                Optional.empty(),
                 strategyClassFqn);
     }
 
@@ -76,7 +80,7 @@ public class Edge implements Comparable<Edge> {
                 original.kind,
                 original.directive,
                 original.codegen,
-                original.scopeTransition,
+                original.elementScope,
                 original.strategyClassFqn);
     }
 
@@ -93,7 +97,7 @@ public class Edge implements Comparable<Edge> {
                 EdgeKind.REALISED,
                 Optional.empty(),
                 Optional.of(codegen),
-                ScopeTransition.PRESERVING,
+                Optional.empty(),
                 Optional.of(strategyClassFqn));
     }
 
@@ -102,7 +106,7 @@ public class Edge implements Comparable<Edge> {
             final Node to,
             final int weight,
             final Codegen provider,
-            final ScopeTransition scopeTransition,
+            final ElementScope elementScope,
             final String strategyClassFqn) {
         return new Edge(
                 from,
@@ -111,7 +115,7 @@ public class Edge implements Comparable<Edge> {
                 EdgeKind.REALISED,
                 Optional.empty(),
                 Optional.of(provider),
-                scopeTransition,
+                Optional.of(elementScope),
                 Optional.of(strategyClassFqn));
     }
 
@@ -123,7 +127,7 @@ public class Edge implements Comparable<Edge> {
                 EdgeKind.MARKER,
                 Optional.empty(),
                 Optional.empty(),
-                ScopeTransition.PRESERVING,
+                Optional.empty(),
                 Optional.of(strategyClassFqn));
     }
 

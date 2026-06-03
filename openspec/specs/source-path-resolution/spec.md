@@ -6,58 +6,34 @@ This spec defines the `PathSegmentResolver` SPI and the seed-time path-walking a
 
 ## Requirements
 
-### Requirement: PathSegmentResolver SPI
+### Requirement: Path resolution as a unified ExpansionStrategy
 
-The `percolate-spi` module SHALL define a Java interface `io.github.joke.percolate.spi.PathSegmentResolver` with the following shape:
+Source-path-segment resolution SHALL be performed by `ExpansionStrategy` implementations (the `Getter` / `Method` / `Field` path resolvers) rather than a dedicated `PathSegmentResolver` SPI. Each resolver SHALL read the segment to resolve from `frontier.directive()` (and the frontier's position within the directive's source path) instead of receiving a `segment` parameter, and SHALL emit a `BOUNDARY` `ExpansionStep` describing the typed access for that segment. The seed-time typing outcome (a typed source node per resolvable segment) SHALL be preserved.
 
-```java
-public interface PathSegmentResolver {
-    Optional<ResolvedSegment> resolve(
-        TypeMirror parentType,
-        String segment,
-        ResolveCtx ctx);
-}
-```
+Resolvers SHALL register via `@AutoService(ExpansionStrategy.class)` and SHALL be subject to the same single-list, `priority()`-then-FQN ordering as every other strategy.
 
-Implementations SHALL return `Optional.of(ResolvedSegment)` when the resolver can produce a typed access for `segment` against a value of `parentType`, otherwise `Optional.empty()`. Implementations MUST NOT throw on a non-applicable input — they SHALL return `Optional.empty()` instead.
+#### Scenario: a path resolver reads its segment from the directive
+- **WHEN** a path resolver's `expand(frontier, ctx)` is invoked for a frontier mid-way along a `@Map` source path
+- **THEN** the resolver obtains the segment to resolve from `frontier.directive()`
+- **AND** does not receive a `segment` method parameter
 
-The SPI SHALL NOT import any class from `io.github.joke.percolate.processor.graph` or `io.github.joke.percolate.processor.stages.expand`. Resolver implementations describe the access; the caller (`SeedGraph`) is responsible for graph mutation.
+#### Scenario: a resolved segment is a boundary step
+- **WHEN** a path resolver resolves a segment access
+- **THEN** it emits an `ExpansionStep` with `intent == BOUNDARY`
+- **AND** the step's slot describes the parent value the access reads from
 
-The package `io.github.joke.percolate.spi` SHALL include `PathSegmentResolver` in its `@NullMarked`-marked surface.
+### Requirement: Parameter-root base case resolves against the node's own method scope
 
-#### Scenario: PathSegmentResolver with no match returns empty
-- **WHEN** an implementor decides the resolver does not apply to the inputs
-- **THEN** `resolve(...)` returns `Optional.empty()`
-- **AND** does not throw
+A single-segment source node (a `src[param]` root) SHALL be recognised as satisfied-by-parameter using the method carried by **the node's own scope** (its `MethodScope`), never a process-global "current method". Because the driver expands every method's groups together in one cross-group fixed-point loop, a base case keyed on a single shared current method would satisfy only one method's parameter roots and strand the rest; resolving against the node's own scope keeps multi-method mappers correct regardless of expansion order. The same node-scope resolution SHALL be used wherever a parameter root must be recovered (producer-scope recovery and failing-slot diagnostics).
 
-#### Scenario: PathSegmentResolver imports
-- **WHEN** any concrete resolver implementation in `strategies-builtin/` is inspected
-- **THEN** no import references `io.github.joke.percolate.processor.graph.*` or `io.github.joke.percolate.processor.stages.expand.*`
+#### Scenario: a parameter root is satisfied in a multi-method mapper
+- **WHEN** a mapper declares two methods and the driver expands their groups in one fixed-point loop
+- **THEN** each method's single-segment source roots are satisfied against that method's own parameters
+- **AND** the outcome does not depend on which method's seed edge the driver visited first
 
-### Requirement: ResolvedSegment result type
-
-The `percolate-spi` module SHALL define an immutable value type `io.github.joke.percolate.spi.ResolvedSegment` with four fields:
-
-- `TypeMirror getReturnType()` — the type produced by the access.
-- `EdgeCodegen getCodegen()` — renders the access expression; receives one `IncomingValues` slot (the parent value) and a `VarNames` placeholder; the rendered expression evaluates to a value of `getReturnType()`.
-- `int getWeight()` — the strategy weight for the resulting REALISED edge.
-- `AnnotatedConstruct getProducedFrom()` — the underlying construct that the resolver matched (the getter `ExecutableElement` for `GetterPathResolver`, the field `VariableElement` for `FieldPathResolver`, the no-arg method `ExecutableElement` for `MethodPathResolver`). The engine consults this at producer-commit time to derive the produced value's `Nullability` via `NullabilityResolver`.
-
-The type SHALL provide a single all-args constructor and accessor methods generated by Lombok's `@Value`. Equality is field-by-field.
-
-`producedFrom` is the only field added to support the `nullability` capability; resolvers populate it with the construct they accessed. Strategy authors do not reason about nullability themselves.
-
-#### Scenario: ResolvedSegment fields are immutable
-- **WHEN** a `ResolvedSegment` is constructed via its all-args constructor
-- **THEN** none of the four fields can be reassigned (no setters)
-
-#### Scenario: ResolvedSegment carries the access codegen
-- **WHEN** a resolver returns `Optional.of(new ResolvedSegment(returnType, codegen, weight, producedFrom))`
-- **THEN** the caller can invoke `getCodegen().render(vars, inputs)` and receive a `CodeBlock` for the access expression
-
-#### Scenario: ResolvedSegment exposes the matched construct
-- **WHEN** `GetterPathResolver` returns a match for `(Person, "lastName", ctx)` against `String getLastName()`
-- **THEN** the returned `ResolvedSegment.getProducedFrom()` is the `ExecutableElement` for `getLastName()`
+#### Scenario: a single-segment source naming no parameter of its own method is not a root
+- **WHEN** a single-segment source node's segment matches no parameter of the method in its own scope
+- **THEN** it is not treated as a parameter-root base case
 
 ### Requirement: GetterPathResolver built-in
 
@@ -186,107 +162,3 @@ The numeric ordering encodes precedence: lower number means "preferred when mult
 #### Scenario: Pre-existing Weights.STEP remains for external compatibility
 - **WHEN** `Weights.STEP` is referenced from any non-built-in resolver
 - **THEN** the constant still resolves and retains its value `1`
-
-### Requirement: Resolver registration via ServiceLoader
-
-`PathSegmentResolver` implementations in `percolate-strategies-builtin` SHALL be discoverable via `java.util.ServiceLoader.load(PathSegmentResolver.class, classLoader)` through their `@AutoService(PathSegmentResolver.class)` registration. The processor SHALL collect them into an immutable `List<PathSegmentResolver>` sorted by `Class.getName()` (class-name ascending) and inject that list at the expansion-time path-segment-group resolution entry point.
-
-The class-name sort SHALL serve only as a stable iteration order for diagnostics and as a deterministic tie-breaker; it SHALL NOT determine resolver precedence. Precedence is encoded in each `ResolvedSegment`'s `weight` and is enforced by the selection algorithm in *Expansion-time path-segment-group resolution*.
-
-#### Scenario: ServiceLoader discovers all three builtins
-- **WHEN** `ServiceLoader.load(PathSegmentResolver.class, ProcessorModule.class.getClassLoader())` is invoked
-- **THEN** the returned stream contains `FieldPathResolver`, `GetterPathResolver`, and `MethodPathResolver` (subset)
-
-#### Scenario: Resolver list is sorted by class name
-- **WHEN** the processor module's `pathSegmentResolvers()` provider is invoked
-- **THEN** the returned list iterates in `Class.getName()` ascending order
-- **AND** ties are impossible (class names are unique)
-
-### Requirement: Expansion-time path-segment-group resolution
-
-`ExpandGroupsPhase` SHALL invoke registered `PathSegmentResolver`s when it encounters a path-segment group during work-list processing. A group is recognised as a path-segment group by its structural shape (see `graph-expansion` capability — "Path-segment-group resolution via PathSegmentResolver" requirement): both `root.loc` and `slot.loc` are `SourceLocation`s, and `root.loc.path` extends `slot.loc.path` by exactly one segment.
-
-The resolver invocation rule:
-
-1. The slot MUST be typed (`slot.type.isPresent()`). If the slot is not yet typed, the path-segment group is not ready — the work-list's topological ordering guarantees the slot's own path-segment group has been processed first.
-2. Iterate every injected `PathSegmentResolver` and collect each non-empty `Optional<ResolvedSegment>` returned by `resolve(slot.type.get(), appendedSegment, ctx)` into a candidate set.
-3. If the candidate set is empty, record `GroupOutcome.unsatNoPlan(group, slot)` and return. The root remains untyped.
-4. Otherwise select the candidate with the lowest `ResolvedSegment.weight`. Ties (two candidates with the same weight) SHALL be broken by the resolver list's pre-existing class-name ascending order; the engine SHALL NOT silently discard either candidate.
-5. With the selected `ResolvedSegment` (call it `rs`):
-   - Set the root's type via `root.setType(rs.getReturnType())` (in-place; instance identity preserved — see `graph-model`).
-   - Emit a REALISED edge from `slot` to `root` with `weight = rs.getWeight()`, `codegen = rs.getCodegen()`, `strategyClassFqn = resolver.getClass().getName()` (where `resolver` is the resolver that produced `rs`).
-   - Add the edge to the path-segment group's view via `group.addEdgeToView(edge)` so the group's `view.edgeSet()` reflects the just-emitted REALISED edge.
-   - Record `GroupOutcome.sat(group)`.
-
-`PathSegmentResolver` implementations SHALL NOT be invoked outside `ExpandGroupsPhase`'s path-segment-group expansion path. `SeedGraph` SHALL NOT invoke them (see `seed-graph` capability).
-
-The graph traversal direction stays target-driven: `ExpandGroupsPhase` starts at the group's untyped root and asks "what produces this?" The resolver answers by inspecting the typed slot's type and the appended segment name (resolver-internal type inference is forward; engine-level traversal is backward). Per `feedback_never_forward_expansion.md`, this distinction is preserved.
-
-#### Scenario: Two-segment source path resolves at expansion time
-- **WHEN** a path-segment group `(root=src[person.lastName]:?, slot=src[person]:Person)` is drained from the work-list
-- **AND** `GetterPathResolver.resolve(Person, "lastName", ctx)` returns `Optional.of(ResolvedSegment(String, codegen, Weights.STEP_GETTER))`
-- **AND** no other resolver returns a non-empty match
-- **THEN** the root's type is set to `Optional.of(String)` in place
-- **AND** a REALISED edge `src[person] → src[person.lastName]:String` is emitted with the resolver's codegen
-- **AND** the group's outcome is SAT
-
-#### Scenario: Three-segment path resolves in topological layers
-- **WHEN** two path-segment groups exist: `g_addr = (root=src[person.address]:?, slot=src[person]:Person)` and `g_street = (root=src[person.address.street]:?, slot=src[person.address]:?)`
-- **AND** the work-list processes `g_addr` first (topological order)
-- **THEN** `g_addr` SATs first, typing `src[person.address]` to `Address`
-- **AND** when `g_street` is processed, its slot is now typed, so resolvers are invoked
-- **AND** `g_street` SATs, typing `src[person.address.street]` to `String`
-
-#### Scenario: Lowest-weight match wins when multiple resolvers match
-- **WHEN** a path-segment group `(root=src[bean.value]:?, slot=src[bean]:Bean)` is drained
-- **AND** `Bean` exposes `public String value` AND `String getValue()`
-- **AND** `GetterPathResolver` returns a match with `weight = Weights.STEP_GETTER`
-- **AND** `FieldPathResolver` returns a match with `weight = Weights.STEP_FIELD`
-- **THEN** the engine selects the `GetterPathResolver` match
-- **AND** the emitted REALISED edge's codegen renders `<slot>.getValue()`
-- **AND** the edge's `strategyClassFqn` is `io.github.joke.percolate.spi.builtins.GetterPathResolver`
-
-#### Scenario: No resolver matches; the path-segment group is UNSAT_NO_PLAN
-- **WHEN** a path-segment group `(root=src[person.weirdSegment]:?, slot=src[person]:Person)` is drained
-- **AND** no registered resolver matches `(Person, "weirdSegment", ctx)`
-- **THEN** the group records `unsatNoPlan(group, slot)`
-- **AND** the root remains untyped
-- **AND** subsequent directive-binding groups depending on this root remain UNSAT
-
-#### Scenario: Two directives sharing a prefix share the typed Node by instance identity
-- **WHEN** two directives `@Map(source = "person.address.street")` and `@Map(source = "person.address.city")` are processed
-- **THEN** `SeedGraph` registers one shared `src[person.address]:?` Node instance (via its prefix-sharing dedup)
-- **AND** exactly one path-segment group is registered for the `Address`-segment (slot `src[person]`)
-- **AND** when that group SATs, the shared Node's type is set in place — both downstream directives see the typed node
-
-#### Scenario: Single-segment source path needs no resolver invocation
-- **WHEN** a directive `@Map(target = "x", source = "person")` is processed and `person` is a parameter
-- **THEN** no path-segment group is registered (the SEED edge is `src[person] → tgt[x]`, which is a directive-binding group, not a path-segment group)
-- **AND** no resolver is invoked
-
-### Requirement: Resolver priority determinism
-
-When multiple `PathSegmentResolver` implementations match the same `(parentType, segment)` input, `ExpandGroupsPhase` SHALL select the candidate whose `ResolvedSegment.weight` is the lowest. Ties (two candidates returning the same numeric weight) SHALL be broken deterministically by the resolver's `Class.getName()` ascending order — preserving the existing list-iteration determinism for cases where two resolvers genuinely declare the same cost.
-
-The default precedence for the three built-in resolvers — driven by the weight constants in `Weights` — is `GetterPathResolver < MethodPathResolver < FieldPathResolver`. A `getX()` accessor wins over a fluent `x()` method, which wins over a public field `x` on the same parent type.
-
-Selection SHALL be byte-stable across multiple JVM runs given the same registered resolver set. A third-party resolver MAY position itself ahead of or behind the built-ins by choosing its own weight; it SHALL NOT need to alter `ProcessorModule.pathSegmentResolvers()`'s comparator to be granted higher precedence.
-
-#### Scenario: Getter wins over field on the same parent
-- **WHEN** the expansion phase invokes resolvers for `(<Bean>, "value", ctx)` where `Bean` has both `public String value` and `String getValue()`
-- **THEN** the selected resolver is `GetterPathResolver`
-- **AND** the registered group's codegen renders `<slot>.getValue()` (the getter)
-
-#### Scenario: Method wins over field on the same parent
-- **WHEN** the expansion phase invokes resolvers for `(<FluentBean>, "value", ctx)` where `FluentBean` has both `public String value` (field) and `String value()` (no-arg method) but no `getValue()`
-- **THEN** the selected resolver is `MethodPathResolver`
-- **AND** the registered group's codegen renders `<slot>.value()` (the method call)
-
-#### Scenario: Resolver order is deterministic across runs
-- **WHEN** the expansion phase runs twice against the same mapper input in two JVM invocations
-- **THEN** the resulting typed source chains, REALISED edges, and registered groups are byte-identical (modulo node identityHashCode)
-
-#### Scenario: External resolver outranks built-ins via lower weight
-- **WHEN** a third-party `@AutoService(PathSegmentResolver.class)` resolver returns a match with `weight = 0`
-- **AND** a built-in resolver also matches the same `(parentType, segment)` with its declared `STEP_*` weight (≥ 1)
-- **THEN** the third-party resolver's match is selected

@@ -2,12 +2,13 @@ package io.github.joke.percolate.spi.builtins;
 
 import com.google.auto.service.AutoService;
 import com.palantir.javapoet.CodeBlock;
-import io.github.joke.percolate.spi.Bridge;
 import io.github.joke.percolate.spi.Containers;
+import io.github.joke.percolate.spi.ExpansionStrategy;
 import io.github.joke.percolate.spi.Nullability;
 import io.github.joke.percolate.spi.ResolveCtx;
 import io.github.joke.percolate.spi.WrapperContainer;
 import java.util.Optional;
+import javax.lang.model.type.TypeKind;
 import javax.lang.model.type.TypeMirror;
 import lombok.NoArgsConstructor;
 
@@ -16,7 +17,7 @@ import lombok.NoArgsConstructor;
  * ({@code Optional.stream()}), which is how the composer drops empties via a flat-map; {@link #wrap} lifts a
  * scalar via {@code ofNullable}; {@link #unwrap} collapses under the target's nullability.
  */
-@AutoService(Bridge.class)
+@AutoService(ExpansionStrategy.class)
 @NoArgsConstructor
 public final class OptionalContainer extends WrapperContainer {
 
@@ -32,11 +33,21 @@ public final class OptionalContainer extends WrapperContainer {
 
     @Override
     protected Optional<TypeMirror> wrapped(final TypeMirror element, final ResolveCtx ctx) {
+        if (!isReferenceType(element)) {
+            // Optional cannot wrap a primitive/void element, and getDeclaredType rejects a non-reference type
+            // argument; there is no wrapper to synthesise here.
+            return Optional.empty();
+        }
         final var optional = ctx.elements().getTypeElement("java.util.Optional");
         if (optional == null) {
             return Optional.empty();
         }
         return Optional.of(ctx.types().getDeclaredType(optional, element));
+    }
+
+    private static boolean isReferenceType(final TypeMirror element) {
+        final var kind = element.getKind();
+        return kind == TypeKind.DECLARED || kind == TypeKind.ARRAY || kind == TypeKind.TYPEVAR;
     }
 
     @Override

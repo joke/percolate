@@ -97,6 +97,31 @@ class ApplierSpec extends Specification {
         TypeUniverse.types().isSameType(node.type.get(), TypeUniverse.STRING)
     }
 
+    def 'an AddNode for a CONVERSION input stamps the in-effect directive onto the synthesized node'() {
+        given: 'a frontier carries directive D; the driver synthesizes its CONVERSION input carrying D'
+        def directive = new SegmentDirective('street')
+        def synthesized = new Node(Optional.of(TypeUniverse.STRING), new SourceLocation(AccessPath.of('s')), scope)
+
+        when:
+        applier.apply(state, [new DeltaBundle('test.Conversion', [new AddNode(synthesized, directive)])])
+
+        then: 'the node inherits D, so the Frontier later built for it returns D from directive()'
+        synthesized.directive.present
+        synthesized.directive.get().is(directive)
+        new FrontierContext(TypeUniverse.STRING, synthesized.directive, []).directive().get().is(directive)
+    }
+
+    def 'an AddNode for a BOUNDARY slot inherits no directive'() {
+        given: 'a boundary slot crosses to a new value and must not inherit the parent directive'
+        def slot = new Node(Optional.of(TypeUniverse.STRING), new SourceLocation(AccessPath.of('s')), scope)
+
+        when:
+        applier.apply(state, [new DeltaBundle('test.Boundary', [new AddNode(slot)])])
+
+        then:
+        slot.directive.empty
+    }
+
     private Node source(final String path, final javax.lang.model.type.TypeMirror type) {
         new Node(Optional.of(type), new SourceLocation(AccessPath.of(path)), scope)
     }

@@ -4,11 +4,11 @@ import com.palantir.javapoet.CodeBlock
 import io.github.joke.percolate.spi.Containers
 import io.github.joke.percolate.spi.ContainerCodegen
 import io.github.joke.percolate.spi.EdgeCodegen
-import io.github.joke.percolate.spi.IncomingValues
+import io.github.joke.percolate.spi.ElementScope
+import io.github.joke.percolate.spi.Intent
 import io.github.joke.percolate.spi.ResolveCtx
-import io.github.joke.percolate.spi.ScopeTransition
-import io.github.joke.percolate.spi.VarNames
 import io.github.joke.percolate.spi.Weights
+import io.github.joke.percolate.spi.builtins.test.Renders
 import io.github.joke.percolate.spi.builtins.test.ResolveCtxBuilder
 import io.github.joke.percolate.spi.test.TypeUniverse
 import spock.lang.Shared
@@ -33,21 +33,21 @@ class ListContainerSpec extends Specification {
         Containers.isList(listOfString, ctx)
     }
 
-    def 'List<E> target emits an EXITING collect (provider) and a PRESERVING single-element wrap (EdgeCodegen)'() {
+    def 'List<E> target emits an EXITING collect (provider) and a scopeless single-element wrap (EdgeCodegen)'() {
         when:
         def steps = new ListContainer().bridge(TypeUniverse.STRING, listOfString, ctx).toList()
 
         then:
         steps.size() == 2
-        def collect = steps.find { it.scopeTransition == ScopeTransition.EXITING }
-        def wrap = steps.find { it.scopeTransition == ScopeTransition.PRESERVING }
+        def collect = steps.find { it.scope.orElse(null) == ElementScope.EXITING }
+        def wrap = steps.find { it.intent == Intent.BOUNDARY && it.scope.empty }
         collect != null && wrap != null
-        ctx.types().isSameType(collect.inputType, TypeUniverse.STRING)
-        ctx.types().isSameType(collect.outputType, listOfString)
+        ctx.types().isSameType(collect.inputs[0].type, TypeUniverse.STRING)
+        ctx.types().isSameType(collect.output, listOfString)
         collect.weight == Weights.CONTAINER
         collect.codegen instanceof ContainerCodegen
         wrap.codegen instanceof EdgeCodegen
-        renderEdge(wrap.codegen, 'x') == 'java.util.List.of(x)'
+        Renders.edge(wrap.codegen, 'x') == 'java.util.List.of(x)'
     }
 
     def 'List<E> source emits an ENTERING iterate carrying the provider'() {
@@ -56,9 +56,9 @@ class ListContainerSpec extends Specification {
 
         then:
         steps.size() == 1
-        steps[0].scopeTransition == ScopeTransition.ENTERING
-        ctx.types().isSameType(steps[0].inputType, listOfString)
-        ctx.types().isSameType(steps[0].outputType, TypeUniverse.STRING)
+        steps[0].scope.orElse(null) == ElementScope.ENTERING
+        ctx.types().isSameType(steps[0].inputs[0].type, listOfString)
+        ctx.types().isSameType(steps[0].output, TypeUniverse.STRING)
         steps[0].codegen instanceof ContainerCodegen
     }
 
@@ -76,13 +76,5 @@ class ListContainerSpec extends Specification {
         c.mapElements(CodeBlock.of('s'), 'e', CodeBlock.of('f(e)')).toString() == 's.map(e -> f(e))'
         c.flatMapElements(CodeBlock.of('s'), 'e', CodeBlock.of('e.stream()')).toString() == 's.flatMap(e -> e.stream())'
         c.collect(CodeBlock.of('s')).toString() == 's.collect(java.util.stream.Collectors.toList())'
-    }
-
-    private static String renderEdge(final EdgeCodegen codegen, final String inputName) {
-        codegen.render(new VarNames() {}, new IncomingValues() {
-            CodeBlock single() { CodeBlock.of(inputName) }
-            CodeBlock byGroupPosition(final int idx) { CodeBlock.of(inputName) }
-            CodeBlock byName(final String slotName) { CodeBlock.of(inputName) }
-        }).toString()
     }
 }

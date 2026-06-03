@@ -78,7 +78,12 @@ final class Applier implements Delta.Visitor<Void> {
 
     @Override
     public Void visitAddNode(final AddNode delta) {
-        graph().addNode(delta.getNode());
+        final var node = delta.getNode();
+        graph().addNode(node);
+        final var inherited = delta.getInheritedDirective();
+        if (inherited != null) {
+            node.inheritDirective(inherited);
+        }
         return null;
     }
 
@@ -125,7 +130,20 @@ final class Applier implements Delta.Visitor<Void> {
             }
         }
         graph.addGroup(group);
+        pinExpectedTypesOnProducers(graph, delta);
         return null;
+    }
+
+    /**
+     * Propagates each slot's consumer-declared type onto the group that produces that slot. When an assembly
+     * step (e.g. ConstructorCall) binds a slot to a pre-seeded target leaf, the leaf's directive-binding group
+     * learns the declared target type it must produce toward — the role the deleted {@code ResolveTargetChainsPhase}
+     * filled. A slot bound to a fresh node has no producing group yet, so this is a no-op for it.
+     */
+    private static void pinExpectedTypesOnProducers(final MapperGraph graph, final AddGroup delta) {
+        delta.getSlotMetadata().forEach((slotNode, slot) -> graph.groups()
+                .filter(producer -> producer.getRoot().equals(slotNode))
+                .forEach(producer -> producer.recordExpectedType(slotNode, slot)));
     }
 
     private MapperGraph graph() {

@@ -5,8 +5,7 @@ import io.github.joke.percolate.processor.MapperContext
 import io.github.joke.percolate.processor.ProcessorModule
 import io.github.joke.percolate.processor.graph.MapperGraph
 import io.github.joke.percolate.processor.stages.validate.RealisationDiagnosticsStage
-import io.github.joke.percolate.spi.Bridge
-import io.github.joke.percolate.spi.GroupTarget
+import io.github.joke.percolate.spi.ExpansionStrategy
 import io.github.joke.percolate.spi.test.HarnessResolveCtx
 import io.github.joke.percolate.spi.test.TypeUniverse
 
@@ -27,31 +26,20 @@ final class ExpansionHarness {
     private ExpansionHarness() {}
 
     /**
-     * Expands the given seed graph using the explicitly provided strategy lists. This mode
-     * bypasses ServiceLoader and is used by property tests and isolation scenarios.
+     * Expands the given seed graph using the explicitly provided unified strategy list. This mode bypasses
+     * ServiceLoader and is used by property tests and isolation scenarios.
      */
     static ExpansionResult expand(
             final MapperGraph seed,
-            final List<Bridge> bridges,
-            final List<GroupTarget> groupTargets) {
-        expand(seed, bridges, groupTargets, List.of())
-    }
-
-    static ExpansionResult expand(
-            final MapperGraph seed,
-            final List<Bridge> bridges,
-            final List<GroupTarget> groupTargets,
-            final List<io.github.joke.percolate.spi.PathSegmentResolver> pathSegmentResolvers) {
+            final List<ExpansionStrategy> strategies) {
         synchronized (EXPAND_LOCK) {
-            expandLocked(seed, bridges, groupTargets, pathSegmentResolvers)
+            expandLocked(seed, strategies)
         }
     }
 
     private static ExpansionResult expandLocked(
             final MapperGraph seed,
-            final List<Bridge> bridges,
-            final List<GroupTarget> groupTargets,
-            final List<io.github.joke.percolate.spi.PathSegmentResolver> pathSegmentResolvers) {
+            final List<ExpansionStrategy> strategies) {
         final errorMessages = new CopyOnWriteArrayList<String>()
         final messager = new Messager() {
             @Override
@@ -91,7 +79,7 @@ final class ExpansionHarness {
                 TypeUniverse.elements())
 
         final stage =
-                ProcessorModule.assembleExpansionPipeline(bridges, groupTargets, pathSegmentResolvers, resolveCtx, nullabilityResolver)
+                ProcessorModule.assembleExpansionPipeline(strategies, resolveCtx, nullabilityResolver)
 
         final ctx = new MapperContext(MAPPER_PLACEHOLDER)
         ctx.graph = seed

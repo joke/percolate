@@ -3,11 +3,14 @@ package io.github.joke.percolate.spi.builtins;
 import com.google.auto.service.AutoService;
 import com.palantir.javapoet.CodeBlock;
 import io.github.joke.percolate.spi.EdgeCodegen;
-import io.github.joke.percolate.spi.PathSegmentResolver;
+import io.github.joke.percolate.spi.ExpansionStep;
+import io.github.joke.percolate.spi.ExpansionStrategy;
+import io.github.joke.percolate.spi.Frontier;
 import io.github.joke.percolate.spi.ResolveCtx;
-import io.github.joke.percolate.spi.ResolvedSegment;
+import io.github.joke.percolate.spi.Slot;
 import io.github.joke.percolate.spi.Weights;
 import java.util.Optional;
+import java.util.stream.Stream;
 import javax.lang.model.element.Element;
 import javax.lang.model.element.ElementKind;
 import javax.lang.model.element.ExecutableElement;
@@ -16,29 +19,42 @@ import javax.lang.model.type.TypeKind;
 import javax.lang.model.type.TypeMirror;
 import lombok.NoArgsConstructor;
 
-@AutoService(PathSegmentResolver.class)
+/**
+ * Resolves one source-path segment to a JavaBeans getter ({@code getX()} / boolean {@code isX()}) on a candidate
+ * (parent) type, emitting a one-slot {@link io.github.joke.percolate.spi.Intent#BOUNDARY} step typed to the
+ * getter's return type. The driver feeds the segment to descend via {@link Frontier#directive()} and binds the
+ * slot to the existing parent node; the realised edge renders {@code parent.getX()}.
+ */
+@AutoService(ExpansionStrategy.class)
 @NoArgsConstructor
-public final class GetterPathResolver implements PathSegmentResolver {
+public final class GetterPathResolver implements ExpansionStrategy {
 
     @Override
-    public Optional<ResolvedSegment> resolve(final TypeMirror parentType, final String segment, final ResolveCtx ctx) {
+    public Stream<ExpansionStep> expand(final Frontier frontier, final ResolveCtx ctx) {
+        return Segments.single(frontier)
+                .map(segment ->
+                        frontier.candidates().stream().flatMap(candidate -> resolve(candidate.getType(), segment, ctx)))
+                .orElseGet(Stream::empty);
+    }
+
+    private Stream<ExpansionStep> resolve(final TypeMirror parentType, final String segment, final ResolveCtx ctx) {
         final var typeElement = Members.asTypeElement(parentType, ctx);
         if (typeElement.isEmpty()) {
-            return Optional.empty();
+            return Stream.empty();
         }
         final var getterName = "get" + capitalize(segment);
         final var isName = "is" + capitalize(segment);
         for (final var member : Members.declaredMembersOf(typeElement.get(), ctx)) {
             final var getterMatch = matchGetter(member, getterName);
             if (getterMatch.isPresent()) {
-                return Optional.of(buildResolved(getterMatch.get()));
+                return Stream.of(buildStep(getterMatch.get(), parentType));
             }
             final var isMatch = matchBooleanIs(member, isName);
             if (isMatch.isPresent()) {
-                return Optional.of(buildResolved(isMatch.get()));
+                return Stream.of(buildStep(isMatch.get(), parentType));
             }
         }
-        return Optional.empty();
+        return Stream.empty();
     }
 
     private Optional<ExecutableElement> matchGetter(final Element candidate, final String getterName) {
@@ -79,10 +95,11 @@ public final class GetterPathResolver implements PathSegmentResolver {
                 && ((TypeElement) element).getQualifiedName().contentEquals("java.lang.Boolean");
     }
 
-    private ResolvedSegment buildResolved(final ExecutableElement method) {
+    private ExpansionStep buildStep(final ExecutableElement method, final TypeMirror parentType) {
         final var methodName = method.getSimpleName().toString();
         final EdgeCodegen codegen = (vars, inputs) -> CodeBlock.of("$L.$N()", inputs.single(), methodName);
-        return new ResolvedSegment(method.getReturnType(), codegen, Weights.STEP_GETTER, method);
+        final var slot = new Slot("value", parentType, Weights.STEP_GETTER, method);
+        return ExpansionStep.boundary(java.util.List.of(slot), method.getReturnType(), codegen, Weights.STEP_GETTER);
     }
 
     private static String capitalize(final String segment) {

@@ -2,8 +2,8 @@ package io.github.joke.percolate.spi.builtins;
 
 import com.google.auto.service.AutoService;
 import com.palantir.javapoet.CodeBlock;
-import io.github.joke.percolate.spi.Bridge;
 import io.github.joke.percolate.spi.Containers;
+import io.github.joke.percolate.spi.ExpansionStrategy;
 import io.github.joke.percolate.spi.ResolveCtx;
 import io.github.joke.percolate.spi.SequenceContainer;
 import java.util.Arrays;
@@ -14,7 +14,7 @@ import lombok.NoArgsConstructor;
  * The array sequence container. Opens via {@code Arrays.stream}; closes via {@code toArray()}. Arrays have no
  * synchronous single-element wrap, so {@link #singleElementWrap()} stays empty (inherited default).
  */
-@AutoService(Bridge.class)
+@AutoService(ExpansionStrategy.class)
 @NoArgsConstructor
 public final class ArrayContainer extends SequenceContainer {
 

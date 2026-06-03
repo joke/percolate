@@ -35,6 +35,7 @@ import javax.lang.model.type.TypeMirror;
 import lombok.RequiredArgsConstructor;
 
 @RequiredArgsConstructor(onConstructor_ = @Inject)
+@SuppressWarnings("PMD.GodClass")
 public final class BuildMethodBodies {
 
     private static final String SEED_PACKAGE_PREFIX = "io.github.joke.percolate.processor.stages.seed.";
@@ -120,7 +121,7 @@ public final class BuildMethodBodies {
     }
 
     /**
-     * Container single-edge case. The provider + the edge's {@link io.github.joke.percolate.spi.ScopeTransition}
+     * Container single-edge case. The provider + the edge's {@link io.github.joke.percolate.spi.ElementScope}
      * (plus the child's {@code isStream}) select the operation; every {@code CodeBlock} comes from the provider.
      */
     private Rendered renderContainerEdge(
@@ -131,16 +132,16 @@ public final class BuildMethodBodies {
             final VarGen varGen) {
         final var provider = (StreamOps) edge.getCodegen().orElseThrow();
         final var child = render(edge.getFrom(), realised, method, groupRoots, varGen);
-        switch (edge.getScopeTransition()) {
+        final var scope = edge.getElementScope()
+                .orElseThrow(() -> new IllegalStateException("container provider on a scope-preserving edge: " + edge));
+        switch (scope) {
             case ENTERING:
                 return renderEntering(edge, provider, child, varGen);
             case EXITING:
                 // collect closes a stream back into a container — a sequence terminal only.
                 return Rendered.scalar(((ContainerCodegen) provider).collect(child.getBlock()));
-            case PRESERVING:
-            default:
-                throw new IllegalStateException("container provider on a non-container scope transition: " + edge);
         }
+        throw new IllegalStateException("unknown element scope: " + scope);
     }
 
     private Rendered renderEntering(
@@ -318,7 +319,9 @@ public final class BuildMethodBodies {
         private int next;
 
         String fresh() {
-            return "v" + next++;
+            final var current = next;
+            next += 1;
+            return "v" + current;
         }
     }
 }

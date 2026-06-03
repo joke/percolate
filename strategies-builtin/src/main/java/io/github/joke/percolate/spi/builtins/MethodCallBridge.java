@@ -4,11 +4,13 @@ import static java.util.stream.Collectors.toUnmodifiableList;
 
 import com.google.auto.service.AutoService;
 import com.palantir.javapoet.CodeBlock;
-import io.github.joke.percolate.spi.Bridge;
-import io.github.joke.percolate.spi.BridgeStep;
 import io.github.joke.percolate.spi.EdgeCodegen;
+import io.github.joke.percolate.spi.ExpansionStep;
+import io.github.joke.percolate.spi.ExpansionStrategy;
+import io.github.joke.percolate.spi.Frontier;
 import io.github.joke.percolate.spi.MethodCandidate;
 import io.github.joke.percolate.spi.ResolveCtx;
+import io.github.joke.percolate.spi.Slot;
 import io.github.joke.percolate.spi.Weights;
 import java.util.ArrayList;
 import java.util.HashSet;
@@ -19,33 +21,43 @@ import javax.lang.model.element.TypeElement;
 import javax.lang.model.type.TypeMirror;
 import lombok.NoArgsConstructor;
 
-@AutoService(Bridge.class)
+/**
+ * Produces the frontier's target type by calling a single-argument callable method that returns it: a
+ * {@link io.github.joke.percolate.spi.Intent#BOUNDARY} step with one slot per argument (here always one). The slot
+ * is the method argument, produced in turn from the in-scope source; the realised edge renders
+ * {@code receiver.method(arg)}.
+ */
+@AutoService(ExpansionStrategy.class)
 @NoArgsConstructor
-public final class MethodCallBridge implements Bridge {
+public final class MethodCallBridge implements ExpansionStrategy {
 
     private static final int SINGLE_PARAM_COUNT = 1;
 
     @Override
-    public Stream<BridgeStep> bridge(final TypeMirror sourceType, final TypeMirror targetType, final ResolveCtx ctx) {
+    public Stream<ExpansionStep> expand(final Frontier frontier, final ResolveCtx ctx) {
         final var callableMethods = ctx.callableMethods();
         if (callableMethods == null) {
             return Stream.empty();
         }
-
+        final var targetType = frontier.targetType();
         return callableMethods.producing(targetType).collect(toUnmodifiableList()).stream()
                 .filter(candidate -> {
                     final var method = candidate.getMethod();
                     return method.getParameters().size() == SINGLE_PARAM_COUNT
                             && ctx.types().isAssignable(method.getReturnType(), targetType);
                 })
-                .map(candidate -> {
-                    final var method = candidate.getMethod();
-                    final var paramType = method.getParameters().get(0).asType();
-                    final var returnType = method.getReturnType();
-                    final var returnDistance = subtypeDistance(returnType, targetType, ctx);
-                    final var weight = Weights.METHOD + returnDistance;
-                    return new BridgeStep(paramType, returnType, weight, renderCodegen(candidate));
-                });
+                .map(candidate -> buildStep(candidate, targetType, ctx));
+    }
+
+    private ExpansionStep buildStep(
+            final MethodCandidate candidate, final TypeMirror targetType, final ResolveCtx ctx) {
+        final var method = candidate.getMethod();
+        final var param = method.getParameters().get(0);
+        final var returnType = method.getReturnType();
+        final var returnDistance = subtypeDistance(returnType, targetType, ctx);
+        final var weight = Weights.METHOD + returnDistance;
+        final var slot = new Slot(param.getSimpleName().toString(), param.asType(), Weights.STEP, param);
+        return ExpansionStep.boundary(List.of(slot), returnType, renderCodegen(candidate), weight);
     }
 
     private EdgeCodegen renderCodegen(final MethodCandidate candidate) {
@@ -75,26 +87,23 @@ public final class MethodCallBridge implements Bridge {
         visited.add(start.toString());
         while (!queue.isEmpty()) {
             final var current = queue.remove(0);
-            final var currentType = current.type;
-            final var depth = current.depth;
-            final var elem = ctx.types().asElement(currentType);
+            final var elem = ctx.types().asElement(current.type);
             if (!(elem instanceof TypeElement)) {
                 continue;
             }
-            final var typeElement = (TypeElement) elem;
-            final var directSupertypes = typeElement.getSuperclass();
-            if (directSupertypes == null) {
+            final var directSupertype = ((TypeElement) elem).getSuperclass();
+            if (directSupertype == null) {
                 continue;
             }
-            final var supKey = directSupertypes.toString();
+            final var supKey = directSupertype.toString();
             if (visited.contains(supKey)) {
                 continue;
             }
             visited.add(supKey);
-            if (ctx.types().isSameType(directSupertypes, target)) {
-                return depth + 1;
+            if (ctx.types().isSameType(directSupertype, target)) {
+                return current.depth + 1;
             }
-            queue.add(new Pair(directSupertypes, depth + 1));
+            queue.add(new Pair(directSupertype, current.depth + 1));
         }
         return 0;
     }

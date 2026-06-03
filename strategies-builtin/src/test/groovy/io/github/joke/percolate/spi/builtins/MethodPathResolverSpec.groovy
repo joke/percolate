@@ -1,6 +1,8 @@
 package io.github.joke.percolate.spi.builtins
 
+import io.github.joke.percolate.spi.Intent
 import io.github.joke.percolate.spi.Weights
+import io.github.joke.percolate.spi.builtins.test.Frontiers
 import io.github.joke.percolate.spi.builtins.test.ResolveCtxBuilder
 import io.github.joke.percolate.spi.test.TypeUniverse
 import spock.lang.Specification
@@ -15,12 +17,13 @@ class MethodPathResolverSpec extends Specification {
         def point = TypeUniverse.element('io.github.joke.percolate.spi.builtins.fixtures.Point').asType()
 
         when:
-        def result = new MethodPathResolver().resolve(point, 'x', ctx)
+        def steps = new MethodPathResolver().expand(Frontiers.descend(point, 'x'), ctx).toList()
 
         then:
-        result.present
-        result.get().returnType.kind.name() == 'INT'
-        result.get().weight == Weights.STEP_METHOD
+        steps.size() == 1
+        steps[0].intent == Intent.BOUNDARY
+        steps[0].output.kind.name() == 'INT'
+        steps[0].weight == Weights.STEP_METHOD
     }
 
     def 'matches a non-record fluent-style accessor'() {
@@ -29,12 +32,12 @@ class MethodPathResolverSpec extends Specification {
         def address = TypeUniverse.element('io.github.joke.percolate.spi.builtins.fixtures.AddressFluent').asType()
 
         when:
-        def result = new MethodPathResolver().resolve(address, 'street', ctx)
+        def steps = new MethodPathResolver().expand(Frontiers.descend(address, 'street'), ctx).toList()
 
         then:
-        result.present
-        ctx.types().isSameType(result.get().returnType, TypeUniverse.STRING)
-        result.get().weight == Weights.STEP_METHOD
+        steps.size() == 1
+        ctx.types().isSameType(steps[0].output, TypeUniverse.STRING)
+        steps[0].weight == Weights.STEP_METHOD
     }
 
     def 'rejects parameterised methods of the same name'() {
@@ -42,11 +45,8 @@ class MethodPathResolverSpec extends Specification {
         def ctx = new ResolveCtxBuilder().build()
         def overloaded = TypeUniverse.element('io.github.joke.percolate.spi.builtins.fixtures.OverloadedGetter').asType()
 
-        when:
-        def result = new MethodPathResolver().resolve(overloaded, 'getName', ctx)
-
-        then:
-        !result.present
+        expect:
+        new MethodPathResolver().expand(Frontiers.descend(overloaded, 'getName'), ctx).toList().empty
     }
 
     def 'ignores methods declared on java.lang.Object'() {
@@ -54,21 +54,15 @@ class MethodPathResolverSpec extends Specification {
         def ctx = new ResolveCtxBuilder().build()
         def objectType = TypeUniverse.element('java.lang.Object').asType()
 
-        when:
-        def result = new MethodPathResolver().resolve(objectType, 'toString', ctx)
-
-        then:
-        !result.present
+        expect:
+        new MethodPathResolver().expand(Frontiers.descend(objectType, 'toString'), ctx).toList().empty
     }
 
     def 'returns empty for non-declared parent types'() {
         given:
         def ctx = new ResolveCtxBuilder().build()
 
-        when:
-        def result = new MethodPathResolver().resolve(TypeUniverse.INT, 'length', ctx)
-
-        then:
-        !result.present
+        expect:
+        new MethodPathResolver().expand(Frontiers.descend(TypeUniverse.INT, 'length'), ctx).toList().empty
     }
 }

@@ -3,11 +3,10 @@ package io.github.joke.percolate.spi.builtins
 import com.palantir.javapoet.CodeBlock
 import io.github.joke.percolate.spi.ContainerCodegen
 import io.github.joke.percolate.spi.Containers
-import io.github.joke.percolate.spi.EdgeCodegen
-import io.github.joke.percolate.spi.IncomingValues
+import io.github.joke.percolate.spi.ElementScope
+import io.github.joke.percolate.spi.Intent
 import io.github.joke.percolate.spi.ResolveCtx
-import io.github.joke.percolate.spi.ScopeTransition
-import io.github.joke.percolate.spi.VarNames
+import io.github.joke.percolate.spi.builtins.test.Renders
 import io.github.joke.percolate.spi.builtins.test.ResolveCtxBuilder
 import io.github.joke.percolate.spi.test.TypeUniverse
 import spock.lang.Shared
@@ -30,16 +29,16 @@ class SetContainerSpec extends Specification {
         Containers.isSet(setOfString, ctx)
     }
 
-    def 'Set<E> target emits EXITING collect + PRESERVING wrap'() {
+    def 'Set<E> target emits EXITING collect + scopeless wrap'() {
         when:
         def steps = new SetContainer().bridge(TypeUniverse.STRING, setOfString, ctx).toList()
 
         then:
         steps.size() == 2
-        def collect = steps.find { it.scopeTransition == ScopeTransition.EXITING }
-        def wrap = steps.find { it.scopeTransition == ScopeTransition.PRESERVING }
+        def collect = steps.find { it.scope.orElse(null) == ElementScope.EXITING }
+        def wrap = steps.find { it.intent == Intent.BOUNDARY && it.scope.empty }
         collect.codegen instanceof ContainerCodegen
-        renderEdge(wrap.codegen, 'x') == 'java.util.Set.of(x)'
+        Renders.edge(wrap.codegen, 'x') == 'java.util.Set.of(x)'
     }
 
     def 'declines when target is not a Set'() {
@@ -50,13 +49,5 @@ class SetContainerSpec extends Specification {
     def 'collect renders toSet'() {
         expect:
         new SetContainer().collect(CodeBlock.of('s')).toString() == 's.collect(java.util.stream.Collectors.toSet())'
-    }
-
-    private static String renderEdge(final EdgeCodegen codegen, final String inputName) {
-        codegen.render(new VarNames() {}, new IncomingValues() {
-            CodeBlock single() { CodeBlock.of(inputName) }
-            CodeBlock byGroupPosition(final int idx) { CodeBlock.of(inputName) }
-            CodeBlock byName(final String slotName) { CodeBlock.of(inputName) }
-        }).toString()
     }
 }

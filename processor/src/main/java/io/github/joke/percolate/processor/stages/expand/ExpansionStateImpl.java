@@ -71,7 +71,7 @@ final class ExpansionStateImpl implements ExpansionState {
         if (applier.hasProducerScope(node)) {
             return applier.producerScope(node);
         }
-        return SourceParams.forSlot(node, resolveCtx.currentMethod());
+        return SourceParams.forSlot(node);
     }
 
     @Override

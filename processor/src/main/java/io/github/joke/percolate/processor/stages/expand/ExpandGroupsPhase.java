@@ -5,9 +5,7 @@ import static java.util.stream.Collectors.toUnmodifiableList;
 import io.github.joke.percolate.processor.graph.ExpansionGroup;
 import io.github.joke.percolate.processor.graph.MapperGraph;
 import io.github.joke.percolate.processor.nullability.NullabilityResolver;
-import io.github.joke.percolate.spi.Bridge;
-import io.github.joke.percolate.spi.GroupTarget;
-import io.github.joke.percolate.spi.PathSegmentResolver;
+import io.github.joke.percolate.spi.ExpansionStrategy;
 import io.github.joke.percolate.spi.ResolveCtx;
 import java.util.ArrayList;
 import java.util.List;
@@ -34,19 +32,17 @@ public final class ExpandGroupsPhase implements ExpansionPhase {
     private final ResolveCtx resolveCtx;
 
     public static ExpandGroupsPhase create(
-            final List<Bridge> bridges,
-            final List<GroupTarget> groupTargets,
-            final List<PathSegmentResolver> pathSegmentResolvers,
+            final List<ExpansionStrategy> strategies,
             final ResolveCtx resolveCtx,
             final NullabilityResolver nullabilityResolver) {
         final var applier = new Applier(nullabilityResolver);
         final var inputAllocator = new InputAllocator(resolveCtx);
-        final var frontierMatcher = new FrontierMatcher(bridges, inputAllocator, resolveCtx);
-        final var slotResolver = new SlotResolver(frontierMatcher, groupTargets, resolveCtx);
-        final var pathResolver = new PathSegmentGroupResolver(pathSegmentResolvers);
+        final var frontierMatcher = new FrontierMatcher(strategies, inputAllocator, resolveCtx);
+        final var slotResolver = new SlotResolver(frontierMatcher);
         final List<GroupExpander> expanders = List.of(
-                new PathSegmentExpander(pathResolver, resolveCtx),
-                new DirectiveBindingExpander(slotResolver, resolveCtx),
+                new SourceDescentExpander(frontierMatcher, slotResolver),
+                new AssemblyExpander(frontierMatcher, slotResolver),
+                new DirectiveBindingExpander(slotResolver, frontierMatcher),
                 new BridgeExpander(slotResolver));
         return new ExpandGroupsPhase(expanders, applier, resolveCtx);
     }

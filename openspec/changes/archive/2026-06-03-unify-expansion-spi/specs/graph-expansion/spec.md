@@ -16,6 +16,21 @@ The return-assembly (a multi-slot `BOUNDARY` step) SHALL be resolved by data dep
 - **THEN** the assembly `BOUNDARY` step is committed and its slots resolve in subsequent passes via the fixed-point loop
 - **AND** the result is identical regardless of which pass first emitted the assembly step
 
+### Requirement: Driver deduplicates structurally-identical emitted steps
+
+Within a single frontier's expansion round the driver SHALL collapse `ExpansionStep`s that would produce an identical graph result — same emitting strategy, `intent`, element-`scope`, output type, and ordered input slot types — to a single committed step. This is required because `CombinatorialMatch.expand` offers each in-view candidate to the author's `bridge(from, to, ctx)`, yet a container's target-driven branches (wrap, and unwrap-by-synthesis of the wrapper type) ignore the `from` type and so emit the same step once per candidate; without dedup each duplicate opens a structurally identical, equal-cost twin sub-group that only the plan oracle later prunes.
+
+`from`-dependent steps (genuine conversions, whose input type derives from the candidate) differ by input type and SHALL NOT be collapsed. The emitting strategy's identity is part of the signature, so two distinct strategies that happen to emit a coincident shape SHALL both remain.
+
+#### Scenario: a target-driven container step is emitted once despite multiple candidates
+- **WHEN** a frontier with multiple in-view candidates is offered to a container strategy whose unwrap/wrap branch ignores the candidate `from` type
+- **THEN** exactly one such `BOUNDARY` step is committed
+- **AND** only one sub-group is opened for it
+
+#### Scenario: distinct-input conversions are not collapsed
+- **WHEN** a strategy emits two steps with different input slot types at one frontier
+- **THEN** both steps are committed
+
 ### Requirement: Intent-driven fold versus subgroup at the single mutation site
 
 The driver SHALL branch on `ExpansionStep.intent` alone to decide graph shape:

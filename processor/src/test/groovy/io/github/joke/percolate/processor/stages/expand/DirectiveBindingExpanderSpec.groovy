@@ -5,8 +5,12 @@ import io.github.joke.percolate.processor.graph.*
 import io.github.joke.percolate.processor.nullability.JspecifyNullabilityResolver
 import io.github.joke.percolate.processor.nullability.NullabilityAnnotations
 import io.github.joke.percolate.processor.test.HarnessScope
+import io.github.joke.percolate.spi.CombinatorialMatch
+import io.github.joke.percolate.spi.EdgeCodegen
+import io.github.joke.percolate.spi.ExpansionStep
 import io.github.joke.percolate.spi.GroupCodegen
 import io.github.joke.percolate.spi.Slot
+import io.github.joke.percolate.spi.Weights
 import io.github.joke.percolate.spi.test.HarnessResolveCtx
 import io.github.joke.percolate.spi.test.TypeUniverse
 import spock.lang.Specification
@@ -14,20 +18,31 @@ import spock.lang.Subject
 import spock.lang.Tag
 
 import javax.lang.model.type.TypeMirror
+import java.util.stream.Stream
 
+/**
+ * Behaviour of {@link DirectiveBindingExpander} under the unified SPI: the source slot is resolved first, then the
+ * target root is produced from the in-view candidates via the strategy round. A same-type match folds a NOOP
+ * CONVERSION ({@link DirectAssign}) edge into the group; a type mismatch with no producer emits nothing. The root's
+ * declared type is the pinned expected type — never the source slot's type. SAT (empty pending) only once the root
+ * has a producing edge in view or a SAT child; the fold itself is emitted as a delta and the root stays pending in
+ * the same pass.
+ */
 @Tag('unit')
 class DirectiveBindingExpanderSpec extends Specification {
 
     private static final GroupCodegen GROUP_NOOP = { vars, inputs -> CodeBlock.of('') }
+    private static final EdgeCodegen EDGE_NOOP = { vars, inputs -> CodeBlock.of('') }
 
     def graph = new MapperGraph()
     def scope = new HarnessScope('m()')
     def ctx = HarnessResolveCtx.create()
     def resolver = new JspecifyNullabilityResolver(NullabilityAnnotations.jspecifyDefaults(), TypeUniverse.elements())
     def state = new ExpansionStateImpl(graph, new Applier(resolver), ctx)
-    def slotResolver = new SlotResolver(new FrontierMatcher([], new InputAllocator(ctx), ctx), [], ctx)
+    def frontierMatcher = new FrontierMatcher([sameTypeAssign()], new InputAllocator(ctx), ctx)
+    def slotResolver = new SlotResolver(frontierMatcher)
     @Subject
-    DirectiveBindingExpander expander = new DirectiveBindingExpander(slotResolver, ctx)
+    DirectiveBindingExpander expander = new DirectiveBindingExpander(slotResolver, frontierMatcher)
 
     def 'stays pending without typing the root when the declared target type is unknown'() {
         given:
@@ -41,7 +56,7 @@ class DirectiveBindingExpanderSpec extends Specification {
         result.bundles.collectMany { it.deltas }.findAll { it instanceof TypeNode && it.node.is(group.root) }.empty
     }
 
-    def 'types the root with the target type and emits a NOOP direct-assign edge then SATs when source and target match'() {
+    def 'a same-type binding folds a NOOP direct-assign edge into the root and types it with the target type'() {
         given:
         def group = bindingGroup(TypeUniverse.STRING, null)
         pinTargetType(group, TypeUniverse.STRING)
@@ -49,8 +64,8 @@ class DirectiveBindingExpanderSpec extends Specification {
         when:
         def result = expander.step(group, state)
 
-        then:
-        result.pendingSlots.empty
+        then: 'the root has a producing edge emitted; SAT lands the next pass once the fold is applied'
+        result.pendingSlots == [group.root]
         def deltas = result.bundles.collectMany { it.deltas }
         def edges = deltas.findAll { it instanceof AddEdge }
         edges.size() == 1
@@ -71,13 +86,13 @@ class DirectiveBindingExpanderSpec extends Specification {
         when:
         def result = expander.step(group, state)
 
-        then:
+        then: 'no producer exists for the LONG root, so the STRING source type is never folded in'
         result.bundles.collectMany { it.deltas }
                 .findAll { it instanceof TypeNode && it.node.is(group.root) }
                 .every { TypeUniverse.types().isSameType(it.type, TypeUniverse.LONG) }
     }
 
-    def 'differing types with no producer emit no direct-assign edge and leave the slot pending'() {
+    def 'differing types with no producer emit no edge and leave the root pending'() {
         given:
         def group = bindingGroup(TypeUniverse.STRING, null)
         pinTargetType(group, TypeUniverse.LONG)
@@ -87,7 +102,7 @@ class DirectiveBindingExpanderSpec extends Specification {
 
         then:
         result.bundles.collectMany { it.deltas }.findAll { it instanceof AddEdge }.empty
-        result.pendingSlots == [group.slots[0]]
+        result.pendingSlots == [group.root]
     }
 
     def 'differing types SAT via a SAT child sub-group without emitting a direct-assign edge'() {
@@ -106,6 +121,15 @@ class DirectiveBindingExpanderSpec extends Specification {
         then:
         result.pendingSlots.empty
         result.bundles.collectMany { it.deltas }.findAll { it instanceof AddEdge }.empty
+    }
+
+    /** A same-type identity fold, like the builtin {@code DirectAssign}: a NOOP CONVERSION when from == to. */
+    private static CombinatorialMatch sameTypeAssign() {
+        { from, to, c ->
+            TypeUniverse.types().isSameType(from, to)
+                    ? Stream.of(ExpansionStep.conversion(new Slot('value', from, Weights.NOOP, null), to, EDGE_NOOP, Weights.NOOP))
+                    : Stream.empty()
+        } as CombinatorialMatch
     }
 
     private void pinTargetType(final ExpansionGroup group, final TypeMirror targetType) {

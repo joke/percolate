@@ -124,6 +124,7 @@ public final class PlanView implements GraphSource {
         return planEdges;
     }
 
+    @SuppressWarnings("PMD.UseConcurrentHashMap") // local, single-threaded Dijkstra weighting map
     private static Map<Node, Double> costToSource(final Graph<Node, Edge> graph, final Set<Edge> eligible) {
         final var maskEligible = new MaskSubgraph<>(graph, (Node v) -> false, (Edge e) -> !eligible.contains(e));
         final Map<Edge, Double> weights = new HashMap<>();

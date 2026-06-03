@@ -1,7 +1,9 @@
 package io.github.joke.percolate.spi.builtins
 
+import io.github.joke.percolate.spi.Intent
 import io.github.joke.percolate.spi.Weights
 import io.github.joke.percolate.spi.builtins.test.FakeReceiver
+import io.github.joke.percolate.spi.builtins.test.Frontiers
 import io.github.joke.percolate.spi.builtins.test.ResolveCtxBuilder
 import io.github.joke.percolate.spi.test.TypeUniverse
 import spock.lang.Specification
@@ -14,88 +16,70 @@ import java.util.stream.Stream
 @Tag('unit')
 class MethodCallBridgeSpec extends Specification {
 
-    def 'returns empty when callableMethods returns null'() {
+    def 'returns empty when callableMethods is null'() {
         given:
         def ctx = new ResolveCtxBuilder()
                 .withCallableMethods(null)
                 .build()
 
-        when:
-        def steps = new MethodCallBridge().bridge(TypeUniverse.STRING, TypeUniverse.STRING, ctx).toList()
-
-        then:
-        steps.empty
+        expect:
+        new MethodCallBridge().expand(Frontiers.forTarget(TypeUniverse.STRING), ctx).toList().empty
     }
 
     def 'returns empty when callableMethods produces an empty stream'() {
         given:
         def ctx = new ResolveCtxBuilder().build()
 
-        when:
-        def steps = new MethodCallBridge().bridge(TypeUniverse.STRING, TypeUniverse.STRING, ctx).toList()
-
-        then:
-        steps.empty
+        expect:
+        new MethodCallBridge().expand(Frontiers.forTarget(TypeUniverse.STRING), ctx).toList().empty
     }
 
-    def 'returns step for single-parameter method whose return type is assignable to target'() {
-        given:
-        def ctx = new ResolveCtxBuilder().build()
-
-        when:
-        def steps = new MethodCallBridge().bridge(TypeUniverse.STRING, TypeUniverse.STRING, ctx).toList()
-
-        then:
-        steps.empty // No CallableMethods configured, so empty
-    }
-
-    def 'returns step when CallableMethods provides a matching candidate'() {
+    def 'emits a one-slot BOUNDARY step when CallableMethods provides a matching candidate'() {
         given:
         def candidate = createExactMatchCandidate()
-        def ctx = new ResolveCtxBuilder()
-                .withCallableMethods(new io.github.joke.percolate.spi.CallableMethods() {
-                    @Override
-                    Stream<io.github.joke.percolate.spi.MethodCandidate> producing(final javax.lang.model.type.TypeMirror outputType) {
-                        Stream.of(candidate)
-                    }
-                })
-                .build()
+        def ctx = candidateCtx(candidate)
 
         when:
-        def steps = new MethodCallBridge().bridge(TypeUniverse.STRING, TypeUniverse.STRING, ctx).toList()
+        def steps = new MethodCallBridge().expand(Frontiers.forTarget(TypeUniverse.STRING), ctx).toList()
 
         then:
         steps.size() == 1
+        steps[0].intent == Intent.BOUNDARY
+        steps[0].inputs.size() == 1
         steps[0].weight >= Weights.METHOD
     }
 
-    // FOLLOW-UP: pin current behaviour — subtypeDistance returns 0 for both same-type and non-assignable inputs
-    def 'pins current behaviour: subtypeDistance returns 0 for same-type input'() {
+    def 'pins current behaviour: subtypeDistance returns 0 for a same-type return'() {
         given:
         def candidate = createExactMatchCandidate()
-        def ctx = new ResolveCtxBuilder()
-                .withCallableMethods(new io.github.joke.percolate.spi.CallableMethods() {
-                    @Override
-                    Stream<io.github.joke.percolate.spi.MethodCandidate> producing(final javax.lang.model.type.TypeMirror outputType) {
-                        Stream.of(candidate)
-                    }
-                })
-                .build()
+        def ctx = candidateCtx(candidate)
 
         when:
-        def steps = new MethodCallBridge().bridge(TypeUniverse.STRING, TypeUniverse.STRING, ctx).toList()
+        def steps = new MethodCallBridge().expand(Frontiers.forTarget(TypeUniverse.STRING), ctx).toList()
 
         then:
         steps.size() == 1
-        // subtypeDistance == 0 for same-type — weight should be METHOD + 0 + 0 = METHOD
+        // returnType String == target String → distance 0 → weight is METHOD + 0
         steps[0].weight == Weights.METHOD
     }
 
-    // FOLLOW-UP: pin current behaviour — subtypeDistance returns 0 for non-assignable inputs
-    def 'pins current behaviour: subtypeDistance returns 0 for non-assignable input'() {
+    def 'pins current behaviour: subtypeDistance returns 0 for a non-assignable parameter'() {
         given:
         def candidate = createValueOfObjectCandidate()
-        def ctx = new ResolveCtxBuilder()
+        def ctx = candidateCtx(candidate)
+
+        when:
+        // valueOf(Object) returns String; the parameter type is irrelevant to weight, which is driven only by
+        // the return→target distance (0 here), so weight is METHOD.
+        def steps = new MethodCallBridge().expand(Frontiers.forTarget(TypeUniverse.STRING), ctx).toList()
+
+        then:
+        steps.size() == 1
+        steps[0].weight == Weights.METHOD
+    }
+
+    private static io.github.joke.percolate.spi.ResolveCtx candidateCtx(final candidate) {
+        new ResolveCtxBuilder()
                 .withCallableMethods(new io.github.joke.percolate.spi.CallableMethods() {
                     @Override
                     Stream<io.github.joke.percolate.spi.MethodCandidate> producing(final javax.lang.model.type.TypeMirror outputType) {
@@ -103,15 +87,6 @@ class MethodCallBridgeSpec extends Specification {
                     }
                 })
                 .build()
-
-        when:
-        // With --module-path '', isAssignable(INT, Object) returns true and bfsDistance
-        // skips primitives, so subtypeDistance returns 0 — weight is METHOD
-        def steps = new MethodCallBridge().bridge(TypeUniverse.INT, TypeUniverse.STRING, ctx).toList()
-
-        then:
-        steps.size() == 1
-        steps[0].weight == Weights.METHOD
     }
 
     private static io.github.joke.percolate.spi.MethodCandidate createExactMatchCandidate() {

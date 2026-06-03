@@ -3,12 +3,12 @@ package io.github.joke.percolate.spi.builtins
 import com.palantir.javapoet.CodeBlock
 import io.github.joke.percolate.spi.Containers
 import io.github.joke.percolate.spi.EdgeCodegen
-import io.github.joke.percolate.spi.IncomingValues
+import io.github.joke.percolate.spi.ElementScope
+import io.github.joke.percolate.spi.Intent
 import io.github.joke.percolate.spi.Nullability
 import io.github.joke.percolate.spi.ResolveCtx
-import io.github.joke.percolate.spi.ScopeTransition
-import io.github.joke.percolate.spi.VarNames
 import io.github.joke.percolate.spi.WrapperCodegen
+import io.github.joke.percolate.spi.builtins.test.Renders
 import io.github.joke.percolate.spi.builtins.test.ResolveCtxBuilder
 import io.github.joke.percolate.spi.test.TypeUniverse
 import spock.lang.Shared
@@ -38,22 +38,24 @@ class OptionalContainerSpec extends Specification {
 
         then:
         steps.size() == 1
-        steps[0].scopeTransition == ScopeTransition.ENTERING
-        ctx.types().isSameType(steps[0].inputType, optionalOfString)
-        ctx.types().isSameType(steps[0].outputType, TypeUniverse.STRING)
+        steps[0].intent == Intent.BOUNDARY
+        steps[0].scope.orElse(null) == ElementScope.ENTERING
+        ctx.types().isSameType(steps[0].inputs[0].type, optionalOfString)
+        ctx.types().isSameType(steps[0].output, TypeUniverse.STRING)
         steps[0].codegen instanceof WrapperCodegen
     }
 
-    def 'Optional<E> target emits only a PRESERVING ofNullable wrap (no collect — wrappers never collect)'() {
+    def 'Optional<E> target emits only a scopeless ofNullable wrap (no collect — wrappers never collect)'() {
         when:
         def steps = new OptionalContainer().bridge(TypeUniverse.STRING, optionalOfString, ctx).toList()
 
         then:
         steps.size() == 1
-        steps[0].scopeTransition == ScopeTransition.PRESERVING
+        steps[0].intent == Intent.BOUNDARY
+        steps[0].scope.empty
         steps[0].codegen instanceof EdgeCodegen
-        renderEdge(steps[0].codegen, 'x') == 'java.util.Optional.ofNullable(x)'
-        steps.every { it.scopeTransition != ScopeTransition.EXITING }
+        Renders.edge(steps[0].codegen, 'x') == 'java.util.Optional.ofNullable(x)'
+        steps.every { it.scope.orElse(null) != ElementScope.EXITING }
     }
 
     def 'presence snippets render the Optional paradigm'() {
@@ -66,13 +68,5 @@ class OptionalContainerSpec extends Specification {
         c.mapPresence(CodeBlock.of('o'), 'v', CodeBlock.of('f(v)')).toString() == 'o.map(v -> f(v))'
         c.unwrap(CodeBlock.of('o'), Nullability.NON_NULL).toString() == 'o.orElseThrow()'
         c.unwrap(CodeBlock.of('o'), Nullability.NULLABLE).toString() == 'o.orElse(null)'
-    }
-
-    private static String renderEdge(final EdgeCodegen codegen, final String inputName) {
-        codegen.render(new VarNames() {}, new IncomingValues() {
-            CodeBlock single() { CodeBlock.of(inputName) }
-            CodeBlock byGroupPosition(final int idx) { CodeBlock.of(inputName) }
-            CodeBlock byName(final String slotName) { CodeBlock.of(inputName) }
-        }).toString()
     }
 }

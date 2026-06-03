@@ -5,7 +5,9 @@ import io.github.joke.percolate.processor.MapperContext;
 import io.github.joke.percolate.processor.graph.EdgeKind;
 import io.github.joke.percolate.processor.graph.GroupOutcome;
 import io.github.joke.percolate.processor.graph.MapperGraph;
+import io.github.joke.percolate.processor.graph.MethodScope;
 import io.github.joke.percolate.processor.graph.Node;
+import io.github.joke.percolate.processor.graph.SourceLocation;
 import io.github.joke.percolate.processor.graph.TargetLocation;
 import io.github.joke.percolate.processor.stages.Stage;
 import jakarta.inject.Inject;
@@ -37,7 +39,7 @@ public final class RealisationDiagnosticsStage implements Stage {
         final var unsatOutcomes = graph.groupOutcomes()
                 .filter(outcome -> outcome.getKind() != GroupOutcome.Kind.SAT)
                 .filter(outcome -> !hasAliveSibling(outcome, satRoots, graph))
-                .filter(outcome -> !isParameterRootFailingSlot(outcome, ctx))
+                .filter(outcome -> !isParameterRootFailingSlot(outcome))
                 .collect(Collectors.toUnmodifiableList());
         for (final var outcome : unsatOutcomes) {
             emitFor(graph, outcome, ctx);
@@ -73,27 +75,19 @@ public final class RealisationDiagnosticsStage implements Stage {
         return false;
     }
 
-    private boolean isParameterRootFailingSlot(final GroupOutcome outcome, final MapperContext ctx) {
+    private boolean isParameterRootFailingSlot(final GroupOutcome outcome) {
         final var failingSlot = outcome.getFailingSlot().orElse(null);
-        if (failingSlot == null) {
+        if (failingSlot == null || !(failingSlot.getLoc() instanceof SourceLocation)) {
             return false;
         }
-        if (!(failingSlot.getLoc() instanceof io.github.joke.percolate.processor.graph.SourceLocation)) {
-            return false;
-        }
-        final var segments = ((io.github.joke.percolate.processor.graph.SourceLocation) failingSlot.getLoc())
-                .getPath()
-                .getSegments();
-        if (segments.size() != SINGLE_SEGMENT) {
-            return false;
-        }
-        final var method = ctx.getCurrentMethod();
-        if (method == null) {
+        final var segments = ((SourceLocation) failingSlot.getLoc()).getPath().getSegments();
+        if (segments.size() != SINGLE_SEGMENT || !(failingSlot.getScope() instanceof MethodScope)) {
             return false;
         }
         final var paramName = segments.get(0);
-        return method.getParameters().stream()
-                .anyMatch(p -> p.getSimpleName().toString().equals(paramName));
+        return ((MethodScope) failingSlot.getScope())
+                .getMethod().getParameters().stream()
+                        .anyMatch(p -> p.getSimpleName().toString().equals(paramName));
     }
 
     private void emitFor(final MapperGraph graph, final GroupOutcome outcome, final MapperContext ctx) {

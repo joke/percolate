@@ -252,30 +252,30 @@ The `percolate-strategies-builtin` module SHALL ship `io.github.joke.percolate.s
 - **WHEN** `ArrayCollect.bridge(<Dog>, <List<Dog>>, ctx)` is invoked
 - **THEN** the result is `Stream.empty()`
 
-### Requirement: Container strategies registered via AutoService
+### Requirement: Container strategies bind to ExpansionStrategy via ContainerMatch
 
-The `percolate-strategies-builtin` module SHALL ship the following container `Bridge` strategies, each annotated `@AutoService(Bridge.class)`:
+Container strategies (the `Optional` / `List` / `Set` / `Array` iterate/collect/unwrap/wrap families) SHALL be `ExpansionStrategy` implementations, written via the `ContainerMatch` mixin from author-supplied `matches` / `element` snippets. Each iterate/collect/unwrap/wrap operation SHALL be emitted as an `ExpansionStep` with `intent == BOUNDARY` carrying the appropriate `ElementScope` in `scope`:
 
-- `OptionalUnwrap` (ENTERING, scope-enter from `Optional<T>` into element scope `T`)
-- `OptionalWrap` (PRESERVING, regular T → `Optional<T>` via `ofNullable`)
-- `OptionalCollect` (EXITING, element-scope T → regular `Optional<T>`)
-- `ListWrap` (PRESERVING, regular T → `List<T>` via `List.of`)
-- `ListCollect` (EXITING, element-scope T → regular `List<T>` via collectors)
-- `SetWrap` (PRESERVING, regular T → `Set<T>` via `Set.of`)
-- `SetCollect` (EXITING, element-scope T → regular `Set<T>` via collectors)
-- `ArrayCollect` (EXITING, element-scope T → regular `T[]`)
-- `IterableUnwrap` (ENTERING, scope-enter from `Iterable<T>` or `T[]` into element scope `T`)
+- An operation whose output lives at element scope (unwrap / iterate into elements) carries `ElementScope.ENTERING`.
+- An operation whose input lives at element scope (collect elements into a container) carries `ElementScope.EXITING`.
+- A single-element wrap (e.g. `List.of(x)`, `Optional.of(x)`) is a `BOUNDARY` step with no `scope`.
 
-The strategies `OptionalMap`, `ListMap`, `SetMap` SHALL NOT exist (deleted by `split-container-bridges`).
+The generated code (the stream/loop snippets each container emits) is unchanged; only the SPI binding and the step representation change.
 
-#### Scenario: All container strategies declare @AutoService(Bridge.class)
-- **WHEN** the sources of the listed container bridges are inspected
-- **THEN** each class carries `@AutoService(Bridge.class)`
+#### Scenario: a container iterate/collect carries ElementScope
+- **WHEN** a container strategy emits its collect operation
+- **THEN** the emitted `ExpansionStep` has `intent == BOUNDARY`
+- **AND** `scope()` returns `Optional.of(ElementScope.EXITING)`
 
-#### Scenario: Removed container strategies do not exist
-- **WHEN** the `strategies-builtin/src/main/java/io/github/joke/percolate/spi/builtins/` directory is inspected
-- **THEN** no source file `OptionalMap.java`, `ListMap.java`, or `SetMap.java` exists
-- **AND** no `META-INF/services/io.github.joke.percolate.spi.Bridge` entry references those classes after rebuild
+#### Scenario: a single-element wrap has no scope
+- **WHEN** a container strategy emits a single-element wrap step
+- **THEN** the emitted `ExpansionStep` has `intent == BOUNDARY`
+- **AND** `scope()` returns `Optional.empty()`
+
+#### Scenario: container strategies register under the unified service type
+- **WHEN** the source of any container strategy is inspected
+- **THEN** it carries `@AutoService(ExpansionStrategy.class)`
+- **AND** it implements `ExpansionStrategy` through the `ContainerMatch` mixin
 
 ### Requirement: Linear container chain (no diamond)
 

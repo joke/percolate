@@ -72,10 +72,12 @@ public final class SeedGraph implements Stage {
 
         final var sourceCache = new HashMap<List<String>, Node>();
         final var targetCache = new HashMap<List<String>, Node>();
+        final var targetChildren = new LinkedHashMap<Node, List<Node>>();
 
         for (final var directive : methodMappings.getDirectives()) {
-            seedDirective(graph, scope, directive, paramRoots, returnRoot, sourceCache, targetCache);
+            seedDirective(graph, scope, directive, paramRoots, returnRoot, sourceCache, targetCache, targetChildren);
         }
+        registerAssemblyGroups(graph, targetChildren);
     }
 
     private void seedDirective(
@@ -85,7 +87,8 @@ public final class SeedGraph implements Stage {
             final Map<String, Node> paramRoots,
             final Node returnRoot,
             final Map<List<String>, Node> sourceCache,
-            final Map<List<String>, Node> targetCache) {
+            final Map<List<String>, Node> targetCache,
+            final Map<Node, List<Node>> targetChildren) {
         final var sourceSegments = splitPath(directive.getSource());
         final var targetSegments = splitPath(directive.getTarget());
 
@@ -93,7 +96,8 @@ public final class SeedGraph implements Stage {
         if (deepestSource == null) {
             return;
         }
-        final var deepestTarget = buildTargetChain(graph, scope, directive, targetSegments, returnRoot, targetCache);
+        final var deepestTarget =
+                buildTargetChain(graph, scope, directive, targetSegments, returnRoot, targetCache, targetChildren);
 
         final var bridgingEdge =
                 Edge.seed(deepestSource, deepestTarget, Optional.of(directive.getMirror()), Optional.empty());
@@ -145,7 +149,8 @@ public final class SeedGraph implements Stage {
             final MappingDirective directive,
             final List<String> targetSegments,
             final Node returnRoot,
-            final Map<List<String>, Node> targetCache) {
+            final Map<List<String>, Node> targetCache,
+            final Map<Node, List<Node>> targetChildren) {
         Node previous = returnRoot;
         for (var i = 1; i <= targetSegments.size(); i++) {
             final var key = List.copyOf(targetSegments.subList(0, i));
@@ -155,11 +160,27 @@ public final class SeedGraph implements Stage {
                 graph.addNode(fresh);
                 final var edge = Edge.seed(fresh, prev, Optional.of(directive.getMirror()), Optional.empty());
                 graph.addEdge(edge);
-                registerSeedGroup(graph, edge);
+                targetChildren
+                        .computeIfAbsent(prev, p -> new java.util.ArrayList<>())
+                        .add(fresh);
                 return fresh;
             });
         }
         return previous;
+    }
+
+    /**
+     * Registers one consolidated assembly seed group per target node that has children: {@code root = the target
+     * node}, {@code slots = all its child target leaves}. The driver produces such a root via an assembly strategy
+     * (e.g. ConstructorCall) bound to those leaves. This replaces the old per-edge target-chain seed groups so a
+     * multi-arg constructor sees all its leaves at once.
+     */
+    private void registerAssemblyGroups(final MapperGraph graph, final Map<Node, List<Node>> targetChildren) {
+        targetChildren.forEach((parent, children) -> {
+            final var group = ExpansionGroup.of(
+                    parent, List.copyOf(children), PLACEHOLDER_CODEGEN, STRATEGY_FQN, Set.of(), graph);
+            graph.addGroup(group);
+        });
     }
 
     private void registerSeedGroup(final MapperGraph graph, final Edge seedEdge) {

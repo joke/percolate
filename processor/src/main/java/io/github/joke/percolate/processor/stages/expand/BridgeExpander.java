@@ -6,10 +6,10 @@ import java.util.ArrayList;
 import lombok.RequiredArgsConstructor;
 
 /**
- * The fallback expander for any group that is neither a path-segment nor a directive-binding group: the
- * GroupTarget-built and bridge-spawned sub-groups that form the bulk of expansion. It resolves each slot via
- * {@link SlotResolver} (bridge match, then GroupTarget fallback), collecting the emitted bundles. The group is
- * SAT only when every slot resolves; unresolved slots are returned as pending for the next pass.
+ * The fallback expander for any non-seed sub-group spawned during expansion (the BOUNDARY-spawned conversion,
+ * method-call, container and constructor sub-groups). It resolves each slot via {@link SlotResolver} (the single
+ * strategy round, or a base case), collecting the emitted bundles. The group is SAT only when every slot resolves;
+ * unresolved slots are returned as pending for the next pass.
  */
 @RequiredArgsConstructor
 final class BridgeExpander implements GroupExpander {
@@ -18,7 +18,9 @@ final class BridgeExpander implements GroupExpander {
 
     @Override
     public boolean appliesTo(final ExpansionGroup group) {
-        return !GroupShapes.isPathSegment(group) && !GroupShapes.isDirectiveBinding(group);
+        return !GroupShapes.isSourceDescent(group)
+                && !GroupShapes.isAssembly(group)
+                && !GroupShapes.isDirectiveBinding(group);
     }
 
     @Override

@@ -17,17 +17,14 @@ import io.github.joke.percolate.processor.stages.dump.DumpTransforms;
 import io.github.joke.percolate.processor.stages.expand.ExpandGroupsPhase;
 import io.github.joke.percolate.processor.stages.expand.ExpandStage;
 import io.github.joke.percolate.processor.stages.expand.ExpansionPhase;
-import io.github.joke.percolate.processor.stages.expand.ResolveTargetChainsPhase;
 import io.github.joke.percolate.processor.stages.generate.AssembleMapperType;
 import io.github.joke.percolate.processor.stages.generate.BuildMethodBodies;
 import io.github.joke.percolate.processor.stages.generate.GenerateStage;
 import io.github.joke.percolate.processor.stages.seed.SeedGraph;
 import io.github.joke.percolate.processor.stages.validate.ValidateNoDuplicateTargets;
 import io.github.joke.percolate.processor.stages.validate.ValidateSourceParameters;
-import io.github.joke.percolate.spi.Bridge;
 import io.github.joke.percolate.spi.CallableMethods;
-import io.github.joke.percolate.spi.GroupTarget;
-import io.github.joke.percolate.spi.PathSegmentResolver;
+import io.github.joke.percolate.spi.ExpansionStrategy;
 import io.github.joke.percolate.spi.ResolveCtx;
 import jakarta.inject.Inject;
 import jakarta.inject.Named;
@@ -153,26 +150,20 @@ public final class ProcessorModule {
     }
 
     public static ExpandStage assembleExpansionPipeline(
-            final List<Bridge> bridges,
-            final List<GroupTarget> groupTargets,
-            final List<PathSegmentResolver> pathSegmentResolvers,
+            final List<ExpansionStrategy> strategies,
             final ResolveCtx resolveCtx,
             final NullabilityResolver nullabilityResolver) {
-        final var targetPhase = new ResolveTargetChainsPhase(groupTargets, resolveCtx);
-        final var groupsPhase =
-                ExpandGroupsPhase.create(bridges, groupTargets, pathSegmentResolvers, resolveCtx, nullabilityResolver);
-        final var phases = List.of(targetPhase, groupsPhase);
+        final var groupsPhase = ExpandGroupsPhase.create(strategies, resolveCtx, nullabilityResolver);
+        final List<ExpansionPhase> phases = List.of(groupsPhase);
         return new ExpandStage(phases);
     }
 
     @Provides
     ExpandStage expandStage(
-            final List<Bridge> bridges,
-            final List<GroupTarget> groupTargets,
-            final List<PathSegmentResolver> pathSegmentResolvers,
+            final List<ExpansionStrategy> strategies,
             final ResolveCtx resolveCtx,
             final NullabilityResolver nullabilityResolver) {
-        return assembleExpansionPipeline(bridges, groupTargets, pathSegmentResolvers, resolveCtx, nullabilityResolver);
+        return assembleExpansionPipeline(strategies, resolveCtx, nullabilityResolver);
     }
 
     @Provides
@@ -258,36 +249,19 @@ public final class ProcessorModule {
         return List.copyOf(all);
     }
 
+    /**
+     * The single {@link ExpansionStrategy} list, loaded once and tried as one round each pass (no kind-ordering).
+     * Ordered by {@link ExpansionStrategy#priority()} then FQN for deterministic, stable expansion.
+     */
     @Singleton
     @Provides
-    static List<GroupTarget> groupTargets() {
+    static List<ExpansionStrategy> expansionStrategies() {
         return StreamSupport.stream(
-                        ServiceLoader.load(GroupTarget.class, ProcessorModule.class.getClassLoader())
+                        ServiceLoader.load(ExpansionStrategy.class, ProcessorModule.class.getClassLoader())
                                 .spliterator(),
                         false)
-                .sorted((a, b) -> a.getClass().getName().compareTo(b.getClass().getName()))
-                .collect(java.util.stream.Collectors.toUnmodifiableList());
-    }
-
-    @Singleton
-    @Provides
-    static List<Bridge> bridgeStrategies() {
-        return StreamSupport.stream(
-                        ServiceLoader.load(Bridge.class, ProcessorModule.class.getClassLoader())
-                                .spliterator(),
-                        false)
-                .sorted((a, b) -> a.getClass().getName().compareTo(b.getClass().getName()))
-                .collect(java.util.stream.Collectors.toUnmodifiableList());
-    }
-
-    @Singleton
-    @Provides
-    static List<PathSegmentResolver> pathSegmentResolvers() {
-        return StreamSupport.stream(
-                        ServiceLoader.load(PathSegmentResolver.class, ProcessorModule.class.getClassLoader())
-                                .spliterator(),
-                        false)
-                .sorted((a, b) -> a.getClass().getName().compareTo(b.getClass().getName()))
+                .sorted(java.util.Comparator.comparingInt(ExpansionStrategy::priority)
+                        .thenComparing(strategy -> strategy.getClass().getName()))
                 .collect(java.util.stream.Collectors.toUnmodifiableList());
     }
 

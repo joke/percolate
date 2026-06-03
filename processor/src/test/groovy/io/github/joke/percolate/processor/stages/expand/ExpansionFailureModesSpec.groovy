@@ -2,7 +2,7 @@ package io.github.joke.percolate.processor.stages.expand
 
 import io.github.joke.percolate.processor.graph.*
 import io.github.joke.percolate.processor.test.ExpansionHarness
-import io.github.joke.percolate.spi.Bridge
+import io.github.joke.percolate.spi.ExpansionStrategy
 import io.github.joke.percolate.spi.test.TypeUniverse
 import spock.lang.Specification
 import spock.lang.Tag
@@ -15,12 +15,12 @@ import java.util.stream.Stream
 @Timeout(30)
 class ExpansionFailureModesSpec extends Specification {
 
-    private static final Bridge NO_OP_BRIDGE = { from, to, ctx -> Stream.empty() } as Bridge
+    private static final ExpansionStrategy NO_OP_STRATEGY = { frontier, ctx -> Stream.empty() } as ExpansionStrategy
 
     def 'no-path diagnostic fires when no strategy chain exists'() {
         given:
         def seed = incompatibleTypeSeed(TypeUniverse.STRING, TypeUniverse.LONG)
-        def result = ExpansionHarness.expand(seed, List.of(NO_OP_BRIDGE), List.of())
+        def result = ExpansionHarness.expand(seed, List.of(NO_OP_STRATEGY))
 
         when:
         def hasNoProducer = result.diagnostics().any { it.toLowerCase().contains('no producer') }
@@ -32,7 +32,7 @@ class ExpansionFailureModesSpec extends Specification {
     def 'nested SEED edges are processed as independent subgraphs'() {
         given:
         def seed = incompatibleTypeSeed(TypeUniverse.INT, TypeUniverse.STRING)
-        def result = ExpansionHarness.expand(seed, List.of(NO_OP_BRIDGE), List.of())
+        def result = ExpansionHarness.expand(seed, List.of(NO_OP_STRATEGY))
 
         when:
         // With the new target-driven model, an unresolvable group becomes UNSAT
@@ -45,7 +45,7 @@ class ExpansionFailureModesSpec extends Specification {
     @Unroll
     def 'expansion produces a diagnostic-bearing result for #scenario'() {
         when:
-        def result = ExpansionHarness.expand(seed, List.of(NO_OP_BRIDGE), List.of())
+        def result = ExpansionHarness.expand(seed, List.of(NO_OP_STRATEGY))
 
         then:
         result.diagnostics() != null

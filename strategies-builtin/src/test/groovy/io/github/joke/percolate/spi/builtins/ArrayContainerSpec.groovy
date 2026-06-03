@@ -2,8 +2,8 @@ package io.github.joke.percolate.spi.builtins
 
 import com.palantir.javapoet.CodeBlock
 import io.github.joke.percolate.spi.ContainerCodegen
+import io.github.joke.percolate.spi.ElementScope
 import io.github.joke.percolate.spi.ResolveCtx
-import io.github.joke.percolate.spi.ScopeTransition
 import io.github.joke.percolate.spi.builtins.test.ResolveCtxBuilder
 import io.github.joke.percolate.spi.test.TypeUniverse
 import spock.lang.Shared
@@ -28,9 +28,9 @@ class ArrayContainerSpec extends Specification {
 
         then:
         steps.size() == 1
-        steps[0].scopeTransition == ScopeTransition.EXITING
+        steps[0].scope.orElse(null) == ElementScope.EXITING
         steps[0].codegen instanceof ContainerCodegen
-        ctx.types().isSameType(steps[0].inputType, TypeUniverse.STRING)
+        ctx.types().isSameType(steps[0].inputs[0].type, TypeUniverse.STRING)
     }
 
     def 'array source emits an ENTERING iterate'() {
@@ -39,8 +39,8 @@ class ArrayContainerSpec extends Specification {
 
         then:
         steps.size() == 1
-        steps[0].scopeTransition == ScopeTransition.ENTERING
-        ctx.types().isSameType(steps[0].outputType, TypeUniverse.STRING)
+        steps[0].scope.orElse(null) == ElementScope.ENTERING
+        ctx.types().isSameType(steps[0].output, TypeUniverse.STRING)
     }
 
     def 'iterate / collect render the array paradigm'() {

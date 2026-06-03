@@ -8,7 +8,7 @@ import io.github.joke.percolate.spi.ContainerCodegen
 import io.github.joke.percolate.spi.EdgeCodegen
 import io.github.joke.percolate.spi.GroupCodegen
 import io.github.joke.percolate.spi.Nullability
-import io.github.joke.percolate.spi.ScopeTransition
+import io.github.joke.percolate.spi.ElementScope
 import io.github.joke.percolate.spi.WrapperCodegen
 import io.github.joke.percolate.spi.Weights
 import io.github.joke.percolate.spi.test.TypeUniverse
@@ -58,9 +58,9 @@ class ContainerWeavingSpec extends Specification {
         def elemOut = node(scope, new ElementLocation())
         def root = node(scope, returnRootLoc())
         [src, elemIn, elemOut, root].each { graph.addNode(it) }
-        graph.addEdge(Edge.realised(src, elemIn, Weights.CONTAINER, SEQ, ScopeTransition.ENTERING, 'Seq'))
+        graph.addEdge(Edge.realised(src, elemIn, Weights.CONTAINER, SEQ, ElementScope.ENTERING, 'Seq'))
         graph.addEdge(Edge.realised(elemIn, elemOut, Weights.STEP, MAP_X, 'MapX'))
-        graph.addEdge(Edge.realised(elemOut, root, Weights.CONTAINER, SEQ, ScopeTransition.EXITING, 'Seq'))
+        graph.addEdge(Edge.realised(elemOut, root, Weights.CONTAINER, SEQ, ElementScope.EXITING, 'Seq'))
 
         expect:
         body(graph, method) == 'return p.stream().map(v0 -> mapX(v0)).collect(toList());'
@@ -74,15 +74,15 @@ class ContainerWeavingSpec extends Specification {
         def src = node(scope, sourceLoc('o'))
         def root = typedNode(scope, returnRootLoc(), nullability)
         [src, root].each { graph.addNode(it) }
-        graph.addEdge(Edge.realised(src, root, Weights.CONTAINER, WRAP, ScopeTransition.ENTERING, 'Opt'))
+        graph.addEdge(Edge.realised(src, root, Weights.CONTAINER, WRAP, ElementScope.ENTERING, 'Opt'))
 
         expect:
         body(graph, method) == expected
 
         where:
-        nullability            || expected
-        Nullability.NON_NULL   || 'return o.orElseThrow();'
-        Nullability.NULLABLE   || 'return o.orElse(null);'
+        nullability            | expected
+        Nullability.NON_NULL   | 'return o.orElseThrow();'
+        Nullability.NULLABLE   | 'return o.orElse(null);'
     }
 
     def 'wrapper inside a sequence flat-maps (FilterPresent) then maps and collects'() {
@@ -96,10 +96,10 @@ class ContainerWeavingSpec extends Specification {
         def elemY = node(scope, new ElementLocation())
         def root = node(scope, returnRootLoc())
         [src, elemOpt, elemX, elemY, root].each { graph.addNode(it) }
-        graph.addEdge(Edge.realised(src, elemOpt, Weights.CONTAINER, SEQ, ScopeTransition.ENTERING, 'Seq'))
-        graph.addEdge(Edge.realised(elemOpt, elemX, Weights.CONTAINER, WRAP, ScopeTransition.ENTERING, 'Opt'))
+        graph.addEdge(Edge.realised(src, elemOpt, Weights.CONTAINER, SEQ, ElementScope.ENTERING, 'Seq'))
+        graph.addEdge(Edge.realised(elemOpt, elemX, Weights.CONTAINER, WRAP, ElementScope.ENTERING, 'Opt'))
         graph.addEdge(Edge.realised(elemX, elemY, Weights.STEP, MAP_X, 'MapX'))
-        graph.addEdge(Edge.realised(elemY, root, Weights.CONTAINER, SEQ, ScopeTransition.EXITING, 'Seq'))
+        graph.addEdge(Edge.realised(elemY, root, Weights.CONTAINER, SEQ, ElementScope.EXITING, 'Seq'))
 
         expect:
         body(graph, method) ==
@@ -116,9 +116,9 @@ class ContainerWeavingSpec extends Specification {
         def elemOut = node(scope, new ElementLocation())
         def root = typedNode(scope, returnRootLoc(), Nullability.NULLABLE)
         [src, elemIn, elemOut, root].each { graph.addNode(it) }
-        graph.addEdge(Edge.realised(src, elemIn, Weights.CONTAINER, SEQ, ScopeTransition.ENTERING, 'Seq'))
+        graph.addEdge(Edge.realised(src, elemIn, Weights.CONTAINER, SEQ, ElementScope.ENTERING, 'Seq'))
         graph.addEdge(Edge.realised(elemIn, elemOut, Weights.STEP, MAP_X, 'MapX'))
-        graph.addEdge(Edge.realised(elemOut, root, Weights.CONTAINER, SEQ, ScopeTransition.EXITING, 'Seq'))
+        graph.addEdge(Edge.realised(elemOut, root, Weights.CONTAINER, SEQ, ElementScope.EXITING, 'Seq'))
 
         expect:
         body(graph, method) == 'return p.stream().map(v0 -> mapX(v0)).collect(toList());'
@@ -135,7 +135,7 @@ class ContainerWeavingSpec extends Specification {
         def elem = node(scope, new ElementLocation())
         def root = node(scope, returnRootLoc())
         [src, elem, root].each { graph.addNode(it) }
-        graph.addEdge(Edge.realised(src, elem, Weights.CONTAINER, SEQ, ScopeTransition.ENTERING, 'Seq'))
+        graph.addEdge(Edge.realised(src, elem, Weights.CONTAINER, SEQ, ElementScope.ENTERING, 'Seq'))
         def convEdge = Edge.realised(elem, root, Weights.STEP, MAP_X, 'Conv')
         graph.addEdge(convEdge)
 
@@ -156,7 +156,7 @@ class ContainerWeavingSpec extends Specification {
         def src = node(scope, sourceLoc('o'))
         def root = typedNode(scope, returnRootLoc(), Nullability.NULLABLE)
         [src, root].each { graph.addNode(it) }
-        graph.addEdge(Edge.realised(src, root, Weights.CONTAINER, WRAP, ScopeTransition.ENTERING, 'Opt'))
+        graph.addEdge(Edge.realised(src, root, Weights.CONTAINER, WRAP, ElementScope.ENTERING, 'Opt'))
 
         expect:
         body(graph, method) == 'return o.orElse(null);'

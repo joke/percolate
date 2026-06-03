@@ -1,5 +1,6 @@
 package io.github.joke.percolate.processor.graph;
 
+import io.github.joke.percolate.spi.Directive;
 import io.github.joke.percolate.spi.Nullability;
 import java.util.Optional;
 import javax.lang.model.type.TypeMirror;
@@ -15,6 +16,14 @@ public final class Node implements Comparable<Node> {
     private final Scope scope;
     private final Optional<Node> parent;
 
+    /**
+     * The {@code @Map} {@link Directive} in effect for the frontier this node was synthesized for. Populated by
+     * the {@code Applier} when it synthesizes the input node of a {@code CONVERSION} step, so a downstream
+     * strategy reads its per-binding configuration from local context (see design D5). Empty for nodes that did
+     * not inherit a directive (boundary slots, seed roots/leaves).
+     */
+    private Optional<Directive> directive = Optional.empty();
+
     public Node(final Optional<TypeMirror> type, final Location loc, final Scope scope) {
         this(type, loc, scope, Optional.empty());
     }
@@ -25,6 +34,14 @@ public final class Node implements Comparable<Node> {
         this.loc = loc;
         this.scope = scope;
         this.parent = parent;
+    }
+
+    /**
+     * Stamps the in-effect {@link Directive} onto this node. Called once, by the {@code Applier}, when the node
+     * is synthesized as the input of a {@code CONVERSION} step (directive propagation, design D5).
+     */
+    public void inheritDirective(final Directive inherited) {
+        this.directive = Optional.of(inherited);
     }
 
     public void setTyping(final TypeMirror newType, final Nullability newNullability) {

@@ -1,6 +1,6 @@
 package io.github.joke.percolate.spi.builtins
 
-import io.github.joke.percolate.spi.ScopeTransition
+import io.github.joke.percolate.spi.Intent
 import io.github.joke.percolate.spi.Weights
 import io.github.joke.percolate.spi.builtins.test.ResolveCtxBuilder
 import io.github.joke.percolate.spi.test.TypeUniverse
@@ -10,7 +10,7 @@ import spock.lang.Tag
 @Tag('unit')
 class DirectAssignSpec extends Specification {
 
-    def 'returns step for same-type assignment'() {
+    def 'returns a CONVERSION step for same-type assignment'() {
         given:
         def ctx = new ResolveCtxBuilder().build()
 
@@ -19,10 +19,12 @@ class DirectAssignSpec extends Specification {
 
         then:
         steps.size() == 1
-        steps[0].inputType == TypeUniverse.STRING
-        steps[0].outputType == TypeUniverse.STRING
+        steps[0].intent == Intent.CONVERSION
+        steps[0].scope.empty
+        steps[0].inputs.size() == 1
+        steps[0].inputs[0].type == TypeUniverse.STRING
+        steps[0].output == TypeUniverse.STRING
         steps[0].weight == Weights.NOOP
-        steps[0].scopeTransition == ScopeTransition.PRESERVING
     }
 
     def 'returns empty when types are distinct'() {

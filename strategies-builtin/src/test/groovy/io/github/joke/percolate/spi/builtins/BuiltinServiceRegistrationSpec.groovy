@@ -1,8 +1,6 @@
 package io.github.joke.percolate.spi.builtins
 
-import io.github.joke.percolate.spi.Bridge
-import io.github.joke.percolate.spi.GroupTarget
-import io.github.joke.percolate.spi.PathSegmentResolver
+import io.github.joke.percolate.spi.ExpansionStrategy
 import spock.lang.Specification
 import spock.lang.Tag
 
@@ -11,56 +9,48 @@ import java.util.stream.Collectors
 @Tag('unit')
 class BuiltinServiceRegistrationSpec extends Specification {
 
-    def 'ServiceLoader discovers all expected Bridge builtins'() {
+    def 'ServiceLoader discovers every builtin under the unified ExpansionStrategy type'() {
         expect:
-        final discovered = ServiceLoader.load(Bridge).stream()
+        final discovered = ServiceLoader.load(ExpansionStrategy).stream()
                 .map { it.get().class.name }
                 .collect(Collectors.toSet())
 
+        // Conversions and assembly
         discovered.contains('io.github.joke.percolate.spi.builtins.DirectAssign')
         discovered.contains('io.github.joke.percolate.spi.builtins.MethodCallBridge')
+        discovered.contains('io.github.joke.percolate.spi.builtins.ConstructorCall')
+
+        // Containers (the nine per-operation bridges were consolidated into these four)
         discovered.contains('io.github.joke.percolate.spi.builtins.ListContainer')
         discovered.contains('io.github.joke.percolate.spi.builtins.SetContainer')
         discovered.contains('io.github.joke.percolate.spi.builtins.ArrayContainer')
         discovered.contains('io.github.joke.percolate.spi.builtins.OptionalContainer')
 
-        // The nine per-operation container bridges were consolidated into the four container classes above.
+        // Path resolvers (formerly the separate PathSegmentResolver service)
+        discovered.contains('io.github.joke.percolate.spi.builtins.GetterPathResolver')
+        discovered.contains('io.github.joke.percolate.spi.builtins.FieldPathResolver')
+        discovered.contains('io.github.joke.percolate.spi.builtins.MethodPathResolver')
+    }
+
+    def 'the retired per-operation and per-SPI builtins are gone'() {
+        expect:
+        final discovered = ServiceLoader.load(ExpansionStrategy).stream()
+                .map { it.get().class.name }
+                .collect(Collectors.toSet())
+
         !discovered.contains('io.github.joke.percolate.spi.builtins.IterableUnwrap')
         !discovered.contains('io.github.joke.percolate.spi.builtins.OptionalUnwrap')
         !discovered.contains('io.github.joke.percolate.spi.builtins.SetCollect')
         !discovered.contains('io.github.joke.percolate.spi.builtins.ListCollect')
         !discovered.contains('io.github.joke.percolate.spi.builtins.ListWrap')
         !discovered.contains('io.github.joke.percolate.spi.builtins.GetterRead')
-    }
-
-    def 'ServiceLoader discovers all expected GroupTarget builtins'() {
-        expect:
-        final discovered = ServiceLoader.load(GroupTarget).stream()
-                .map { it.get().class.name }
-                .collect(Collectors.toSet())
-
-        discovered.contains('io.github.joke.percolate.spi.builtins.ConstructorCall')
-    }
-
-    def 'ServiceLoader discovers all expected PathSegmentResolver builtins'() {
-        expect:
-        final discovered = ServiceLoader.load(PathSegmentResolver).stream()
-                .map { it.get().class.name }
-                .collect(Collectors.toSet())
-
-        discovered.contains('io.github.joke.percolate.spi.builtins.GetterPathResolver')
-        discovered.contains('io.github.joke.percolate.spi.builtins.FieldPathResolver')
-        discovered.contains('io.github.joke.percolate.spi.builtins.MethodPathResolver')
         !discovered.contains('io.github.joke.percolate.spi.builtins.RecordPathResolver')
     }
 
     def 'spec does not import from processor package'() {
         expect:
-        // This is a structural assertion verified by the test not compiling
-        // if any processor imports are added. The class only imports from:
-        // - io.github.joke.percolate.spi (strategy interfaces)
-        // - spock.lang (testing framework)
-        // - java.util.stream (standard library)
+        // Structural assertion verified by the test compiling: the class imports only from
+        // io.github.joke.percolate.spi, spock.lang, and java.util.stream.
         true
     }
 }

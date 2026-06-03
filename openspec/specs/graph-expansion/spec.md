@@ -49,36 +49,6 @@ Phases SHALL be testable in isolation by populating a `MapperGraph` to the state
 - **WHEN** a phase runs on a graph containing `n` SEED edges
 - **THEN** all `n` SEED edges remain in the graph after the phase completes
 
-### Requirement: ResolveTargetChainsPhase scaffolds target chains and ExpansionGroups
-
-`ResolveTargetChainsPhase` SHALL iterate every `Node` in the graph whose `Location` is a `TargetLocation` with empty path segments and whose `type` is present — the return-root nodes (one per `@Map`-target return). For each return root, the phase SHALL:
-
-1. Find leaf target nodes by BFS over incoming SEED edges within `TargetLocation` space, collecting nodes with no further incoming SEED edges and whose `type` is empty.
-2. Extract `targetTails` — the deepest path segments of each leaf — to feed into `GroupTarget.buildFor(returnType, targetTails, ctx)`.
-3. For every registered `GroupTarget` whose `buildFor` returns a non-empty `GroupBuild`, allocate one **untyped** slot `Node` per `Slot` and emit a REALISED edge from each slot to the return root. Slot Nodes SHALL be created with both `type` and `nullability` empty; the slot is typed by its producer's match at a later expansion phase via `Node.setTyping(...)`. `Slot.type` (the consumer-side expected type) drives subsequent candidate search but is NOT written to `Node.type` at slot-creation time.
-4. Register one parent `ExpansionGroup` per `GroupTarget` match, rooted at the return root, with the slots as members and the slot→root REALISED edges in `initialEdges`. The parent group joins the graph's group list.
-
-`ResolveTargetChainsPhase` SHALL NOT emit MARKER edges from typed slots to the corresponding untyped seed leaves; `SeedGraph` is responsible for the directive-binding group that links the typed slot to the untyped source-leaf side (see `seed-graph`).
-
-`ResolveTargetChainsPhase` SHALL NOT emit any directive-binding REALISED edge or register any directive-binding sub-group; both are now registered by `SeedGraph` as one group per SEED edge.
-
-Phase mutation SHALL be committed via `MapperGraph.apply(GraphDelta)` for node/edge additions and `MapperGraph.addGroup(...)` for group registrations. Groups SHALL be registered AFTER all nodes/edges are added.
-
-#### Scenario: Return root with one constructor candidate registers parent group only
-- **WHEN** the graph contains return root `tgt[]:Human` and `ConstructorCall.buildFor(Human, [addresses, firstName, lastName], ctx)` emits a `GroupBuild` with three slots
-- **THEN** three slot nodes are allocated and added (with `TargetLocation` paths matching the slot names)
-- **AND** every slot node has `type` empty and `nullability` empty at the end of this phase
-- **AND** three REALISED edges are emitted from each slot to the return root
-- **AND** one parent `ExpansionGroup` is registered with the return root as root, three slots, and three initial REALISED edges
-- **AND** no directive-binding REALISED edge is emitted by this phase
-- **AND** no nested directive-binding `ExpansionGroup` is registered by this phase
-
-#### Scenario: Slot.type is not propagated to Node.type at slot creation
-- **WHEN** `ResolveTargetChainsPhase` constructs a slot Node for `Slot(name="firstName", type=String, weight=1, producedFrom=ctorParam)`
-- **THEN** the slot Node's `getType()` returns `Optional.empty()`
-- **AND** the slot Node's `getNullability()` returns `Optional.empty()`
-- **AND** `Slot.type` remains reachable via the slot's `Slot` reference for candidate-search purposes
-
 ### Requirement: Slot Nodes are typed at producer commit
 
 Slot `Node`s allocated by `ResolveTargetChainsPhase` (top-level) and emitted as `AddNode` deltas during expansion — by `InputAllocator` for `Bridge` matches and by `SlotResolver`'s `GroupTarget` fallback for multi-slot matches — SHALL be created with both `type` and `nullability` empty. They SHALL be typed when their producer commits (a `TypeNode` delta applied by the `Applier`) — exactly the same lifecycle that path-segment-group roots already follow (see "Path-segment-group resolution via PathSegmentResolver").
@@ -289,131 +259,95 @@ This rule replaces the global `SourceReachability.sourceParameterRoots(graph)` a
 - **WHEN** a group has slot at `TargetLocation` or `ElementLocation`
 - **THEN** the slot is NOT base-case SAT regardless of its segments
 
-### Requirement: Path-segment-group resolution via PathSegmentResolver
-
-`PathSegmentExpander` SHALL recognise **path-segment groups** by their structural shape and SHALL invoke `PathSegmentResolver` strategies to type and SAT them. A group `G` is a path-segment group iff:
-- `G.root.loc` is a `SourceLocation`, AND
-- `G.slots.size() == 1` and `G.slots[0].loc` is a `SourceLocation`, AND
-- `G.root.loc.path.segments` equals `G.slots[0].loc.path.segments` with exactly one additional segment appended.
-
-`PathSegmentExpander.appliesTo(group)` SHALL return true iff `G` is a path-segment group by the above shape.
-
-`PathSegmentExpander.step(group, snapshot)` SHALL iterate registered `PathSegmentResolver`s in `Class.getName()` ascending order and call `resolve(slot.type.get(), <appendedSegment>, ctx)`. The first non-empty `ResolvedSegment` `rs` SHALL produce a single `DeltaBundle` containing:
-
-1. `TypeNode(root, rs.getReturnType(), rs.getProducedFrom())` — types the root via the applier (`Node.setTyping` is invoked there).
-2. `AddEdge(slot → root REALISED)` with `weight = rs.getWeight()`, `codegen = rs.getCodegen()`, `strategyClassFqn = <resolver-class-FQN>`.
-3. `AddEdgeToView(group, <the just-added edge>)`.
-
-After applying, `PathSegmentExpander.step` SHALL return `pendingSlots = []` (group SAT). If no resolver matches, the expander SHALL return `pendingSlots = [slot]` and emit no bundles; eventual fixed-point convergence records `unsatNoPlan` for the group.
-
-`PathSegmentResolver`s SHALL NOT be invoked at seed time; `SeedGraph` retires the seed-time path-walking algorithm.
-
-#### Scenario: GetterPathResolver types a path-segment group's root
-- **WHEN** a path-segment group has `root = src[person.addresses]:?`, `slot = src[person]:Person`
-- **AND** `GetterPathResolver.resolve(Person, "addresses", ctx)` returns `Optional.of(ResolvedSegment(List<Optional<PA>>, codegen, Weights.STEP, getterMethod))`
-- **THEN** `PathSegmentExpander.step` emits a bundle containing `TypeNode(root, List<Opt<PA>>, getterMethod)`, `AddEdge(slot → root)`, `AddEdgeToView(group, edge)`
-- **AND** after applier run, the root's type is `List<Optional<PA>>` and a REALISED edge exists from `src[person]` to `src[person.addresses]`
-
-#### Scenario: No resolver matches; path-segment group is UNSAT_NO_PLAN
-- **WHEN** a path-segment group has `root = src[person.weirdSegment]:?`, `slot = src[person]:Person`
-- **AND** no registered resolver matches `(Person, "weirdSegment", ctx)`
-- **THEN** `PathSegmentExpander.step` returns `(bundles = [], pendingSlots = [slot])`
-- **AND** at fixed-point convergence the group's outcome is `unsatNoPlan`
-
-#### Scenario: Path-segment recognition by structural shape
-- **WHEN** an `ExpansionGroup` has `root.loc = SourceLocation(["person", "addresses"])`, `slot.loc = SourceLocation(["person"])`
-- **THEN** `PathSegmentExpander.appliesTo(group)` returns true
-
 ### Requirement: Candidate search scoped to current group's view
 
-`FrontierMatcher` SHALL source candidate input nodes from `snapshot.viewOf(group).vertexSet()`, excluding the frontier itself and excluding any node whose `Location` is a `TargetLocation`. No global scan over `snapshot.allNodes()` or any equivalent SHALL occur during candidate search.
+The driver SHALL source candidate input nodes from the current group's view (`snapshot.viewOf(group).vertexSet()`), excluding the frontier itself and excluding any node whose `Location` is a `TargetLocation`, and expose them to strategies only as the flat `frontier.candidates()` snapshot. No global scan over `snapshot.allNodes()` or any equivalent SHALL occur during candidate search, and no strategy SHALL receive the view or the graph itself.
 
-The view-scoped search is the structural fix for sibling-leak cross-group cycles and multi-parameter directive ambiguity. Combined with `Node` instance-identity (see `graph-model`) and narrow boundary import (only `SourceLocation` nodes inherit from the parent group's view), it prevents *sibling-derived nodes* from being picked up as candidates. Inverse-bridge same-loc reuse (e.g. `OptionalWrap` after `OptionalUnwrap`) can still attempt cycle-closing matches by reusing the current group's root via input-type matching; those are rejected at applier-time via the cycle check in the "DeltaBundle atomicity" requirement.
+The view-scoped search is the structural fix for sibling-leak cross-group cycles and multi-parameter directive ambiguity. Combined with `Node` instance-identity (see `graph-model`) and narrow boundary import (only `SourceLocation` nodes inherit from the parent group's view), it prevents *sibling-derived nodes* from being picked up as candidates. Cycle-closing matches (e.g. an inverse container step reusing the current group's root) can still be emitted; they are rejected at applier-time via the cycle check in "DeltaBundle atomicity".
 
 #### Scenario: Candidates come only from the current group's view
-- **WHEN** `FrontierMatcher.matchAt(frontier, group, snapshot)` is invoked
-- **THEN** the candidate stream contains only nodes from `snapshot.viewOf(group).vertexSet()`
-- **AND** the candidate stream excludes the frontier
-- **AND** the candidate stream excludes any node whose `Location` is a `TargetLocation`
+- **WHEN** the driver builds the `Frontier` for a frontier node in `group`
+- **THEN** `frontier.candidates()` contains only nodes from `snapshot.viewOf(group).vertexSet()`
+- **AND** excludes the frontier
+- **AND** excludes any node whose `Location` is a `TargetLocation`
 - **AND** no candidate is sourced from `snapshot.allNodes()` or `MapperGraph.nodes()` directly
 
 #### Scenario: Sibling sub-group nodes are invisible
 - **WHEN** the underlying `MapperGraph` contains a `Node` `X` that is a member of some sibling sub-group `S` but not of `snapshot.viewOf(currentGroup).vertexSet()`
-- **AND** `FrontierMatcher.matchAt(frontier, currentGroup, snapshot)` is invoked
-- **THEN** `X` is not a candidate considered by any `Bridge` query in that frontier's match
+- **AND** the driver builds the `Frontier` for a node in `currentGroup`
+- **THEN** `X` is not among `frontier.candidates()`
 
-### Requirement: Bridge edge-emission rule
+### Requirement: Single round-robin strategy invocation per pass
 
-For every `BridgeStep` returned by every `Bridge` query during `FrontierMatcher`'s candidate matching, the matcher SHALL apply the following rule and emit a single atomic `DeltaBundle` describing the commit:
+Each expansion pass SHALL try the one `List<ExpansionStrategy>` as a single round at every open frontier — there SHALL be no per-kind ordering (no "match strategies, then assembly strategies, then path resolvers"). The driver SHALL build a `Frontier` for the frontier node and invoke `expand(frontier, ctx)` on each strategy in list order (sorted by `priority()` then FQN), collecting the emitted `ExpansionStep`s.
 
-Let `F` be the frontier node (the node demanding an input) and `C` be a candidate node from `snapshot.viewOf(group).vertexSet()` (excluding `F`, excluding `TargetLocation` nodes). Given a `BridgeStep(inputType, outputType, weight, codegen, scopeTransition, elementRole, producedFrom)`:
+The return-assembly (a multi-slot `BOUNDARY` step) SHALL be resolved by data dependency within the cross-group fixed-point loop, not by a dedicated earlier phase. Target→source direction bounds the search, dead-end sub-groups are pruned, and the node budget bounds transient growth, so convergence holds without an explicit assembly-first phase.
 
-1. The matcher SHALL verify `step.outputType` equals `F`'s effective type (the producer-stamped type, or the group-expected type if the slot is still untyped). If not, the step is skipped.
+#### Scenario: strategies are tried as one unordered round
+- **WHEN** the driver expands a frontier
+- **THEN** every strategy in `List<ExpansionStrategy>` is offered the frontier in one round
+- **AND** no strategy kind is gated to run before another
 
-2. The matcher SHALL verify `step.scopeTransition` is compatible with the frontier's location: `PRESERVING` always matches; `ENTERING` matches only when `F.loc instanceof ElementLocation`; `EXITING` matches only when `F.loc` is NOT an `ElementLocation`. Incompatible steps are skipped.
+#### Scenario: assembly resolves by data dependency
+- **WHEN** a return value requires a multi-slot assembly whose slots are produced in later passes
+- **THEN** the assembly `BOUNDARY` step is committed and its slots resolve in subsequent passes via the fixed-point loop
+- **AND** the result is identical regardless of which pass first emitted the assembly step
 
-3. `InputAllocator` SHALL determine `inputNode`:
-   - For `PRESERVING`: if any candidate `C` in `snapshot.viewOf(group).vertexSet()` has `C.type` equal to `step.inputType` and `C.loc.equals(F.loc)`, use `C` (no `AddNode` delta). Otherwise, allocate a fresh `Node` and emit an `AddNode` delta for it.
-   - For `ENTERING`: if any candidate `C` exists with `C.type` equal to `step.inputType` and `C.loc` NOT an `ElementLocation`, use `C`. Otherwise, allocate fresh at `F.loc` (which is an `ElementLocation`) and emit an `AddNode` delta.
-   - For `EXITING`: allocate fresh at `ElementLocation(step.elementRole)` in `F.scope` and emit an `AddNode` delta.
+### Requirement: Driver deduplicates structurally-identical emitted steps
 
-4. If `inputNode.equals(F)` (would degenerate to a no-op), the step is skipped.
+Within a single frontier's expansion round the driver SHALL collapse `ExpansionStep`s that would produce an identical graph result — same emitting strategy, `intent`, element-`scope`, output type, and ordered input slot types — to a single committed step. This is required because `CombinatorialMatch.expand` offers each in-view candidate to the author's `bridge(from, to, ctx)`, yet a container's target-driven branches (wrap, and unwrap-by-synthesis of the wrapper type) ignore the `from` type and so emit the same step once per candidate; without dedup each duplicate opens a structurally identical, equal-cost twin sub-group that only the plan oracle later prunes.
 
-5. The matcher SHALL emit one `AddEdge` delta for a `REALISED` edge from `inputNode` to `F`, carrying `step.weight`, `step.codegen`, and the bridge's class FQN.
+`from`-dependent steps (genuine conversions, whose input type derives from the candidate) differ by input type and SHALL NOT be collapsed. The emitting strategy's identity is part of the signature, so two distinct strategies that happen to emit a coincident shape SHALL both remain.
 
-6. If `F.type` is empty (Path B untyped slot), the matcher SHALL emit a `TypeNode(F, step.outputType, <scope>)` delta. The `<scope>` is the bridge step's `producedFrom` (`Element`) when present; otherwise it falls back to `snapshot.currentMethod()` as a best-effort anchor.
+#### Scenario: a target-driven container step is emitted once despite multiple candidates
+- **WHEN** a frontier with multiple in-view candidates is offered to a container strategy whose unwrap/wrap branch ignores the candidate `from` type
+- **THEN** exactly one such `BOUNDARY` step is committed
+- **AND** only one sub-group is opened for it
 
-7. The matcher SHALL emit an `AddGroup` delta for a fresh one-slot nested `ExpansionGroup` (per the "Every bridge match spawns a one-slot nested ExpansionGroup" requirement). The nested group's initial view contains exactly `{F, inputNode, the just-emitted REALISED edge}`. Boundary import of parent `SourceLocation` nodes is carried on the `AddGroup` delta's `boundaryImports` field, not a separate `ImportToView` delta (a pure expander cannot reference a not-yet-built nested group, so boundary import ships as `AddGroup` ingredients — the taxonomy has five delta variants).
+#### Scenario: distinct-input conversions are not collapsed
+- **WHEN** a strategy emits two steps with different input slot types at one frontier
+- **THEN** both steps are committed
 
-All deltas in steps 3, 5, 6, 7 are emitted as a single atomic `DeltaBundle`. The applier accepts or rejects the bundle as a unit per the "DeltaBundle atomicity" requirement; cycle rejection of the `AddEdge` in step 5 drops the whole bundle, leaving no orphan input `Node` in the graph.
+### Requirement: Intent-driven fold versus subgroup at the single mutation site
 
-Fresh allocation uses instance-identity (per `graph-model`): every fresh-allocated input is a distinct `Node` object even when `(scope, loc, type)` would equal an existing graph node. Combined with narrow boundary import (only `SourceLocation` nodes inherit into spawned sub-groups), this prevents *sibling-derived* nodes from being picked up as candidates across groups. Inverse-bridge same-loc reuse (Wrap↔Unwrap pairs that reuse the parent group's root via input-type matching) still attempts cycle-closing matches; the applier's cycle check drops them.
+The driver SHALL branch on `ExpansionStep.intent` alone to decide graph shape:
 
-#### Scenario: Every match emits one REALISED edge + one sub-group as one bundle
-- **WHEN** a `BridgeStep` matches at frontier `F`
-- **THEN** the matcher emits one `DeltaBundle` containing one `AddEdge` delta (for the input → F REALISED edge) and one `AddGroup` delta (for the one-slot sub-group rooted at `F`)
-- **AND** the bundle may also contain `AddNode` (fresh input), `TypeNode` (if F was untyped), and `AddEdgeToView` deltas; boundary `SourceLocation` nodes ride on the `AddGroup` delta's `boundaryImports` field
+- For `intent == CONVERSION`: the driver SHALL add the synthesized input node and the realised edge into the **current** group's view (the same `AsSubgraph` the frontier belongs to). It SHALL NOT open a new `ExpansionGroup`. The new input node becomes a frontier resolved within that same view.
+- For `intent == BOUNDARY`: the driver SHALL open a new `ExpansionGroup` rooted at the frontier whose `slots` are the step's `inputs` (`0..N`), with the realised slot→frontier edges as its initial edges. Container boundaries carry the step's `ElementScope` onto the realised edge.
 
-#### Scenario: PRESERVING reuses same-loc candidate from current view
-- **WHEN** a `PRESERVING` step's `inputType` matches a candidate `C` in `snapshot.viewOf(group).vertexSet()` with `C.loc.equals(F.loc)`
-- **THEN** `inputNode = C` (no `AddNode` delta is emitted)
-- **AND** the bundle's `AddGroup` delta describes a one-slot sub-group with `C` as the slot
+All mutation SHALL continue to flow through the `Applier` as atomic `DeltaBundle`s.
 
-#### Scenario: ENTERING fresh-allocates at frontier's loc
-- **WHEN** an `ENTERING` step matches and no same-element-scope candidate exists in the current view
-- **THEN** the bundle includes an `AddNode` delta for the fresh input at `F.loc`
-- **AND** an `AddGroup` delta for a one-slot sub-group with the fresh node as the slot
+#### Scenario: CONVERSION folds into the current group
+- **WHEN** a strategy emits an `ExpansionStep` with `intent == CONVERSION` at frontier `F` in group `G`
+- **THEN** the synthesized input node and the realised input→`F` edge are added to `G`'s view
+- **AND** no new `ExpansionGroup` is created for the step
 
-#### Scenario: EXITING fresh-allocates at ElementLocation(elementRole)
-- **WHEN** an `EXITING` step matches at a regular-scope frontier
-- **THEN** the bundle includes an `AddNode` delta for the fresh input at `ElementLocation(step.elementRole)` in `F.scope`
-- **AND** an `AddGroup` delta for a one-slot sub-group
+#### Scenario: BOUNDARY opens a subgroup with the step's slots
+- **WHEN** a strategy emits an `ExpansionStep` with `intent == BOUNDARY` and `N` inputs at frontier `F`
+- **THEN** a new `ExpansionGroup` rooted at `F` with those `N` slots is created
+- **AND** its initial view contains `F`, the slot nodes, and the realised slot→`F` edges
 
-#### Scenario: Cycle-attempting inverse-bridge match is dropped without orphan
-- **WHEN** the matcher emits a bundle `{ AddNode(X), AddEdge(X → Y REALISED), AddGroup(nested) }` for a sub-group with `root = Y` where an existing REALISED edge `Y → X` is present
-- **AND** the applier's cycle check detects the cycle on the `AddEdge`
-- **THEN** the applier drops the entire bundle
-- **AND** `X` does NOT remain in `MapperGraph.nodes()` after the pass completes
-- **AND** the matcher proceeds to the next step in subsequent passes
+### Requirement: Conversion folding makes round-trips structural cycles
 
-### Requirement: Every bridge match spawns a one-slot nested ExpansionGroup
+Because consecutive `CONVERSION` steps share one group view, a conversion that re-derives a type already present at the frontier's location SHALL reuse the existing same-location, same-type node rather than minting a fresh one. A no-progress round-trip (e.g. box∘unbox) therefore closes a cycle in the REALISED projection and SHALL be rejected by the existing acyclicity check in "DeltaBundle atomicity". No type-recurrence or no-progress guard SHALL exist; the cycle check is sufficient.
 
-`BridgeExpander` (via `FrontierMatcher`) SHALL emit an `AddGroup` delta for **every** matching `BridgeStep`, regardless of `BridgeStep.scopeTransition`. The new group described by the delta SHALL have `root = frontier`, `slots = [inputNode]`, `initialEdges = {inputNode → frontier REALISED}`, `codegen = step.getCodegen()` lifted to a `GroupCodegen`, and `strategyClassFqn = <originating-bridge-FQN>`. The new group joins the snapshot of the next pass after the applier accepts the bundle.
+#### Scenario: box-then-unbox round-trip is rejected as a cycle
+- **WHEN** a `CONVERSION` chain at one location would re-derive a type already present at that location (a box∘unbox round-trip)
+- **THEN** the second step reuses the existing same-location node
+- **AND** the resulting realised edge closes a cycle that the applier's acyclicity check rejects
+- **AND** no separate type-recurrence guard is consulted
 
-The PRESERVING / ENTERING / EXITING split in input allocation is encapsulated in `InputAllocator`; the matcher's emission rule is uniform: every match becomes its own sub-group.
+### Requirement: Directive propagation onto synthesized conversion nodes
 
-#### Scenario: PRESERVING bridge match spawns a sub-group
-- **WHEN** `FrontierMatcher` matches a `BridgeStep` with `scopeTransition == PRESERVING`
-- **THEN** the emitted bundle contains an `AddGroup` delta with the frontier as root and the input as the sole slot
-- **AND** the parent group's view is NOT mutated to add the input node directly (the input node is not listed in the `AddGroup` delta's `boundaryImports`)
+The driver SHALL thread the in-effect `@Map` directive onto nodes it synthesizes as the input of a `CONVERSION` step, so a downstream strategy reading `frontier.directive()` sees the originating binding's configuration (source path/segment, patterns, default values). Nodes synthesized as the slots of a `BOUNDARY` step SHALL NOT inherit the parent's directive (a boundary crosses to a new value). Strategies SHALL NOT search for the directive; the driver supplies it via `Frontier`.
 
-#### Scenario: ENTERING bridge match spawns a sub-group
-- **WHEN** `FrontierMatcher` matches a `BridgeStep` with `scopeTransition == ENTERING`
-- **THEN** the emitted bundle contains an `AddGroup` delta with the frontier as root and the allocated element-scope input as its sole slot
+#### Scenario: a synthesized conversion node inherits the originating directive
+- **WHEN** a frontier carrying directive `D` is resolved by a `CONVERSION` step that synthesizes input node `X`
+- **THEN** the `Frontier` later built for `X` returns `D` from `directive()`
 
-#### Scenario: EXITING bridge match spawns a sub-group
-- **WHEN** `FrontierMatcher` matches a `BridgeStep` with `scopeTransition == EXITING`
-- **THEN** the emitted bundle contains an `AddGroup` delta with the frontier as root and the allocated element-scope input as its sole slot
+#### Scenario: boundary slots do not inherit the parent directive
+- **WHEN** a frontier carrying directive `D` is resolved by a `BOUNDARY` step that synthesizes slot nodes
+- **THEN** the `Frontier` built for a slot node does not return `D` from `directive()` solely by inheritance
 
 ### Requirement: Multi-fire per frontier; parallel sub-groups coexist
 
@@ -432,22 +366,6 @@ Within one `Bridge`, the first matching candidate wins — a single `Bridge` MAY
 - **WHEN** two sibling sub-groups exist at the same root and one's outcome is SAT, the other's is `unsatNoPlan`
 - **THEN** the parent slot is SAT via the alive sibling
 - **AND** the dead sibling remains in the graph with its outcome unchanged
-
-### Requirement: GroupTarget matches register nested groups via tryGroupTargets
-
-When `FrontierMatcher` produces no bridge match for a frontier, `BridgeExpander` SHALL fall back to `GroupTarget` strategies. For each registered `GroupTarget`, the expander SHALL call `groupTarget.buildFor(frontier.effectiveType, List.of(), ctx)`. The first non-empty `GroupBuild` SHALL produce a single atomic `DeltaBundle` containing:
-
-1. If `frontier.type` is empty (Path B nested slot), one `TypeNode(frontier, rootType, <scope>)` delta. The `<scope>` falls back to `snapshot.currentMethod()` since GroupTargets do not carry an `Element`.
-2. One `AddNode` delta per `Slot`, allocating a slot node with `Location = ElementLocation(slot.name)` and `Scope = frontier.scope`. Allocation uses instance-identity (fresh `Node` objects).
-3. One `AddEdge` delta per slot, for a REALISED edge from the slot to the frontier.
-4. One `AddGroup` delta for a multi-slot `ExpansionGroup` with `root = frontier`, `slots = the allocated nodes`, `initialEdges = the just-emitted REALISED edges`, including the slot-metadata mapping (`IdentityHashMap<Node, Slot>`).
-
-This is the multi-slot exception to the "every bridge match spawns a one-slot sub-group" rule — `GroupTarget` matches produce multi-slot groups because their codegen reads multiple inputs. The bundle is atomic per the "DeltaBundle atomicity" requirement.
-
-#### Scenario: GroupTarget match at frontier with no bridge match
-- **WHEN** the frontier is `elem:Human` and `FrontierMatcher` returns no match, but `ConstructorCall.buildFor(Human, [], ctx)` returns a non-empty `GroupBuild`
-- **THEN** `BridgeExpander` emits a bundle containing one `AddNode` delta per `Slot` (at `ElementLocation(slot.name)` in the frontier's scope), one `AddEdge` delta per slot (slot → frontier REALISED), and one `AddGroup` delta with the frontier as root and the slot nodes as slots
-- **AND** if `frontier.type` was empty before the match, the bundle also contains a `TypeNode(frontier, Human, currentMethod)` delta
 
 ### Requirement: GroupOutcome records per-group SAT/UNSAT verdicts
 
