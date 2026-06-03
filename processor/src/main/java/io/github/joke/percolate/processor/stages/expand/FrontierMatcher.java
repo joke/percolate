@@ -226,7 +226,12 @@ final class FrontierMatcher {
         throw new IllegalStateException("Unknown intent: " + step.getIntent());
     }
 
-    /** Folds a CONVERSION edge from an existing in-view candidate of the input type into {@code group}'s view. */
+    /**
+     * Folds a CONVERSION edge into {@code group}'s view, re-using an in-view node of the input type when one
+     * exists (type-dedup) or synthesizing a fresh type-keyed conversion frontier when none does (design E1/E2).
+     * A round-trip that re-derives a type already on the chain reuses its node and closes a cycle the
+     * {@link Applier} rejects.
+     */
     private Optional<DeltaBundle> convertBundle(
             final Node frontier,
             final ExpansionStep step,
@@ -234,19 +239,34 @@ final class FrontierMatcher {
             final ExpansionSnapshot snapshot,
             final String fqn) {
         final var inputType = step.getInputs().get(0).getType();
-        final var input = findInViewByType(inputType, frontier, group, snapshot);
-        if (input == null) {
-            return Optional.empty();
-        }
+        final var deltas = new ArrayList<Delta>();
+        final var input = reuseOrSynthesizeInput(inputType, frontier, group, snapshot, deltas);
         final var codegen = (EdgeCodegen) step.getCodegen();
         final var edge = Edge.realised(input, frontier, step.getWeight(), codegen, fqn);
-        final var deltas = new ArrayList<Delta>();
         deltas.add(new AddEdge(edge));
         deltas.add(new AddEdgeToView(group, edge));
         if (snapshot.typeOf(frontier).isEmpty()) {
             deltas.add(new TypeNode(frontier, step.getOutput(), snapshot.producerScopeOf(input)));
         }
         return Optional.of(new DeltaBundle(fqn, deltas));
+    }
+
+    /** Reuses the in-view node of {@code inputType}, or synthesizes one and registers it as a conversion frontier. */
+    private Node reuseOrSynthesizeInput(
+            final TypeMirror inputType,
+            final Node frontier,
+            final ExpansionGroup group,
+            final ExpansionSnapshot snapshot,
+            final List<Delta> deltas) {
+        final var existing = findInViewByType(inputType, frontier, group, snapshot);
+        if (existing != null) {
+            return existing;
+        }
+        final var synthesized =
+                new Node(Optional.of(inputType), frontier.getLoc(), frontier.getScope(), frontier.getParent());
+        deltas.add(new AddNode(synthesized, frontier.getDirective().orElse(null)));
+        deltas.add(new RegisterConversionFrontier(group, synthesized));
+        return synthesized;
     }
 
     /** Opens a new sub-group rooted at {@code frontier} with the step's slots. */
@@ -318,6 +338,12 @@ final class FrontierMatcher {
                 .orElse(null);
     }
 
+    /**
+     * Conversion-input dedup: the in-view node of {@code inputType}, excluding only the frontier itself. Unlike
+     * the boundary {@code InputAllocator} search this does NOT exclude {@link TargetLocation} — re-deriving a type
+     * already on the chain (incl. the target root) must reuse that node so a round-trip closes a cycle the
+     * {@link Applier} rejects, rather than synthesizing fresh nodes forever (design E1).
+     */
     @Nullable
     private Node findInViewByType(
             final TypeMirror inputType,
@@ -326,7 +352,6 @@ final class FrontierMatcher {
             final ExpansionSnapshot snapshot) {
         return snapshot.viewOf(group).vertexSet().stream()
                 .filter(node -> !node.equals(frontier))
-                .filter(node -> !(node.getLoc() instanceof TargetLocation))
                 .filter(node -> node.getType().isPresent())
                 .filter(node -> resolveCtx.types().isSameType(node.getType().get(), inputType))
                 .min(Comparator.comparing(Node::id))

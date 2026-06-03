@@ -30,15 +30,17 @@ final class DirectiveBindingExpander implements GroupExpander {
         final var root = group.getRoot();
         final var bundles = new ArrayList<DeltaBundle>();
         final var slotResolved = slotResolver.resolve(slot, group, snapshot, bundles);
-        final var rootProduced =
-                slotResolver.producedInView(root, group, snapshot) || slotResolver.hasSatChildAt(root, snapshot);
+        final var rootReachable = slotResolver.reachable(root, group, snapshot);
+        final var rootExpanded =
+                !snapshot.viewOf(group).incomingEdgesOf(root).isEmpty() || slotResolver.hasSatChildAt(root, snapshot);
         if (slotResolved
-                && !rootProduced
+                && !rootExpanded
                 && snapshot.effectiveTypeFor(root, group) != null
                 && !slotResolver.hasAnyChildAt(root, group, snapshot)) {
             bundles.addAll(frontierMatcher.matchAt(root, group, snapshot));
         }
-        if (slotResolved && rootProduced) {
+        slotResolver.expandConversionFrontiers(group, snapshot, bundles);
+        if (slotResolved && rootReachable) {
             return new GroupStepResult(bundles, List.of());
         }
         return new GroupStepResult(bundles, List.of(slotResolved ? root : slot));

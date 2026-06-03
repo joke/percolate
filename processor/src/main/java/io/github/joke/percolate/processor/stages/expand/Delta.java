@@ -23,5 +23,7 @@ public interface Delta {
         R visitTypeNode(TypeNode delta);
 
         R visitAddGroup(AddGroup delta);
+
+        R visitRegisterConversionFrontier(RegisterConversionFrontier delta);
     }
 }

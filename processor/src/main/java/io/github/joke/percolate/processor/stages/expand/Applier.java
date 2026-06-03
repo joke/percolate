@@ -114,6 +114,14 @@ final class Applier implements Delta.Visitor<Void> {
     }
 
     @Override
+    public Void visitRegisterConversionFrontier(final RegisterConversionFrontier delta) {
+        final var group = delta.getGroup();
+        group.addVertexToView(delta.getNode());
+        group.addConversionFrontier(delta.getNode());
+        return null;
+    }
+
+    @Override
     public Void visitAddGroup(final AddGroup delta) {
         final var graph = graph();
         final var group = ExpansionGroup.of(
@@ -183,6 +191,11 @@ final class Applier implements Delta.Visitor<Void> {
 
         @Override
         public Void visitAddGroup(final AddGroup delta) {
+            return null;
+        }
+
+        @Override
+        public Void visitRegisterConversionFrontier(final RegisterConversionFrontier delta) {
             return null;
         }
     }

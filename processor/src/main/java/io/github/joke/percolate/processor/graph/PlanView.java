@@ -29,6 +29,9 @@ public final class PlanView implements GraphSource {
 
     private static final String SEED_PACKAGE_PREFIX = "io.github.joke.percolate.processor.stages.seed.";
 
+    /** A node with at most one inbound edge already has a single producer; nothing to resolve. */
+    private static final int SINGLE_PRODUCER = 1;
+
     private final MaskSubgraph<Node, Edge> subgraph;
     private final MapperGraph mapperGraph;
     private final List<ExpansionGroup> planGroups;
@@ -75,6 +78,22 @@ public final class PlanView implements GraphSource {
                 })
                 .collect(toCollection(HashSet::new));
         keep.removeAll(loserEdges);
+
+        // Resolve in-group conversion OR-choices: a non-group-root node fed by several REALISED conversion edges
+        // (e.g. widen's narrower-source fan-out, plus dead-end alternatives) keeps only its single cheapest
+        // inbound edge so code-generation sees one producer per conversion node. Dead alternatives drop out.
+        // Only NON-SEED (bridge/constructor/container) roots are rendered as group targets (their inbound slot
+        // edges are an AND and must all be kept). Seed roots — directive-binding and assembly — render via the
+        // scalar-edge path, so a directive-binding root fed by a widen fan-out is reduced like any conversion node.
+        final var groupRootNodes = satGroups.stream()
+                .filter(PlanView::isBridgeGroup)
+                .map(ExpansionGroup::getRoot)
+                .collect(toCollection(HashSet::new));
+        final var conversionLosers = underlying.vertexSet().stream()
+                .filter(n -> !groupRootNodes.contains(n))
+                .flatMap(n -> losingConversionEdges(n, keep, cost))
+                .collect(toCollection(HashSet::new));
+        keep.removeAll(conversionLosers);
 
         // Reachability-filter from each return-root so disconnected loser/dead subtrees drop out.
         final var planEdges = reachableEdges(underlying, keep);
@@ -130,8 +149,13 @@ public final class PlanView implements GraphSource {
         final Map<Edge, Double> weights = new HashMap<>();
         eligible.forEach(e -> weights.put(e, (double) e.getWeight()));
         final var weighted = new AsWeightedGraph<>(maskEligible, weights);
+        // Genuine value origins only. A synthesized conversion intermediate with no inbound edge (a dead-end
+        // widen/unbox alternative) is NOT a source — it sits at a TargetLocation inherited from its frontier and
+        // is unproducible. Treating it as a free source would let it tie with the real source when picking a
+        // conversion node's cheapest producer.
         final var sources = maskEligible.vertexSet().stream()
                 .filter(n -> maskEligible.incomingEdgesOf(n).isEmpty())
+                .filter(n -> !(n.getLoc() instanceof TargetLocation))
                 .collect(toUnmodifiableList());
         final var best = new HashMap<Node, Double>();
         for (final var source : sources) {
@@ -141,6 +165,23 @@ public final class PlanView implements GraphSource {
             }
         }
         return best;
+    }
+
+    /** All but the cheapest inbound REALISED edge of a conversion node (cost of the source plus the edge weight). */
+    private static Stream<Edge> losingConversionEdges(
+            final Node node, final Set<Edge> keep, final Map<Node, Double> cost) {
+        final var inbound = keep.stream().filter(e -> e.getTo().equals(node)).collect(toUnmodifiableList());
+        if (inbound.size() <= SINGLE_PRODUCER) {
+            return Stream.empty();
+        }
+        return inbound.stream()
+                .sorted(Comparator.comparingDouble((Edge e) -> edgeCost(e, cost))
+                        .thenComparing(Comparator.naturalOrder()))
+                .skip(1);
+    }
+
+    private static double edgeCost(final Edge edge, final Map<Node, Double> cost) {
+        return cost.getOrDefault(edge.getFrom(), Double.POSITIVE_INFINITY) + edge.getWeight();
     }
 
     private static ExpansionGroup cheapest(

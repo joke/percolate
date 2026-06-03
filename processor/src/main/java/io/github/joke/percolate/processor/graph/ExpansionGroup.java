@@ -2,8 +2,10 @@ package io.github.joke.percolate.processor.graph;
 
 import io.github.joke.percolate.spi.GroupCodegen;
 import io.github.joke.percolate.spi.Slot;
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.IdentityHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -23,6 +25,14 @@ public final class ExpansionGroup {
     private final AsSubgraph<Node, Edge> view;
     private final MapperGraph parent;
     private final Map<Node, Slot> slotMetadata;
+
+    /**
+     * Synthesized {@code CONVERSION} input nodes registered into this group during expansion (design E2). They are
+     * expanded as frontiers (their own producers discovered) but are NOT AND-required for group SAT — an
+     * unreachable one is a retained dead end. Insertion-ordered for deterministic expansion.
+     */
+    @Getter(lombok.AccessLevel.NONE)
+    private final Set<Node> conversionFrontiers = new LinkedHashSet<>();
 
     private ExpansionGroup(
             final Node root,
@@ -153,5 +163,15 @@ public final class ExpansionGroup {
             throw new IllegalArgumentException("addEdgeToView: both endpoints must already be in the view");
         }
         view.addEdge(edge.getFrom(), edge.getTo(), edge);
+    }
+
+    /** Registers a synthesized conversion input node as an expandable (non-AND-required) frontier (design E2). */
+    public void addConversionFrontier(final Node node) {
+        conversionFrontiers.add(node);
+    }
+
+    /** The conversion frontiers expanded by the group expander; never AND-required for group SAT. */
+    public Set<Node> getConversionFrontiers() {
+        return Collections.unmodifiableSet(conversionFrontiers);
     }
 }

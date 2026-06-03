@@ -32,6 +32,7 @@ final class BridgeExpander implements GroupExpander {
                 pendingSlots.add(slot);
             }
         }
+        slotResolver.expandConversionFrontiers(group, snapshot, bundles);
         return new GroupStepResult(bundles, pendingSlots);
     }
 }

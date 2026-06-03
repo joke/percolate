@@ -4,7 +4,10 @@ import io.github.joke.percolate.processor.graph.ExpansionGroup;
 import io.github.joke.percolate.processor.graph.MethodScope;
 import io.github.joke.percolate.processor.graph.Node;
 import io.github.joke.percolate.processor.graph.SourceLocation;
+import java.util.Collections;
+import java.util.IdentityHashMap;
 import java.util.List;
+import java.util.Set;
 import lombok.RequiredArgsConstructor;
 
 /**
@@ -26,13 +29,7 @@ final class SlotResolver {
             final ExpansionGroup group,
             final ExpansionSnapshot snapshot,
             final List<DeltaBundle> out) {
-        if (isParameterRootSlot(frontier)) {
-            return true;
-        }
-        if (producedInView(frontier, group, snapshot)) {
-            return true;
-        }
-        if (hasSatChildAt(frontier, snapshot)) {
+        if (reachable(frontier, group, snapshot)) {
             return true;
         }
         final var effectiveType = snapshot.effectiveTypeFor(frontier, group);
@@ -40,6 +37,12 @@ final class SlotResolver {
             return false;
         }
         if (hasAnyChildAt(frontier, group, snapshot)) {
+            return false;
+        }
+        // Expand-once guard: a frontier already fed by realised (conversion-fold) edges has had its producers
+        // enumerated. Re-running matchAt would re-emit the same bundles, which the Applier re-applies as no-ops
+        // yet counts as progress — preventing the fixed-point loop from ever converging (design E2/E3).
+        if (!snapshot.viewOf(group).incomingEdgesOf(frontier).isEmpty()) {
             return false;
         }
         out.addAll(frontierMatcher.matchAt(frontier, group, snapshot));
@@ -60,9 +63,39 @@ final class SlotResolver {
                 && ((SourceLocation) frontier.getLoc()).getPath().getSegments().size() == 1;
     }
 
-    /** A realised edge already feeds {@code node} inside the group's view (a folded conversion or descent edge). */
-    boolean producedInView(final Node node, final ExpansionGroup group, final ExpansionSnapshot snapshot) {
-        return !snapshot.viewOf(group).incomingEdgesOf(node).isEmpty();
+    /**
+     * Base-case reachability (design E3): a node is satisfied iff it is a parameter-root base case, a boundary
+     * child sub-group rooted at it is SAT, or it has an incoming realised view edge whose source is itself
+     * reachable (transitively to a base case). This replaces the former first-incoming-edge rule, so a folded
+     * conversion chain {@code X→Y→Z} satisfies {@code Z} only once a complete realised path from a base case
+     * exists; an intermediate fed by an unproduced source does not prematurely satisfy.
+     */
+    boolean reachable(final Node node, final ExpansionGroup group, final ExpansionSnapshot snapshot) {
+        return reachable(node, group, snapshot, Collections.newSetFromMap(new IdentityHashMap<>()));
+    }
+
+    /**
+     * Expands the group's conversion frontiers (synthesized CONVERSION nodes) so their own producers are
+     * discovered. Their resolution is not AND-required for group SAT — an unreachable one is a retained dead end
+     * (design E2) — so the boolean result is intentionally ignored.
+     */
+    void expandConversionFrontiers(
+            final ExpansionGroup group, final ExpansionSnapshot snapshot, final List<DeltaBundle> out) {
+        for (final var frontier : List.copyOf(group.getConversionFrontiers())) {
+            resolve(frontier, group, snapshot, out);
+        }
+    }
+
+    private boolean reachable(
+            final Node node, final ExpansionGroup group, final ExpansionSnapshot snapshot, final Set<Node> visiting) {
+        if (!visiting.add(node)) {
+            return false;
+        }
+        if (isParameterRootSlot(node) || hasSatChildAt(node, snapshot)) {
+            return true;
+        }
+        return snapshot.viewOf(group).incomingEdgesOf(node).stream()
+                .anyMatch(edge -> reachable(edge.getFrom(), group, snapshot, visiting));
     }
 
     boolean hasSatChildAt(final Node node, final ExpansionSnapshot snapshot) {

@@ -1,6 +1,7 @@
 package io.github.joke.percolate.processor.stages.expand;
 
 import io.github.joke.percolate.processor.graph.ExpansionGroup;
+import java.util.ArrayList;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
 
@@ -28,9 +29,11 @@ final class AssemblyExpander implements GroupExpander {
         if (slotResolver.hasSatChildAt(root, snapshot)) {
             return new GroupStepResult(List.of(), List.of());
         }
-        if (slotResolver.hasAnyChildAt(root, group, snapshot)) {
-            return new GroupStepResult(List.of(), List.of(root));
+        final var bundles = new ArrayList<DeltaBundle>();
+        if (!slotResolver.hasAnyChildAt(root, group, snapshot)) {
+            bundles.addAll(frontierMatcher.matchAssembly(root, group, snapshot));
         }
-        return new GroupStepResult(frontierMatcher.matchAssembly(root, group, snapshot), List.of(root));
+        slotResolver.expandConversionFrontiers(group, snapshot, bundles);
+        return new GroupStepResult(bundles, List.of(root));
     }
 }

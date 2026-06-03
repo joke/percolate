@@ -33,13 +33,25 @@ final class TypeUniverse {
         ['java.util.SequencedCollection', 'java.util.SequencedSet', 'java.util.SequencedMap',
          'java.lang.Object', 'java.lang.Iterable',
          'java.util.Collection', 'java.util.List', 'java.util.Set', 'java.util.Map',
-         'java.util.Optional'].each { fqn ->
+         'java.util.Optional',
+         // Primitive wrappers + Number: the same mid-traversal lazy-load hazard. Conversion strategies
+         // (boxing/unboxing/widening) resolve these via Types.boxedClass/unboxedType, so prime their symbols
+         // here rather than letting one spec trigger the fill mid-traversal of another's hierarchy walk.
+         'java.lang.Number', 'java.lang.Boolean', 'java.lang.Byte', 'java.lang.Short', 'java.lang.Character',
+         'java.lang.Integer', 'java.lang.Long', 'java.lang.Float', 'java.lang.Double'].each { fqn ->
             final var elem = ELEMENT_UTILS.getTypeElement(fqn)
             if (elem != null) {
                 elem.superclass
                 elem.interfaces
                 elem.enclosedElements
             }
+        }
+        // Prime the primitive↔wrapper boxing maps eagerly so getPrimitiveType / boxedClass / unboxedType never
+        // trigger a mid-traversal symbol fill from within a spec.
+        [TypeKind.BOOLEAN, TypeKind.BYTE, TypeKind.SHORT, TypeKind.CHAR,
+         TypeKind.INT, TypeKind.LONG, TypeKind.FLOAT, TypeKind.DOUBLE].each { kind ->
+            final var boxed = TYPE_UTILS.boxedClass(TYPE_UTILS.getPrimitiveType(kind))
+            TYPE_UTILS.unboxedType(boxed.asType())
         }
         // Force the supertype-assignability fill eagerly. javac fills the List/Set -> ... -> Iterable
         // hierarchy lazily on first isAssignable; priming it here (rather than mid-test) makes isIterable /
