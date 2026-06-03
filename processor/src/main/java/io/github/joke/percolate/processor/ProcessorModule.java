@@ -14,6 +14,7 @@ import io.github.joke.percolate.processor.stages.dump.DumpFullGraph;
 import io.github.joke.percolate.processor.stages.dump.DumpGraph;
 import io.github.joke.percolate.processor.stages.dump.DumpPlan;
 import io.github.joke.percolate.processor.stages.dump.DumpTransforms;
+import io.github.joke.percolate.processor.stages.dump.GraphDumpWriter;
 import io.github.joke.percolate.processor.stages.expand.ExpandGroupsPhase;
 import io.github.joke.percolate.processor.stages.expand.ExpandStage;
 import io.github.joke.percolate.processor.stages.expand.ExpansionPhase;
@@ -141,12 +142,17 @@ public final class ProcessorModule {
     }
 
     @Provides
-    DumpGraph dumpGraph(
+    GraphDumpWriter graphDumpWriter(
             final Filer filer,
             final Diagnostics diagnostics,
             final ProcessorOptions processorOptions,
             final DotRenderer dotRenderer) {
-        return new DumpGraph(filer, diagnostics, processorOptions, dotRenderer);
+        return new GraphDumpWriter(filer, diagnostics, processorOptions, dotRenderer);
+    }
+
+    @Provides
+    DumpGraph dumpGraph(final GraphDumpWriter writer) {
+        return new DumpGraph(writer);
     }
 
     public static ExpandStage assembleExpansionPipeline(
@@ -167,30 +173,18 @@ public final class ProcessorModule {
     }
 
     @Provides
-    DumpFullGraph dumpFullGraph(
-            final Filer filer,
-            final Diagnostics diagnostics,
-            final ProcessorOptions processorOptions,
-            final DotRenderer dotRenderer) {
-        return new DumpFullGraph(filer, diagnostics, processorOptions, dotRenderer);
+    DumpFullGraph dumpFullGraph(final GraphDumpWriter writer) {
+        return new DumpFullGraph(writer);
     }
 
     @Provides
-    DumpTransforms dumpTransforms(
-            final Filer filer,
-            final Diagnostics diagnostics,
-            final ProcessorOptions processorOptions,
-            final DotRenderer dotRenderer) {
-        return new DumpTransforms(filer, diagnostics, processorOptions, dotRenderer);
+    DumpTransforms dumpTransforms(final GraphDumpWriter writer) {
+        return new DumpTransforms(writer);
     }
 
     @Provides
-    DumpPlan dumpPlan(
-            final Filer filer,
-            final Diagnostics diagnostics,
-            final ProcessorOptions processorOptions,
-            final DotRenderer dotRenderer) {
-        return new DumpPlan(filer, diagnostics, processorOptions, dotRenderer);
+    DumpPlan dumpPlan(final GraphDumpWriter writer) {
+        return new DumpPlan(writer);
     }
 
     @Provides

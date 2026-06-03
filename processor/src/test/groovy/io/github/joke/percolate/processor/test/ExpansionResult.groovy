@@ -1,9 +1,12 @@
 package io.github.joke.percolate.processor.test
 
 import io.github.joke.percolate.processor.graph.DotRenderer
+import io.github.joke.percolate.processor.graph.Edge
 import io.github.joke.percolate.processor.graph.EdgeKind
 import io.github.joke.percolate.processor.graph.MapperGraph
 import io.github.joke.percolate.processor.graph.Node
+import org.jgrapht.Graph
+import org.jgrapht.graph.DirectedMultigraph
 
 import javax.lang.model.element.TypeElement
 import java.util.stream.Collectors
@@ -81,7 +84,14 @@ final class ExpansionResult {
         if (mapperType == null) {
             return NO_MAPPER_TYPE
         }
-        new DotRenderer().render(graph, mapperType)
+        final Graph<Node, Edge> whole = new DirectedMultigraph<>(Edge)
+        graph.nodes().forEach { whole.addVertex(it) }
+        graph.edges().forEach { e ->
+            whole.addVertex(e.from)
+            whole.addVertex(e.to)
+            whole.addEdge(e.from, e.to, e)
+        }
+        new DotRenderer().render(whole, mapperType.qualifiedName.toString())
     }
 
     boolean hasErrors() {

@@ -2,63 +2,42 @@
 
 ## Purpose
 
-This spec defines the DumpGraph stage and deterministic DOT renderer that serialize a `MapperGraph` to a DOT file for debugging and visualization purposes.
+This spec defines the debug-graph dump stages and the deterministic DOT renderer that serialize a `MapperGraph` (and its views) to DOT files for debugging and visualization purposes. Output is off by default (gated on `ProcessorOptions.debugGraphs`) and is written one file per scope per view.
 
 ## Requirements
 
-### Requirement: Expanded view filter on MapperGraph
+### Requirement: Transforms view filter on MapperGraph
 
-`MapperGraph` SHALL expose an accessor `expandedView()` that returns an `ExpandedGraphView` — a non-destructive, pure-function filter over the underlying graph. The view SHALL be implemented as a JGraphT `MaskSubgraph` so the full graph is not copied, modified, or rebuilt. The view SHALL expose `Stream<Node> nodes()`, `Stream<Edge> edges()`, and `Stream<Node> nodesByScope(Scope)` with the same ordering guarantees as the corresponding `MapperGraph` methods.
+`MapperGraph` SHALL expose an accessor `transformsView()` that returns a `TransformsView` — a non-destructive `GraphSource` over the underlying graph, implemented as a JGraphT `MaskSubgraph` so the full graph is not copied or mutated. The view SHALL expose `Stream<Node> nodes()`, `Stream<Edge> edges()`, and `Stream<Node> nodesByScope(Scope)` with the same ordering guarantees as the other `MapperGraph` views.
 
-The view's edge mask SHALL hide every `Edge` whose `kind` is `EdgeKind.SEED` or `EdgeKind.MARKER`. Edges of kind `EdgeKind.REALISED` SHALL pass through.
+The view's edge mask SHALL retain only `EdgeKind.REALISED` edges; `SEED` and `MARKER` edges SHALL be hidden. The view's node set SHALL be exactly the nodes incident to a retained `REALISED` edge (the endpoints of the surviving edges); nodes touched by no `REALISED` edge SHALL NOT appear. The view SHALL NOT mutate the underlying `MapperGraph`.
 
-The view's vertex mask SHALL hide every untyped placeholder node (a `Node` whose type segment is the placeholder rendering used for nodes without a concrete type) when, and only when, another `Node` in the underlying graph shares the same `(scope, loc)` pair and carries a concrete (non-placeholder) type. Untyped nodes with no typed counterpart at the same `(scope, loc)` SHALL be retained — they are diagnostic evidence of an unresolved slot.
+#### Scenario: transformsView retains only REALISED edges
+- **WHEN** a graph containing `SEED`, `REALISED`, and `MARKER` edges is exposed via `transformsView()`
+- **THEN** `edges()` contains every `REALISED` edge
+- **AND** `edges()` contains no `SEED` or `MARKER` edge
 
-The view SHALL NOT mutate the underlying `MapperGraph`.
+#### Scenario: transformsView nodes are exactly the REALISED-incident nodes
+- **WHEN** a graph has a node touched only by a `SEED` edge and another node that is an endpoint of a `REALISED` edge, exposed via `transformsView()`
+- **THEN** `nodes()` contains the `REALISED`-incident node
+- **AND** `nodes()` does not contain the node touched only by the `SEED` edge
 
-#### Scenario: expandedView accessor returns a non-null view
-- **WHEN** `MapperGraph.expandedView()` is invoked on a non-empty graph
-- **THEN** the returned `ExpandedGraphView` instance exposes `nodes()`, `edges()`, and `nodesByScope(Scope)` methods returning streams in the documented order
-
-#### Scenario: SEED edges are filtered out of the view
-- **WHEN** a graph containing edges of kind `SEED`, `REALISED`, and `MARKER` is exposed via `expandedView()`
-- **THEN** the stream returned by `edges()` contains no edge with `kind == EdgeKind.SEED`
-
-#### Scenario: MARKER edges are filtered out of the view
-- **WHEN** a graph containing edges of kind `SEED`, `REALISED`, and `MARKER` is exposed via `expandedView()`
-- **THEN** the stream returned by `edges()` contains no edge with `kind == EdgeKind.MARKER`
-
-#### Scenario: REALISED edges are retained in the view
-- **WHEN** a graph containing edges of kind `SEED`, `REALISED`, and `MARKER` is exposed via `expandedView()`
-- **THEN** the stream returned by `edges()` contains every `REALISED` edge from the underlying graph
-
-#### Scenario: Untyped placeholder is hidden when a typed counterpart exists
-- **WHEN** the underlying graph contains a node `Nu` with the untyped placeholder type AND another node `Nt` with the same `(scope, loc)` pair as `Nu` but a concrete type
-- **AND** `expandedView()` is queried
-- **THEN** `Nu` is absent from the stream returned by `nodes()`
-- **AND** `Nt` is present in the stream returned by `nodes()`
-
-#### Scenario: Untyped placeholder is retained when no typed counterpart exists
-- **WHEN** the underlying graph contains a node `Nu` with the untyped placeholder type AND no other node shares `Nu`'s `(scope, loc)` pair with a concrete type
-- **AND** `expandedView()` is queried
-- **THEN** `Nu` is present in the stream returned by `nodes()`
-
-#### Scenario: View construction does not mutate the underlying graph
-- **WHEN** `MapperGraph.expandedView()` is invoked
-- **THEN** the underlying `MapperGraph` retains all its original nodes and edges (including those the view masks), as observable via `MapperGraph.nodes()` and `MapperGraph.edges()`
+#### Scenario: transformsView does not mutate the underlying graph
+- **WHEN** `MapperGraph.transformsView()` is invoked
+- **THEN** the underlying `MapperGraph` retains all its original nodes and edges, as observable via `MapperGraph.nodes()` and `MapperGraph.edges()`
 
 ### Requirement: Node labels include the simple type segment
 
-The DOT renderer SHALL render every node `label` attribute as a two-line value: the location segment (`src[…]`, `tgt[…]`, or the element-role segment for `ElementLocation` nodes) on the first line, followed by a newline (DOT `\n`), followed by the short type name on the second line. The short type name SHALL be derived from the node's type segment as follows:
+The DOT renderer SHALL render every node `label` attribute as a two-line value: the location segment (`src[…]`, `tgt[…]`, or the element-role segment for `ElementLocation` nodes) on the first line, followed by a DOT line break (`\n`), followed by the short type name on the second line. The short type name SHALL be derived from the node's type segment as follows:
 
 - The prefix `java.lang.` SHALL be stripped from class names so that `java.lang.String` renders as `String` and `java.lang.Integer` renders as `Integer`. Rationale: `java.lang` is implicitly imported in Java source; unqualified rendering matches reading expectations.
 - Other package prefixes SHALL be preserved verbatim so that `io.github.joke.testing.Person.Address` renders as `io.github.joke.testing.Person.Address`. Rationale: same-simple-name types across user packages would otherwise render indistinguishably.
 - Generic type arguments SHALL be rewritten recursively under the same rule so that `java.util.List<java.util.Optional<java.lang.String>>` renders as `java.util.List<java.util.Optional<String>>`.
 - The untyped placeholder SHALL render as the literal `?`.
 
-Fully qualified types SHALL remain in `Node.id()` for graph determinism and uniqueness — only the visible `label` attribute is simplified.
+Fully qualified types SHALL remain in `Node.id()` (carried into the DOT output as the quoted vertex identifier) for graph determinism and uniqueness — only the visible `label` attribute is simplified.
 
-The two-line label format SHALL apply uniformly to all rendered DOT output (both `seed.dot` and `expanded.dot`).
+The two-line label format SHALL apply uniformly across every rendered view (`seed`, `full`, `transforms`, `plan`).
 
 #### Scenario: Typed node label has location and type on two lines
 - **WHEN** the renderer writes a node whose location segment is `src[address.street]` and whose type segment is `java.lang.String`
@@ -82,83 +61,45 @@ The two-line label format SHALL apply uniformly to all rendered DOT output (both
 
 #### Scenario: Node ids remain fully qualified
 - **WHEN** the renderer writes a node whose type segment is `java.lang.String`
-- **THEN** the DOT statement's node identifier (the quoted string preceding the attribute block) contains `java.lang.String` verbatim — only the `label` attribute is simplified
-
-### Requirement: DumpGraph stage
-The processor SHALL define a stage `DumpGraph` in package `io.github.joke.percolate.processor.stages.dump` that consumes a `MapperGraph` plus the originating `TypeElement` and, when enabled by `ProcessorOptions.debugGraphs`, writes a DOT representation of the graph to `StandardLocation.SOURCE_OUTPUT`. `DumpGraph` SHALL be `@Inject`-constructed via Lombok `@RequiredArgsConstructor(onConstructor_ = @Inject)`.
-
-`DumpGraph` SHALL depend on `Filer`, `Diagnostics`, `ProcessorOptions`, and the deterministic DOT renderer.
-
-#### Scenario: Option off does not write a file
-- **WHEN** `DumpGraph.apply(...)` is invoked with `ProcessorOptions.debugGraphs == false`
-- **THEN** no resource is created via `Filer`
-- **AND** no diagnostic is emitted
-
-#### Scenario: Option on writes a .seed.dot file at SOURCE_OUTPUT
-- **WHEN** `DumpGraph.apply(...)` is invoked with `ProcessorOptions.debugGraphs == true` for a non-empty `MapperGraph` and a `TypeElement` representing FQN `com.example.PersonMapper`
-- **THEN** `Filer.createResource(StandardLocation.SOURCE_OUTPUT, "", "com.example.PersonMapper.seed.dot", <originating element>)` is invoked
-- **AND** the resource's contents are the DOT representation of the graph as produced by the deterministic DOT renderer
-
-#### Scenario: Empty graph does not write a file even when option is on
-- **WHEN** `DumpGraph.apply(...)` is invoked with `ProcessorOptions.debugGraphs == true` but the `MapperGraph` has zero nodes and zero edges
-- **THEN** no resource is created via `Filer`
-- **AND** no diagnostic is emitted
-
-#### Scenario: Filer failure is reported as a warning, not an error
-- **WHEN** `DumpGraph.apply(...)` is invoked with `ProcessorOptions.debugGraphs == true` and `Filer.createResource(...)` (or the subsequent write) throws `IOException`
-- **THEN** a warning diagnostic is emitted via `Diagnostics` referencing the originating `TypeElement`
-- **AND** no error is emitted
-- **AND** the method returns normally so that the compile is not aborted
+- **THEN** the DOT statement's quoted vertex identifier contains `java.lang.String` verbatim — only the `label` attribute is simplified
 
 ### Requirement: Deterministic DOT renderer
-The processor SHALL define a `DotRenderer` in `io.github.joke.percolate.processor.graph` that produces a `String` representation of a `MapperGraph` with the following determinism guarantees:
-- Top-level digraph name SHALL be a stable encoding of the `@Mapper` `TypeElement`'s FQN.
-- Vertices SHALL be written in ascending `Node.id()` order.
-- Edges SHALL be written in ascending natural `Edge` order.
-- Attribute key/value pairs on a single DOT statement SHALL be written in ascending key order (TreeMap iteration).
-- Whitespace between statements SHALL be a single `\n`. The output SHALL end with a single trailing `\n`.
 
-The renderer SHALL group nodes by their `Scope` into DOT subgraphs with `cluster_<scope-encoding>` names. Each cluster SHALL declare its `label` attribute with the human-readable scope description.
+The processor SHALL define a `DotRenderer` in `io.github.joke.percolate.processor.graph` that produces a `String` DOT representation of a **single scope's** slice of a `GraphSource` by delegating to JGraphT `org.jgrapht.nio.dot.DOTExporter`. The renderer SHALL NOT hand-assemble DOT text, escape characters by hand, or emit `subgraph cluster_*` blocks; statement structure, identifier quoting, and special-character escaping SHALL be owned by `DOTExporter`.
 
-The renderer SHALL escape DOT-special characters (`"`, `\`, newlines, `<`, `>`) in any string written into a quoted DOT context.
+The renderer SHALL feed `DOTExporter` an `org.jgrapht.Graph<Node, Edge>` restricted to one `Scope` — obtained as an `AsSubgraph`/`MaskSubgraph` over the underlying graph (no full-graph copy), filtered to the nodes of that scope and to the edges exposed by the view being rendered.
 
-#### Scenario: Output is byte-stable across runs given the same graph
-- **WHEN** the same `MapperGraph` is rendered twice in two separate JVM runs
+The renderer SHALL configure `DOTExporter` so that:
+- `setVertexIdProvider` returns `Node.id()` (fully qualified, stable, unique).
+- `setVertexAttributeProvider` supplies the node `label` (per the "Node labels include the simple type segment" requirement) and the visual attributes (per the "Node and edge visual distinction" requirement).
+- `setEdgeAttributeProvider` supplies the edge `label` and visual attributes (per the "Edge label includes EdgeKind marker" and "Node and edge visual distinction" requirements).
+- `setGraphAttributeProvider` supplies a graph-level `label` attribute carrying the human-readable scope description, so the rendered graph is captioned with its scope.
+
+Determinism: given the same scope slice with the view's documented node and edge ordering, the produced `String` SHALL be byte-stable across runs. Vertices SHALL be presented to the exporter in ascending `Node.id()` order and edges in ascending natural `Edge` order.
+
+#### Scenario: Output is byte-stable across runs given the same scope slice
+- **WHEN** the same single-scope slice of a `MapperGraph` view is rendered twice in two separate JVM runs
 - **THEN** the produced `String`s are identical byte-for-byte
 
-#### Scenario: Per-method clusters
-- **WHEN** rendering a graph with nodes scoped to `map(Person)` and to `map(Address)`
-- **THEN** the output contains exactly one `subgraph cluster_<encoding-of-map(Person)> { ... }` and exactly one `subgraph cluster_<encoding-of-map(Address)> { ... }`
-- **AND** every node is rendered inside the cluster matching its scope
+#### Scenario: Output contains no cluster subgraphs
+- **WHEN** any scope slice is rendered
+- **THEN** the DOT output contains no `subgraph cluster_` token — grouping is expressed by the one-file-per-scope split, not by clusters
+
+#### Scenario: Graph is captioned with its scope
+- **WHEN** the slice for scope `map(Person)` is rendered
+- **THEN** the DOT output carries a graph-level `label` attribute whose value is the human-readable description of `map(Person)`
 
 #### Scenario: Vertex iteration order
-- **WHEN** rendering a graph
+- **WHEN** rendering a scope slice
 - **THEN** vertex statements appear in ascending `Node.id()` order
 
 #### Scenario: Edge iteration order
-- **WHEN** rendering a graph
+- **WHEN** rendering a scope slice
 - **THEN** edge statements appear in ascending natural `Edge` order
 
-#### Scenario: Attribute ordering
-- **WHEN** a node or edge statement carries multiple attributes (e.g., `label`, `shape`, `weight`)
-- **THEN** the attributes are written in ascending key order
-
-#### Scenario: Special characters in labels are escaped
+#### Scenario: Special characters in labels are escaped by the exporter
 - **WHEN** a node's label contains `"` or `\` or a newline character
-- **THEN** the rendered DOT escapes those characters using the standard DOT escape rules so that the output is parseable by Graphviz
-
-### Requirement: Phantom node cluster grouping
-The DOT renderer SHALL render every phantom container element node (a `Node` whose `loc` is `ElementLocation`) inside the same `cluster_<scope-encoding>` subgraph as its `parent` node's scope. The renderer SHALL look up the parent via `Node.parent` and use the parent's `Scope` to determine cluster membership, ignoring the phantom's own `Scope` field for cluster placement when it differs.
-
-In this change `SeedGraph` does NOT emit phantom nodes; this requirement applies whenever a phantom node is constructed and added directly (e.g., in tests). The renderer is required to be ready for phantoms before Phase 2 strategy work begins.
-
-#### Scenario: Phantom node renders inside its parent's cluster
-- **WHEN** a `MapperGraph` is constructed with a parent container node scoped to `MethodScope(<map(Foo)>)` and a phantom node with `loc = ElementLocation` whose `parent` references that container node, and the renderer is invoked
-- **THEN** the DOT output places the phantom node's vertex statement inside `cluster_<encoding-of-map(Foo)>`
-
-#### Scenario: Phantom node without parent fails fast
-- **WHEN** the renderer encounters a node with `loc = ElementLocation` and `parent = Optional.empty()`
-- **THEN** an unchecked exception is thrown identifying the offending node — the schema invariant on phantoms is enforced at render time
+- **THEN** the rendered DOT escapes those characters via `DOTExporter` so that the output is parseable by Graphviz
 
 ### Requirement: Edge label includes EdgeKind marker
 
@@ -166,7 +107,7 @@ Each rendered edge's `kind` SHALL be identifiable from the DOT output without co
 
 - For `EdgeKind.SEED` edges, the edge `label` attribute SHALL include the literal token `SEED`.
 - For `EdgeKind.REALISED` edges, the kind is identified by the combination of the edge's style attributes and the strategy short name in its label (see the "Node and edge visual distinction" requirement); the explicit token `REALISED` is not required in the label.
-- For `EdgeKind.MARKER` edges (rendered only when the renderer is given such an edge directly, outside the expanded view), the `label` attribute SHALL include the literal token `MARKER`.
+- For `EdgeKind.MARKER` edges (which appear only in views that retain non-`REALISED` edges, i.e. `seed` and `full`, and never in the `REALISED`-only `transforms`/`plan` views), the `label` attribute SHALL include the literal token `MARKER`.
 
 #### Scenario: SEED edge label includes the SEED token
 - **WHEN** the renderer writes an edge with `kind == EdgeKind.SEED`
@@ -178,58 +119,50 @@ Each rendered edge's `kind` SHALL be identifiable from the DOT output without co
 - **AND** the edge's style attributes match the documented REALISED styling (distinct from SEED)
 - **AND** the edge's `label` attribute does NOT contain the literal token `REALISED`
 
-#### Scenario: MARKER edge rendered directly retains the MARKER token
-- **WHEN** the renderer is given an edge with `kind == EdgeKind.MARKER` and renders it directly (outside the expanded view)
+#### Scenario: MARKER edge retains the MARKER token
+- **WHEN** the renderer writes an edge with `kind == EdgeKind.MARKER` (in a view that retains it)
 - **THEN** the edge's `label` attribute contains the literal `MARKER`
 
 ### Requirement: Node and edge visual distinction
 
-The DOT renderer SHALL render nodes with shape attributes that visually distinguish source-located, target-located, and phantom container element nodes. Source-located nodes SHALL render with one shape (e.g., `box`); target-located nodes SHALL render with another (e.g., `oval`); phantom container element nodes SHALL render with a third distinct shape (e.g., `diamond`).
+The DOT renderer SHALL render **every** node with `shape=box` and `style=filled`, distinguishing source-located, target-located, and container-element nodes by `fillcolor` rather than by shape. Source-located (`SourceLocation`) nodes, target-located (`TargetLocation`) nodes, and container-element (`ElementLocation`) nodes SHALL each receive a distinct, stable `fillcolor`. No node SHALL render as `oval`, `diamond`, or any non-`box` shape.
 
-The DOT renderer SHALL render edges with style attributes (colour and/or line style) keyed off `Edge.kind`. The styling table SHALL define a distinct visual for each of `SEED` and `REALISED`. REALISED edges SHALL render with the heaviest visible stroke (e.g., `solid` line with elevated `penwidth`) — they represent the load-bearing transformations of the graph and SHALL dominate the visual hierarchy. SEED edges SHALL retain their prior styling (relevant for `seed.dot` rendering where they are the only edge kind present). MARKER edges, when rendered directly (outside the expanded view), MAY use the default fallback style; no dedicated MARKER style is required. The exact style attribute values are implementation-defined but SHALL be stable across runs.
+The DOT renderer SHALL render edges with attributes keyed off `Edge.kind`:
+- `REALISED` edges SHALL render with the heaviest visible stroke — a solid black line with elevated `penwidth` — and SHALL dominate the visual hierarchy; they represent the load-bearing transformations.
+- `SEED` edges SHALL render so they recede to the background: the edge line `color` and the edge `fontcolor` SHALL both be a muted grey, so the line and its label read as secondary information without competing with `REALISED` edges.
+- `MARKER` edges, when rendered directly, MAY use a neutral default style; no dedicated `MARKER` style is required.
 
-For REALISED edges, the `label` attribute SHALL include the simple class name derived from `strategyClassFqn` and the edge's `weight`, formatted in a stable, byte-deterministic way (e.g., `IterableUnwrap (2)`). When `weight == Weights.SENTINEL_UNREALISED` the renderer SHALL emit the literal `∞` (U+221E) in place of the numeric value.
+The exact colour values are implementation-defined but SHALL be stable across runs.
 
-For SEED edges (relevant in `seed.dot`), the prior label format is retained: kind token, weight (with `∞` rendering for the sentinel), and a directive marker when `directive` is non-empty.
+Edge **label content** is unchanged from prior behaviour: for `REALISED` edges the `label` SHALL include the strategy simple class name and the edge `weight` (with `∞` (U+221E) for `Weights.SENTINEL_UNREALISED`); for `SEED` edges the `label` SHALL retain its kind token, weight, and directive marker. The renderer SHALL NOT render `Edge.codegen`.
 
-The renderer SHALL NOT attempt to render `Edge.codegen` — codegen closures are opaque and the DOT representation describes the path structure, not the generated code.
+#### Scenario: All nodes render as filled boxes
+- **WHEN** rendering nodes whose `loc` is `SourceLocation`, `TargetLocation`, and `ElementLocation`
+- **THEN** every node statement carries `shape=box` and `style=filled`
+- **AND** no node statement carries `shape=oval` or `shape=diamond`
 
-#### Scenario: Source nodes render as box
-- **WHEN** rendering a node whose `loc` is a `SourceLocation`
-- **THEN** the DOT output contains `shape=box` (or another stable shape attribute documented in the implementation) for that node's statement
+#### Scenario: Node roles are distinguished by fillcolor
+- **WHEN** rendering a `SourceLocation` node, a `TargetLocation` node, and an `ElementLocation` node
+- **THEN** the three node statements carry three distinct `fillcolor` values
 
-#### Scenario: Target nodes render with a different shape than source nodes
-- **WHEN** rendering a node whose `loc` is a `TargetLocation`
-- **THEN** the DOT output uses a shape distinct from the one used for `SourceLocation` nodes
-
-#### Scenario: Phantom nodes render with a third distinct shape
-- **WHEN** rendering a node whose `loc` is `ElementLocation`
-- **THEN** the DOT output uses a shape distinct from both the source-node and target-node shapes
-
-#### Scenario: REALISED edge style is heaviest visible stroke
+#### Scenario: REALISED edge is the heaviest visible stroke
 - **WHEN** the renderer writes an edge with `kind == EdgeKind.REALISED`
-- **THEN** the edge's style attributes are the documented REALISED styling
+- **THEN** the edge's style attributes are a solid black line with elevated `penwidth`
 - **AND** that styling is visually heavier than the SEED styling
 
-#### Scenario: Sentinel weight renders as infinity in REALISED labels
-- **WHEN** the renderer writes a REALISED edge with `weight == Weights.SENTINEL_UNREALISED`
-- **THEN** the edge's `label` attribute contains the literal `∞` (U+221E) instead of the numeric value
+#### Scenario: SEED edge recedes to grey
+- **WHEN** the renderer writes an edge with `kind == EdgeKind.SEED`
+- **THEN** the edge's `color` attribute is a muted grey
+- **AND** the edge's `fontcolor` attribute is the same muted grey, so the label recedes
 
 #### Scenario: REALISED edge label contains strategy short name and weight
 - **WHEN** rendering a REALISED edge with `strategyClassFqn == Optional.of("io.github.joke.percolate.spi.builtins.IterableUnwrap")` and `weight == 2`
 - **THEN** the edge's `label` attribute contains both the literal `IterableUnwrap` and the literal `2`
 - **AND** the `label` does NOT contain the package prefix `io.github.joke.percolate.spi.builtins`
 
-#### Scenario: SEED edge label retains kind, weight, and directive marker
-- **WHEN** rendering a SEED edge with `weight == Weights.SENTINEL_UNREALISED` and a non-empty `directive`
-- **THEN** the edge's `label` attribute contains the literal `SEED`
-- **AND** the `label` contains the literal `∞`
-- **AND** the `label` contains a marker (e.g., the literal `directive`) indicating its directive origin
-
-#### Scenario: Group membership rendered via subgraph cluster
-- **WHEN** the renderer writes a graph containing one or more registered `ExpansionGroup`s
-- **THEN** each group is rendered as a DOT subgraph cluster grouping its root, slots, and slot-incoming REALISED edges
-- **AND** edges belonging to multiple groups appear in each cluster their group's view contains them
+#### Scenario: Sentinel weight renders as infinity in REALISED labels
+- **WHEN** the renderer writes a REALISED edge with `weight == Weights.SENTINEL_UNREALISED`
+- **THEN** the edge's `label` attribute contains the literal `∞` (U+221E) instead of the numeric value
 
 #### Scenario: Codegen closures are not rendered
 - **WHEN** rendering an edge with non-empty `codegen`
@@ -237,60 +170,55 @@ The renderer SHALL NOT attempt to render `Edge.codegen` — codegen closures are
 - **AND** the rest of the edge's attributes render normally
 
 ### Requirement: File naming
-The DOT file SHALL be named `<MapperFQN>.seed.dot`. The infix `.seed.` SHALL be reserved so that future expansion stages can write `<MapperFQN>.expanded.dot` alongside without collision.
 
-#### Scenario: File name uses .seed.dot infix
-- **WHEN** `DumpGraph.apply(...)` writes a file for `com.example.PersonMapper`
-- **THEN** the file name passed to `Filer.createResource(...)` is exactly `"com.example.PersonMapper.seed.dot"`
+The processor SHALL write one DOT file per `(scope, view)` pair. Each file SHALL be named `<MapperFQN>.<methodSimpleName>.<view>.dot`, where `<view>` is one of `seed`, `full`, `transforms`, `plan`, and `<methodSimpleName>` is the simple name of the scope's method. When two scopes of the same mapper share a method simple name (overloads), the colliding files SHALL be disambiguated as `<MapperFQN>.<methodSimpleName>-<n>.<view>.dot`, where `<n>` is a deterministic index assigned in a stable order over the colliding scopes.
 
-### Requirement: DumpExpandedGraph stage
+A single mapper with multiple scopes SHALL therefore produce one file per scope per view; the scopes do not share a file.
 
-The processor SHALL define a stage `DumpExpandedGraph` in package `io.github.joke.percolate.processor.stages.dump` that consumes the post-validation `MapperGraph` plus the originating `TypeElement` and, when enabled by `ProcessorOptions.debugGraphs`, writes a DOT representation of the **expanded view** of the graph (`MapperGraph.expandedView()`) to `StandardLocation.SOURCE_OUTPUT`. `DumpExpandedGraph` SHALL be `@Inject`-constructed via Lombok `@RequiredArgsConstructor(onConstructor_ = @Inject)`.
+#### Scenario: File name encodes mapper, method, and view
+- **WHEN** the `seed` view is written for `com.example.PersonMapper`, scope `mapHuman(...)`
+- **THEN** the file name passed to `Filer.createResource(...)` is `com.example.PersonMapper.mapHuman.seed.dot`
 
-`DumpExpandedGraph` SHALL depend on `Filer`, `Diagnostics`, `ProcessorOptions`, and the deterministic DOT renderer (the same renderer used by `DumpGraph`).
+#### Scenario: Each scope of a mapper gets its own file
+- **WHEN** the `seed` view is written for `com.example.PersonMapper` which has scopes `mapHuman(...)` and `mapAddress(...)`
+- **THEN** two files are written: `com.example.PersonMapper.mapHuman.seed.dot` and `com.example.PersonMapper.mapAddress.seed.dot`
 
-`DumpExpandedGraph` SHALL run after `ValidateRealisationStage` in the pipeline. It SHALL write its file *regardless* of whether the mapper was scarred by validation — debug output is most valuable on failure.
+#### Scenario: Overloaded methods are disambiguated by index
+- **WHEN** a mapper has two scopes whose method simple name is both `map`
+- **THEN** the two `seed` files are named with distinct `map-<n>` infixes (e.g. `...map-0.seed.dot` and `...map-1.seed.dot`), assigned in a stable order
 
-The dumped file SHALL contain only the nodes and edges exposed by the expanded view (REALISED edges only; typed nodes plus any untyped placeholder nodes with no typed counterpart). SEED edges, MARKER edges, and hidden untyped placeholder nodes SHALL NOT appear in the file.
+### Requirement: Shared dump IO via GraphDumpWriter
 
-#### Scenario: Option off does not write a file
-- **WHEN** `DumpExpandedGraph.apply(...)` is invoked with `ProcessorOptions.debugGraphs == false`
+The processor SHALL define a single collaborator `GraphDumpWriter` in package `io.github.joke.percolate.processor.stages.dump` that owns the entire dump IO mechanism: the `ProcessorOptions.isDebugGraphs()` gate, the empty-graph skip, the per-scope partition, the `DOTExporter` rendering pass, the `Filer.createResource(StandardLocation.SOURCE_OUTPUT, …)` write per scope, and the `IOException`→warning handling. `GraphDumpWriter` SHALL be `@Inject`-constructed and SHALL depend on `Filer`, `Diagnostics`, `ProcessorOptions`, and the `DotRenderer`.
+
+Each dump stage (`DumpGraph`, `DumpFullGraph`, `DumpTransforms`, `DumpPlan`) SHALL delegate to `GraphDumpWriter`, supplying only its view selector (`g -> g`, `g -> g.transformsView()`, `g -> g.planView()`) and its `<view>` infix. The stages SHALL retain their existing pipeline positions; in particular `DumpGraph` (the `seed` view) SHALL run before the expansion stage and the others after it. A `Filer`/`IOException` failure SHALL be reported as a `Diagnostics` warning referencing the originating `TypeElement`, SHALL NOT be an error, and SHALL NOT abort the compile.
+
+When partitioning a view's edges by scope, an edge SHALL be assigned to the scope of its `from` node, so that no edge is dropped even though, by construction, edges do not span scopes.
+
+#### Scenario: Option off writes no file for any view
+- **WHEN** a dump stage runs with `ProcessorOptions.isDebugGraphs() == false`
 - **THEN** no resource is created via `Filer`
 - **AND** no diagnostic is emitted
 
-#### Scenario: Option on writes a .expanded.dot file at SOURCE_OUTPUT
-- **WHEN** `DumpExpandedGraph.apply(...)` is invoked with `ProcessorOptions.debugGraphs == true` for a non-empty `MapperGraph` and a `TypeElement` representing FQN `com.example.PersonMapper`
-- **THEN** `Filer.createResource(StandardLocation.SOURCE_OUTPUT, "", "com.example.PersonMapper.expanded.dot", <originating element>)` is invoked
-- **AND** the resource's contents are the DOT representation of `graph.expandedView()` as produced by the deterministic DOT renderer
-
-#### Scenario: File is written even when mapper has validation errors
-- **WHEN** `DumpExpandedGraph.apply(...)` is invoked with `ProcessorOptions.debugGraphs == true` for a `MapperGraph` whose mapper was scarred by `ValidateMarkersPhase` or had Tier-3 errors emitted
-- **THEN** the `.expanded.dot` file is still written
-- **AND** the file contents include every REALISED edge exposed by the expanded view at the time of the dump
-- **AND** the file contents do not include any SEED edge or MARKER edge
-
-#### Scenario: Empty graph does not write a file even when option is on
-- **WHEN** `DumpExpandedGraph.apply(...)` is invoked with `ProcessorOptions.debugGraphs == true` but the `MapperGraph` has zero nodes and zero edges
+#### Scenario: Empty graph writes no file even when option on
+- **WHEN** a dump stage runs with `ProcessorOptions.isDebugGraphs() == true` but the graph has zero nodes and zero edges
 - **THEN** no resource is created via `Filer`
 - **AND** no diagnostic is emitted
 
-#### Scenario: Filer failure is reported as a warning, not an error
-- **WHEN** `DumpExpandedGraph.apply(...)` is invoked with `ProcessorOptions.debugGraphs == true` and `Filer.createResource(...)` (or the subsequent write) throws `IOException`
+#### Scenario: One write per scope when option on
+- **WHEN** `DumpGraph` runs with `ProcessorOptions.isDebugGraphs() == true` for a non-empty `MapperGraph` with two scopes
+- **THEN** `GraphDumpWriter` invokes `Filer.createResource(...)` once per scope, each with the scope's `<MapperFQN>.<method>.seed.dot` name
+- **AND** each resource's contents are the `DOTExporter` rendering of that scope's slice
+
+#### Scenario: Filer failure is a warning, not an error
+- **WHEN** a dump stage runs with the option on and `Filer.createResource(...)` (or the subsequent write) throws `IOException`
 - **THEN** a warning diagnostic is emitted via `Diagnostics` referencing the originating `TypeElement`
 - **AND** no error is emitted
-- **AND** the method returns normally so that the compile is not aborted
+- **AND** the stage returns normally so the compile is not aborted
 
-### Requirement: Expanded DOT file naming
-
-The expanded-graph DOT file SHALL be named `<MapperFQN>.expanded.dot`. The `.expanded.` infix mirrors the `.seed.` infix used by `DumpGraph` and ensures the two DOT files coexist in the same `SOURCE_OUTPUT` directory without collision.
-
-#### Scenario: File name uses .expanded.dot infix
-- **WHEN** `DumpExpandedGraph.apply(...)` writes a file for `com.example.PersonMapper`
-- **THEN** the file name passed to `Filer.createResource(...)` is exactly `"com.example.PersonMapper.expanded.dot"`
-
-#### Scenario: Both .seed.dot and .expanded.dot coexist
-- **WHEN** the pipeline completes for `com.example.PersonMapper` with `ProcessorOptions.debugGraphs == true` and a non-empty graph
-- **THEN** both `com.example.PersonMapper.seed.dot` and `com.example.PersonMapper.expanded.dot` are present in `SOURCE_OUTPUT`
+#### Scenario: Edge is partitioned to its from-node scope
+- **WHEN** a view's edges are partitioned by scope for file output
+- **THEN** each edge is rendered in the file of its `from` node's scope
 
 ### Requirement: DOT renderer renders all EdgeKind values
 
@@ -324,7 +252,7 @@ No REALISED edge in any rendered DOT file SHALL carry a `strategyClassFqn` endin
 - **AND** the `label` does NOT contain the package prefix
 
 #### Scenario: No DOT file contains the deleted container-map bridge names
-- **WHEN** any `<MapperFQN>.seed.dot`, `<MapperFQN>.full.dot`, or `<MapperFQN>.transforms.dot` is produced for a mapper compiled with the post-change `strategies-builtin` module
+- **WHEN** any per-scope DOT file (any `seed`, `full`, `transforms`, or `plan` view) is produced for a mapper compiled with the post-change `strategies-builtin` module
 - **THEN** no edge `label` attribute and no edge attribute string contains the literal token `SetMap`, `ListMap`, or `OptionalMap`
 
 ### Requirement: Linear container chains render without diamond shortcuts
@@ -333,14 +261,14 @@ The DOT renderer's output for any container-bearing chain (a chain involving an 
 
 This requirement formalises, at the rendering level, the structural invariant established by `graph-expansion`: chains are linear by construction; the renderer simply renders what the engine produces.
 
-#### Scenario: Integration mapper addresses chain renders linearly in transforms.dot
-- **WHEN** the integration mapper at `~/Projects/joke/percolate-integration/mappers` is rebuilt with `ProcessorOptions.debugGraphs == true` and the produced `PersonMapper.transforms.dot` is inspected
+#### Scenario: Integration mapper addresses chain renders linearly in transforms view
+- **WHEN** the integration mapper at `~/Projects/joke/percolate-integration/mappers` is rebuilt with `ProcessorOptions.debugGraphs == true` and the produced `transforms`-view file for the `mapHuman` scope is inspected
 - **THEN** for the subgraph rooted at `tgt[addresses]:Optional<Set<Human.Address>>`, the REALISED edges trace at least one linear path back to `src[person]:Person`, passing through `elem(element):Optional<Person.Address>`, `elem(element):Person.Address`, `elem(element):Human.Address`, and a `Set<Human.Address>` node
 - **AND** no `elem(element)` node in the alive chain has zero outgoing REALISED edges except where it represents the source-parameter-root boundary
 - **AND** no parallel REALISED edge connects `src[person.addresses]:List<Optional<Person.Address>>` directly to a `Set<Human.Address>` node with a `*Map`-style label (the old diamond's outer edge)
 
-#### Scenario: No outer container-map shortcut edges in full.dot either
-- **WHEN** `PersonMapper.full.dot` is inspected for the same mapper
+#### Scenario: No outer container-map shortcut edges in the full view either
+- **WHEN** the `full`-view file for the same scope is inspected for the same mapper
 - **THEN** for every pair of container-typed nodes joined by the chain pattern (Unwrap → … → Collect), the REALISED edges between them traverse `ElementLocation` nodes
 - **AND** no REALISED edge connects two regular-scope container-typed nodes directly with a `*Map`-style strategy label
 
@@ -374,29 +302,3 @@ The selection rule lives in the view consumer, not in the expansion engine: the 
 - **WHEN** a node is the root of two competing `SAT` bridge groups whose slots have cost-to-source `d` values such that branch A's `weight + d` is strictly less than branch B's
 - **THEN** the plan view contains branch A's edge into the node
 - **AND** the plan view does not contain branch B's edge into the node
-
-### Requirement: DumpPlan stage
-
-The processor SHALL define a stage `DumpPlan` in package `io.github.joke.percolate.processor.stages.dump` that, when enabled by `ProcessorOptions.isDebugGraphs()`, writes a DOT representation of `MapperGraph.planView()` to `StandardLocation.SOURCE_OUTPUT`. `DumpPlan` SHALL be `@Inject`-constructed via Lombok `@RequiredArgsConstructor(onConstructor_ = @Inject)` and SHALL depend on `Filer`, `Diagnostics`, `ProcessorOptions`, and the deterministic DOT renderer — mirroring `DumpTransforms`.
-
-`DumpPlan` SHALL write its file regardless of whether the mapper was scarred by validation (debug output is most valuable on failure), and SHALL NOT write a file when the graph has zero nodes and zero edges. A `Filer`/`IOException` failure SHALL be reported as a `Diagnostics` warning (not an error) and SHALL NOT abort the compile.
-
-The `.transforms.dot` output (`MapperGraph.transformsView()`) SHALL be left unchanged and SHALL continue to include dead (`UNSAT`) multi-fire sibling branches — its purpose is debugging, and the dead branches are part of that picture. `.plan.dot` is the complementary view that shows only the chosen plan.
-
-#### Scenario: Option off does not write a plan file
-
-- **WHEN** `DumpPlan` runs with `ProcessorOptions.isDebugGraphs() == false`
-- **THEN** no resource is created via `Filer`
-- **AND** no diagnostic is emitted
-
-#### Scenario: Option on writes a .plan.dot file at SOURCE_OUTPUT
-
-- **WHEN** `DumpPlan` runs with `ProcessorOptions.isDebugGraphs() == true` for a non-empty `MapperGraph` and a `TypeElement` representing FQN `com.example.PersonMapper`
-- **THEN** `Filer.createResource(StandardLocation.SOURCE_OUTPUT, "", "com.example.PersonMapper.plan.dot", <originating element>)` is invoked
-- **AND** the resource's contents are the DOT representation of `graph.planView()` as produced by the deterministic DOT renderer
-
-#### Scenario: plan.dot and transforms.dot coexist
-
-- **WHEN** the pipeline completes for `com.example.PersonMapper` with `ProcessorOptions.isDebugGraphs() == true` and a non-empty graph
-- **THEN** both `com.example.PersonMapper.plan.dot` and `com.example.PersonMapper.transforms.dot` are present in `SOURCE_OUTPUT`
-- **AND** `com.example.PersonMapper.transforms.dot` still contains the dead-sibling edges absent from `com.example.PersonMapper.plan.dot`
