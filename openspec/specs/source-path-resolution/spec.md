@@ -2,7 +2,7 @@
 
 ## Purpose
 
-This spec defines the `PathSegmentResolver` SPI and the seed-time path-walking algorithm in `SeedGraph` that types multi-segment source paths and registers per-segment `ExpansionGroup`s. Before this capability, multi-segment source paths (like `person.address.street`) were left as untyped seed chains and resolved during expansion by the now-removed `GetterRead` `Bridge`. With path resolvers, the seed-time graph already contains typed source nodes for every resolvable segment plus a registered group per segment, and expansion can immediately reach them without a bridge round-trip.
+This spec defines source-path-segment resolution: the `ExpansionStrategy` implementations (the `Getter` / `Method` / `Field` path resolvers) that turn one segment of a `@Map` source path (like `person.address.street`) into a typed accessor, plus the parameter-root base case that grounds a single-segment source against its own method's parameters. Each resolver reads the segment to resolve from `frontier.directive()` and emits a `BOUNDARY` `ExpansionStep` describing the typed access; the engine reaches the produced source node through the ordinary cross-group fixed-point loop, with no dedicated path-resolution SPI or seed-time bridge round-trip.
 
 ## Requirements
 
@@ -37,110 +37,110 @@ A single-segment source node (a `src[param]` root) SHALL be recognised as satisf
 
 ### Requirement: GetterPathResolver built-in
 
-The `percolate-strategies-builtin` module SHALL ship `io.github.joke.percolate.spi.builtins.GetterPathResolver` implementing `PathSegmentResolver` and annotated `@AutoService(PathSegmentResolver.class)`.
+The `percolate-strategies-builtin` module SHALL ship `io.github.joke.percolate.spi.builtins.GetterPathResolver` implementing `ExpansionStrategy` and annotated `@AutoService(ExpansionStrategy.class)`.
 
-`GetterPathResolver.resolve(parentType, segment, ctx)` SHALL:
+`GetterPathResolver.expand(frontier, ctx)` SHALL read the single segment to resolve from `frontier.directive()` (see "Path resolution as a unified ExpansionStrategy") and, for each candidate parent type, SHALL:
 
-1. Return `Optional.empty()` when `parentType.getKind() != TypeKind.DECLARED` or its element is not a `TypeElement`.
-2. Probe for a JavaBean accessor method on `parentType`, in this order:
-   - `get<Segment>()` where `<Segment>` is `segment` with its first character upper-cased (zero parameters, non-Object-class).
+1. Produce no step when the parent type's `getKind() != TypeKind.DECLARED` or its element is not a `TypeElement`.
+2. Probe for a JavaBean accessor method on the parent type, in this order:
+   - `get<Segment>()` where `<Segment>` is the segment with its first character upper-cased (zero parameters, non-Object-class).
    - `is<Segment>()` where `<Segment>` is as above (zero parameters, return type is `boolean` / `java.lang.Boolean`, non-Object-class).
-3. If neither matches, return `Optional.empty()`.
-4. On match, return `Optional.of(new ResolvedSegment(method.getReturnType(), codegen, Weights.STEP_GETTER, method))` where `codegen` renders `<slot-0>.<methodName>()` and `method` is the matched accessor `ExecutableElement` passed as `producedFrom`.
+3. If neither matches, produce no step.
+4. On match, emit a single `BOUNDARY` `ExpansionStep` (via `ExpansionStep.boundary(...)`) whose one slot is the parent value — a `Slot` named `"value"`, typed to the parent type, weighted `Weights.STEP_GETTER`, carrying the matched accessor `ExecutableElement` as its `producedFrom` — whose `output` is the accessor's return type, whose `weight` is `Weights.STEP_GETTER`, and whose codegen renders `<parent>.<methodName>()`.
 
 `GetterPathResolver` SHALL ignore methods declared on `java.lang.Object`.
 
 #### Scenario: GetterPathResolver matches a JavaBean getter
-- **WHEN** `GetterPathResolver.resolve(<Person>, "lastName", ctx)` is invoked and `Person` has `String getLastName()`
-- **THEN** the returned `Optional` is non-empty
-- **AND** `returnType` is `String`
-- **AND** the codegen renders `<slot>.getLastName()`
-- **AND** `weight` equals `Weights.STEP_GETTER`
-- **AND** `producedFrom` is the `ExecutableElement` for `getLastName()`
+- **WHEN** `GetterPathResolver` resolves the segment `lastName` against a `Person` candidate that has `String getLastName()`
+- **THEN** it emits a single `BOUNDARY` `ExpansionStep`
+- **AND** the step's `output` is `String`
+- **AND** the codegen renders `<parent>.getLastName()`
+- **AND** the step's `weight` equals `Weights.STEP_GETTER`
+- **AND** the slot's `producedFrom` is the `ExecutableElement` for `getLastName()`
 
 #### Scenario: GetterPathResolver matches an `is` accessor for boolean
-- **WHEN** `GetterPathResolver.resolve(<Person>, "active", ctx)` is invoked and `Person` has `boolean isActive()`
-- **THEN** the returned `Optional` is non-empty
-- **AND** the codegen renders `<slot>.isActive()`
-- **AND** `weight` equals `Weights.STEP_GETTER`
-- **AND** `producedFrom` is the `ExecutableElement` for `isActive()`
+- **WHEN** `GetterPathResolver` resolves the segment `active` against a `Person` candidate that has `boolean isActive()`
+- **THEN** it emits a single `BOUNDARY` `ExpansionStep`
+- **AND** the codegen renders `<parent>.isActive()`
+- **AND** the step's `weight` equals `Weights.STEP_GETTER`
+- **AND** the slot's `producedFrom` is the `ExecutableElement` for `isActive()`
 
 #### Scenario: GetterPathResolver rejects parameterized overloads
-- **WHEN** `GetterPathResolver.resolve(<Person>, "name", ctx)` is invoked and `Person` has both `String getName(String suffix)` and no zero-arg `getName()`
-- **THEN** the returned `Optional` is empty
+- **WHEN** `GetterPathResolver` resolves the segment `name` against a `Person` candidate that has both `String getName(String suffix)` and no zero-arg `getName()`
+- **THEN** it emits no step
 
 #### Scenario: GetterPathResolver ignores Object methods
-- **WHEN** `GetterPathResolver.resolve(<Object>, "class", ctx)` is invoked
-- **THEN** the returned `Optional` is empty even though `Object.getClass()` exists
+- **WHEN** `GetterPathResolver` resolves the segment `class` against an `Object` candidate
+- **THEN** it emits no step even though `Object.getClass()` exists
 
 #### Scenario: GetterPathResolver returns empty for non-declared parents
-- **WHEN** `GetterPathResolver.resolve(<int[]>, "length", ctx)` is invoked (array, not declared)
-- **THEN** the returned `Optional` is empty
+- **WHEN** `GetterPathResolver` resolves the segment `length` against an `int[]` candidate (array, not declared)
+- **THEN** it emits no step
 
 ### Requirement: MethodPathResolver built-in
 
-The `percolate-strategies-builtin` module SHALL ship `io.github.joke.percolate.spi.builtins.MethodPathResolver` implementing `PathSegmentResolver` and annotated `@AutoService(PathSegmentResolver.class)`.
+The `percolate-strategies-builtin` module SHALL ship `io.github.joke.percolate.spi.builtins.MethodPathResolver` implementing `ExpansionStrategy` and annotated `@AutoService(ExpansionStrategy.class)`.
 
-`MethodPathResolver.resolve(parentType, segment, ctx)` SHALL:
+`MethodPathResolver.expand(frontier, ctx)` SHALL read the single segment to resolve from `frontier.directive()` and, for each candidate parent type, SHALL:
 
-1. Return `Optional.empty()` when `parentType.getKind() != TypeKind.DECLARED` or its element is not a `TypeElement`.
-2. Probe for a zero-arg method named exactly `segment` on `parentType`, ignoring methods declared on `java.lang.Object`.
-3. If not matched, return `Optional.empty()`.
-4. On match, return `Optional.of(new ResolvedSegment(method.getReturnType(), codegen, Weights.STEP_METHOD, method))` where `codegen` renders `<slot-0>.<segment>()` and `method` is the matched `ExecutableElement` passed as `producedFrom`.
+1. Produce no step when the parent type's `getKind() != TypeKind.DECLARED` or its element is not a `TypeElement`.
+2. Probe for a zero-arg method named exactly the segment on the parent type, ignoring methods declared on `java.lang.Object`.
+3. If not matched, produce no step.
+4. On match, emit a single `BOUNDARY` `ExpansionStep` (via `ExpansionStep.boundary(...)`) whose one slot is the parent value — a `Slot` named `"value"`, typed to the parent type, weighted `Weights.STEP_METHOD`, carrying the matched `ExecutableElement` as its `producedFrom` — whose `output` is the method's return type, whose `weight` is `Weights.STEP_METHOD`, and whose codegen renders `<parent>.<segment>()`.
 
 `MethodPathResolver` SHALL apply uniformly to any `DECLARED` parent type — records, plain classes, interfaces, abstract classes. It SHALL NOT gate on `ElementKind.RECORD`. Records continue to work because their canonical accessors fit the `no-arg method whose simple name equals segment` predicate.
 
 #### Scenario: MethodPathResolver matches a canonical record accessor
-- **WHEN** `MethodPathResolver.resolve(<PointRecord>, "x", ctx)` is invoked and `PointRecord` is a `record PointRecord(int x, int y)`
-- **THEN** the returned `Optional` is non-empty
-- **AND** `returnType` is `int`
-- **AND** the codegen renders `<slot>.x()`
-- **AND** `weight` equals `Weights.STEP_METHOD`
-- **AND** `producedFrom` is the `ExecutableElement` for the canonical accessor `x()`
+- **WHEN** `MethodPathResolver` resolves the segment `x` against a `PointRecord` candidate that is a `record PointRecord(int x, int y)`
+- **THEN** it emits a single `BOUNDARY` `ExpansionStep`
+- **AND** the step's `output` is `int`
+- **AND** the codegen renders `<parent>.x()`
+- **AND** the step's `weight` equals `Weights.STEP_METHOD`
+- **AND** the slot's `producedFrom` is the `ExecutableElement` for the canonical accessor `x()`
 
 #### Scenario: MethodPathResolver matches a fluent-style accessor on a non-record class
-- **WHEN** `MethodPathResolver.resolve(<Address>, "street", ctx)` is invoked and `Address` is a plain class with `String street() { return street; }`
-- **THEN** the returned `Optional` is non-empty
-- **AND** `returnType` is `String`
-- **AND** the codegen renders `<slot>.street()`
+- **WHEN** `MethodPathResolver` resolves the segment `street` against an `Address` candidate that is a plain class with `String street() { return street; }`
+- **THEN** it emits a single `BOUNDARY` `ExpansionStep`
+- **AND** the step's `output` is `String`
+- **AND** the codegen renders `<parent>.street()`
 
 #### Scenario: MethodPathResolver rejects parameterised methods
-- **WHEN** `MethodPathResolver.resolve(<Person>, "name", ctx)` is invoked and `Person` has only `String name(String suffix)` and no zero-arg overload
-- **THEN** the returned `Optional` is empty
+- **WHEN** `MethodPathResolver` resolves the segment `name` against a `Person` candidate that has only `String name(String suffix)` and no zero-arg overload
+- **THEN** it emits no step
 
 #### Scenario: MethodPathResolver ignores Object methods
-- **WHEN** `MethodPathResolver.resolve(<Object>, "toString", ctx)` is invoked
-- **THEN** the returned `Optional` is empty even though `Object.toString()` exists
+- **WHEN** `MethodPathResolver` resolves the segment `toString` against an `Object` candidate
+- **THEN** it emits no step even though `Object.toString()` exists
 
 #### Scenario: MethodPathResolver returns empty for non-declared parents
-- **WHEN** `MethodPathResolver.resolve(<int[]>, "length", ctx)` is invoked (array, not declared)
-- **THEN** the returned `Optional` is empty
+- **WHEN** `MethodPathResolver` resolves the segment `length` against an `int[]` candidate (array, not declared)
+- **THEN** it emits no step
 
 ### Requirement: FieldPathResolver built-in
 
-The `percolate-strategies-builtin` module SHALL ship `io.github.joke.percolate.spi.builtins.FieldPathResolver` implementing `PathSegmentResolver` and annotated `@AutoService(PathSegmentResolver.class)`.
+The `percolate-strategies-builtin` module SHALL ship `io.github.joke.percolate.spi.builtins.FieldPathResolver` implementing `ExpansionStrategy` and annotated `@AutoService(ExpansionStrategy.class)`.
 
-`FieldPathResolver.resolve(parentType, segment, ctx)` SHALL:
+`FieldPathResolver.expand(frontier, ctx)` SHALL read the single segment to resolve from `frontier.directive()` and, for each candidate parent type, SHALL:
 
-1. Return `Optional.empty()` when `parentType.getKind() != TypeKind.DECLARED` or its element is not a `TypeElement`.
-2. Probe for a `VariableElement` on `parentType` whose `simpleName` equals `segment`, whose `ElementKind` is `FIELD`, and whose modifiers contain neither `PRIVATE` nor `STATIC`.
-3. If not matched, return `Optional.empty()`.
-4. On match, return `Optional.of(new ResolvedSegment(field.asType(), codegen, Weights.STEP_FIELD, field))` where `codegen` renders `<slot-0>.<segment>` (a field read with no parentheses) and `field` is the matched `VariableElement` passed as `producedFrom`.
+1. Produce no step when the parent type's `getKind() != TypeKind.DECLARED` or its element is not a `TypeElement`.
+2. Probe for a `VariableElement` on the parent type whose `simpleName` equals the segment, whose `ElementKind` is `FIELD`, and whose modifiers contain neither `PRIVATE` nor `STATIC`.
+3. If not matched, produce no step.
+4. On match, emit a single `BOUNDARY` `ExpansionStep` (via `ExpansionStep.boundary(...)`) whose one slot is the parent value — a `Slot` named `"value"`, typed to the parent type, weighted `Weights.STEP_FIELD`, carrying the matched `VariableElement` as its `producedFrom` — whose `output` is the field's type (`field.asType()`), whose `weight` is `Weights.STEP_FIELD`, and whose codegen renders `<parent>.<segment>` (a field read with no parentheses).
 
 #### Scenario: FieldPathResolver matches a public field
-- **WHEN** `FieldPathResolver.resolve(<Box>, "value", ctx)` is invoked and `Box` has `public String value`
-- **THEN** the returned `Optional` is non-empty
-- **AND** the codegen renders `<slot>.value`
-- **AND** `weight` equals `Weights.STEP_FIELD`
-- **AND** `producedFrom` is the `VariableElement` for `Box.value`
+- **WHEN** `FieldPathResolver` resolves the segment `value` against a `Box` candidate that has `public String value`
+- **THEN** it emits a single `BOUNDARY` `ExpansionStep`
+- **AND** the codegen renders `<parent>.value`
+- **AND** the step's `weight` equals `Weights.STEP_FIELD`
+- **AND** the slot's `producedFrom` is the `VariableElement` for `Box.value`
 
 #### Scenario: FieldPathResolver rejects private fields
-- **WHEN** `FieldPathResolver.resolve(<Person>, "lastName", ctx)` is invoked and `Person` has `private String lastName` (Lombok `@Value`)
-- **THEN** the returned `Optional` is empty
+- **WHEN** `FieldPathResolver` resolves the segment `lastName` against a `Person` candidate that has `private String lastName` (Lombok `@Value`)
+- **THEN** it emits no step
 
 #### Scenario: FieldPathResolver rejects static fields
-- **WHEN** `FieldPathResolver.resolve(<Constants>, "DEFAULT", ctx)` is invoked and `Constants` has `public static String DEFAULT`
-- **THEN** the returned `Optional` is empty
+- **WHEN** `FieldPathResolver` resolves the segment `DEFAULT` against a `Constants` candidate that has `public static String DEFAULT`
+- **THEN** it emits no step
 
 ### Requirement: Weight constants for path-segment access
 

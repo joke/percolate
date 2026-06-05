@@ -95,7 +95,7 @@ Consumers SHALL access `HarnessResolveCtx` by declaring `testImplementation test
 - **Convergence flag** — `result.converged()` returns `false` when `ExpandStage` emitted an "Expansion did not converge after N rounds" diagnostic, otherwise `true`.
 - **Idempotence stub** — `result.isIdempotent()` is reserved for a structural same-graph check; the current implementation returns `true` unconditionally. Wiring it to a real comparison is a future concern.
 - **Identity collapse** — `result.hasIdentityCollisions()` SHALL return `true` iff two distinct `Node` instances in the result share the same `Node.id()` (which encodes `(scope, location, type)`).
-- **Orphan REALISED nodes** — `result.hasOrphanRealisedNodes()` SHALL return `true` iff any `REALISED` edge endpoint is unreachable, via `REALISED`/`MARKER`/`SUB_SEED` edges, from any `SEED`-edge endpoint.
+- **Orphan REALISED nodes** — `result.hasOrphanRealisedNodes()` SHALL return `true` iff any `REALISED` edge endpoint is unreachable, via `REALISED`/`MARKER` edges, from any `SEED`-edge endpoint.
 
 The `roundCount()` accessor SHALL be present but its value is currently a placeholder (`1`) until `ExpandStage` publishes rounds through `MapperContext`. Tests SHOULD NOT rely on the value today.
 
@@ -105,7 +105,7 @@ The `roundCount()` accessor SHALL be present but its value is currently a placeh
 - **AND** returns `true` iff at least two distinct nodes share `Node.id()`
 
 #### Scenario: Orphan-detection respects the traversable lattice
-- **WHEN** a result graph contains a `REALISED` edge whose endpoints have no `REALISED`/`MARKER`/`SUB_SEED` path to any `SEED`-edge endpoint
+- **WHEN** a result graph contains a `REALISED` edge whose endpoints have no `REALISED`/`MARKER` path to any `SEED`-edge endpoint
 - **THEN** `result.hasOrphanRealisedNodes()` returns `true`
 - **AND** a result graph whose `REALISED` edges are all anchored to `SEED` endpoints returns `false`
 
@@ -133,7 +133,7 @@ If `ExpandStage` aborts before producing a complete graph (cycle detected, budge
 
 Every test that exercises `ExpandStage`, its phases, the harness, or the assertions SHALL live in the `processor` module's test sources (`processor/src/test/groovy/`). No published Gradle module SHALL exist whose sole purpose is to host engine-test infrastructure.
 
-Engine-specific helpers — `ExpansionAssertions`, `ExpansionHarness`, `GraphFixtures`, plus any internal stubs the harness needs — SHALL be co-located with the tests at `processor/src/test/groovy/io/github/joke/percolate/processor/test/` (Groovy sources). These helpers depend on engine internals (`MapperContext`, `Diagnostics`, `ProcessorModule`, `MapperGraph`, `ValidatePathsPhase`) and therefore cannot move out of the processor module.
+Engine-specific helpers — `ExpansionAssertions`, `ExpansionHarness`, `GraphFixtures`, plus any internal stubs the harness needs — SHALL be co-located with the tests at `processor/src/test/groovy/io/github/joke/percolate/processor/test/` (Groovy sources). These helpers depend on engine internals (`MapperContext`, `Diagnostics`, `ProcessorModule`, `MapperGraph`, `ExpandGroupsPhase`) and therefore cannot move out of the processor module.
 
 Type-system fixtures — `TypeUniverse`, `HarnessResolveCtx` — SHALL live in `spi/src/testFixtures/groovy/io/github/joke/percolate/spi/test/` and be published via `percolate-spi`'s `testFixtures` configuration. These fixtures depend only on JDK + SPI types, so any SPI consumer (the `processor` module, the `strategies-builtin` module, third-party strategy modules) can consume them by declaring `testImplementation testFixtures(project(':spi'))`.
 

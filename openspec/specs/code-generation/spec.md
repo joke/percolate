@@ -211,7 +211,7 @@ The `VarNames` implementation in slice 1 SHALL be a placeholder with no public m
 
 This change SHALL realise code generation for mappers whose realised subgraph uses only:
 - `DirectAssign`-style bridges,
-- single-segment source paths resolved via `PathSegmentResolver`s (path strings without a `.`, or whose entire path is one segment beyond a parameter),
+- single-segment source paths resolved via the path-resolver strategies (path strings without a `.`, or whose entire path is one segment beyond a parameter),
 - `ConstructorCall`-style group targets that assemble a constructor invocation.
 
 Mappers whose realised subgraph requires multi-segment paths beyond a single appended segment, container scope transitions (`*Unwrap` / `*Collect` pairs), or nested mapper composition are OUT OF SCOPE for this slice. When such a mapper is encountered, the realised subgraph MAY still pass `BuildMethodBodies`' algorithm correctly because the algorithm's recursion is uniform; however, this spec does not pin the resulting `CodeBlock` shape for those out-of-scope cases.

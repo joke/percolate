@@ -114,8 +114,8 @@ Each rendered edge's `kind` SHALL be identifiable from the DOT output without co
 - **THEN** the edge's `label` attribute contains the literal `SEED`
 
 #### Scenario: REALISED edge kind is identified by style and strategy
-- **WHEN** the renderer writes an edge with `kind == EdgeKind.REALISED` and `strategyClassFqn == Optional.of("io.github.joke.percolate.spi.builtins.IterableUnwrap")`
-- **THEN** the edge's `label` attribute contains the simple class name `IterableUnwrap`
+- **WHEN** the renderer writes an edge with `kind == EdgeKind.REALISED` and `strategyClassFqn == Optional.of("io.github.joke.percolate.spi.builtins.ListContainer")`
+- **THEN** the edge's `label` attribute contains the simple class name `ListContainer`
 - **AND** the edge's style attributes match the documented REALISED styling (distinct from SEED)
 - **AND** the edge's `label` attribute does NOT contain the literal token `REALISED`
 
@@ -156,8 +156,8 @@ Edge **label content** is unchanged from prior behaviour: for `REALISED` edges t
 - **AND** the edge's `fontcolor` attribute is the same muted grey, so the label recedes
 
 #### Scenario: REALISED edge label contains strategy short name and weight
-- **WHEN** rendering a REALISED edge with `strategyClassFqn == Optional.of("io.github.joke.percolate.spi.builtins.IterableUnwrap")` and `weight == 2`
-- **THEN** the edge's `label` attribute contains both the literal `IterableUnwrap` and the literal `2`
+- **WHEN** rendering a REALISED edge with `strategyClassFqn == Optional.of("io.github.joke.percolate.spi.builtins.ListContainer")` and `weight == 2`
+- **THEN** the edge's `label` attribute contains both the literal `ListContainer` and the literal `2`
 - **AND** the `label` does NOT contain the package prefix `io.github.joke.percolate.spi.builtins`
 
 #### Scenario: Sentinel weight renders as infinity in REALISED labels
@@ -235,19 +235,19 @@ Per the "Node and edge visual distinction" requirement, REALISED edges SHALL inc
 - **WHEN** rendering a graph with mixed-kind edges
 - **THEN** edge statements appear in ascending natural `Edge` order regardless of `kind`
 
-### Requirement: New container bridges render with their simple class name
+### Requirement: Container strategies render with their simple class name
 
-The deterministic DOT renderer SHALL render REALISED edges emitted by the new container built-ins (`IterableUnwrap`, `OptionalCollect`, `SetCollect`, `ListCollect`, `ArrayCollect`) with `label` attributes containing the bridge's simple class name and weight, formatted by the same rule that applies to every REALISED edge (per the existing `Node and edge visual distinction` requirement).
+The deterministic DOT renderer SHALL render REALISED edges emitted by the container built-ins (`OptionalContainer`, `ListContainer`, `SetContainer`, `ArrayContainer`) with `label` attributes containing the strategy's simple class name and weight, formatted by the same rule that applies to every REALISED edge (per the existing `Node and edge visual distinction` requirement).
 
 No REALISED edge in any rendered DOT file SHALL carry a `strategyClassFqn` ending in `.SetMap`, `.ListMap`, or `.OptionalMap` — those classes are deleted by `split-container-bridges`. Any DOT file produced by the processor for a mapper compiled against the post-change classpath SHALL be free of those tokens in every edge label.
 
-#### Scenario: IterableUnwrap REALISED edge label contains its simple name and weight
-- **WHEN** the renderer writes a REALISED edge with `strategyClassFqn == Optional.of("io.github.joke.percolate.spi.builtins.IterableUnwrap")` and `weight == Weights.CONTAINER`
-- **THEN** the edge's `label` attribute contains both the literal `IterableUnwrap` and the literal value of `Weights.CONTAINER` (rendered as the configured integer, e.g. `2`)
+#### Scenario: A container strategy REALISED edge label contains its simple name and weight
+- **WHEN** the renderer writes a REALISED edge with `strategyClassFqn == Optional.of("io.github.joke.percolate.spi.builtins.ListContainer")` and `weight == Weights.CONTAINER`
+- **THEN** the edge's `label` attribute contains both the literal `ListContainer` and the literal value of `Weights.CONTAINER` (rendered as the configured integer, e.g. `2`)
 - **AND** the `label` does NOT contain the package prefix `io.github.joke.percolate.spi.builtins`
 
-#### Scenario: SetCollect / ListCollect / ArrayCollect / OptionalCollect REALISED edge labels contain their simple names
-- **WHEN** the renderer writes a REALISED edge whose `strategyClassFqn` resolves to one of `SetCollect`, `ListCollect`, `ArrayCollect`, or `OptionalCollect` under `io.github.joke.percolate.spi.builtins`
+#### Scenario: Set / List / Array / Optional container REALISED edge labels contain their simple names
+- **WHEN** the renderer writes a REALISED edge whose `strategyClassFqn` resolves to one of `SetContainer`, `ListContainer`, `ArrayContainer`, or `OptionalContainer` under `io.github.joke.percolate.spi.builtins`
 - **THEN** the edge's `label` attribute contains the simple class name verbatim
 - **AND** the `label` does NOT contain the package prefix
 

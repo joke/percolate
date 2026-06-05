@@ -2,7 +2,7 @@
 
 ## Purpose
 
-The container-codegen SPI is the strategy-supplied seam through which a developer adds container support (`List`/`Set`/array/`Optional`, and developer `Flux`/`Mono`/custom) by writing **one class per container** — both a `Bridge` (candidacy) and a codegen-handle provider (per-paradigm snippets). The composer owns only structure (the recursive `PlanView` walk + a one-bit `isStream` flag) and obtains every container `CodeBlock` from a handle, so adding a container needs no engine or composer change. Code generation is a pure function of the solved graph.
+The container-codegen SPI is the strategy-supplied seam through which a developer adds container support (`List`/`Set`/array/`Optional`, and developer `Flux`/`Mono`/custom) by writing **one class per container** — both a `ContainerMatch` candidacy and a codegen-handle provider (per-paradigm snippets). The composer owns only structure (the recursive `PlanView` walk + a one-bit `isStream` flag) and obtains every container `CodeBlock` from a handle, so adding a container needs no engine or composer change. Code generation is a pure function of the solved graph.
 
 ## Requirements
 
@@ -50,10 +50,10 @@ public interface WrapperCodegen extends StreamOps {            // Optional, Mono
 
 ### Requirement: SequenceContainer and WrapperContainer bases
 
-The percolate-spi module SHALL define abstract bases `SequenceContainer` and `WrapperContainer` that `implement Bridge` and let a developer declare a container in **one class** by supplying only its type predicate, its element extractor, and its codegen snippets. `SequenceContainer` SHALL also implement `ContainerCodegen`; `WrapperContainer` SHALL also implement `WrapperCodegen`.
+The percolate-spi module SHALL define abstract bases `SequenceContainer` and `WrapperContainer` that implement `ContainerMatch` and let a developer declare a container in **one class** by supplying only its type predicate, its element extractor, and its codegen snippets. `SequenceContainer` SHALL also implement `ContainerCodegen`; `WrapperContainer` SHALL also implement `WrapperCodegen`.
 
 ```java
-public abstract class SequenceContainer implements Bridge, ContainerCodegen {
+public abstract class SequenceContainer implements ContainerMatch, ContainerCodegen {
     protected abstract boolean matches(TypeMirror t, ResolveCtx ctx);
     protected abstract TypeMirror element(TypeMirror t);
     protected Optional<EdgeCodegen> singleElementWrap() { return Optional.empty(); }
@@ -62,7 +62,7 @@ public abstract class SequenceContainer implements Bridge, ContainerCodegen {
     // bridge(from, to, ctx) is supplied by the base
 }
 
-public abstract class WrapperContainer implements Bridge, WrapperCodegen {
+public abstract class WrapperContainer implements ContainerMatch, WrapperCodegen {
     protected abstract boolean matches(TypeMirror t, ResolveCtx ctx);
     protected abstract TypeMirror element(TypeMirror t);
     protected abstract Optional<TypeMirror> wrapped(TypeMirror element, ResolveCtx ctx); // e.g. Optional<element>
@@ -77,7 +77,7 @@ The base's `bridge(from, to, ctx)` SHALL derive candidacy from `matches`/`elemen
 - A `SequenceContainer`, when `matches(to)`, emits the collect (`EXITING`, carrying the container as provider) step and, when supported, the single-element wrap (`PRESERVING`, scalar `EdgeCodegen` from `singleElementWrap()`, e.g. `List.of`/`Set.of`; arrays omit it); when `matches(from)`, it emits the iterate (`ENTERING`, provider) step with input `from` and output `element(from)`.
 - A `WrapperContainer`, when `matches(to)`, emits **only** the single-element wrap (`PRESERVING`, scalar `EdgeCodegen` from `wrap`, e.g. `ofNullable`) — **no collect step** (a wrapper is not a sequence); when `to` is **not** itself the wrapper, it emits the unwrap (`ENTERING`, provider) step with input `wrapped(to)` (e.g. `Optional<to>`) and output `to`.
 
-Each scope-entering / scope-exiting step SHALL carry the container as its codegen provider; the single-element wrap step SHALL carry a scalar `EdgeCodegen` (see the `expansion-strategy-spi` BridgeStep modification). The developer SHALL NOT write graph or `BridgeStep` logic by hand. Registration SHALL be via `@AutoService(Bridge.class)` / `ServiceLoader`, identical to existing bridges.
+Each scope-entering / scope-exiting step SHALL carry the container as its codegen provider; the single-element wrap step SHALL carry a scalar `EdgeCodegen` (see the `expansion-strategy-spi` `ExpansionStep` surface). The developer SHALL NOT write graph or `ExpansionStep` logic by hand. Registration SHALL be via `@AutoService(ExpansionStrategy.class)` / `ServiceLoader`, identical to every other strategy.
 
 #### Scenario: A developer adds a container with one class
 - **WHEN** a developer writes a class extending `SequenceContainer` (or `WrapperContainer`) implementing `matches`, `element`, and the snippet methods, annotated `@AutoService`
@@ -86,12 +86,12 @@ Each scope-entering / scope-exiting step SHALL carry the container as its codege
 
 #### Scenario: A sequence derives candidacy from matches and element
 - **WHEN** the driver queries a `SequenceContainer` for `(from, to)` where `matches(to)` holds
-- **THEN** the base emits the collect `BridgeStep` (and, when supported, a scalar single-element wrap) with input `element(to)` and output `to`
-- **AND** when `matches(from)` holds it emits the iterate `BridgeStep` with input `from` and output `element(from)`
+- **THEN** the base emits the collect `ExpansionStep` (and, when supported, a scalar single-element wrap) with input `element(to)` and output `to`
+- **AND** when `matches(from)` holds it emits the iterate `ExpansionStep` with input `from` and output `element(from)`
 
 #### Scenario: A wrapper synthesises its unwrap input from a scalar target
 - **WHEN** the driver queries a `WrapperContainer` for `(from, to)` where `to` is not the wrapper type
-- **THEN** the base emits an `ENTERING` unwrap `BridgeStep` with input `wrapped(to)` (e.g. `Optional<to>`) and output `to`, carrying the container as provider
+- **THEN** the base emits an `ENTERING` unwrap `ExpansionStep` with input `wrapped(to)` (e.g. `Optional<to>`) and output `to`, carrying the container as provider
 - **AND** when `matches(to)` holds it emits the collect step (and a scalar `ofNullable` wrap) instead
 
 ### Requirement: Built-in containers are the first customers of the SPI
