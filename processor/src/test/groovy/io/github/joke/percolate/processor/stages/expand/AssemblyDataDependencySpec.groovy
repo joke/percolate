@@ -80,6 +80,35 @@ class AssemblyDataDependencySpec extends Specification {
         addGroup.slots.toSet() == [nameLeaf, ageLeaf].toSet()
     }
 
+    def 'a constructor whose parameter names do not equal the declared children opens no sub-group'() {
+        given: 'a pre-seeded assembly umbrella whose declared children are name/age'
+        def root = target('', TypeUniverse.STRING)
+        def nameLeaf = target('name', TypeUniverse.STRING)
+        def ageLeaf = target('age', TypeUniverse.INT)
+        graph.addNode(root)
+        graph.addNode(nameLeaf)
+        graph.addNode(ageLeaf)
+        def group = ExpansionGroup.of(root, [nameLeaf, ageLeaf], GROUP_NOOP, SEED_FQN, [].toSet(), graph)
+
+        and: 'an assembly strategy whose constructor parameter-name set differs from the declared children'
+        def constructor = { f, c ->
+            Stream.of(ExpansionStep.boundary(
+                    [new Slot('name', TypeUniverse.STRING, Weights.STEP, null),
+                     new Slot('age', TypeUniverse.INT, Weights.STEP, null),
+                     new Slot('country', TypeUniverse.STRING, Weights.STEP, null)],
+                    TypeUniverse.STRING,
+                    EDGE_NOOP,
+                    Weights.STEP))
+        } as AssemblyStrategy
+        def matcher = new FrontierMatcher([constructor], new InputAllocator(ctx), ctx)
+
+        when:
+        def bundles = matcher.matchAssembly(root, group, state)
+
+        then: 'the name-set-equality gate rejects the constructor: no bundle, no node minted'
+        bundles.empty
+    }
+
     private Node target(final String path, final javax.lang.model.type.TypeMirror type) {
         new Node(Optional.of(type), new TargetLocation(TargetPath.of(path)), scope)
     }

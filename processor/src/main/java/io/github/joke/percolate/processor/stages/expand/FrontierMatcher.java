@@ -1,5 +1,6 @@
 package io.github.joke.percolate.processor.stages.expand;
 
+import com.palantir.javapoet.CodeBlock;
 import io.github.joke.percolate.processor.graph.Edge;
 import io.github.joke.percolate.processor.graph.ElementLocation;
 import io.github.joke.percolate.processor.graph.ExpansionGroup;
@@ -22,6 +23,7 @@ import java.util.Comparator;
 import java.util.HashSet;
 import java.util.IdentityHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
@@ -49,6 +51,13 @@ import org.jspecify.annotations.Nullable;
  */
 @SuppressWarnings("PMD.GodClass")
 final class FrontierMatcher {
+
+    /** FQN marking a minted directive-binding group as a seed group (so {@link GroupShapes} dispatches it). */
+    private static final String SEED_FQN = GroupShapes.SEED_PACKAGE_PREFIX + "SeedGraph";
+
+    /** Placeholder codegen for a minted directive-binding group; never rendered (its edges carry the codegen). */
+    private static final GroupCodegen PLACEHOLDER_GROUP_CODEGEN =
+            (vars, inputs) -> CodeBlock.of("/* unresolved seed-group */");
 
     private final List<ExpansionStrategy> allStrategies;
     private final List<ExpansionStrategy> generalStrategies;
@@ -98,22 +107,52 @@ final class FrontierMatcher {
                 new FrontierContext(targetType, frontier.getDirective(), candidatesOf(frontier, group, snapshot));
         final var bundles = new ArrayList<DeltaBundle>();
         final var seen = new HashSet<String>();
+        final var declaredNames = declaredChildNames(group);
+        final var claimedNames = new HashSet<String>();
         for (final var strategy : strategies) {
             final var fqn = strategy.getClass().getName();
-            strategy.expand(ctx, resolveCtx).forEach(step -> {
-                if (!resolveCtx.types().isSameType(step.getOutput(), targetType)) {
-                    return;
-                }
-                if (!scopeMatches(step.getScope(), frontier)) {
-                    return;
-                }
-                if (!seen.add(stepSignature(fqn, step))) {
-                    return;
-                }
-                toBundle(frontier, step, group, snapshot, fqn).ifPresent(bundles::add);
-            });
+            final var assembly = strategy instanceof AssemblyStrategy;
+            strategy.expand(ctx, resolveCtx)
+                    .filter(step -> accepts(step, targetType, frontier, assembly, declaredNames, seen, fqn))
+                    .forEach(step -> toBundle(frontier, step, group, snapshot, fqn, assembly, claimedNames)
+                            .ifPresent(bundles::add));
         }
         return bundles;
+    }
+
+    /**
+     * Whether an emitted step survives the round's guards: it produces the frontier's type, its element-scope fits
+     * the frontier, an assembly step's parameter names equal the declared children, and it is not a structural
+     * duplicate already seen this round. Ordered so {@code seen} is only marked for an otherwise-acceptable step.
+     */
+    private boolean accepts(
+            final ExpansionStep step,
+            final TypeMirror targetType,
+            final Node frontier,
+            final boolean assembly,
+            final Set<String> declaredNames,
+            final Set<String> seen,
+            final String fqn) {
+        return resolveCtx.types().isSameType(step.getOutput(), targetType)
+                && scopeMatches(step.getScope(), frontier)
+                && (!assembly || assemblyParamsMatchDeclared(step, declaredNames))
+                && seen.add(stepSignature(fqn, step));
+    }
+
+    /** The declared-child names of an assembly umbrella group: the target-field names a constructor must match. */
+    private Set<String> declaredChildNames(final ExpansionGroup group) {
+        return group.getSlots().stream().map(FrontierMatcher::slotName).collect(Collectors.toUnmodifiableSet());
+    }
+
+    /**
+     * Bind-only-declared candidacy: a constructor is a candidate iff its parameter-name set equals the umbrella's
+     * declared-child name set. Coverage (no declared child dropped) and no-silent-sourcing (no un-declared parameter
+     * invented) are the two halves of this single equality; a no-arg or partial or extra-parameter constructor fails
+     * it and never opens a sub-group.
+     */
+    private static boolean assemblyParamsMatchDeclared(final ExpansionStep step, final Set<String> declaredNames) {
+        final var paramNames = step.getInputs().stream().map(Slot::getName).collect(Collectors.toUnmodifiableSet());
+        return paramNames.equals(declaredNames);
     }
 
     /**
@@ -216,12 +255,14 @@ final class FrontierMatcher {
             final ExpansionStep step,
             final ExpansionGroup group,
             final ExpansionSnapshot snapshot,
-            final String fqn) {
+            final String fqn,
+            final boolean assembly,
+            final Set<String> claimedNames) {
         switch (step.getIntent()) {
             case CONVERSION:
                 return convertBundle(frontier, step, group, snapshot, fqn);
             case BOUNDARY:
-                return Optional.of(boundaryBundle(frontier, step, group, snapshot, fqn));
+                return Optional.of(boundaryBundle(frontier, step, group, snapshot, fqn, assembly, claimedNames));
         }
         throw new IllegalStateException("Unknown intent: " + step.getIntent());
     }
@@ -275,7 +316,9 @@ final class FrontierMatcher {
             final ExpansionStep step,
             final ExpansionGroup group,
             final ExpansionSnapshot snapshot,
-            final String fqn) {
+            final String fqn,
+            final boolean assembly,
+            final Set<String> claimedNames) {
         final var codegen = step.getCodegen();
         final var groupCodegen = groupCodegenOf(codegen);
         final var deltas = new ArrayList<Delta>();
@@ -285,7 +328,9 @@ final class FrontierMatcher {
         final IdentityHashMap<Node, Slot> slotMetadata =
                 new IdentityHashMap<>(step.getInputs().size());
         for (final var spiSlot : step.getInputs()) {
-            final var node = bindSlot(spiSlot, frontier, group, step.getScope(), snapshot, deltas);
+            final var node = assembly
+                    ? bindAssemblySlot(spiSlot, group, snapshot, claimedNames, deltas)
+                    : bindSlot(spiSlot, frontier, group, step.getScope(), snapshot, deltas);
             slotNodes.add(node);
             slotMetadata.put(node, spiSlot);
             final var edge = realisedEdge(node, frontier, step.getWeight(), codegen, step.getScope(), fqn);
@@ -336,6 +381,65 @@ final class FrontierMatcher {
                 .filter(slot -> name.equals(slotName(slot)))
                 .findFirst()
                 .orElse(null);
+    }
+
+    /**
+     * Binds an assembly (constructor) parameter to a per-{@code (name, required-type)} typed leaf. The first
+     * constructor to demand a declared child claims the pre-seeded leaf for its type; a later constructor that
+     * disagrees on the type (a type-divergent overload) gets its own freshly minted leaf, fed from the very same
+     * shared source value by its own directive-binding group. The leaf is never sourced from anything but a
+     * directive-declared child — there is no {@link InputAllocator} fall-through here — so an un-declared parameter
+     * can never be auto-sourced (the name-set-equality gate in {@code produce} already rejected such constructors).
+     */
+    private Node bindAssemblySlot(
+            final Slot spiSlot,
+            final ExpansionGroup group,
+            final ExpansionSnapshot snapshot,
+            final Set<String> claimedNames,
+            final List<Delta> deltas) {
+        final var name = spiSlot.getName();
+        final var seeded = existingSlotByName(group, name);
+        if (seeded == null) {
+            throw new IllegalStateException("assembly parameter has no declared child of the same name: " + name);
+        }
+        // The first constructor to demand a declared child claims the pre-seeded leaf; every later (OR-sibling)
+        // constructor mints its OWN private leaf for the child, even when the type agrees. Sibling constructor
+        // groups must keep disjoint slots: PlanView resolves the OR by dropping the losing group's slot edges, and
+        // a shared leaf would yield a structurally-equal (value-equal) edge in both groups — dropping the loser's
+        // copy would take the winner's with it.
+        if (claimedNames.add(name)) {
+            return seeded;
+        }
+        final var source = directiveSourceFor(seeded, snapshot);
+        if (source == null) {
+            return seeded;
+        }
+        return mintTypedLeaf(seeded, source, deltas);
+    }
+
+    /** The shared source value feeding {@code leaf}, read from the directive-binding seed group rooted at it. */
+    @Nullable
+    private Node directiveSourceFor(final Node leaf, final ExpansionSnapshot snapshot) {
+        return snapshot.groups()
+                .filter(GroupShapes::isDirectiveBinding)
+                .filter(candidate -> candidate.getRoot().equals(leaf))
+                .map(candidate -> candidate.getSlots().get(0))
+                .findFirst()
+                .orElse(null);
+    }
+
+    /**
+     * Mints a fresh typed leaf at the seeded leaf's location and registers a directive-binding group feeding it from
+     * the shared {@code source} (reusing the one source node — never a duplicate). The leaf is left untyped: its
+     * directive-binding group pins the declared type via {@code Applier.pinExpectedTypesOnProducers} and produces it
+     * (identity direct-assign for an exact match, a widen/box chain for a divergence).
+     */
+    private Node mintTypedLeaf(final Node seeded, final Node source, final List<Delta> deltas) {
+        final var fresh = new Node(Optional.empty(), seeded.getLoc(), seeded.getScope(), seeded.getParent());
+        deltas.add(new AddNode(fresh));
+        deltas.add(new AddGroup(
+                fresh, List.of(source), PLACEHOLDER_GROUP_CODEGEN, SEED_FQN, Set.of(), Map.of(), List.of()));
+        return fresh;
     }
 
     /**
