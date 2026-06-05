@@ -2,9 +2,9 @@
 
 ## Purpose
 
-This spec defines the expansion engine that turns a `MapperGraph` populated with `SEED` edges into a graph augmented with `REALISED` edges, organised as a forest of `ExpansionGroup` sub-graphs. Expansion proceeds target-to-source within each group: target slots demand inputs, and the engine drives chains backwards through bridges and group targets. SAT propagates from leaf groups (parameter-root base-case SAT) up through the dependency DAG via per-group `GroupOutcome` records.
+This spec defines the expansion engine that turns a `MapperGraph` populated with `SEED` edges into a graph augmented with `REALISED` edges, organised as a forest of `ExpansionGroup` sub-graphs. Expansion proceeds target-to-source within each group: target slots demand inputs, and the engine drives chains backwards through `ExpansionStrategy` matches. SAT propagates from leaf groups (parameter-root base-case SAT) up through the dependency DAG via per-group `GroupOutcome` records.
 
-The realisation engine is a **cross-group fixed-point loop**: each pass dispatches every non-SAT group to its `GroupExpander` against a per-pass snapshot, collects the emitted `DeltaBundle`s, applies them via the single `Applier`, and re-runs until a full pass produces no state changes (the applier accepted no bundle AND no group was promoted to SAT). There is no SUB_SEED edge kind, no element-seed/diamond machinery, and no per-slot round budget. Element scope is declared per `BridgeStep` via `ScopeTransition`; expanders emit `AddNode` deltas for element-scope nodes at the right `Location` and an `AddGroup` delta for a one-slot nested `ExpansionGroup` on every bridge match (regardless of `ScopeTransition`).
+The realisation engine is a **cross-group fixed-point loop**: each pass dispatches every non-SAT group to its `GroupExpander` against a per-pass snapshot, collects the emitted `DeltaBundle`s, applies them via the single `Applier`, and re-runs until a full pass produces no state changes (the applier accepted no bundle AND no group was promoted to SAT). There is no SUB_SEED edge kind, no element-seed/diamond machinery, and no per-slot round budget. Element scope is declared per `ExpansionStep` via its optional `ElementScope` (`ENTERING`/`EXITING`); expanders emit `AddNode` deltas for the step's slot nodes at the right `Location` and an `AddGroup` delta for the nested `ExpansionGroup` opened by each `BOUNDARY` step (its `slots` are the step's `inputs`, `0..N`; regardless of whether an `ElementScope` is present).
 
 Candidate search during expansion is scoped to the **current group's view** (`ExpansionGroup.getView().vertexSet()`), not the global `MapperGraph`. This structural rule prevents sibling-derived nodes from leaking as candidates. Combined with `Node` instance-identity and narrow boundary import (only `SourceLocation` parents inherit), cross-sibling cycles can't form by leakage. Inverse-bridge same-loc reuse (Wrap↔Unwrap pairs) can still attempt cycle-closing matches via the parent group's root; those are caught at apply time by the `Applier`'s per-bundle dry-cycle-check (JGraphT `CycleDetector` over a temporary REALISED `DirectedMultigraph`), which drops the entire `DeltaBundle` so no orphan node survives (see "DeltaBundle atomicity").
 
@@ -14,16 +14,16 @@ Candidate search during expansion is scoped to the **current group's view** (`Ex
 
 The processor SHALL define a stage `ExpandStage` in package `io.github.joke.percolate.processor.stages.expand` that consumes a `MapperGraph` populated with `EdgeKind.SEED` edges. `ExpandStage` SHALL be `@Inject`-constructed via Lombok `@RequiredArgsConstructor(onConstructor_ = @Inject)` taking a `List<ExpansionPhase>` and any other dependencies as constructor arguments.
 
-`ExpandStage.run(MapperContext)` SHALL iterate the injected phase list in declared order and invoke `phase.apply(graph)` on each. There is no convergence check, no fixed-point loop, and no round counter at the `ExpandStage` level — termination is guaranteed by each phase's own bounded behaviour (see `ExpandGroupsPhase` below).
+`ExpandStage.run(MapperContext)` SHALL iterate the injected phase list in declared order and invoke `phase.apply(graph)` on each. There is no convergence check, no fixed-point loop, and no round counter at the `ExpandStage` level — termination is guaranteed by each phase's own bounded behaviour (see `ExpandGroupsPhase` below). The shipped phase list contains a single phase, `ExpandGroupsPhase`; there is no `ResolveTargetChainsPhase` or any source/target pre-resolution phase.
 
 Before invoking phases, `ExpandStage` SHALL set the `MapperContext.currentMethod` from the first SEED edge whose `from` node lives in a `MethodScope`. This ensures the context's currentMethod is available to downstream `ResolveCtx` consumers.
 
 If the graph is `null` (no mapper-level graph was produced), `ExpandStage.run` SHALL return without invoking any phase.
 
-#### Scenario: ExpandStage invokes phases in declared order
-- **WHEN** `ExpandStage.run(ctx)` is invoked with phase list `[ResolveTargetChainsPhase, ExpandGroupsPhase]`
-- **THEN** `ResolveTargetChainsPhase.apply(graph)` runs first
-- **AND** `ExpandGroupsPhase.apply(graph)` runs second
+#### Scenario: ExpandStage invokes the single ExpandGroupsPhase
+- **WHEN** `ExpandStage.run(ctx)` is invoked with phase list `[ExpandGroupsPhase]`
+- **THEN** `ExpandGroupsPhase.apply(graph)` runs
+- **AND** no `ResolveTargetChainsPhase` (or any other pre-resolution phase) is invoked, because none exists in the pipeline
 
 #### Scenario: ExpandStage skips when graph is absent
 - **WHEN** `MapperContext.getGraph()` returns `null`
@@ -51,21 +51,21 @@ Phases SHALL be testable in isolation by populating a `MapperGraph` to the state
 
 ### Requirement: Slot Nodes are typed at producer commit
 
-Slot `Node`s allocated by `ResolveTargetChainsPhase` (top-level) and emitted as `AddNode` deltas during expansion — by `InputAllocator` for `Bridge` matches and by `SlotResolver`'s `GroupTarget` fallback for multi-slot matches — SHALL be created with both `type` and `nullability` empty. They SHALL be typed when their producer commits (a `TypeNode` delta applied by the `Applier`) — exactly the same lifecycle that path-segment-group roots already follow (see "Path-segment-group resolution via PathSegmentResolver").
+Target leaf and slot `Node`s — the umbrella assembly-group child leaves and the source/target chain nodes created untyped by `SeedGraph`, and the nodes emitted as `AddNode` deltas during expansion by `InputAllocator` (boundary slots and synthesized conversion inputs) — SHALL be created with both `type` and `nullability` empty. They SHALL be typed when their producer commits (a `TypeNode` delta applied by the `Applier`) — the same lifecycle that source path-segment-group roots follow (see `source-path-resolution`).
 
 The `Applier`, on each `TypeNode` delta, SHALL invoke `slotNode.setTyping(producerType, producerNullability)` where:
 
-- `producerType` is the actual type produced by the matched strategy (`ResolvedSegment.getReturnType()`, `BridgeStep.getOutputType()`, `MethodCandidate.method.getReturnType()`, …).
-- `producerNullability` is `NullabilityResolver.resolve(producerType, producerScope)`, with `producerScope` being the underlying `Element` of the match (`ResolvedSegment.getProducedFrom()`, `BridgeStep.getProducedFrom()`, `MethodCandidate.getMethod()`, …).
+- `producerType` is the actual type produced by the matched strategy (the resolved path-segment member type, the `ExpansionStep.getOutput()` of a `BOUNDARY` step, `MethodCandidate.getMethod().getReturnType()`, …).
+- `producerNullability` is `NullabilityResolver.resolve(producerType, producerScope)`, with `producerScope` being the underlying `Element` of the match (the path-resolved member element, the producing method/constructor element, …).
 
-The slot's consumer contract is NOT stored on the slot Node. It is derived on demand by code generation by calling `NullabilityResolver.resolve(slot.getProducedFrom().getType-or-asType, slot.getProducedFrom())` (see the `code-generation` capability).
+The slot's consumer contract is NOT stored on the slot Node. It is derived on demand by code generation (see the `code-generation` capability).
 
 The engine SHALL NOT use the prior `Node.setType(...)` API. All typing-commit sites SHALL use the paired `Node.setTyping(type, nullability)` (see the `graph-model` capability).
 
 #### Scenario: Slot Node typed at producer commit via setTyping
-- **WHEN** a slot Node is created untyped by `ResolveTargetChainsPhase`
-- **AND** `PathSegmentExpander` emits a `TypeNode` delta from `ResolvedSegment(returnType=String, ..., producedFrom=getterMethod)` and the `Applier` applies it
-- **THEN** the slot Node's `setTyping(String, NullabilityResolver.resolve(String, getterMethod))` is invoked exactly once
+- **WHEN** a slot Node is created untyped (a seed leaf, or an `InputAllocator`-allocated slot)
+- **AND** `SourceDescentExpander` emits a `TypeNode` delta typing it to `String` from a resolved getter member element, and the `Applier` applies it
+- **THEN** the slot Node's `setTyping(String, NullabilityResolver.resolve(String, getterElement))` is invoked exactly once
 - **AND** after commit, `slot.getType()` is `Optional.of(String)`
 - **AND** `slot.getNullability()` is `Optional.of(...)` matching the resolver's verdict
 
@@ -86,11 +86,11 @@ The engine SHALL NOT use the prior `Node.setType(...)` API. All typing-commit si
 The `Applier` SHALL implement `Delta.Visitor<Void>` and SHALL own the `producerScopes : IdentityHashMap<Node, Element>` map as private state. The map records, for each `Node` typed via `setTyping` during `apply(graph)`, the `Element` scope that drove the resolver call. Reads of the map are exposed only through `ExpansionSnapshot.producerScopeOf(node)`.
 
 #### Scenario: Expanders never mutate the graph directly
-- **WHEN** the source of `PathSegmentExpander`, `DirectiveBindingExpander`, `BridgeExpander`, `FrontierMatcher`, and `InputAllocator` is inspected
+- **WHEN** the source of `SourceDescentExpander`, `DirectiveBindingExpander`, `AssemblyExpander`, `BridgeExpander`, `FrontierMatcher`, and `InputAllocator` is inspected
 - **THEN** no source line invokes `MapperGraph.addNode`, `MapperGraph.addEdge`, `MapperGraph.addEdgeIfAcyclic`, `MapperGraph.addGroup`, `MapperGraph.recordGroupOutcome`, `Node.setTyping`, `ExpansionGroup.addVertexToView`, or `ExpansionGroup.addEdgeToView`
 
 #### Scenario: producerScopes is encapsulated in the Applier
-- **WHEN** the source of `ExpandGroupsPhase`, the three `GroupExpander` impls, and helper classes (`FrontierMatcher`, `InputAllocator`) is inspected
+- **WHEN** the source of `ExpandGroupsPhase`, the four `GroupExpander` impls, and helper classes (`FrontierMatcher`, `InputAllocator`) is inspected
 - **THEN** none of them declare or expose an `IdentityHashMap<Node, Element>` field
 - **AND** only the `Applier` declares the `producerScopes` map as a private field
 
@@ -98,10 +98,10 @@ The `Applier` SHALL implement `Delta.Visitor<Void>` and SHALL own the `producerS
 
 The phase SHALL define a `GroupExpander` interface with two methods:
 
-- `boolean appliesTo(ExpansionGroup group)` — pure structural predicate; expanders SHALL recognise their group kind by inspecting the group's slots and locations.
+- `boolean appliesTo(ExpansionGroup group)` — pure structural predicate; expanders SHALL recognise their group kind by inspecting the group's slots and locations (via `GroupShapes`).
 - `GroupStepResult step(ExpansionGroup group, ExpansionSnapshot snapshot)` — pure function returning `(List<DeltaBundle> bundles, List<Node> pendingSlots)`. The implementation SHALL NOT mutate the graph, the group, the snapshot, or any other shared state. The `bundles` describe intended mutations; `pendingSlots` lists the group's slots that are not yet satisfied after applying the bundles (empty list ⇔ the expander considers the group SAT).
 
-Expanders are supplied to the driver as an ordered `List<GroupExpander>` assembled by the `ExpandGroupsPhase.create` factory and passed via constructor injection. The driver SHALL dispatch each non-SAT group to the **first** expander whose `appliesTo` predicate returns true. The `appliesTo` predicates SHALL be mutually exclusive by construction (path-segment, directive-binding, and bridge-group structural shapes do not overlap).
+Expanders are supplied to the driver as an ordered `List<GroupExpander>` assembled by the `ExpandGroupsPhase.create` factory and passed via constructor injection. The driver SHALL dispatch each non-SAT group to the **first** expander whose `appliesTo` predicate returns true. The shipped expanders are `SourceDescentExpander`, `DirectiveBindingExpander`, `AssemblyExpander`, and `BridgeExpander`; their `appliesTo` predicates SHALL be mutually exclusive by construction (source-descent, directive-binding, and assembly shapes are distinct, and `BridgeExpander` is the fallback for any remaining non-seed sub-group).
 
 #### Scenario: Expander step is pure
 - **WHEN** `GroupExpander.step(group, snapshot)` is invoked
@@ -159,7 +159,7 @@ The `ExpansionSnapshot` interface SHALL expose only read methods (`groups()`, `v
 
 ### Requirement: ExpandGroupsPhase drives per-group expansion
 
-`ExpandGroupsPhase` SHALL process registered `ExpansionGroup`s via a cross-group fixed-point loop (see the "Cross-group fixed-point loop" requirement): iterate every non-SAT group, dispatch each to its `GroupExpander`, collect emitted bundles, apply them, repeat until a full pass produces no changes. Initial group set is the groups present after `SeedGraph` and `ResolveTargetChainsPhase` (per-SEED-edge groups + parent constructor groups). Groups registered during expansion (via `AddGroup` deltas) join the set and are processed in subsequent passes.
+`ExpandGroupsPhase` SHALL process registered `ExpansionGroup`s via a cross-group fixed-point loop (see the "Cross-group fixed-point loop" requirement): iterate every non-SAT group, dispatch each to its `GroupExpander`, collect emitted bundles, apply them, repeat until a full pass produces no changes. The initial group set is the groups present after `SeedGraph`: the source-side per-edge groups (path-segment and directive-binding) and the umbrella assembly groups (one per parent target node, slots = its child target leaves; see `seed-graph`). Groups registered during expansion (via `AddGroup` deltas) join the set and are processed in subsequent passes.
 
 The phase SHALL enforce a single budget constant:
 
@@ -169,7 +169,7 @@ No per-slot round budget exists. Each `GroupExpander.step` call describes the gr
 
 For each group visited in an outer pass, the phase SHALL invoke `GroupExpander.step(group, snapshot)` which produces `(bundles, pendingSlots)`. If `pendingSlots.isEmpty()` after the pass's applier run, the driver SHALL mark the group SAT on the state and SHALL invoke `recordGroupOutcome(GroupOutcome.sat(group))` on the underlying graph via the applier. Otherwise the group remains pending; outcome recording is deferred to outer-loop convergence (see "Cross-group fixed-point loop").
 
-The legacy phase methods `fillGroup`, `resolveSlot`, `expandFrontier`, `tryBridges`, `tryBridgeOnCandidate`, `commitBridgeStep`, `tryGroupTargets`, `registerNestedGroupTarget`, `allocateInputNode`, `findCandidateByInputType`, `allocateFresh`, `importBoundaryNodes` SHALL NOT exist on `ExpandGroupsPhase`. Their semantic equivalents live in `GroupExpander` implementations and the `Applier`.
+The legacy phase methods `fillGroup`, `resolveSlot`, `expandFrontier`, `tryBridges`, `tryBridgeOnCandidate`, `commitBridgeStep`, `tryGroupTargets`, `registerNestedGroupTarget`, `allocateInputNode`, `findCandidateByInputType`, `allocateFresh`, `importBoundaryNodes` SHALL NOT exist on `ExpandGroupsPhase`. Their semantic equivalents live in `GroupExpander` implementations, `FrontierMatcher`, and the `Applier`.
 
 #### Scenario: Slot is base-case SAT for parameter root
 - **WHEN** a group's slot is `src[person]:Person` and `currentMethod` has parameter `person`
@@ -387,15 +387,15 @@ The driver SHALL thread the in-effect `@Map` directive onto nodes it synthesizes
 
 ### Requirement: Multi-fire per frontier; parallel sub-groups coexist
 
-`FrontierMatcher` SHALL emit one `DeltaBundle` per matching `BridgeStep` at each frontier. Multiple bridges that produce the frontier's type SHALL each yield their own bundle (a REALISED `AddEdge` plus a one-slot `AddGroup`). The siblings share the same root (the frontier) but have different slots and expand independently in subsequent passes.
+`FrontierMatcher` SHALL emit one `DeltaBundle` per matching `BOUNDARY` `ExpansionStep` at each frontier. Multiple strategies (or multiple steps from one strategy) that produce the frontier's type SHALL each yield their own bundle (a REALISED `AddEdge` plus an `AddGroup`). The siblings share the same root (the frontier) but have different slots and expand independently in subsequent passes.
 
 A slot SATs iff at least one of its child sub-groups has outcome SAT. Dead branches (sub-groups that never reach SAT) remain in the graph as unsatisfied sub-groups; they do not contribute to the alive chain via outcome propagation.
 
-Within one `Bridge`, the first matching candidate wins — a single `Bridge` MAY return multiple `BridgeStep`s describing alternative shapes; the engine commits the first that matches and stops within that bridge.
+Within one `ExpansionStrategy`, the strategy MAY return multiple `ExpansionStep`s describing alternative shapes; the driver deduplicates structurally-identical emitted steps within the round (see "Driver deduplicates structurally-identical emitted steps").
 
-#### Scenario: Two matching bridges spawn two sibling sub-groups
-- **WHEN** the frontier is `tgt[addresses]:Optional<Set<HA>>` and both `OptionalCollect` (EXITING) and `OptionalWrap` (PRESERVING) match
-- **THEN** two bundles are emitted, each with an `AddGroup` delta for a one-slot `ExpansionGroup` rooted at `tgt[addresses]`
+#### Scenario: Two matching strategies spawn two sibling sub-groups
+- **WHEN** the frontier is a container target that two distinct container `ExpansionStrategy`s both produce (e.g. a collect-from-stream step and a wrap step)
+- **THEN** two bundles are emitted, each with an `AddGroup` delta for a one-slot `ExpansionGroup` rooted at the frontier
 - **AND** the two siblings have different slots and join the next pass's snapshot as DAG leaves
 
 #### Scenario: Dead sibling sub-groups don't block the alive chain
@@ -430,16 +430,16 @@ Outcomes are consumed by downstream validation phases (see `realisation-validati
 
 ### Requirement: DirectiveBindingExpander root typing and direct-assign gating
 
-`DirectiveBindingExpander` resolves a directive-binding group (root at a `TargetLocation`, single slot at a `SourceLocation`; see `seed-graph`). It SHALL NOT write the source slot's type onto the target root. The target root's type is supplied solely by the root's target chain — the `ConstructorCall`/`GroupTarget` producer that consumes the root — via the existing "Slot Nodes are typed at producer commit" lifecycle. The expander SHALL NOT emit a `TypeNode` delta that types the root from the source slot.
+`DirectiveBindingExpander` resolves a directive-binding group (root at a `TargetLocation`, single slot at a `SourceLocation`; see `seed-graph`). It SHALL NOT write the source slot's type onto the target root. The target root's type is supplied solely by the producer that consumes the root — the `ConstructorCall` (an `AssemblyStrategy`) or other assembly/bridge producer at the umbrella assembly group — via the existing "Slot Nodes are typed at producer commit" lifecycle. The expander SHALL NOT emit a `TypeNode` delta that types the root from the source slot.
 
-While the root is untyped, the group SHALL remain pending across outer passes (it waits for the target chain to type the root); it SHALL NOT be forced to SAT and SHALL NOT direct-assign.
+While the root is untyped, the group SHALL remain pending across outer passes (it waits for the assembly producer to pin the declared type onto the root); it SHALL NOT be forced to SAT and SHALL NOT direct-assign.
 
 Once both the slot and the root carry independently-resolved types, the expander SHALL gate on type identity:
 
 - If `isSameType(slotType, rootType)`, the expander SHALL emit a single direct-assign REALISED edge (`slot → root`, `weight == Weights.NOOP`, `DirectAssignCodegen`) plus its `AddEdgeToView`, type the root with the target type at this producer commit when still untyped, and SAT the group.
-- If the types differ, the expander SHALL NOT emit a direct-assign edge. It SHALL resolve the root as a frontier via `SlotResolver.resolve(root, ...)`, so container/element `Bridge`s (and recursive `GroupTarget`/`MethodCallBridge` element mappings) convert the source type into the declared target type. The group SATs once a spawned child sub-group rooted at the root SATs.
+- If the types differ, the expander SHALL NOT emit a direct-assign edge. It SHALL resolve the root as a frontier via `SlotResolver.resolve(root, ...)`, so container/element strategies (and recursive assembly/`MethodCallBridge` element mappings) convert the source type into the declared target type. The group SATs once a spawned child sub-group rooted at the root SATs.
 
-The declared target type is read via `ExpansionSnapshot.effectiveTypeFor(root, group)`; `ResolveTargetChainsPhase` pins it onto the directive-binding group (the node it shares as root with the target chain) so the read resolves from the group's own metadata without a cross-group scan. This preserves the container-conversion chain for directive-bound collection/`Optional` targets and prevents the source type from being stamped onto the target.
+The declared target type is read via `ExpansionSnapshot.effectiveTypeFor(root, group)`; it is pinned onto the directive-binding group (the node it shares as root with the umbrella assembly group's slot) by `Applier.pinExpectedTypesOnProducers` when the assembly producer's `AddGroup` is applied, so the read resolves from the group's own metadata without a cross-group scan. This preserves the container-conversion chain for directive-bound collection/`Optional` targets and prevents the source type from being stamped onto the target.
 
 #### Scenario: Scalar same-type binding emits a direct-assign edge and SATs
 - **WHEN** a directive-binding group has slot `src[person.lastName]:String` (typed) and root `tgt[lastName]` whose declared target type is `String`
@@ -463,14 +463,16 @@ The declared target type is read via `ExpansionSnapshot.effectiveTypeFor(root, g
 - **AND** there is no single direct-assign REALISED edge from `src[person.addresses]` straight to `tgt[addresses]`
 - **AND** a container-conversion chain of REALISED bridge edges connects `src[person.addresses]` to `tgt[addresses]`
 
-### Requirement: Directive-binding declared target type pinned by ResolveTargetChainsPhase
+### Requirement: Directive-binding declared target type pinned by the assembly producer
 
-When `ResolveTargetChainsPhase` allocates a `GroupTarget` slot that reuses an existing seed target node, it SHALL record that slot's declared type onto the directive-binding group rooted at the same node, via `ExpansionGroup.recordExpectedType(node, slot)`. This makes the declared target type readable through the directive-binding group's own `expectedTypeFor`/`effectiveTypeFor` without any cross-group scan. A directive-binding group whose root has no corresponding `GroupTarget` slot SHALL NOT be pinned (and converges to `unsatNoPlan` if its root is never typed).
+When the assembly producer at an umbrella assembly group binds a slot to a pre-seeded target leaf (by name), the producer's `AddGroup` delta SHALL carry that slot's declared type in its `slotMetadata`. The `Applier`, on applying the `AddGroup` (`Applier.pinExpectedTypesOnProducers`), SHALL record that declared type onto the directive-binding group rooted at the same leaf node, via `ExpansionGroup.recordExpectedType(node, slot)`. This makes the declared target type readable through the directive-binding group's own `expectedTypeFor`/`effectiveTypeFor` without any cross-group scan. A directive-binding group whose root is bound by no assembly producer slot SHALL NOT be pinned (and converges to `unsatNoPlan` if its root is never typed).
 
-#### Scenario: Reused target-chain slot pins the directive-binding group
-- **WHEN** a directive-binding group is rooted at a target leaf that a `GroupTarget` slot reuses with declared type `T`
-- **THEN** after `ResolveTargetChainsPhase.apply`, `bindingGroup.expectedTypeFor(root)` returns `T`
+#### Scenario: Assembly-bound target leaf pins the directive-binding group
+- **WHEN** an umbrella assembly producer (e.g. `ConstructorCall`) binds its parameter slot to a target leaf with declared type `T`, and the `Applier` applies the resulting `AddGroup`
+- **THEN** `Applier.pinExpectedTypesOnProducers` calls `recordExpectedType(leaf, slot)` on the directive-binding group rooted at that leaf
+- **AND** that group's `expectedTypeFor(leaf)` returns `T`
 
-#### Scenario: Unmatched directive root stays unpinned
-- **WHEN** a directive-binding group's root corresponds to no `GroupTarget` slot
-- **THEN** after `ResolveTargetChainsPhase.apply`, `bindingGroup.expectedTypeFor(root)` is `null`
+#### Scenario: Unbound directive root stays unpinned
+- **WHEN** a directive-binding group's root leaf is bound by no assembly producer slot
+- **THEN** `expectedTypeFor(root)` remains `null`
+- **AND** the group converges to `unsatNoPlan` if its root is never typed by any producer

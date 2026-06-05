@@ -11,7 +11,7 @@ This spec defines the core graph model value types (`Node`, `Edge`, `Location`, 
 The processor SHALL define an enum `EdgeKind` in `io.github.joke.percolate.processor.graph` with exactly three values:
 
 - `SEED` — directive-seeded framing edges produced by `SeedGraph` from user `@Map` directives. ∞-weight (`Weights.SENTINEL_UNREALISED`).
-- `REALISED` — transformation edges produced by `Bridge` and `GroupTarget` strategies during expansion. These are the codegen substrate.
+- `REALISED` — transformation edges produced by `ExpansionStrategy` strategies (bridge, assembly, conversion, and container) during expansion. These are the codegen substrate.
 - `MARKER` — `realises` edges linking an untyped seed node to its typed counterpart. Weight `Weights.NOOP`.
 
 `EdgeKind` SHALL be referenced by `Edge.kind` and SHALL participate in `Edge` equality, hash, and comparison.
@@ -319,19 +319,19 @@ The processor SHALL define a Lombok `@Value` class `Edge` in `io.github.joke.per
 - `EdgeKind kind` — categorises the edge for view filtering, DOT styling, and dispatch.
 - `Optional<AnnotationMirror> directive` — present when the edge was seeded by a user `@Map` directive (i.e., `kind == SEED` and emitted from `SeedGraph`); empty for `REALISED` and `MARKER` edges.
 - `Optional<Codegen> codegen` — present on `REALISED` edges; empty on `SEED` and `MARKER` edges. The value is a member of the `Codegen` family: an `EdgeCodegen` for a scalar edge, or a **container provider** (`ContainerCodegen`/`WrapperCodegen`) for a container edge. The composer reads it and, for a container provider, asks for the paradigm-appropriate snippet.
-- `ScopeTransition scopeTransition` — `PRESERVING`/`ENTERING`/`EXITING`, persisted from the producing `BridgeStep`. For container edges the composer derives the container operation (iterate/collect/unwrap/map) from `(scopeTransition, isStream-of-child, handle-kind)`. Scalar edges (including the single-element `wrap`) are `PRESERVING`.
+- `Optional<ElementScope> elementScope` — present (`ENTERING` / `EXITING`) on a container edge that crosses element scope, empty on a scalar (scope-preserving) edge. Persisted from the producing `ExpansionStep`'s `ElementScope`. For container edges the composer derives the container operation (iterate/collect/unwrap/map) from `(elementScope, isStream-of-child, handle-kind)`. Scalar edges (including the single-element `wrap`) carry empty `elementScope`.
 - `Optional<String> strategyClassFqn` — fully-qualified class name of the strategy that emitted this edge; populated by strategies via `getClass().getName()` at edge construction; empty for edges emitted by `SeedGraph` (which is not a strategy).
 
-`Edge` SHALL be annotated `@Value @EqualsAndHashCode(exclude = {"codegen", "scopeTransition", "strategyClassFqn"})` so that equality and hashing are structural over `(from, to, weight, kind, directive)`. The `codegen`, `scopeTransition`, and `strategyClassFqn` fields are emission metadata and SHALL NOT participate in equality.
+`Edge` SHALL be annotated `@Value @EqualsAndHashCode(exclude = {"codegen", "elementScope", "strategyClassFqn"})` so that equality and hashing are structural over `(from, to, weight, kind, directive)`. The `codegen`, `elementScope`, and `strategyClassFqn` fields are emission metadata and SHALL NOT participate in equality.
 
 `Edge` SHALL implement `Comparable<Edge>` ordered by `(from.id(), to.id(), weight, kind, presence-of-directive)` so that sorted iteration of edges is well-defined.
 
 `Edge` SHALL provide static factory methods. The all-args constructor SHALL be package-private; consumers SHALL go through the factories:
 
-- `Edge.seed(Node from, Node to, Optional<AnnotationMirror> directive, Optional<String> strategyClassFqn)` — produces a SEED edge with `kind = SEED`, `weight = Weights.SENTINEL_UNREALISED`, the supplied `directive` and `strategyClassFqn`, empty `codegen`, `scopeTransition = PRESERVING`. User-directive seeds pass non-empty `directive` and empty `strategyClassFqn`.
-- `Edge.realised(Node from, Node to, int weight, EdgeCodegen codegen, String strategyClassFqn)` — scalar REALISED edge with `kind = REALISED`, the supplied weight, `directive` empty, `codegen` populated, `scopeTransition = PRESERVING`, `strategyClassFqn` populated.
-- `Edge.realised(Node from, Node to, int weight, Codegen provider, ScopeTransition transition, String strategyClassFqn)` — container REALISED edge carrying the container provider and its `transition`.
-- `Edge.marker(Node from, Node to, String strategyClassFqn)` — produces a MARKER edge with `kind = MARKER`, `weight = Weights.NOOP`, `directive` and `codegen` empty, `scopeTransition = PRESERVING`, `strategyClassFqn` populated.
+- `Edge.seed(Node from, Node to, Optional<AnnotationMirror> directive, Optional<String> strategyClassFqn)` — produces a SEED edge with `kind = SEED`, `weight = Weights.SENTINEL_UNREALISED`, the supplied `directive` and `strategyClassFqn`, empty `codegen`, empty `elementScope`. User-directive seeds pass non-empty `directive` and empty `strategyClassFqn`.
+- `Edge.realised(Node from, Node to, int weight, EdgeCodegen codegen, String strategyClassFqn)` — scalar REALISED edge with `kind = REALISED`, the supplied weight, `directive` empty, `codegen` populated, empty `elementScope`, `strategyClassFqn` populated.
+- `Edge.realised(Node from, Node to, int weight, Codegen provider, ElementScope elementScope, String strategyClassFqn)` — container REALISED edge carrying the container provider and its element-scope crossing.
+- `Edge.marker(Node from, Node to, String strategyClassFqn)` — produces a MARKER edge with `kind = MARKER`, `weight = Weights.NOOP`, `directive`, `codegen`, and `elementScope` empty, `strategyClassFqn` populated.
 
 The forward-expansion factories `Edge.subSeed(...)` and `Edge.elementSeed(...)` are removed. Group membership of a `REALISED` edge is determined by membership in an `ExpansionGroup.view().edgeSet()`; `Edge` does NOT carry a `groupId` field.
 
@@ -341,18 +341,18 @@ The forward-expansion factories `Edge.subSeed(...)` and `Edge.elementSeed(...)` 
 
 #### Scenario: Realised edge factory populates codegen and strategyClassFqn
 - **WHEN** `Edge.realised(from, to, Weights.STEP, <closure>, "com.example.SomeBridge")` is invoked
-- **THEN** the resulting edge has `kind == EdgeKind.REALISED`, `weight == 1`, empty `directive`, non-empty `codegen`, `scopeTransition == PRESERVING`, `strategyClassFqn == "com.example.SomeBridge"`
+- **THEN** the resulting edge has `kind == EdgeKind.REALISED`, `weight == 1`, empty `directive`, non-empty `codegen`, empty `elementScope`, `strategyClassFqn == "com.example.SomeBridge"`
 
-#### Scenario: Container realised edge carries provider and transition
-- **WHEN** `Edge.realised(from, to, Weights.CONTAINER, <SequenceContainer>, ScopeTransition.EXITING, "io.github.joke.percolate.spi.builtins.SetContainer")` is invoked
-- **THEN** the edge has `kind == REALISED`, `codegen` holding the container provider, `scopeTransition == EXITING`
+#### Scenario: Container realised edge carries provider and element-scope crossing
+- **WHEN** `Edge.realised(from, to, Weights.COPY, <SequenceContainer>, ElementScope.EXITING, "io.github.joke.percolate.spi.builtins.SetContainer")` is invoked
+- **THEN** the edge has `kind == REALISED`, `codegen` holding the container provider, `elementScope == Optional.of(ElementScope.EXITING)`
 
 #### Scenario: Marker edge has weight zero, no codegen
 - **WHEN** `Edge.marker(seedNode, realisedNode, "com.example.SomeResolver")` is invoked
 - **THEN** the resulting edge has `kind == EdgeKind.MARKER`, `weight == 0`, empty `directive`, empty `codegen`, non-empty `strategyClassFqn`
 
-#### Scenario: Edge equality excludes codegen, scopeTransition, and strategyClassFqn
-- **WHEN** two `Edge` instances are constructed with field-equal `(from, to, weight, kind, directive)` but different `codegen`, `scopeTransition`, or `strategyClassFqn`
+#### Scenario: Edge equality excludes codegen, elementScope, and strategyClassFqn
+- **WHEN** two `Edge` instances are constructed with field-equal `(from, to, weight, kind, directive)` but different `codegen`, `elementScope`, or `strategyClassFqn`
 - **THEN** they compare equal under `equals` and produce identical hash codes
 
 #### Scenario: Edge equality includes kind
@@ -466,8 +466,8 @@ A fresh `MapperGraph` SHALL be constructed for each `Pipeline.process(TypeElemen
 
 The processor SHALL define a final class `ExpansionGroup` in `io.github.joke.percolate.processor.graph` with the following fields:
 
-- `Node root` — the fan-in target node the group's codegen produces. Always typed at construction for non-path-segment groups; typed in-place by `PathSegmentResolver` invocation for path-segment groups (root starts untyped).
-- `List<Node> slots` — the direct input slot nodes the group's codegen reads. Order is preserved from the strategy's `GroupBuild`.
+- `Node root` — the fan-in target node the group's codegen produces. Always typed at construction for non-path-segment groups; for path-segment groups the root starts untyped and is typed in-place during source-path resolution when its producer commits (a `TypeNode` delta; see `source-path-resolution`).
+- `List<Node> slots` — the direct input slot nodes the group's codegen reads. Order is preserved from the emitting strategy's `ExpansionStep` `inputs`.
 - `GroupCodegen codegen` — the codegen function combining slot values into the root value.
 - `String strategyClassFqn` — the FQN of the strategy that emitted the group.
 - `AsSubgraph<Node, Edge> view` — a JGraphT subgraph view containing the group's root, slot nodes, and slot-incoming `REALISED` edges. Backed by the parent `MapperGraph.underlyingGraph()`.
