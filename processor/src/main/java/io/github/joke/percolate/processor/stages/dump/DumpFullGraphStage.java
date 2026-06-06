@@ -7,7 +7,7 @@ import lombok.RequiredArgsConstructor;
 
 /** Dumps the post-expansion full graph, one {@code .full.dot} file per scope. */
 @RequiredArgsConstructor(onConstructor_ = @Inject)
-public final class DumpFullGraph implements Stage {
+public final class DumpFullGraphStage implements Stage {
 
     private final GraphDumpWriter writer;
 

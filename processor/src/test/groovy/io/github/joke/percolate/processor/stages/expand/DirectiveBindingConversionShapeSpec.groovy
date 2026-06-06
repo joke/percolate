@@ -27,7 +27,7 @@ import java.util.stream.Stream
 @Timeout(30)
 class DirectiveBindingConversionShapeSpec extends Specification {
 
-    private static final String SEED_FQN = 'io.github.joke.percolate.processor.stages.seed.SeedGraph'
+    private static final String SEED_FQN = 'io.github.joke.percolate.processor.stages.seed.SeedStage'
     private static final GroupCodegen GROUP_NOOP = { vars, inputs -> CodeBlock.of('') }
     private static final EdgeCodegen EDGE_NOOP = { vars, inputs -> CodeBlock.of('') }
 
@@ -40,7 +40,7 @@ class DirectiveBindingConversionShapeSpec extends Specification {
         def source = new Node(Optional.of(TypeUniverse.STRING), new SourceLocation(AccessPath.of(paramName)), methodScope)
         [leaf, source].each { graph.addNode(it) }
         graph.addEdge(Edge.seedForTest(source, leaf))
-        // SeedGraph would register this directive-binding group (root = target leaf, slot = source).
+        // SeedStage would register this directive-binding group (root = target leaf, slot = source).
         def binding = ExpansionGroup.of(leaf, [source], GROUP_NOOP, SEED_FQN, [].toSet(), graph)
         graph.addGroup(binding)
         // The consuming assembly pins the leaf's declared type as LONG (wider than the STRING source).

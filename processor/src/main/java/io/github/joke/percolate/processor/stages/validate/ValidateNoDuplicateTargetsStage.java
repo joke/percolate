@@ -16,7 +16,7 @@ import javax.lang.model.element.ExecutableElement;
 import lombok.RequiredArgsConstructor;
 
 @RequiredArgsConstructor(onConstructor_ = @Inject)
-public final class ValidateNoDuplicateTargets implements Stage {
+public final class ValidateNoDuplicateTargetsStage implements Stage {
 
     private final Diagnostics diagnostics;
 

@@ -17,7 +17,7 @@ import javax.lang.model.util.Types;
 import lombok.RequiredArgsConstructor;
 
 @RequiredArgsConstructor(onConstructor_ = @Inject)
-public final class DiscoverAbstractMethods implements Stage {
+public final class DiscoverAbstractMethodsStage implements Stage {
 
     private final Elements elements;
     private final Types types;

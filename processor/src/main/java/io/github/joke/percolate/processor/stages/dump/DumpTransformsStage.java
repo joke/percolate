@@ -8,7 +8,7 @@ import lombok.RequiredArgsConstructor;
 
 /** Dumps the transforms view (REALISED edges only), one {@code .transforms.dot} file per scope. */
 @RequiredArgsConstructor(onConstructor_ = @Inject)
-public final class DumpTransforms implements Stage {
+public final class DumpTransformsStage implements Stage {
 
     private final GraphDumpWriter writer;
 

@@ -7,7 +7,7 @@ import lombok.RequiredArgsConstructor;
 
 /** Dumps the pre-expansion seed graph, one {@code .seed.dot} file per scope. */
 @RequiredArgsConstructor(onConstructor_ = @Inject)
-public final class DumpGraph implements Stage {
+public final class DumpGraphStage implements Stage {
 
     private final GraphDumpWriter writer;
 

@@ -25,7 +25,7 @@ import javax.lang.model.util.Types;
 import lombok.RequiredArgsConstructor;
 
 @RequiredArgsConstructor(onConstructor_ = @Inject)
-public final class DiscoverCallableMethods implements Stage {
+public final class DiscoverCallableMethodsStage implements Stage {
 
     private static final int SINGLE_PARAM_COUNT = 1;
 

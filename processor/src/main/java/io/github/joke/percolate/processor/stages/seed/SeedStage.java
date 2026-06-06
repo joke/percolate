@@ -28,9 +28,9 @@ import lombok.RequiredArgsConstructor;
 import org.jspecify.annotations.Nullable;
 
 @RequiredArgsConstructor(onConstructor_ = @Inject)
-public final class SeedGraph implements Stage {
+public final class SeedStage implements Stage {
 
-    static final String STRATEGY_FQN = "io.github.joke.percolate.processor.stages.seed.SeedGraph";
+    static final String STRATEGY_FQN = "io.github.joke.percolate.processor.stages.seed.SeedStage";
     private static final GroupCodegen PLACEHOLDER_CODEGEN =
             (vars, inputs) -> CodeBlock.of("/* unresolved seed-group */");
 

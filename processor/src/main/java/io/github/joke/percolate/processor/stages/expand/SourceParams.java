@@ -12,7 +12,7 @@ import org.jspecify.annotations.Nullable;
  * own {@link MethodScope} rather than any process-global "current method". This is the base case for source-side
  * expansion (a {@code src[person]} node satisfied directly by parameter {@code person}) and the fallback the
  * snapshot uses to recover a producer scope for parameter roots typed outside this phase (e.g. by
- * {@code SeedGraph}). Resolving against the node's own scope keeps multi-method mappers correct: a parameter root
+ * {@code SeedStage}). Resolving against the node's own scope keeps multi-method mappers correct: a parameter root
  * names a parameter of the method that owns it, not of whichever method the driver happens to be visiting.
  */
 @UtilityClass

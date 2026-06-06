@@ -15,7 +15,7 @@ import javax.lang.model.type.TypeKind;
 import lombok.RequiredArgsConstructor;
 
 @RequiredArgsConstructor(onConstructor_ = @Inject)
-public final class ValidateSourceParameters implements Stage {
+public final class ValidateSourceParametersStage implements Stage {
 
     private final Diagnostics diagnostics;
 

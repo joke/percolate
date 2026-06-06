@@ -8,7 +8,7 @@ import lombok.RequiredArgsConstructor;
 
 /** Dumps the chosen-plan view, one {@code .plan.dot} file per scope. */
 @RequiredArgsConstructor(onConstructor_ = @Inject)
-public final class DumpPlan implements Stage {
+public final class DumpPlanStage implements Stage {
 
     private final GraphDumpWriter writer;
 

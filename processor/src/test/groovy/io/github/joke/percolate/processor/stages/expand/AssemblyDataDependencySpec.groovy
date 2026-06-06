@@ -29,7 +29,7 @@ import java.util.stream.Stream
 @Tag('unit')
 class AssemblyDataDependencySpec extends Specification {
 
-    private static final String SEED_FQN = GroupShapes.SEED_PACKAGE_PREFIX + 'SeedGraph'
+    private static final String SEED_FQN = GroupShapes.SEED_PACKAGE_PREFIX + 'SeedStage'
     private static final GroupCodegen GROUP_NOOP = { vars, inputs -> CodeBlock.of('') }
     private static final EdgeCodegen EDGE_NOOP = { vars, inputs -> CodeBlock.of('') }
 

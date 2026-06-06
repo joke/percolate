@@ -53,7 +53,7 @@ import org.jspecify.annotations.Nullable;
 final class FrontierMatcher {
 
     /** FQN marking a minted directive-binding group as a seed group (so {@link GroupShapes} dispatches it). */
-    private static final String SEED_FQN = GroupShapes.SEED_PACKAGE_PREFIX + "SeedGraph";
+    private static final String SEED_FQN = GroupShapes.SEED_PACKAGE_PREFIX + "SeedStage";
 
     /** Placeholder codegen for a minted directive-binding group; never rendered (its edges carry the codegen). */
     private static final GroupCodegen PLACEHOLDER_GROUP_CODEGEN =

@@ -17,7 +17,7 @@ import javax.lang.model.element.VariableElement
 import javax.lang.model.type.TypeMirror
 
 @Tag('unit')
-class SeedGraphSpec extends Specification {
+class SeedStageSpec extends Specification {
 
     def 'every edge emitted is SEED with empty codegen and empty strategyClassFqn'() {
         given:
@@ -26,7 +26,7 @@ class SeedGraphSpec extends Specification {
         def mappings = mappings(method, [directive])
 
         when:
-        def graph = new SeedGraph().apply(mappings)
+        def graph = new SeedStage().apply(mappings)
 
         then:
         graph.edges().toList().every { it.kind == EdgeKind.SEED && it.codegen.empty && it.strategyClassFqn.empty }
@@ -39,7 +39,7 @@ class SeedGraphSpec extends Specification {
         def mappings = mappings(method, [directive])
 
         when:
-        def graph = new SeedGraph().apply(mappings)
+        def graph = new SeedStage().apply(mappings)
         def edges = graph.edges().toList()
         def groups = graph.groups().toList()
 
@@ -58,7 +58,7 @@ class SeedGraphSpec extends Specification {
         def mappings = mappings(method, [directive])
 
         when:
-        def graph = new SeedGraph().apply(mappings)
+        def graph = new SeedStage().apply(mappings)
 
         then: 'one path-segment SEED edge: src[person]:Person → src[person.lastName]:?'
         def pathEdges = graph.edges()
@@ -87,7 +87,7 @@ class SeedGraphSpec extends Specification {
         def mappings = mappings(method, [directive])
 
         when:
-        def graph = new SeedGraph().apply(mappings)
+        def graph = new SeedStage().apply(mappings)
 
         then:
         def bridges = graph.edges()
@@ -114,7 +114,7 @@ class SeedGraphSpec extends Specification {
         def mappings = mappings(method, [directive])
 
         when:
-        def graph = new SeedGraph().apply(mappings)
+        def graph = new SeedStage().apply(mappings)
 
         then: 'one target-chain SEED edge tgt[addresses]:? → tgt[]:String'
         def chainEdges = graph.edges()
@@ -140,7 +140,7 @@ class SeedGraphSpec extends Specification {
         def mappings = mappings(method, directives)
 
         when:
-        def graph = new SeedGraph().apply(mappings)
+        def graph = new SeedStage().apply(mappings)
 
         then: 'exactly one untyped src[person.address] node'
         graph.nodes()
@@ -166,7 +166,7 @@ class SeedGraphSpec extends Specification {
         def mappings = mappings(method, [directive])
 
         when:
-        def graph = new SeedGraph().apply(mappings)
+        def graph = new SeedStage().apply(mappings)
 
         then: 'directive bridging edge starts at the typed paramRoot src[person]:Person'
         def bridges = graph.edges()
@@ -187,7 +187,7 @@ class SeedGraphSpec extends Specification {
         def mappings = new MapperMappings(null, [])
 
         when:
-        def graph = new SeedGraph().apply(mappings)
+        def graph = new SeedStage().apply(mappings)
 
         then:
         graph.nodeCount() == 0

@@ -7,13 +7,13 @@ import io.github.joke.percolate.processor.nullability.JspecifyNullabilityResolve
 import io.github.joke.percolate.processor.nullability.NullabilityAnnotations;
 import io.github.joke.percolate.processor.nullability.NullabilityResolver;
 import io.github.joke.percolate.processor.stages.Stage;
-import io.github.joke.percolate.processor.stages.discover.DiscoverAbstractMethods;
-import io.github.joke.percolate.processor.stages.discover.DiscoverCallableMethods;
-import io.github.joke.percolate.processor.stages.discover.DiscoverMappings;
-import io.github.joke.percolate.processor.stages.dump.DumpFullGraph;
-import io.github.joke.percolate.processor.stages.dump.DumpGraph;
-import io.github.joke.percolate.processor.stages.dump.DumpPlan;
-import io.github.joke.percolate.processor.stages.dump.DumpTransforms;
+import io.github.joke.percolate.processor.stages.discover.DiscoverAbstractMethodsStage;
+import io.github.joke.percolate.processor.stages.discover.DiscoverCallableMethodsStage;
+import io.github.joke.percolate.processor.stages.discover.DiscoverMappingsStage;
+import io.github.joke.percolate.processor.stages.dump.DumpFullGraphStage;
+import io.github.joke.percolate.processor.stages.dump.DumpGraphStage;
+import io.github.joke.percolate.processor.stages.dump.DumpPlanStage;
+import io.github.joke.percolate.processor.stages.dump.DumpTransformsStage;
 import io.github.joke.percolate.processor.stages.dump.GraphDumpWriter;
 import io.github.joke.percolate.processor.stages.expand.ExpandGroupsPhase;
 import io.github.joke.percolate.processor.stages.expand.ExpandStage;
@@ -21,9 +21,9 @@ import io.github.joke.percolate.processor.stages.expand.ExpansionPhase;
 import io.github.joke.percolate.processor.stages.generate.AssembleMapperType;
 import io.github.joke.percolate.processor.stages.generate.BuildMethodBodies;
 import io.github.joke.percolate.processor.stages.generate.GenerateStage;
-import io.github.joke.percolate.processor.stages.seed.SeedGraph;
-import io.github.joke.percolate.processor.stages.validate.ValidateNoDuplicateTargets;
-import io.github.joke.percolate.processor.stages.validate.ValidateSourceParameters;
+import io.github.joke.percolate.processor.stages.seed.SeedStage;
+import io.github.joke.percolate.processor.stages.validate.ValidateNoDuplicateTargetsStage;
+import io.github.joke.percolate.processor.stages.validate.ValidateSourceParametersStage;
 import io.github.joke.percolate.spi.CallableMethods;
 import io.github.joke.percolate.spi.ExpansionStrategy;
 import io.github.joke.percolate.spi.ResolveCtx;
@@ -112,33 +112,33 @@ public final class ProcessorModule {
     }
 
     @Provides
-    DiscoverAbstractMethods discoverAbstractMethods(final Elements elements, final Types types) {
-        return new DiscoverAbstractMethods(elements, types);
+    DiscoverAbstractMethodsStage discoverAbstractMethods(final Elements elements, final Types types) {
+        return new DiscoverAbstractMethodsStage(elements, types);
     }
 
     @Provides
-    DiscoverMappings discoverMappings(final Elements elements) {
-        return new DiscoverMappings(elements);
+    DiscoverMappingsStage discoverMappings(final Elements elements) {
+        return new DiscoverMappingsStage(elements);
     }
 
     @Provides
-    DiscoverCallableMethods discoverCallableMethods(final Elements elements, final Types types) {
-        return new DiscoverCallableMethods(elements, types);
+    DiscoverCallableMethodsStage discoverCallableMethods(final Elements elements, final Types types) {
+        return new DiscoverCallableMethodsStage(elements, types);
     }
 
     @Provides
-    ValidateNoDuplicateTargets validateNoDuplicateTargets(final Diagnostics diagnostics) {
-        return new ValidateNoDuplicateTargets(diagnostics);
+    ValidateNoDuplicateTargetsStage validateNoDuplicateTargets(final Diagnostics diagnostics) {
+        return new ValidateNoDuplicateTargetsStage(diagnostics);
     }
 
     @Provides
-    ValidateSourceParameters validateSourceParameters(final Diagnostics diagnostics) {
-        return new ValidateSourceParameters(diagnostics);
+    ValidateSourceParametersStage validateSourceParameters(final Diagnostics diagnostics) {
+        return new ValidateSourceParametersStage(diagnostics);
     }
 
     @Provides
-    SeedGraph seedGraph() {
-        return new SeedGraph();
+    SeedStage seedGraph() {
+        return new SeedStage();
     }
 
     @Provides
@@ -151,8 +151,8 @@ public final class ProcessorModule {
     }
 
     @Provides
-    DumpGraph dumpGraph(final GraphDumpWriter writer) {
-        return new DumpGraph(writer);
+    DumpGraphStage dumpGraph(final GraphDumpWriter writer) {
+        return new DumpGraphStage(writer);
     }
 
     public static ExpandStage assembleExpansionPipeline(
@@ -173,18 +173,18 @@ public final class ProcessorModule {
     }
 
     @Provides
-    DumpFullGraph dumpFullGraph(final GraphDumpWriter writer) {
-        return new DumpFullGraph(writer);
+    DumpFullGraphStage dumpFullGraph(final GraphDumpWriter writer) {
+        return new DumpFullGraphStage(writer);
     }
 
     @Provides
-    DumpTransforms dumpTransforms(final GraphDumpWriter writer) {
-        return new DumpTransforms(writer);
+    DumpTransformsStage dumpTransforms(final GraphDumpWriter writer) {
+        return new DumpTransformsStage(writer);
     }
 
     @Provides
-    DumpPlan dumpPlan(final GraphDumpWriter writer) {
-        return new DumpPlan(writer);
+    DumpPlanStage dumpPlan(final GraphDumpWriter writer) {
+        return new DumpPlanStage(writer);
     }
 
     @Provides
@@ -208,9 +208,9 @@ public final class ProcessorModule {
     @Provides
     @Named("discover")
     static List<Stage> discoverStages(
-            final DiscoverAbstractMethods discoverAbstractMethods,
-            final DiscoverMappings discoverMappings,
-            final DiscoverCallableMethods discoverCallableMethods) {
+            final DiscoverAbstractMethodsStage discoverAbstractMethods,
+            final DiscoverMappingsStage discoverMappings,
+            final DiscoverCallableMethodsStage discoverCallableMethods) {
         return List.of(discoverAbstractMethods, discoverMappings, discoverCallableMethods);
     }
 
@@ -218,14 +218,14 @@ public final class ProcessorModule {
     @SuppressWarnings("PMD.ExcessiveParameterList")
     static List<Stage> stages(
             @Named("discover") final List<Stage> discoverStages,
-            final ValidateNoDuplicateTargets validateNoDuplicateTargets,
-            final ValidateSourceParameters validateSourceParameters,
-            final SeedGraph seedGraph,
-            final DumpGraph dumpGraph,
+            final ValidateNoDuplicateTargetsStage validateNoDuplicateTargets,
+            final ValidateSourceParametersStage validateSourceParameters,
+            final SeedStage seedGraph,
+            final DumpGraphStage dumpGraph,
             final ExpandStage expandStage,
-            final DumpFullGraph dumpFullGraph,
-            final DumpTransforms dumpTransforms,
-            final DumpPlan dumpPlan,
+            final DumpFullGraphStage dumpFullGraph,
+            final DumpTransformsStage dumpTransforms,
+            final DumpPlanStage dumpPlan,
             final io.github.joke.percolate.processor.stages.validate.RealisationDiagnosticsStage
                     realisationDiagnosticsStage,
             final GenerateStage generateStage) {
