@@ -8,41 +8,31 @@ This spec defines the SeedGraph stage that constructs an initial `MapperGraph` f
 
 ### Requirement: SeedGraph registers one ExpansionGroup per SEED edge
 
-For every **source-side** SEED edge `e: from → to` emitted by `SeedGraph` — path-segment edges and directive-bridging edges — `SeedGraph` SHALL register one one-slot `ExpansionGroup` with `root = to`, `slots = [from]`, `strategyClassFqn = "io.github.joke.percolate.processor.stages.seed.SeedGraph"`, `codegen = a placeholder GroupCodegen` (replaced during expansion as resolvers/strategies fire). `initialEdges` SHALL be empty — the SEED edge itself is NOT a member of the group's view; the group represents an unresolved producer relationship pending expansion.
+For every **source-side** SEED edge `e: from → to` emitted by the seed stage — path-segment edges and directive-bridging edges — the seed stage SHALL register one source-side demand by tagging `to` (the demand `root`) and `from` (the demand input) with one shared `GroupId`, and adding a label-only `ExpansionGroup{id, root = to}` to the graph. The seed stage SHALL NOT attach any codegen to a group (no placeholder `GroupCodegen`); a group is a non-traversable label (see `graph-model`). The SEED edge itself is NOT a member of the group's view — the view is the `MaskSubgraph` derived from the shared `GroupId` and shows only `REALISED` edges produced during expansion.
 
-The **target side is consolidated, not per-edge.** Target-chain SEED edges (`tgt[child] → tgt[parent]`) do NOT each register a group. Instead, for every parent target node that has child target leaves, `SeedGraph.registerAssemblyGroups` SHALL register exactly **one umbrella assembly `ExpansionGroup`** with `root = the parent target node`, `slots = all of that parent's child target leaves`, the same placeholder codegen and `strategyClassFqn`. This umbrella is produced during expansion by an `AssemblyStrategy` (e.g. `ConstructorCall`) bound to those child leaves.
+The **target side is consolidated, not per-edge.** Target-chain SEED edges (`tgt[child] → tgt[parent]`) do NOT each register a group. Instead, for every parent target node that has child target leaves, the seed stage SHALL register exactly **one umbrella assembly demand**: it tags the parent (`root`) and all of its child target leaves with one shared `GroupId` and adds the label-only `ExpansionGroup{id, root = parent}`. Source-side and umbrella registration SHALL go through **one** unified `registerDemand(root, inputs)` operation (the source case has one input, the umbrella case has all child leaves); there SHALL be no separate `targetChildren` post-pass.
 
-The set of groups registered by `SeedGraph` decomposes into three structural kinds:
+The set of groups registered by the seed stage decomposes into three structural kinds, derived from node `Location`s and tagged-input shape at expansion time via `GroupShapes` (the seed stage SHALL NOT store a `groupKind` field):
 
-- **Path-segment groups**: both `root.loc` and `slot.loc` are `SourceLocation`s; `root.loc.path` is `slot.loc.path` extended by exactly one segment. One per source path-segment edge. These are expanded by the `SourceDescentExpander` during `ExpandGroupsPhase`.
-- **Directive-binding groups**: `root.loc` is a `TargetLocation` and `slot.loc` is a `SourceLocation` (the deepest source leaf). One per directive-bridging edge. These are expanded by the `DirectiveBindingExpander` during `ExpandGroupsPhase` to fill the transformation chain between the source leaf and the target leaf.
-- **Assembly (umbrella) groups**: `root.loc` is a `TargetLocation` with one or more child target leaves; `slots` are **all** of that node's child target leaves. One per parent target node, registered by `registerAssemblyGroups`. These are expanded by the `AssemblyExpander`, which runs the strategy round at the root so an `AssemblyStrategy` (`ConstructorCall`) can over-emit a multi-slot BOUNDARY binding the child leaves.
+- **Path-segment groups**: both `root.loc` and the input `loc` are `SourceLocation`s; `root.loc.path` is the input path extended by one segment. Expanded by the `SourceDescentExpander`.
+- **Directive-binding groups**: `root.loc` is a `TargetLocation` and the input `loc` is a `SourceLocation` (the deepest source variable). Expanded by the `DirectiveBindingExpander`.
+- **Assembly (umbrella) groups**: `root.loc` is a `TargetLocation` with one or more child target leaves as inputs. Expanded by the `AssemblyExpander`.
 
-`SeedGraph` SHALL NOT pre-classify groups by these kinds (the classification is derived from node `Location`s and slot shape at expansion time via `GroupShapes`). The structural shape of each group is sufficient for `ExpandGroupsPhase` to dispatch to the correct `GroupExpander`.
-
-The group kind is determined by node `Location`s and slot shape, not by a `groupKind` field on `ExpansionGroup`.
-
-#### Scenario: Source-side SEED edges each get a one-slot group; the target side gets one umbrella per parent
-- **WHEN** `SeedGraph.apply(...)` emits `s` source-side SEED edges (path-segment + directive-bridging) and target chains under `p` distinct parent target nodes
-- **THEN** `MapperGraph.groups()` contains exactly `s` one-slot groups (one per source-side edge, `root = e.to`, `slots = [e.from]`)
-- **AND** it contains exactly `p` umbrella assembly groups (one per parent target node, `root = parent`, `slots = all child target leaves of that parent`)
+#### Scenario: Source-side edges each get a one-input demand; the target side gets one umbrella per parent
+- **WHEN** the seed stage emits `s` source-side SEED edges (path-segment + directive-bridging) and target chains under `p` distinct parent target nodes
+- **THEN** the graph contains exactly `s` one-input demand groups (one per source-side edge, `root = e.to`, the single tagged input is `e.from`)
+- **AND** it contains exactly `p` umbrella assembly groups (one per parent target node, `root = parent`, tagged inputs = all child target leaves of that parent)
 - **AND** no group is registered per individual target-chain edge
 
-#### Scenario: Path-segment edge produces a path-segment group
-- **WHEN** `SeedGraph.apply(...)` emits a SEED edge `src[person] → src[person.addresses]:?`
-- **THEN** the corresponding `ExpansionGroup` has `root = src[person.addresses]:?`, `slots = [src[person]:Person]`
-- **AND** the group's structural shape (root.loc and slot.loc both `SourceLocation`, root path is slot path + one segment) identifies it as a path-segment group for `SourceDescentExpander` dispatch
-
-#### Scenario: Directive-bridging edge produces a directive-binding group
-- **WHEN** `SeedGraph.apply(...)` emits a directive-bridging SEED edge `src[person.addresses]:? → tgt[addresses]:?`
-- **THEN** the corresponding `ExpansionGroup` has `root = tgt[addresses]:?`, `slots = [src[person.addresses]:?]`
-- **AND** the structural shape (root.loc `TargetLocation`, slot.loc `SourceLocation`) identifies it as a directive-binding group for `DirectiveBindingExpander` dispatch
+#### Scenario: Groups carry no codegen
+- **WHEN** any `ExpansionGroup` registered by the seed stage is inspected
+- **THEN** it exposes only `getId()` and `getRoot()` and exposes no codegen
+- **AND** its inputs are derived from the nodes tagged with its `GroupId`, not stored as a `slots` list
 
 #### Scenario: A parent target node produces one umbrella assembly group over all its children
-- **WHEN** `SeedGraph.apply(...)` seeds two directives `@Map(target = "address.street", …)` and `@Map(target = "address.zip", …)`, so `tgt[address]` has child leaves `tgt[address.street]` and `tgt[address.zip]`
-- **THEN** exactly one umbrella assembly `ExpansionGroup` is registered with `root = tgt[address]` and `slots = [tgt[address.street], tgt[address.zip]]`
+- **WHEN** the seed stage seeds `@Map(target = "address.street", …)` and `@Map(target = "address.zip", …)`, so `tgt[address]` has child leaves `tgt[address.street]` and `tgt[address.zip]`
+- **THEN** exactly one umbrella assembly group is registered with `root = tgt[address]` and tagged inputs `tgt[address.street]`, `tgt[address.zip]`
 - **AND** no separate group is registered for the `tgt[address.street] → tgt[address]` or `tgt[address.zip] → tgt[address]` target-chain edges
-- **AND** the group's shape (root a `TargetLocation` with child-leaf slots) identifies it as an assembly group for `AssemblyExpander` dispatch
 
 ### Requirement: SeedGraph emits only SEED-kind edges
 `SeedGraph` SHALL emit SEED edges for every directive's path-segment chain, every directive-bridging edge, and every target-chain edge. No REALISED, MARKER, `SUB_SEED`, or `ELEMENT_SEED` edges SHALL be emitted by `SeedGraph` — the only edge kind produced at seed time is `EdgeKind.SEED`.
@@ -51,7 +41,7 @@ The group kind is determined by node `Location`s and slot shape, not by a `group
 
 For every edge emitted by `SeedGraph`, the following metadata fields SHALL be empty:
 - `codegen == Optional.empty()`,
-- `strategyClassFqn == Optional.empty()` (`SeedGraph` is not a strategy; the registered `ExpansionGroup`s carry `strategyClassFqn`, the edges do not).
+- `strategyClassFqn == Optional.empty()` (`SeedGraph` is not a strategy; the registered `ExpansionGroup`s are non-traversable labels carrying neither codegen nor `strategyClassFqn`).
 
 `SeedGraph` SHALL produce a fresh `MapperGraph` per invocation. It SHALL NOT mutate any state outside the returned graph.
 
@@ -143,27 +133,22 @@ In other words, chains flow OUTWARD from the deepest target slot to the return-t
 
 ### Requirement: Directive-bridging edge
 
-For every `MappingDirective` on every method `M`, `SeedGraph` SHALL emit exactly one edge constructed via `Edge.seed(...)` bridging the directive's deepest **untyped** source node to the deepest target node (the node for the full target path), carrying the `@Map` mirror.
+For every `MappingDirective` on every method `M`, the seed stage SHALL emit exactly one edge constructed via `Edge.seed(...)` bridging the directive's **deepest source variable** to the deepest target node (the node for the full target path), carrying the `@Map` mirror.
 
-The bridging edge's `from` is **always the untyped source leaf** (`SourceLocation([s1, ..., sk]):?` for a k-segment source path). The previous "use the typed source if path resolution succeeded" preference is removed — `SeedGraph` no longer types source paths, so no typed alternative exists at seed time.
+The bridging edge's `from` is the deepest source variable: for a multi-segment source path it is the untyped source leaf (`SourceLocation([s1, ..., sk]):?`); for a **single-segment** source whose segment names a parameter, it is the **typed parameter-root node** itself. A parameter is a real typed variable, so a single-segment source binds directly to it — no untyped twin node is minted. (This replaces the prior "the bridging `from` is always the untyped source leaf" rule, which is inconsistent with the variable model.)
 
-The bridging edge SHALL therefore have `kind == EdgeKind.SEED` and `weight == Weights.SENTINEL_UNREALISED` (factory-enforced). One directive-binding `ExpansionGroup` SHALL be registered per bridging edge with `root = tgt[full-target-path]:?`, `slot = src[full-source-path]:?` (both untyped at this stage).
+The bridging edge SHALL therefore have `kind == EdgeKind.SEED` and `weight == Weights.SENTINEL_UNREALISED` (factory-enforced). One directive-binding demand SHALL be registered per bridging edge with `root = tgt[full-target-path]:?` and its single tagged input being the bridging edge's `from`.
 
-#### Scenario: One bridging SEED edge per directive, always from untyped leaf
-- **WHEN** `SeedGraph.apply(...)` is invoked for `@Map(target = "name", source = "first")` on `Human map(Person person)`
-- **THEN** the returned graph contains exactly one edge with `from = source-node(["first"]):?` (untyped leaf) and `to = target-node(["name"]):?`, `kind = EdgeKind.SEED`, `weight = Weights.SENTINEL_UNREALISED`, carrying the `@Map` mirror
-- **AND** the corresponding directive-binding `ExpansionGroup` is registered
+#### Scenario: Single-segment source binds from the typed parameter root
+- **WHEN** the seed stage is invoked for `@Map(target = "name", source = "person")` on `Human map(Person person)`
+- **THEN** the bridging edge's `from` is the typed parameter-root node `src[person]:Person`
+- **AND** no untyped `src[person]:?` twin node is created
+- **AND** the directive-binding demand has `root = tgt[name]:?` and its tagged input is the parameter root
 
 #### Scenario: Multi-segment source still bridges from the untyped leaf
-- **WHEN** `SeedGraph.apply(...)` is invoked for `@Map(target = "lastName", source = "person.lastName")` on `Human map(Person person)`
+- **WHEN** the seed stage is invoked for `@Map(target = "lastName", source = "person.lastName")` on `Human map(Person person)`
 - **THEN** the bridging edge's `from` is the untyped seed leaf `src[person.lastName]:?`
 - **AND** the bridging edge's `to` is the untyped target leaf `tgt[lastName]:?`
-- **AND** the corresponding directive-binding `ExpansionGroup` has `root = tgt[lastName]:?` and `slot = src[person.lastName]:?`
-
-#### Scenario: Two directives produce two bridging SEED edges and two directive-binding groups
-- **WHEN** `SeedGraph.apply(...)` is invoked for two directives on the same method
-- **THEN** the returned graph contains exactly two bridging edges, one per directive
-- **AND** exactly two directive-binding `ExpansionGroup`s are registered, one per directive
 
 ### Requirement: Directed acyclicity at seed time
 For every `MapperGraph` produced by `SeedGraph`, the underlying directed graph SHALL be acyclic (a DAG). The introduction of `EdgeKind` and the weight flip to `Weights.SENTINEL_UNREALISED` does NOT alter graph topology — only edge weights and labels. The acyclicity invariant therefore continues to hold for the seed stage. This is a documented invariant SHALL be asserted by tests.
@@ -202,3 +187,25 @@ When the target's accessible constructors disagree on a child's parameter type (
 - **WHEN** `SeedGraph.apply(...)` seeds a directive whose declared target field is consumed by two type-divergent overloaded constructors
 - **THEN** the seeded name-keyed leaf carries no type and is bound to no single constructor's parameter type at seed time
 - **AND** resolving the divergent per-`(name, required-type)` typed leaves is deferred to the assembly path during expansion
+
+### Requirement: Seed stage assumes valid source parameters and drops no directive silently
+
+The seed stage SHALL treat `ValidateSourceParameters` as a hard precondition: by the time it runs, every directive's first source segment names a method parameter. The seed stage SHALL NOT contain a fallback branch minting an orphan source node for a non-parameter first segment, and SHALL NOT silently drop a directive with an empty source path. Any directive reaching the seed stage SHALL be fully seeded; an empty or invalid source at seed time is a precondition violation, not a silent no-op.
+
+#### Scenario: No orphan source chain for a non-parameter first segment
+- **WHEN** the seed stage source of `buildSourceChain` (or its successor) is inspected
+- **THEN** there is no branch that mints a source node when the first segment does not name a parameter
+
+#### Scenario: No silent directive drop
+- **WHEN** the seed stage processes the directives of a validated mapper
+- **THEN** every directive produces its source chain, target chain, and bridging edge
+- **AND** no directive is skipped without a diagnostic
+
+### Requirement: Stage classes follow the *Stage naming convention
+
+Every processor pipeline stage that `implements Stage` SHALL have a class name ending in `Stage`. In particular the seed stage SHALL be named `SeedStage` (renamed from `SeedGraph`), reflecting that it is a stage that initially populates the single `MapperGraph` and does **not** own a separate "seeded graph" artifact. Internal `*Phase` orchestration classes (which do not `implement Stage`) are exempt.
+
+#### Scenario: All Stage implementations end in Stage
+- **WHEN** every class implementing `Stage` under `processor/src/main/java/.../stages/` is inspected
+- **THEN** each class name ends with the suffix `Stage`
+- **AND** the seed stage class is named `SeedStage`

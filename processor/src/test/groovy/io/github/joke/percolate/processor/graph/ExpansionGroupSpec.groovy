@@ -1,7 +1,6 @@
 package io.github.joke.percolate.processor.graph
 
 import io.github.joke.percolate.processor.test.HarnessScope
-import io.github.joke.percolate.spi.GroupCodegen
 import io.github.joke.percolate.spi.test.TypeUniverse
 import spock.lang.Specification
 import spock.lang.Tag
@@ -9,104 +8,108 @@ import spock.lang.Tag
 @Tag('unit')
 class ExpansionGroupSpec extends Specification {
 
-    private static final GroupCodegen NOOP_CODEGEN = { vars, inputs -> com.palantir.javapoet.CodeBlock.of('') }
-
-    def 'factory constructs a view containing root, slots, and initial edges'() {
+    def 'group exposes only id and root; view and inputs are derived from node tags'() {
         given:
         def graph = new MapperGraph()
         def scope = new HarnessScope('m()')
         def root = new Node(Optional.of(TypeUniverse.STRING), new TargetLocation(TargetPath.of('')), scope)
         def slot1 = new Node(Optional.of(TypeUniverse.STRING), new TargetLocation(TargetPath.of('a')), scope)
         def slot2 = new Node(Optional.of(TypeUniverse.STRING), new TargetLocation(TargetPath.of('b')), scope)
-        graph.addNode(root)
-        graph.addNode(slot1)
-        graph.addNode(slot2)
-        def edge1 = Edge.realised(slot1, root, 1, { _, _ -> com.palantir.javapoet.CodeBlock.of('') }, 'test.Strategy')
-        def edge2 = Edge.realised(slot2, root, 1, { _, _ -> com.palantir.javapoet.CodeBlock.of('') }, 'test.Strategy')
+        [root, slot1, slot2].each { graph.addNode(it) }
+        def edge1 = realised(slot1, root)
+        def edge2 = realised(slot2, root)
         graph.addEdge(edge1)
         graph.addEdge(edge2)
 
         when:
-        def group = ExpansionGroup.of(root, [slot1, slot2], NOOP_CODEGEN, 'test.Strategy', [edge1, edge2].toSet(), graph)
+        def id = GroupId.next(false)
+        def group = new ExpansionGroup(id, root, graph)
+        [root, slot1, slot2].each { it.joinGroup(id) }
 
-        then:
-        group.view.vertexSet() == [root, slot1, slot2].toSet()
-        group.view.edgeSet() == [edge1, edge2].toSet()
-        group.contains(edge1)
-        group.contains(edge2)
-    }
-
-    def 'view does not auto-grow when chain edges are added outside slot-incoming chain'() {
-        given:
-        def graph = new MapperGraph()
-        def scope = new HarnessScope('m()')
-        def root = new Node(Optional.of(TypeUniverse.STRING), new TargetLocation(TargetPath.of('')), scope)
-        def slot = new Node(Optional.of(TypeUniverse.STRING), new TargetLocation(TargetPath.of('out')), scope)
-        def source = new Node(Optional.of(TypeUniverse.STRING), new SourceLocation(AccessPath.of('in')), scope)
-        graph.addNode(root)
-        graph.addNode(slot)
-        graph.addNode(source)
-        def slotEdge = Edge.realised(slot, root, 1, { _, _ -> com.palantir.javapoet.CodeBlock.of('') }, 'test.Strategy')
-        graph.addEdge(slotEdge)
-        def group = ExpansionGroup.of(root, [slot], NOOP_CODEGEN, 'test.Strategy', [slotEdge].toSet(), graph)
-
-        when:
-        // Add a chain edge from source to slot — this is OUTSIDE the slot-incoming chain of the group
-        def chainEdge = Edge.realised(source, slot, 1, { _, _ -> com.palantir.javapoet.CodeBlock.of('') }, 'test.Strategy')
-        graph.addEdge(chainEdge)
-
-        then:
-        !group.contains(chainEdge)
-        graph.edges().toList().contains(chainEdge)
-    }
-
-    def 'view shares vertex identity with the underlying graph'() {
-        given:
-        def graph = new MapperGraph()
-        def scope = new HarnessScope('m()')
-        def root = new Node(Optional.of(TypeUniverse.STRING), new TargetLocation(TargetPath.of('')), scope)
-        def slot = new Node(Optional.of(TypeUniverse.STRING), new TargetLocation(TargetPath.of('out')), scope)
-        graph.addNode(root)
-        graph.addNode(slot)
-        def edge = Edge.realised(slot, root, 1, { _, _ -> com.palantir.javapoet.CodeBlock.of('') }, 'test.Strategy')
-        graph.addEdge(edge)
-
-        when:
-        def group = ExpansionGroup.of(root, [slot], NOOP_CODEGEN, 'test.Strategy', [edge].toSet(), graph)
-
-        then:
+        then: 'a non-seed group derives its inputs from the root\'s incoming REALISED edges'
+        group.id.is(id)
         group.root.is(root)
-        group.slots[0].is(slot)
+        group.view().vertexSet() == [root, slot1, slot2].toSet()
+        group.view().edgeSet() == [edge1, edge2].toSet()
+        group.inputs().toSet() == [slot1, slot2].toSet()
+
+        and: 'the public surface carries no codegen/slots/strategy'
+        !group.metaClass.respondsTo(group, 'getCodegen')
+        !group.metaClass.respondsTo(group, 'getSlots')
+        !group.metaClass.respondsTo(group, 'getStrategyClassFqn')
     }
 
-    def 'factory throws when root is not a vertex of parent graph'() {
+    def 'group view excludes non-REALISED edges and does not leak across a shared boundary node (7.2)'() {
         given:
         def graph = new MapperGraph()
         def scope = new HarnessScope('m()')
-        def root = new Node(Optional.of(TypeUniverse.STRING), new TargetLocation(TargetPath.of('')), scope)
+        def person = new Node(Optional.of(TypeUniverse.STRING), new SourceLocation(AccessPath.of('person')), scope)
+        def address = new Node(Optional.of(TypeUniverse.STRING), new TargetLocation(TargetPath.of('address')), scope)
+        def street = new Node(Optional.of(TypeUniverse.STRING), new TargetLocation(TargetPath.of('address.street')), scope)
+        [person, address, street].each { graph.addNode(it) }
+        // A: person -> address (address is A's root); B: address -> street (street is B's root)
+        def edgeA = realised(person, address)
+        def edgeB = realised(address, street)
+        graph.addEdge(edgeA)
+        graph.addEdge(edgeB)
 
         when:
-        ExpansionGroup.of(root, [], NOOP_CODEGEN, 'test.Strategy', [].toSet(), graph)
+        def a = GroupId.next(false)
+        def b = GroupId.next(false)
+        def groupA = new ExpansionGroup(a, address, graph)
+        def groupB = new ExpansionGroup(b, street, graph)
+        // address is the root of A and an input of B
+        person.joinGroup(a); address.joinGroup(a)
+        address.joinGroup(b); street.joinGroup(b)
 
         then:
-        thrown(IllegalArgumentException)
+        groupA.view().edgeSet() == [edgeA].toSet()
+        groupB.view().edgeSet() == [edgeB].toSet()
+        address.groups().containsAll([a, b])
     }
 
-    def 'factory throws when initial edge is not REALISED'() {
+    def 'a seed group derives its single input from the root\'s incoming SEED scaffolding edge'() {
         given:
         def graph = new MapperGraph()
         def scope = new HarnessScope('m()')
-        def root = new Node(Optional.of(TypeUniverse.STRING), new TargetLocation(TargetPath.of('')), scope)
-        def slot = new Node(Optional.of(TypeUniverse.STRING), new TargetLocation(TargetPath.of('out')), scope)
-        graph.addNode(root)
-        graph.addNode(slot)
-        def markerEdge = Edge.marker(slot, root, 'test.Strategy')
-        graph.addEdge(markerEdge)
+        def src = new Node(Optional.of(TypeUniverse.STRING), new SourceLocation(AccessPath.of('person')), scope)
+        def tgt = new Node(Optional.empty(), new TargetLocation(TargetPath.of('name')), scope)
+        [src, tgt].each { graph.addNode(it) }
+        graph.addEdge(Edge.seed(src, tgt, Optional.empty(), Optional.empty()))
 
         when:
-        ExpansionGroup.of(root, [slot], NOOP_CODEGEN, 'test.Strategy', [markerEdge].toSet(), graph)
+        def id = GroupId.next(true)
+        def group = new ExpansionGroup(id, tgt, graph)
+        src.joinGroup(id); tgt.joinGroup(id)
 
         then:
-        thrown(IllegalArgumentException)
+        group.seed
+        group.inputs() == [src]
+    }
+
+    def 'two type-divergent leaves at one (scope, location) stay distinct and are not obtained via variableFor (7.3)'() {
+        given:
+        def graph = new MapperGraph()
+        def scope = new HarnessScope('m()')
+        def loc = new TargetLocation(TargetPath.of('value'))
+
+        when: 'expansion mints two fresh leaves at the same location with different required types'
+        def intLeaf = new Node(Optional.of(TypeUniverse.INT), loc, scope)
+        def longLeaf = new Node(Optional.of(TypeUniverse.LONG), loc, scope)
+        graph.addNode(intLeaf)
+        graph.addNode(longLeaf)
+
+        then: 'they are distinct instances'
+        !intLeaf.is(longLeaf)
+
+        and: 'variableFor returns a single canonical node, not either minted leaf'
+        def canonical = graph.variableFor(scope, loc)
+        !canonical.is(intLeaf)
+        !canonical.is(longLeaf)
+        graph.variableFor(scope, loc).is(canonical)
+    }
+
+    private static realised(from, to) {
+        Edge.realised(from, to, 1, { _, _ -> com.palantir.javapoet.CodeBlock.of('') }, 'test.Strategy')
     }
 }

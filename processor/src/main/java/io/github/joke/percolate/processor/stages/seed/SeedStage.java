@@ -65,13 +65,15 @@ public final class SeedStage implements Stage {
         final var scope = new MethodScope(method);
 
         for (final var param : method.getParameters()) {
-            final var loc = new SourceLocation(AccessPath.of(param.getSimpleName().toString()));
+            final var loc =
+                    new SourceLocation(AccessPath.of(param.getSimpleName().toString()));
             final var node = new Node(Optional.of(param.asType()), loc, scope);
             graph.addNode(node);
             graph.registerVariable(node);
         }
 
-        final var returnRoot = new Node(Optional.of(method.getReturnType()), new TargetLocation(TargetPath.of("")), scope);
+        final var returnRoot =
+                new Node(Optional.of(method.getReturnType()), new TargetLocation(TargetPath.of("")), scope);
         graph.addNode(returnRoot);
         graph.registerVariable(returnRoot);
 
@@ -91,9 +93,9 @@ public final class SeedStage implements Stage {
         // ValidateSourceParametersStage is a hard precondition: a validated directive always has a non-empty
         // source whose first segment names a parameter, so there is no empty-source drop and no orphan-source
         // fallback branch here.
-        final var deepestSource = buildSourceChain(graph, scope, directive, sourceSegments);
+        final var deepestSource = buildSourceChain(graph, scope, sourceSegments);
         final var deepestTarget =
-                buildTargetChain(graph, scope, directive, splitPath(directive.getTarget()), returnRoot, umbrellas);
+                buildTargetChain(graph, scope, splitPath(directive.getTarget()), returnRoot, umbrellas);
 
         final var bridgingEdge =
                 Edge.seed(deepestSource, deepestTarget, Optional.of(directive.getMirror()), Optional.empty());
@@ -108,13 +110,14 @@ public final class SeedStage implements Stage {
      * multi-segment source extends from that root through untyped path nodes, registering one path-segment demand
      * per extension edge.
      */
-    private Node buildSourceChain(
-            final MapperGraph graph, final Scope scope, final MappingDirective directive, final List<String> segments) {
+    private Node buildSourceChain(final MapperGraph graph, final Scope scope, final List<String> segments) {
         var previous = graph.variableFor(scope, new SourceLocation(new AccessPath(List.of(segments.get(0)))));
         for (var i = 1; i < segments.size(); i++) {
             final var loc = new SourceLocation(new AccessPath(List.copyOf(segments.subList(0, i + 1))));
             final var node = graph.variableFor(scope, loc);
-            final var edge = Edge.seed(previous, node, Optional.of(directive.getMirror()), Optional.empty());
+            // Structural chain edges carry no @Map mirror: a shared path prefix produces one deduplicated edge
+            // (and so one path-segment demand) across directives. The directive is read from the bridging edge.
+            final var edge = Edge.seed(previous, node, Optional.empty(), Optional.empty());
             if (graph.addEdge(edge)) {
                 registerDemand(graph, node, previous);
             }
@@ -126,7 +129,6 @@ public final class SeedStage implements Stage {
     private Node buildTargetChain(
             final MapperGraph graph,
             final Scope scope,
-            final MappingDirective directive,
             final List<String> segments,
             final Node returnRoot,
             final Map<Node, GroupId> umbrellas) {
@@ -135,7 +137,7 @@ public final class SeedStage implements Stage {
             final var loc = new TargetLocation(new TargetPath(List.copyOf(segments.subList(0, i))));
             final var node = graph.variableFor(scope, loc);
             final var parent = previous;
-            final var edge = Edge.seed(node, parent, Optional.of(directive.getMirror()), Optional.empty());
+            final var edge = Edge.seed(node, parent, Optional.empty(), Optional.empty());
             if (graph.addEdge(edge)) {
                 tagUmbrellaChild(graph, parent, node, umbrellas);
             }

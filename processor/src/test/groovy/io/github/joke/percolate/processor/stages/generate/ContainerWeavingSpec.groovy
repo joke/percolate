@@ -1,12 +1,12 @@
 package io.github.joke.percolate.processor.stages.generate
 
+
 import com.palantir.javapoet.CodeBlock
 import io.github.joke.percolate.processor.MapperContext
 import io.github.joke.percolate.processor.graph.*
 import io.github.joke.percolate.processor.model.MapperShape
 import io.github.joke.percolate.spi.ContainerCodegen
 import io.github.joke.percolate.spi.EdgeCodegen
-import io.github.joke.percolate.spi.GroupCodegen
 import io.github.joke.percolate.spi.Nullability
 import io.github.joke.percolate.spi.ElementScope
 import io.github.joke.percolate.spi.WrapperCodegen
@@ -135,14 +135,10 @@ class ContainerWeavingSpec extends Specification {
         def elem = node(scope, new ElementLocation())
         def root = node(scope, returnRootLoc())
         [src, elem, root].each { graph.addNode(it) }
+        // The scalar bridge codegen rides on its REALISED edge; a single inbound edge needs no group.
+        EdgeCodegen conv = { vars, inputs -> CodeBlock.of('conv($L)', inputs.single()) } as EdgeCodegen
         graph.addEdge(Edge.realised(src, elem, Weights.CONTAINER, SEQ, ElementScope.ENTERING, 'Seq'))
-        def convEdge = Edge.realised(elem, root, Weights.STEP, MAP_X, 'Conv')
-        graph.addEdge(convEdge)
-
-        GroupCodegen conv = { vars, inputs -> CodeBlock.of('conv($L)', inputs.single()) } as GroupCodegen
-        def group = ExpansionGroup.of(root, [elem], conv, 'Conv', [convEdge] as Set, graph)
-        graph.addGroup(group)
-        graph.recordGroupOutcome(GroupOutcome.sat(group))
+        graph.addEdge(Edge.realised(elem, root, Weights.STEP, conv, 'Conv'))
 
         expect:
         body(graph, method) == 'return p.stream().map(v0 -> conv(v0));'

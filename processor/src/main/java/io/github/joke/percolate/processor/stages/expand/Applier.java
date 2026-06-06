@@ -85,6 +85,10 @@ final class Applier implements Delta.Visitor<Void> {
         if (inherited != null) {
             node.inheritDirective(inherited);
         }
+        final var joinGroup = delta.getJoinGroup();
+        if (joinGroup != null) {
+            node.joinGroup(joinGroup);
+        }
         return null;
     }
 

@@ -46,7 +46,7 @@ class SeedStageSpec extends Specification {
         then:
         groups.size() == edges.size()
         edges.every { edge ->
-            groups.count { it.root.is(edge.to) && it.slots.size() == 1 && it.slots[0].is(edge.from) } == 1
+            groups.count { it.root.is(edge.to) && it.inputs().size() == 1 && it.inputs()[0].is(edge.from) } == 1
         }
     }
 
@@ -75,8 +75,8 @@ class SeedStageSpec extends Specification {
             it.root.loc instanceof SourceLocation && it.root.loc.path.segments == ['person', 'lastName']
         }.toList()
         groups.size() == 1
-        groups[0].slots.size() == 1
-        groups[0].slots[0].loc.path.segments == ['person']
+        groups[0].inputs().size() == 1
+        groups[0].inputs()[0].loc.path.segments == ['person']
     }
 
     def 'directive-bridging edge produces a directive-binding group; from is untyped seed leaf'() {
@@ -103,8 +103,8 @@ class SeedStageSpec extends Specification {
             it.root.loc instanceof TargetLocation && it.root.loc.path.segments == ['lastName']
         }.toList()
         groups.size() == 1
-        groups[0].slots[0].loc.path.segments == ['person', 'lastName']
-        groups[0].slots[0].type.empty
+        groups[0].inputs()[0].loc.path.segments == ['person', 'lastName']
+        groups[0].inputs()[0].type.empty
     }
 
     def 'target-chain edge produces a target-chain group'() {
@@ -129,7 +129,7 @@ class SeedStageSpec extends Specification {
             it.root.loc instanceof TargetLocation && it.root.loc.path.segments == []
         }.toList()
         groups.size() == 1
-        groups[0].slots[0].loc.path.segments == ['addresses']
+        groups[0].inputs()[0].loc.path.segments == ['addresses']
     }
 
     def 'two directives sharing a source prefix share the intermediate node and group is registered once'() {

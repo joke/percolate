@@ -1,5 +1,7 @@
 package io.github.joke.percolate.processor.stages.expand
 
+import io.github.joke.percolate.processor.test.TestGroups
+
 import com.palantir.javapoet.CodeBlock
 import io.github.joke.percolate.processor.graph.*
 import io.github.joke.percolate.processor.nullability.JspecifyNullabilityResolver
@@ -8,7 +10,6 @@ import io.github.joke.percolate.processor.test.HarnessScope
 import io.github.joke.percolate.spi.AssemblyStrategy
 import io.github.joke.percolate.spi.EdgeCodegen
 import io.github.joke.percolate.spi.ExpansionStep
-import io.github.joke.percolate.spi.GroupCodegen
 import io.github.joke.percolate.spi.Slot
 import io.github.joke.percolate.spi.Weights
 import io.github.joke.percolate.spi.test.HarnessResolveCtx
@@ -29,8 +30,7 @@ import java.util.stream.Stream
 @Tag('unit')
 class AssemblyDataDependencySpec extends Specification {
 
-    private static final String SEED_FQN = GroupShapes.SEED_PACKAGE_PREFIX + 'SeedStage'
-    private static final GroupCodegen GROUP_NOOP = { vars, inputs -> CodeBlock.of('') }
+    private static final String SEED_FQN = 'io.github.joke.percolate.processor.stages.seed.SeedStage'
     private static final EdgeCodegen EDGE_NOOP = { vars, inputs -> CodeBlock.of('') }
 
     def graph = new MapperGraph()
@@ -49,7 +49,7 @@ class AssemblyDataDependencySpec extends Specification {
         graph.addNode(root)
         graph.addNode(nameLeaf)
         graph.addNode(ageLeaf)
-        def group = ExpansionGroup.of(root, [nameLeaf, ageLeaf], GROUP_NOOP, SEED_FQN, [].toSet(), graph)
+        def group = TestGroups.of(root, [nameLeaf, ageLeaf], SEED_FQN, [].toSet(), graph)
         assert GroupShapes.isAssembly(group)
 
         and: 'a constructor-style assembly strategy emitting a 2-slot BOUNDARY whose slot names are the members'
@@ -77,7 +77,7 @@ class AssemblyDataDependencySpec extends Specification {
         and: 'the opened sub-group is rooted at the assembly root over those same leaves as its slots'
         def addGroup = bundles[0].deltas.find { it instanceof AddGroup }
         addGroup.root.is(root)
-        addGroup.slots.toSet() == [nameLeaf, ageLeaf].toSet()
+        addGroup.inputs.toSet() == [nameLeaf, ageLeaf].toSet()
     }
 
     def 'a constructor whose parameter names do not equal the declared children opens no sub-group'() {
@@ -88,7 +88,7 @@ class AssemblyDataDependencySpec extends Specification {
         graph.addNode(root)
         graph.addNode(nameLeaf)
         graph.addNode(ageLeaf)
-        def group = ExpansionGroup.of(root, [nameLeaf, ageLeaf], GROUP_NOOP, SEED_FQN, [].toSet(), graph)
+        def group = TestGroups.of(root, [nameLeaf, ageLeaf], SEED_FQN, [].toSet(), graph)
 
         and: 'an assembly strategy whose constructor parameter-name set differs from the declared children'
         def constructor = { f, c ->

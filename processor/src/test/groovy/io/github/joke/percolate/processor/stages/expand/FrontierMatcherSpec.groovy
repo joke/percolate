@@ -1,5 +1,7 @@
 package io.github.joke.percolate.processor.stages.expand
 
+import io.github.joke.percolate.processor.test.TestGroups
+
 import com.palantir.javapoet.CodeBlock
 import io.github.joke.percolate.processor.graph.*
 import io.github.joke.percolate.processor.nullability.JspecifyNullabilityResolver
@@ -10,7 +12,6 @@ import io.github.joke.percolate.spi.EdgeCodegen
 import io.github.joke.percolate.spi.ElementScope
 import io.github.joke.percolate.spi.ExpansionStep
 import io.github.joke.percolate.spi.ExpansionStrategy
-import io.github.joke.percolate.spi.GroupCodegen
 import io.github.joke.percolate.spi.Slot
 import io.github.joke.percolate.spi.Weights
 import io.github.joke.percolate.spi.test.HarnessResolveCtx
@@ -29,7 +30,6 @@ import java.util.stream.Stream
 @Tag('unit')
 class FrontierMatcherSpec extends Specification {
 
-    private static final GroupCodegen GROUP_NOOP = { vars, inputs -> CodeBlock.of('') }
     private static final EdgeCodegen EDGE_NOOP = { vars, inputs -> CodeBlock.of('') }
 
     def graph = new MapperGraph()
@@ -56,7 +56,6 @@ class FrontierMatcherSpec extends Specification {
         def edge = bundles[0].deltas.find { it instanceof AddEdge }.edge
         edge.from.is(candidate)
         edge.to.is(frontier)
-        bundles[0].deltas.any { it instanceof AddEdgeToView }
     }
 
     def 'a BOUNDARY step opens a sub-group rooted at the frontier with a fresh input'() {
@@ -181,6 +180,6 @@ class FrontierMatcherSpec extends Specification {
     private ExpansionGroup group(final Node root, final Node slot) {
         graph.addNode(root)
         graph.addNode(slot)
-        ExpansionGroup.of(root, [slot], GROUP_NOOP, 'test.G', [].toSet(), graph)
+        TestGroups.of(root, [slot], 'test.G', [].toSet(), graph)
     }
 }

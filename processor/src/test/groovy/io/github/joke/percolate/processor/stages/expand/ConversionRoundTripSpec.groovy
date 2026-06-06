@@ -1,5 +1,6 @@
 package io.github.joke.percolate.processor.stages.expand
 
+
 import com.palantir.javapoet.CodeBlock
 import io.github.joke.percolate.processor.graph.*
 import io.github.joke.percolate.processor.nullability.JspecifyNullabilityResolver
@@ -8,7 +9,6 @@ import io.github.joke.percolate.processor.test.HarnessScope
 import io.github.joke.percolate.spi.EdgeCodegen
 import io.github.joke.percolate.spi.ExpansionStep
 import io.github.joke.percolate.spi.ExpansionStrategy
-import io.github.joke.percolate.spi.GroupCodegen
 import io.github.joke.percolate.spi.Slot
 import io.github.joke.percolate.spi.Weights
 import io.github.joke.percolate.spi.test.HarnessResolveCtx
@@ -27,7 +27,6 @@ import java.util.stream.Stream
 @Tag('unit')
 class ConversionRoundTripSpec extends Specification {
 
-    private static final GroupCodegen GROUP_NOOP = { vars, inputs -> CodeBlock.of('') }
     private static final EdgeCodegen EDGE_NOOP = { vars, inputs -> CodeBlock.of('') }
 
     def graph = new MapperGraph()
@@ -44,7 +43,12 @@ class ConversionRoundTripSpec extends Specification {
         graph.addNode(integerNode)
         def boxEdge = Edge.realised(intNode, integerNode, Weights.NOOP, EDGE_NOOP, 'test.Box')
         graph.addEdge(boxEdge)
-        def group = ExpansionGroup.of(intNode, [integerNode], GROUP_NOOP, 'test.G', [boxEdge].toSet(), graph)
+        // Tag both nodes into the group (its view holds the box edge); no slot->root edge is synthesized here —
+        // the unbox fold itself would be the (rejected) inverse edge.
+        def gid = GroupId.next(false)
+        def group = new ExpansionGroup(gid, intNode, graph)
+        [intNode, integerNode].each { it.joinGroup(gid) }
+        graph.addGroup(group)
 
         and: 'a strategy that unboxes Integer back to int as a CONVERSION'
         def unbox = { f, c ->

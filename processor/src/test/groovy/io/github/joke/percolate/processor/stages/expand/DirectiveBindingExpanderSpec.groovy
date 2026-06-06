@@ -1,5 +1,7 @@
 package io.github.joke.percolate.processor.stages.expand
 
+import io.github.joke.percolate.processor.test.TestGroups
+
 import com.palantir.javapoet.CodeBlock
 import io.github.joke.percolate.processor.graph.*
 import io.github.joke.percolate.processor.nullability.JspecifyNullabilityResolver
@@ -8,7 +10,6 @@ import io.github.joke.percolate.processor.test.HarnessScope
 import io.github.joke.percolate.spi.CombinatorialMatch
 import io.github.joke.percolate.spi.EdgeCodegen
 import io.github.joke.percolate.spi.ExpansionStep
-import io.github.joke.percolate.spi.GroupCodegen
 import io.github.joke.percolate.spi.Slot
 import io.github.joke.percolate.spi.Weights
 import io.github.joke.percolate.spi.test.HarnessResolveCtx
@@ -31,7 +32,6 @@ import java.util.stream.Stream
 @Tag('unit')
 class DirectiveBindingExpanderSpec extends Specification {
 
-    private static final GroupCodegen GROUP_NOOP = { vars, inputs -> CodeBlock.of('') }
     private static final EdgeCodegen EDGE_NOOP = { vars, inputs -> CodeBlock.of('') }
 
     def graph = new MapperGraph()
@@ -56,7 +56,7 @@ class DirectiveBindingExpanderSpec extends Specification {
         result.bundles.collectMany { it.deltas }.findAll { it instanceof TypeNode && it.node.is(group.root) }.empty
     }
 
-    def 'a same-type binding folds a NOOP direct-assign edge into the root and types it with the target type'() {
+    def 'a same-type binding folds a NOOP direct-assign edge into the already-typed root'() {
         given:
         def group = bindingGroup(TypeUniverse.STRING, null)
         pinTargetType(group, TypeUniverse.STRING)
@@ -69,13 +69,12 @@ class DirectiveBindingExpanderSpec extends Specification {
         def deltas = result.bundles.collectMany { it.deltas }
         def edges = deltas.findAll { it instanceof AddEdge }
         edges.size() == 1
-        edges[0].edge.from.is(group.slots[0])
+        edges[0].edge.from.is(group.inputs()[0])
         edges[0].edge.to.is(group.root)
         edges[0].edge.weight == Weights.NOOP
-        deltas.any { it instanceof AddEdgeToView }
-        def typings = deltas.findAll { it instanceof TypeNode && it.node.is(group.root) }
-        typings.size() == 1
-        TypeUniverse.types().isSameType(typings[0].type, TypeUniverse.STRING)
+
+        and: 'the root was already typed (by its parent constructor in the real flow), so the fold emits no TypeNode'
+        deltas.findAll { it instanceof TypeNode && it.node.is(group.root) }.empty
     }
 
     def 'never stamps the source slot type onto the root'() {
@@ -111,8 +110,7 @@ class DirectiveBindingExpanderSpec extends Specification {
         pinTargetType(group, TypeUniverse.LONG)
         def childSlot = new Node(Optional.empty(), new ElementLocation('element'), scope)
         graph.addNode(childSlot)
-        def child = ExpansionGroup.of(group.root, [childSlot], GROUP_NOOP, 'test.Child', [].toSet(), graph)
-        graph.addGroup(child)
+        def child = TestGroups.of(group.root, [childSlot], 'test.Child', [].toSet(), graph)
         state.markSat(child)
 
         when:
@@ -132,8 +130,10 @@ class DirectiveBindingExpanderSpec extends Specification {
         } as CombinatorialMatch
     }
 
+    // In the dissolved model the directive-binding root is typed directly (its parent constructor types the leaf at
+    // bind time); effectiveTypeFor reads node.getType(), so there is no separate "expected type" pin.
     private void pinTargetType(final ExpansionGroup group, final TypeMirror targetType) {
-        group.recordExpectedType(group.root, new Slot('out', targetType, 1, TypeUniverse.anyConstruct()))
+        group.root.setTyping(targetType, io.github.joke.percolate.spi.Nullability.UNKNOWN)
     }
 
     private ExpansionGroup bindingGroup(final TypeMirror slotType, final TypeMirror rootType) {
@@ -141,6 +141,6 @@ class DirectiveBindingExpanderSpec extends Specification {
         def slot = new Node(Optional.ofNullable(slotType), new SourceLocation(AccessPath.of('p')), scope)
         graph.addNode(root)
         graph.addNode(slot)
-        ExpansionGroup.of(root, [slot], GROUP_NOOP, 'test.DirectiveBinding', [].toSet(), graph)
+        TestGroups.of(root, [slot], 'io.github.joke.percolate.processor.stages.seed.SeedStage', [].toSet(), graph)
     }
 }

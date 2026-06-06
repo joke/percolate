@@ -1,7 +1,10 @@
 package io.github.joke.percolate.processor.graph
 
+import io.github.joke.percolate.spi.EdgeCodegen
+
+import io.github.joke.percolate.processor.test.TestGroups
+
 import com.palantir.javapoet.CodeBlock
-import io.github.joke.percolate.spi.GroupCodegen
 import io.github.joke.percolate.spi.test.TypeUniverse
 import spock.lang.Specification
 import spock.lang.Tag
@@ -9,7 +12,7 @@ import spock.lang.Tag
 @Tag('unit')
 class PlanViewSpec extends Specification {
 
-    static final GroupCodegen NOOP_GROUP = { vars, inputs -> CodeBlock.of('') } as GroupCodegen
+    static final EdgeCodegen NOOP_GROUP = { vars, inputs -> CodeBlock.of('') } as EdgeCodegen
 
     def 'planView excludes dead-sibling edges'() {
         given:
@@ -26,8 +29,8 @@ class PlanViewSpec extends Specification {
         final var deadEdge = realised(deadSlot, root, 1)
         graph.addEdge(aliveEdge)
         graph.addEdge(deadEdge)
-        final var aliveGroup = ExpansionGroup.of(root, [aliveSlot], NOOP_GROUP, 'Alive', [aliveEdge] as Set, graph)
-        final var deadGroup = ExpansionGroup.of(root, [deadSlot], NOOP_GROUP, 'Dead', [deadEdge] as Set, graph)
+        final var aliveGroup = TestGroups.of(root, [aliveSlot], 'Alive', [aliveEdge] as Set, graph)
+        final var deadGroup = TestGroups.of(root, [deadSlot], 'Dead', [deadEdge] as Set, graph)
         graph.addGroup(aliveGroup)
         graph.addGroup(deadGroup)
         graph.recordGroupOutcome(GroupOutcome.sat(aliveGroup))
@@ -59,7 +62,7 @@ class PlanViewSpec extends Specification {
         final var lastEdge = realised(lastSlot, root, 1)
         graph.addEdge(firstEdge)
         graph.addEdge(lastEdge)
-        final var ctor = ExpansionGroup.of(root, [firstSlot, lastSlot], NOOP_GROUP, 'Ctor', [firstEdge, lastEdge] as Set, graph)
+        final var ctor = TestGroups.of(root, [firstSlot, lastSlot], 'Ctor', [firstEdge, lastEdge] as Set, graph)
         graph.addGroup(ctor)
         graph.recordGroupOutcome(GroupOutcome.sat(ctor))
 
@@ -87,8 +90,8 @@ class PlanViewSpec extends Specification {
         final var pricyEdge = realised(pricySlot, root, 5)
         graph.addEdge(cheapEdge)
         graph.addEdge(pricyEdge)
-        final var cheapGroup = ExpansionGroup.of(root, [cheapSlot], NOOP_GROUP, 'Cheap', [cheapEdge] as Set, graph)
-        final var pricyGroup = ExpansionGroup.of(root, [pricySlot], NOOP_GROUP, 'Pricy', [pricyEdge] as Set, graph)
+        final var cheapGroup = TestGroups.of(root, [cheapSlot], 'Cheap', [cheapEdge] as Set, graph)
+        final var pricyGroup = TestGroups.of(root, [pricySlot], 'Pricy', [pricyEdge] as Set, graph)
         graph.addGroup(cheapGroup)
         graph.addGroup(pricyGroup)
         graph.recordGroupOutcome(GroupOutcome.sat(cheapGroup))

@@ -1,5 +1,8 @@
 package io.github.joke.percolate.processor.stages.expand
 
+import io.github.joke.percolate.processor.test.TestGroups
+
+
 import io.github.joke.percolate.processor.graph.*
 import io.github.joke.percolate.processor.test.ExpansionHarness
 import io.github.joke.percolate.spi.ExpansionStrategy
@@ -68,14 +71,7 @@ class ExpansionFailureModesSpec extends Specification {
         final var realisedEdge = Edge.realised(slot, returnRoot, 1, { vars, inputs -> com.palantir.javapoet.CodeBlock.of('') }, 'test.GroupTarget')
         graph.addEdge(realisedEdge)
         graph.addEdge(Edge.seedForTest(source, slot))
-        final var group = ExpansionGroup.of(
-                returnRoot,
-                [slot],
-                { vars, inputs -> com.palantir.javapoet.CodeBlock.of('') } as io.github.joke.percolate.spi.GroupCodegen,
-                'test.GroupTarget',
-                Set.of(realisedEdge),
-                graph)
-        graph.addGroup(group)
+        TestGroups.of(returnRoot, [slot], 'test.GroupTarget', Set.of(realisedEdge), graph)
         graph
     }
 

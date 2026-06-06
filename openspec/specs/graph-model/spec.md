@@ -115,21 +115,6 @@ The processor SHALL define a type `VarNames` in `io.github.joke.percolate.proces
 - **WHEN** the `VarNames` type is inspected
 - **THEN** it exists in the `io.github.joke.percolate.processor.graph` package
 
-### Requirement: GroupCodegen interface
-The processor SHALL define an interface `GroupCodegen` in `io.github.joke.percolate.processor.graph` representing a closure that renders the wrapping expression for a multi-edge group (constructor parameters, builder chain). The interface SHALL declare:
-
-```java
-interface GroupCodegen {
-    CodeBlock render(VarNames vars, IncomingValues inputs);
-}
-```
-
-No implementation is shipped in this change.
-
-#### Scenario: GroupCodegen is referenced by MapperGraph group-storage
-- **WHEN** the `MapperGraph` group-codegen storage is inspected for value type
-- **THEN** the value type is `GroupCodegen`
-
 ### Requirement: RealisedSubgraph view
 The processor SHALL define a class `RealisedSubgraph` in `io.github.joke.percolate.processor.graph` exposing a read-only view over a `MapperGraph` filtered to:
 - **edges:** only edges with `kind == EdgeKind.REALISED` (excludes `SEED`, `MARKER`),
@@ -440,10 +425,6 @@ A fresh `MapperGraph` SHALL be constructed for each `Pipeline.process(TypeElemen
 - **WHEN** `addGroup(group)` is invoked with a `group` whose root is not in `underlyingGraph().vertexSet()`
 - **THEN** an `IllegalArgumentException` is thrown and the registry is unchanged
 
-#### Scenario: ExpansionGroup view contains root, slots, and initial edges
-- **WHEN** `ExpansionGroup.of(root, [slot1, slot2], codegen, "com.example.ConstructorCall", {edge_slot1_to_root, edge_slot2_to_root}, parent)` is invoked
-- **THEN** the resulting `ExpansionGroup` has a view whose vertex set is `{root, slot1, slot2}` and edge set is `{edge_slot1_to_root, edge_slot2_to_root}`
-
 #### Scenario: apply commits all nodes and edges from a delta
 - **WHEN** `apply(GraphDelta.of(List.of(n1, n2), List.of(e1, e2)))` is invoked on a fresh graph
 - **THEN** `nodes()` contains `n1` and `n2`
@@ -464,66 +445,108 @@ A fresh `MapperGraph` SHALL be constructed for each `Pipeline.process(TypeElemen
 
 ### Requirement: ExpansionGroup value type
 
-The processor SHALL define a final class `ExpansionGroup` in `io.github.joke.percolate.processor.graph` with the following fields:
+The processor SHALL define a final type `ExpansionGroup` in
+`io.github.joke.percolate.processor.graph` that is a **logical grouping label only** — it holds no
+graph state, carries no codegen, and is NEVER traversed by code generation. It SHALL expose exactly:
 
-- `Node root` — the fan-in target node the group's codegen produces. Always typed at construction for non-path-segment groups; for path-segment groups the root starts untyped and is typed in-place during source-path resolution when its producer commits (a `TypeNode` delta; see `source-path-resolution`).
-- `List<Node> slots` — the direct input slot nodes the group's codegen reads. Order is preserved from the emitting strategy's `ExpansionStep` `inputs`.
-- `GroupCodegen codegen` — the codegen function combining slot values into the root value.
-- `String strategyClassFqn` — the FQN of the strategy that emitted the group.
-- `AsSubgraph<Node, Edge> view` — a JGraphT subgraph view containing the group's root, slot nodes, and slot-incoming `REALISED` edges. Backed by the parent `MapperGraph.underlyingGraph()`.
+- `GroupId id` — a thin value-type identity for the group (not a raw `String`), used for membership
+  filtering and for the engine's SAT bookkeeping.
+- `Node root` — the fan-in target node this group's demand produces.
 
-The class SHALL provide a static factory:
+Group **membership** is NOT stored on `ExpansionGroup`. A `Node` carries the set of groups it belongs
+to (see "Node carries group-membership labels"); a group's **view** is derived on demand as a
+`org.jgrapht.graph.MaskSubgraph` over `parent.underlyingGraph()`:
 
 ```
-ExpansionGroup of(Node root, List<Node> slots, GroupCodegen codegen,
-                  String strategyClassFqn, Set<Edge> initialEdges, MapperGraph parent)
+vertexMask = v -> !v.groups().contains(this.id)
+edgeMask   = e -> e.getKind() != EdgeKind.REALISED
 ```
 
-The factory SHALL validate that `root` and every `slot` are nodes of `parent.underlyingGraph()`, and that every edge in `initialEdges` is in `parent.underlyingGraph()` and has `kind == REALISED`. The constructed `view` is an `AsSubgraph` initialised with `({root} ∪ slots, initialEdges)`.
+so the view shows exactly the group's tagged nodes and the `REALISED` edges between them. Because the
+vertex mask hides edges with a masked endpoint, edge membership follows vertex membership; no edge
+carries a group tag.
 
-`ExpansionGroup` SHALL expose controlled view mutators used by `ExpandGroupsPhase` during expansion:
+`ExpansionGroup` SHALL NOT expose `slots`, `getCodegen`, `strategyClassFqn`, `addVertexToView`,
+`addEdgeToView`, `slotMetadata`, `expectedTypeFor`, `consumerContractFor`, `conversionFrontiers`, or
+an `AsSubgraph` view. The `of(...)` factory `initialEdges` parameter and `validateInitialEdge` are
+removed. "Adding a node to a group" is a single tag mutation on the `Node`, performed only by the
+`Applier`.
 
-- `addVertexToView(Node n)` — adds `n` to `view.vertexSet()`. Validates that `n` is a member of `parent.underlyingGraph()`. Idempotent on instance-equal vertices.
-- `addEdgeToView(Edge e)` — adds `e` to `view.edgeSet()`. Validates that `e` is a member of `parent.underlyingGraph()`, has `kind == REALISED`, and that both endpoints are in `view.vertexSet()`. Idempotent on instance-equal edges.
+The slots of a group (its demand's inputs) and its SAT status are derived: the input nodes are the
+`from` endpoints of the `root`'s incoming REALISED edges within the view; SAT is recorded
+engine-side, not on the group.
 
-These mutators allow the engine to grow a group's view when a boundary-import is needed (a child sub-group's slot equals an existing node in the parent's view by instance identity — adding that vertex makes the sub-group's view non-empty for the slot).
+#### Scenario: ExpansionGroup exposes only id and root
+- **WHEN** the public surface of `ExpansionGroup` is inspected
+- **THEN** it exposes `getId()` and `getRoot()` and a derived `view()` (a `MaskSubgraph`)
+- **AND** it exposes no `getSlots`, `getCodegen`, `getStrategyClassFqn`, `addVertexToView`,
+  `addEdgeToView`, `slotMetadata`, `expectedTypeFor`, `consumerContractFor`, or `conversionFrontiers`
 
-`ExpansionGroup` SHALL expose: `getRoot()`, `getSlots()`, `getCodegen()`, `getStrategyClassFqn()`, `getView()`, `contains(Edge e)`, `addVertexToView(Node)`, `addEdgeToView(Edge)`.
+#### Scenario: Group view is a MaskSubgraph derived from node tags
+- **WHEN** a group with `id = G` and `root = r` is constructed and nodes `r`, `a` are tagged with `G`
+  and a `REALISED` edge `a → r` is added to the underlying graph
+- **THEN** `group.view().vertexSet()` equals `{r, a}`
+- **AND** `group.view().edgeSet()` contains the `a → r` REALISED edge
+- **AND** a node not tagged with `G` is absent from `group.view().vertexSet()`
 
-#### Scenario: of() rejects a root not in the underlying graph
-- **WHEN** `ExpansionGroup.of(root, slots, codegen, "com.example.X", initialEdges, parent)` is invoked with a `root` not added to `parent.underlyingGraph()`
-- **THEN** an `IllegalArgumentException` is thrown
+#### Scenario: Group view excludes non-REALISED edges and cross-group leak on shared nodes
+- **WHEN** node `person.address` is tagged with both group `A` (where it is `root`) and group `B`
+  (where it is an input), and `REALISED` edges `person → person.address` (in A) and
+  `person.address → person.address.street` (in B) exist
+- **THEN** `A.view().edgeSet()` contains `person → person.address` and NOT
+  `person.address → person.address.street`
+- **AND** `B.view()` contains the converse — no REALISED edge leaks across the shared boundary node
 
-#### Scenario: of() rejects an initialEdges set containing a non-REALISED edge
-- **WHEN** `ExpansionGroup.of(...)` is invoked with `initialEdges` containing an edge whose `kind != REALISED`
-- **THEN** an `IllegalArgumentException` is thrown
+### Requirement: Node carries group-membership labels
 
-#### Scenario: View is scoped to root, slots, and initialEdges at construction
-- **WHEN** `ExpansionGroup.of(root, [slotA, slotB], codegen, "com.example.X", {edgeA, edgeB}, parent)` is invoked successfully
-- **THEN** `group.getView().vertexSet()` equals `{root, slotA, slotB}`
-- **AND** `group.getView().edgeSet()` equals `{edgeA, edgeB}`
+`Node` SHALL carry an insertion-ordered, mutable set of `GroupId` labels recording the
+`ExpansionGroup`s the node belongs to, exposed as `Set<GroupId> groups()`. A `Node` MAY belong to
+many groups simultaneously (e.g. `person.address` is the `root` of one source-descent group and an
+input of another). Group membership SHALL be mutated **only** by the `Applier` (the single mutation
+site). The membership set SHALL be insertion-ordered for deterministic iteration. Group membership
+SHALL NOT participate in `Node.equals`/`hashCode` (which remain instance-identity).
 
-#### Scenario: addVertexToView grows the view
-- **WHEN** `group.addVertexToView(n)` is invoked with `n` already added to `parent.underlyingGraph()` but not in the view
-- **THEN** `group.getView().vertexSet()` contains `n` after the call
+#### Scenario: A node can belong to multiple groups
+- **WHEN** node `person.address` is tagged with group ids `G1` (as root) and `G2` (as input)
+- **THEN** `node.groups()` contains both `G1` and `G2`
+- **AND** iteration order is the order in which they were added
 
-#### Scenario: addVertexToView rejects a node not in the underlying graph
-- **WHEN** `group.addVertexToView(n)` is invoked with `n` not added to `parent.underlyingGraph()`
-- **THEN** an `IllegalArgumentException` is thrown
+#### Scenario: Membership does not affect node identity
+- **WHEN** two field-equal `Node` instances have different `groups()` sets
+- **THEN** they remain unequal under `equals` purely by instance identity, and membership is not
+  consulted
 
-#### Scenario: addEdgeToView rejects an edge with endpoints outside the view
-- **WHEN** `group.addEdgeToView(e)` is invoked and one of `e.from` / `e.to` is not in `group.getView().vertexSet()`
-- **THEN** an `IllegalArgumentException` is thrown
+### Requirement: Edge carries the consumer Slot contract
 
-#### Scenario: addEdgeToView rejects a non-REALISED edge
-- **WHEN** `group.addEdgeToView(e)` is invoked with `e.kind != REALISED`
-- **THEN** an `IllegalArgumentException` is thrown
+A `REALISED` `Edge` SHALL carry the consumer `Slot` for the input it wires (the declared input type
+and the `AnnotatedConstruct producedFrom` consumer contract). Code generation SHALL read a slot's
+consumer contract from the **consuming edge's** `Slot` (the operand edge), not from any
+`ExpansionGroup`. For an n-ary producer, each operand edge in the fan-in carries its own `Slot`.
 
-#### Scenario: contains(edge) reports view membership
-- **WHEN** `group.contains(e)` is invoked with an edge `e` that is in `group.getView().edgeSet()`
-- **THEN** the call returns `true`
-- **WHEN** `group.contains(e)` is invoked with an edge `e` that is not in `group.getView().edgeSet()`
-- **THEN** the call returns `false`
+#### Scenario: REALISED edge exposes its consumer Slot
+- **WHEN** a `REALISED` operand edge feeding a constructor parameter is inspected
+- **THEN** it exposes the consumer `Slot` carrying the declared parameter type and the
+  `AnnotatedConstruct producedFrom`
+- **AND** code generation derives the consumer contract from that edge, not from a group
+
+### Requirement: MapperGraph variable identity
+
+`MapperGraph` SHALL expose a get-or-create `variableFor(Scope scope, Location location)` that returns
+the single canonical `Node` for `(scope, location)`, creating it (untyped) on first request. It is
+used by `SeedStage` for seed-time structural variables so that shared path prefixes reuse one node
+without transient caches. Expansion-minted nodes (per-`(name, type)` divergent leaves, conversion
+intermediates) SHALL NOT route through `variableFor` — they are fresh instances, preserving the
+instance-identity rule that prevents cross-sub-group cycles.
+
+#### Scenario: Shared seed prefix resolves to one variable
+- **WHEN** `SeedStage` requests `variableFor(scope, SourceLocation(["person"]))` for two directives
+  `person.address` and `person.lastName`
+- **THEN** both requests return the same `Node` instance
+
+#### Scenario: Expansion-minted divergent leaves stay distinct
+- **WHEN** expansion mints two leaves at the same `(scope, location)` but with different required
+  types (`int` and `long`) via the assembly path
+- **THEN** they are distinct `Node` instances and were not obtained via `variableFor`
 
 ### Requirement: GroupOutcome value type
 

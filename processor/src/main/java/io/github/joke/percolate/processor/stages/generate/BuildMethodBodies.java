@@ -109,7 +109,8 @@ public final class BuildMethodBodies {
             final var name = slotName(edge.getFrom());
             if (child.isStream()) {
                 final var handle = child.getStreamHandle()
-                        .orElseThrow(() -> new IllegalStateException("stream operand has no container handle: " + edge));
+                        .orElseThrow(
+                                () -> new IllegalStateException("stream operand has no container handle: " + edge));
                 final var var = varGen.fresh();
                 final var body = producer.render(new VarNamesImpl(), incoming(name, CodeBlock.of("$N", var)));
                 return new Rendered(handle.mapElements(child.getBlock(), var, body), true, child.getStreamHandle());

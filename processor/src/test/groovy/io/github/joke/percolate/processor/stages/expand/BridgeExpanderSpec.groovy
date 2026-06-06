@@ -1,12 +1,13 @@
 package io.github.joke.percolate.processor.stages.expand
 
+import io.github.joke.percolate.processor.test.TestGroups
+
 import com.palantir.javapoet.CodeBlock
 import io.github.joke.percolate.processor.graph.*
 import io.github.joke.percolate.processor.test.HarnessScope
 import io.github.joke.percolate.spi.EdgeCodegen
 import io.github.joke.percolate.spi.ExpansionStep
 import io.github.joke.percolate.spi.ExpansionStrategy
-import io.github.joke.percolate.spi.GroupCodegen
 import io.github.joke.percolate.spi.Slot
 import io.github.joke.percolate.spi.Weights
 import io.github.joke.percolate.spi.test.HarnessResolveCtx
@@ -26,7 +27,6 @@ import java.util.stream.Stream
 @Tag('unit')
 class BridgeExpanderSpec extends Specification {
 
-    private static final GroupCodegen GROUP_NOOP = { vars, inputs -> CodeBlock.of('') }
     private static final EdgeCodegen EDGE_NOOP = { vars, inputs -> CodeBlock.of('') }
 
     def graph = new MapperGraph()
@@ -43,7 +43,7 @@ class BridgeExpanderSpec extends Specification {
         def slot = new Node(Optional.of(TypeUniverse.STRING), new SourceLocation(AccessPath.of(paramName)), methodScope)
         graph.addNode(root)
         graph.addNode(slot)
-        def group = ExpansionGroup.of(root, [slot], GROUP_NOOP, 'test.G', [].toSet(), graph)
+        def group = TestGroups.of(root, [slot], 'test.G', [].toSet(), graph)
         def state = new ExpansionStateImpl(graph, new Applier(nullResolver()), ctx)
 
         when:
@@ -61,7 +61,7 @@ class BridgeExpanderSpec extends Specification {
         def slot = new Node(Optional.empty(), new ElementLocation('x'), scope, Optional.of(root))
         graph.addNode(root)
         graph.addNode(slot)
-        def group = ExpansionGroup.of(root, [slot], GROUP_NOOP, 'test.G', [].toSet(), graph)
+        def group = TestGroups.of(root, [slot], 'test.G', [].toSet(), graph)
         def state = new ExpansionStateImpl(graph, new Applier(nullResolver()), ctx)
 
         when:
@@ -79,7 +79,7 @@ class BridgeExpanderSpec extends Specification {
         def slot = new Node(Optional.of(TypeUniverse.STRING), new ElementLocation('role'), scope)
         graph.addNode(candidate)
         graph.addNode(slot)
-        def group = ExpansionGroup.of(candidate, [slot], GROUP_NOOP, 'test.G', [].toSet(), graph)
+        def group = TestGroups.of(candidate, [slot], 'test.G', [].toSet(), graph)
         def state = new ExpansionStateImpl(graph, new Applier(nullResolver()), ctx)
 
         when:

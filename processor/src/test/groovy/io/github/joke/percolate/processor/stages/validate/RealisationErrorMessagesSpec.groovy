@@ -1,5 +1,8 @@
 package io.github.joke.percolate.processor.stages.validate
 
+import io.github.joke.percolate.processor.test.TestGroups
+
+
 import io.github.joke.percolate.processor.graph.*
 import io.github.joke.percolate.processor.test.ExpansionHarness
 import io.github.joke.percolate.spi.ExpansionStrategy
@@ -84,13 +87,7 @@ class RealisationErrorMessagesSpec extends Specification {
         graph.addEdge(realisedEdge)
         graph.addEdge(Edge.seedForTest(source, slot))
 
-        graph.addGroup(ExpansionGroup.of(
-                returnRoot,
-                [slot],
-                { vars, inputs -> com.palantir.javapoet.CodeBlock.of('') } as io.github.joke.percolate.spi.GroupCodegen,
-                'io.github.joke.percolate.builtin.ListMap',
-                Set.of(realisedEdge),
-                graph))
+        TestGroups.of(returnRoot, [slot], 'io.github.joke.percolate.builtin.ListMap', Set.of(realisedEdge), graph)
 
         graph
     }
@@ -120,13 +117,7 @@ class RealisationErrorMessagesSpec extends Specification {
         graph.addEdge(realisedEdge)
         graph.addEdge(Edge.seedForTest(source, slot))
 
-        graph.addGroup(ExpansionGroup.of(
-                returnRoot,
-                [slot],
-                { vars, inputs -> com.palantir.javapoet.CodeBlock.of('') } as io.github.joke.percolate.spi.GroupCodegen,
-                'test.GroupTarget',
-                Set.of(realisedEdge),
-                graph))
+        TestGroups.of(returnRoot, [slot], 'test.GroupTarget', Set.of(realisedEdge), graph)
         graph
     }
 

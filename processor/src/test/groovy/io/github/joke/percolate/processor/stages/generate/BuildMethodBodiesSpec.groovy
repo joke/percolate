@@ -1,11 +1,12 @@
 package io.github.joke.percolate.processor.stages.generate
 
+import io.github.joke.percolate.processor.test.TestGroups
+
 import com.palantir.javapoet.CodeBlock
 import io.github.joke.percolate.processor.MapperContext
 import io.github.joke.percolate.processor.graph.*
 import io.github.joke.percolate.processor.model.MapperShape
 import io.github.joke.percolate.spi.EdgeCodegen
-import io.github.joke.percolate.spi.GroupCodegen
 import io.github.joke.percolate.spi.Weights
 import io.github.joke.percolate.spi.test.TypeUniverse
 import spock.lang.Specification
@@ -102,22 +103,16 @@ class BuildMethodBodiesSpec extends Specification {
         graph.addEdge(Edge.realised(firstNameSrc, firstNameSlot, Weights.NOOP, DIRECT_ASSIGN, 'DirectAssign'))
         graph.addEdge(Edge.realised(lastNameSrc, lastNameSlot, Weights.NOOP, DIRECT_ASSIGN, 'DirectAssign'))
 
-        GroupCodegen ctorCodegen = { vars, inputs ->
+        // The constructor codegen rides on each operand edge (the fan-in shares one producer codegen instance).
+        EdgeCodegen ctorCodegen = { vars, inputs ->
             CodeBlock.of('new Human($L, $L)', inputs.byName('firstName'), inputs.byName('lastName'))
-        } as GroupCodegen
-        def passThrough = { vars, inputs -> CodeBlock.of('$L', inputs.single()) } as EdgeCodegen
-        def firstEdge = Edge.realised(firstNameSlot, returnRoot, Weights.STEP, passThrough, 'io.github.joke.percolate.spi.builtins.ConstructorCall')
-        def lastEdge = Edge.realised(lastNameSlot, returnRoot, Weights.STEP, passThrough, 'io.github.joke.percolate.spi.builtins.ConstructorCall')
+        } as EdgeCodegen
+        def firstEdge = Edge.realised(firstNameSlot, returnRoot, Weights.STEP, ctorCodegen, 'io.github.joke.percolate.spi.builtins.ConstructorCall')
+        def lastEdge = Edge.realised(lastNameSlot, returnRoot, Weights.STEP, ctorCodegen, 'io.github.joke.percolate.spi.builtins.ConstructorCall')
         graph.addEdge(firstEdge)
         graph.addEdge(lastEdge)
-        def ctorGroup = ExpansionGroup.of(
-                returnRoot,
-                [firstNameSlot, lastNameSlot],
-                ctorCodegen,
-                'io.github.joke.percolate.spi.builtins.ConstructorCall',
-                [firstEdge, lastEdge] as Set,
-                graph)
-        graph.addGroup(ctorGroup)
+        // The constructor's group marks returnRoot as an AND fan-in (protected from PlanView's OR-pruning).
+        def ctorGroup = TestGroups.of(returnRoot, [firstNameSlot, lastNameSlot], 'io.github.joke.percolate.spi.builtins.ConstructorCall', [firstEdge, lastEdge] as Set, graph)
         graph.recordGroupOutcome(GroupOutcome.sat(ctorGroup))
 
         def ctx = ctxWith(graph, method)
@@ -149,21 +144,10 @@ class BuildMethodBodiesSpec extends Specification {
         // the folded conversion: a plain realised edge, no enclosing single-slot group
         graph.addEdge(Edge.realised(ageSrc, ageSlot, Weights.STEP, BOX_LONG, 'io.github.joke.percolate.spi.builtins.BoxingBridge'))
 
-        GroupCodegen ctorCodegen = { vars, inputs ->
+        EdgeCodegen ctorCodegen = { vars, inputs ->
             CodeBlock.of('new Person($L)', inputs.byName('age'))
-        } as GroupCodegen
-        def passThrough = { vars, inputs -> CodeBlock.of('$L', inputs.single()) } as EdgeCodegen
-        def ctorEdge = Edge.realised(ageSlot, returnRoot, Weights.STEP, passThrough, 'io.github.joke.percolate.spi.builtins.ConstructorCall')
-        graph.addEdge(ctorEdge)
-        def ctorGroup = ExpansionGroup.of(
-                returnRoot,
-                [ageSlot],
-                ctorCodegen,
-                'io.github.joke.percolate.spi.builtins.ConstructorCall',
-                [ctorEdge] as Set,
-                graph)
-        graph.addGroup(ctorGroup)
-        graph.recordGroupOutcome(GroupOutcome.sat(ctorGroup))
+        } as EdgeCodegen
+        graph.addEdge(Edge.realised(ageSlot, returnRoot, Weights.STEP, ctorCodegen, 'io.github.joke.percolate.spi.builtins.ConstructorCall'))
 
         def ctx = ctxWith(graph, method)
 
@@ -187,19 +171,8 @@ class BuildMethodBodiesSpec extends Specification {
         [param, elemSlot, returnRoot].each { graph.addNode(it) }
 
         graph.addEdge(Edge.realised(param, elemSlot, Weights.NOOP, DIRECT_ASSIGN, 'DirectAssign'))
-        def collectEdge = Edge.realised(elemSlot, returnRoot, Weights.CONTAINER, DIRECT_ASSIGN, 'io.github.joke.percolate.spi.builtins.ListCollect')
-        graph.addEdge(collectEdge)
-
-        GroupCodegen listCodegen = { vars, inputs -> CodeBlock.of('$T.of($L)', List, inputs.single()) } as GroupCodegen
-        def listGroup = ExpansionGroup.of(
-                returnRoot,
-                [elemSlot],
-                listCodegen,
-                'io.github.joke.percolate.spi.builtins.ListCollect',
-                [collectEdge] as Set,
-                graph)
-        graph.addGroup(listGroup)
-        graph.recordGroupOutcome(GroupOutcome.sat(listGroup))
+        EdgeCodegen listCodegen = { vars, inputs -> CodeBlock.of('$T.of($L)', List, inputs.single()) } as EdgeCodegen
+        graph.addEdge(Edge.realised(elemSlot, returnRoot, Weights.CONTAINER, listCodegen, 'io.github.joke.percolate.spi.builtins.ListCollect'))
 
         def ctx = ctxWith(graph, method)
 
@@ -225,31 +198,10 @@ class BuildMethodBodiesSpec extends Specification {
         [param, innerElem, outerElem, returnRoot].each { graph.addNode(it) }
 
         graph.addEdge(Edge.realised(param, innerElem, Weights.NOOP, DIRECT_ASSIGN, 'DirectAssign'))
-        def setEdge = Edge.realised(innerElem, outerElem, Weights.CONTAINER, DIRECT_ASSIGN, 'io.github.joke.percolate.spi.builtins.SetCollect')
-        def optEdge = Edge.realised(outerElem, returnRoot, Weights.CONTAINER, DIRECT_ASSIGN, 'io.github.joke.percolate.spi.builtins.OptionalCollect')
-        graph.addEdge(setEdge)
-        graph.addEdge(optEdge)
-
-        GroupCodegen setCodegen = { vars, inputs -> CodeBlock.of('$T.of($L)', Set, inputs.single()) } as GroupCodegen
-        GroupCodegen optCodegen = { vars, inputs -> CodeBlock.of('$T.of($L)', Optional, inputs.single()) } as GroupCodegen
-        def setGroup = ExpansionGroup.of(
-                outerElem,
-                [innerElem],
-                setCodegen,
-                'io.github.joke.percolate.spi.builtins.SetCollect',
-                [setEdge] as Set,
-                graph)
-        def optGroup = ExpansionGroup.of(
-                returnRoot,
-                [outerElem],
-                optCodegen,
-                'io.github.joke.percolate.spi.builtins.OptionalCollect',
-                [optEdge] as Set,
-                graph)
-        graph.addGroup(setGroup)
-        graph.addGroup(optGroup)
-        graph.recordGroupOutcome(GroupOutcome.sat(setGroup))
-        graph.recordGroupOutcome(GroupOutcome.sat(optGroup))
+        EdgeCodegen setCodegen = { vars, inputs -> CodeBlock.of('$T.of($L)', Set, inputs.single()) } as EdgeCodegen
+        EdgeCodegen optCodegen = { vars, inputs -> CodeBlock.of('$T.of($L)', Optional, inputs.single()) } as EdgeCodegen
+        graph.addEdge(Edge.realised(innerElem, outerElem, Weights.CONTAINER, setCodegen, 'io.github.joke.percolate.spi.builtins.SetCollect'))
+        graph.addEdge(Edge.realised(outerElem, returnRoot, Weights.CONTAINER, optCodegen, 'io.github.joke.percolate.spi.builtins.OptionalCollect'))
 
         def ctx = ctxWith(graph, method)
 
@@ -274,22 +226,17 @@ class BuildMethodBodiesSpec extends Specification {
 
         [param, aliveSlot, deadSlot, returnRoot].each { graph.addNode(it) }
 
+        EdgeCodegen aliveCodegen = { vars, inputs -> CodeBlock.of('$T.of($L)', List, inputs.single()) } as EdgeCodegen
+        EdgeCodegen deadCodegen = { vars, inputs -> CodeBlock.of('DEAD($L)', inputs.single()) } as EdgeCodegen
         graph.addEdge(Edge.realised(param, aliveSlot, Weights.NOOP, DIRECT_ASSIGN, 'DirectAssign'))
-        def aliveEdge = Edge.realised(aliveSlot, returnRoot, Weights.CONTAINER, DIRECT_ASSIGN, 'io.github.joke.percolate.spi.builtins.ListCollect')
-        def deadEdge = Edge.realised(deadSlot, returnRoot, Weights.CONTAINER, DIRECT_ASSIGN, 'io.github.joke.percolate.spi.builtins.OptionalUnwrap')
+        def aliveEdge = Edge.realised(aliveSlot, returnRoot, Weights.CONTAINER, aliveCodegen, 'io.github.joke.percolate.spi.builtins.ListCollect')
+        def deadEdge = Edge.realised(deadSlot, returnRoot, Weights.CONTAINER, deadCodegen, 'io.github.joke.percolate.spi.builtins.OptionalUnwrap')
         graph.addEdge(aliveEdge)
         graph.addEdge(deadEdge)
 
-        GroupCodegen aliveCodegen = { vars, inputs -> CodeBlock.of('$T.of($L)', List, inputs.single()) } as GroupCodegen
-        GroupCodegen deadCodegen = { vars, inputs -> CodeBlock.of('DEAD($L)', inputs.single()) } as GroupCodegen
-        def aliveGroup = ExpansionGroup.of(
-                returnRoot, [aliveSlot], aliveCodegen,
-                'io.github.joke.percolate.spi.builtins.ListCollect', [aliveEdge] as Set, graph)
-        def deadGroup = ExpansionGroup.of(
-                returnRoot, [deadSlot], deadCodegen,
-                'io.github.joke.percolate.spi.builtins.OptionalUnwrap', [deadEdge] as Set, graph)
-        graph.addGroup(aliveGroup)
-        graph.addGroup(deadGroup)
+        // Two SAT/UNSAT sibling producers of returnRoot; the UNSAT one's edge must be pruned from the plan.
+        def aliveGroup = TestGroups.of(returnRoot, [aliveSlot], 'io.github.joke.percolate.spi.builtins.ListCollect', [aliveEdge] as Set, graph)
+        def deadGroup = TestGroups.of(returnRoot, [deadSlot], 'io.github.joke.percolate.spi.builtins.OptionalUnwrap', [deadEdge] as Set, graph)
         graph.recordGroupOutcome(GroupOutcome.sat(aliveGroup))
         graph.recordGroupOutcome(GroupOutcome.unsatNoPlan(deadGroup, deadSlot))
 

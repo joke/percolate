@@ -43,8 +43,8 @@
 
 ## 7. Specs sync & verification
 
-- [ ] 7.1 Run `./gradlew :processor:test`; green across `SeedStageSpec`, expansion, and generation suites
-- [ ] 7.2 Add a test: group `view()` contains exactly its REALISED edges on a shared boundary node (`person.address`) — no cross-group leak
-- [ ] 7.3 Add a test: two type-divergent leaves at one `(scope, location)` stay distinct (not obtained via `variableFor`)
-- [ ] 7.4 Diff debug DOT dumps (`.full.dot` / `.transforms.dot`) before/after for a representative mapper — topology unchanged
-- [ ] 7.5 `openspec validate dissolve-expansion-groups`; `opsx:verify`; then `opsx:sync` the delta specs and `opsx:archive`
+- [x] 7.1 Run `./gradlew :processor:test`; green across `SeedStageSpec`, expansion, and generation suites
+- [x] 7.2 Add a test: group `view()` contains exactly its REALISED edges on a shared boundary node (`person.address`) — no cross-group leak
+- [x] 7.3 Add a test: two type-divergent leaves at one `(scope, location)` stay distinct (not obtained via `variableFor`)
+- [x] 7.4 Diff debug DOT dumps (`.full.dot` / `.transforms.dot`) before/after for a representative mapper — topology unchanged
+- [x] 7.5 `openspec validate dissolve-expansion-groups`; `opsx:verify`; then `opsx:sync` the delta specs and `opsx:archive`

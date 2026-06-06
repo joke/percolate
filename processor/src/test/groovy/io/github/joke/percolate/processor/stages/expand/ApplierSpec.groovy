@@ -1,12 +1,12 @@
 package io.github.joke.percolate.processor.stages.expand
 
+
 import com.palantir.javapoet.CodeBlock
 import io.github.joke.percolate.processor.graph.*
 import io.github.joke.percolate.processor.nullability.JspecifyNullabilityResolver
 import io.github.joke.percolate.processor.nullability.NullabilityAnnotations
 import io.github.joke.percolate.processor.test.HarnessScope
 import io.github.joke.percolate.spi.EdgeCodegen
-import io.github.joke.percolate.spi.GroupCodegen
 import io.github.joke.percolate.spi.test.HarnessResolveCtx
 import io.github.joke.percolate.spi.test.TypeUniverse
 import spock.lang.Specification
@@ -16,7 +16,6 @@ import spock.lang.Tag
 @Tag('unit')
 class ApplierSpec extends Specification {
 
-    private static final GroupCodegen GROUP_NOOP = { vars, inputs -> CodeBlock.of('') }
     private static final EdgeCodegen EDGE_NOOP = { vars, inputs -> CodeBlock.of('') }
 
     def graph = new MapperGraph()
@@ -35,7 +34,7 @@ class ApplierSpec extends Specification {
         def bundle = new DeltaBundle('test.Bridge', [
                 new AddNode(input),
                 new AddEdge(edge),
-                new AddGroup(frontier, [input], GROUP_NOOP, 'test.Bridge', [edge].toSet(), [:], []),
+                new AddGroup(frontier, [input], [], false),
         ])
 
         when:

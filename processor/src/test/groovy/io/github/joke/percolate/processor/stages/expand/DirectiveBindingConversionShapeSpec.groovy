@@ -1,12 +1,13 @@
 package io.github.joke.percolate.processor.stages.expand
 
+import io.github.joke.percolate.processor.test.TestGroups
+
 import com.palantir.javapoet.CodeBlock
 import io.github.joke.percolate.processor.graph.*
 import io.github.joke.percolate.processor.test.ExpansionHarness
 import io.github.joke.percolate.spi.CombinatorialMatch
 import io.github.joke.percolate.spi.EdgeCodegen
 import io.github.joke.percolate.spi.ExpansionStep
-import io.github.joke.percolate.spi.GroupCodegen
 import io.github.joke.percolate.spi.Slot
 import io.github.joke.percolate.spi.Weights
 import io.github.joke.percolate.spi.test.TypeUniverse
@@ -28,7 +29,6 @@ import java.util.stream.Stream
 class DirectiveBindingConversionShapeSpec extends Specification {
 
     private static final String SEED_FQN = 'io.github.joke.percolate.processor.stages.seed.SeedStage'
-    private static final GroupCodegen GROUP_NOOP = { vars, inputs -> CodeBlock.of('') }
     private static final EdgeCodegen EDGE_NOOP = { vars, inputs -> CodeBlock.of('') }
 
     def 'a directive binding to a wider-typed leaf folds a conversion edge, not a source-typed direct assign'() {
@@ -40,11 +40,10 @@ class DirectiveBindingConversionShapeSpec extends Specification {
         def source = new Node(Optional.of(TypeUniverse.STRING), new SourceLocation(AccessPath.of(paramName)), methodScope)
         [leaf, source].each { graph.addNode(it) }
         graph.addEdge(Edge.seedForTest(source, leaf))
-        // SeedStage would register this directive-binding group (root = target leaf, slot = source).
-        def binding = ExpansionGroup.of(leaf, [source], GROUP_NOOP, SEED_FQN, [].toSet(), graph)
-        graph.addGroup(binding)
-        // The consuming assembly pins the leaf's declared type as LONG (wider than the STRING source).
-        binding.recordExpectedType(leaf, new Slot('x', TypeUniverse.LONG_TYPE, Weights.STEP, null))
+        // The consuming assembly types the leaf as LONG (wider than the STRING source) when it binds it; here we
+        // type it directly to stand in for that constructor bind. SeedStage registers the directive-binding demand.
+        leaf.setTyping(TypeUniverse.LONG_TYPE, io.github.joke.percolate.spi.Nullability.UNKNOWN)
+        TestGroups.of(leaf, [source], SEED_FQN, [].toSet(), graph)
 
         when:
         def result = ExpansionHarness.expand(graph, [stringToLong()])

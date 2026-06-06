@@ -205,7 +205,8 @@ final class FrontierMatcher {
 
     private DeltaBundle descentBundle(final Node root, final Node slot, final ExpansionStep step, final String fqn) {
         final var codegen = (EdgeCodegen) step.getCodegen();
-        final var edge = Edge.realised(slot, root, step.getWeight(), codegen, fqn, step.getInputs().get(0));
+        final var edge = Edge.realised(
+                slot, root, step.getWeight(), codegen, fqn, step.getInputs().get(0));
         final var deltas = new ArrayList<Delta>();
         deltas.add(new AddEdge(edge));
         deltas.add(new TypeNode(root, step.getOutput(), descentScope(step)));
@@ -254,12 +255,15 @@ final class FrontierMatcher {
     }
 
     /**
-     * Folds a CONVERSION edge into {@code group} by binding the converted value to an existing in-view node of the
-     * input type (type-dedup / reuse). The fold edge's endpoints are both already tagged into the group, so the
-     * group's derived view shows it without any explicit view mutation. A round-trip that re-derives a type already
-     * on the chain reuses its node and closes a cycle the {@link Applier} rejects. When no in-view node of the
-     * input type exists no fold is possible (multi-hop conversion synthesis is deferred to the type-conversion
-     * change — see project notes); the step is dropped.
+     * Folds a CONVERSION edge into {@code group}, re-using an in-view node of the input type when one exists
+     * (type-dedup) or synthesizing a fresh type-keyed conversion intermediate when none does. The fold edge's
+     * endpoints are both tagged into the group (the reused node already is; a synthesized one is tagged as it is
+     * added), so the group's derived view shows the edge without any explicit view mutation, and a later pass
+     * expands the synthesized intermediate's own producers (design E1/E2). A synthesized intermediate never
+     * pollutes the group's demand {@code inputs()}: a seed group derives inputs from its SEED edges, and a
+     * sub-group from its slot edges into the root — neither is the synthesized node's REALISED fold edge. A
+     * round-trip that re-derives a type already on the chain reuses its node and closes a cycle the
+     * {@link Applier} rejects.
      */
     private Optional<DeltaBundle> convertBundle(
             final Node frontier,
@@ -268,18 +272,38 @@ final class FrontierMatcher {
             final ExpansionSnapshot snapshot,
             final String fqn) {
         final var inputType = step.getInputs().get(0).getType();
-        final var input = findInViewByType(inputType, frontier, group, snapshot);
-        if (input == null) {
-            return Optional.empty();
-        }
         final var deltas = new ArrayList<Delta>();
+        final var input = reuseOrSynthesizeInput(inputType, frontier, group, snapshot, deltas);
         final var codegen = (EdgeCodegen) step.getCodegen();
-        final var edge = Edge.realised(input, frontier, step.getWeight(), codegen, fqn, step.getInputs().get(0));
+        final var edge = Edge.realised(
+                input,
+                frontier,
+                step.getWeight(),
+                codegen,
+                fqn,
+                step.getInputs().get(0));
         deltas.add(new AddEdge(edge));
         if (snapshot.typeOf(frontier).isEmpty()) {
             deltas.add(new TypeNode(frontier, step.getOutput(), snapshot.producerScopeOf(input)));
         }
         return Optional.of(new DeltaBundle(fqn, deltas));
+    }
+
+    /** Reuses the in-view node of {@code inputType}, or synthesizes one tagged into the group's view. */
+    private Node reuseOrSynthesizeInput(
+            final TypeMirror inputType,
+            final Node frontier,
+            final ExpansionGroup group,
+            final ExpansionSnapshot snapshot,
+            final List<Delta> deltas) {
+        final var existing = findInViewByType(inputType, frontier, group, snapshot);
+        if (existing != null) {
+            return existing;
+        }
+        final var synthesized =
+                new Node(Optional.of(inputType), frontier.getLoc(), frontier.getScope(), frontier.getParent());
+        deltas.add(new AddNode(synthesized, frontier.getDirective().orElse(null), group.getId()));
+        return synthesized;
     }
 
     /** Opens a new sub-group rooted at {@code frontier} with the step's slots; each slot edge carries its Slot. */
@@ -305,7 +329,8 @@ final class FrontierMatcher {
             if (snapshot.typeOf(node).isEmpty()) {
                 deltas.add(new TypeNode(node, spiSlot.getType(), slotScope(spiSlot)));
             }
-            deltas.add(new AddEdge(realisedEdge(node, frontier, step.getWeight(), codegen, step.getScope(), fqn, spiSlot)));
+            deltas.add(new AddEdge(
+                    realisedEdge(node, frontier, step.getWeight(), codegen, step.getScope(), fqn, spiSlot)));
         }
         if (snapshot.typeOf(frontier).isEmpty()) {
             deltas.add(new TypeNode(frontier, step.getOutput(), producerScopeFor(slotNodes, snapshot)));
