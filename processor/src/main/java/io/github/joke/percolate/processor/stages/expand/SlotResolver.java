@@ -5,6 +5,7 @@ import io.github.joke.percolate.processor.graph.MethodScope;
 import io.github.joke.percolate.processor.graph.Node;
 import io.github.joke.percolate.processor.graph.SourceLocation;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Set;
@@ -75,13 +76,21 @@ final class SlotResolver {
     }
 
     /**
-     * Expands the group's conversion frontiers (synthesized CONVERSION nodes) so their own producers are
-     * discovered. Their resolution is not AND-required for group SAT — an unreachable one is a retained dead end
-     * (design E2) — so the boolean result is intentionally ignored.
+     * Expands the group's conversion frontiers so their own producers are discovered. In the dissolved model a
+     * conversion frontier is derived from the graph rather than stored on the group (design D5): it is any node in
+     * the group's view that is neither the {@code root} nor a demand input — a synthesized conversion intermediate
+     * or imported source context tagged into the group. Their resolution is not AND-required for group SAT (an
+     * unreachable one is a retained dead end), so the boolean result is intentionally ignored; an already-reachable
+     * boundary import resolves trivially.
      */
     void expandConversionFrontiers(
             final ExpansionGroup group, final ExpansionSnapshot snapshot, final List<DeltaBundle> out) {
-        for (final var frontier : List.copyOf(group.getConversionFrontiers())) {
+        final var root = group.getRoot();
+        final var inputs = new HashSet<>(group.inputs());
+        for (final var frontier : List.copyOf(snapshot.viewOf(group).vertexSet())) {
+            if (frontier.equals(root) || inputs.contains(frontier)) {
+                continue;
+            }
             resolve(frontier, group, snapshot, out);
         }
     }

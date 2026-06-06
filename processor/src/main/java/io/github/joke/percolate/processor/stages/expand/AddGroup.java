@@ -1,31 +1,23 @@
 package io.github.joke.percolate.processor.stages.expand;
 
-import io.github.joke.percolate.processor.graph.Edge;
 import io.github.joke.percolate.processor.graph.Node;
-import io.github.joke.percolate.spi.GroupCodegen;
-import io.github.joke.percolate.spi.Slot;
 import java.util.List;
-import java.util.Map;
-import java.util.Set;
 import lombok.Value;
 
 /**
- * Registers a fresh nested {@link io.github.joke.percolate.processor.graph.ExpansionGroup}. The delta carries
- * the construction ingredients rather than a pre-built group, because {@code ExpansionGroup.of} validates
- * membership against the live graph — which a pure expander cannot touch. The {@link Applier} builds the
- * group once the preceding {@link AddNode}/{@link AddEdge} deltas in the same bundle have been applied, then
- * imports the {@link #boundaryImports} nodes into its view (the boundary-import step the older code performed
- * separately).
+ * Registers a fresh {@link io.github.joke.percolate.processor.graph.ExpansionGroup} as a label. The
+ * {@link Applier} mints a {@link io.github.joke.percolate.processor.graph.GroupId} (marked {@link #seed}),
+ * creates the label-only group rooted at {@link #root}, and tags the {@link #inputs} (the demand slots) and the
+ * {@link #boundaryImports} (source context visible to the group's candidate search) onto their {@link Node}s.
+ * The slot {@code REALISED}/{@code SEED} edges are added by the preceding {@link AddEdge}/seed deltas; the group
+ * carries no slots, codegen, or view of its own (the view is derived from the node tags).
  */
 @Value
 public class AddGroup implements Delta {
     Node root;
-    List<Node> slots;
-    GroupCodegen codegen;
-    String strategyClassFqn;
-    Set<Edge> initialEdges;
-    Map<Node, Slot> slotMetadata;
+    List<Node> inputs;
     List<Node> boundaryImports;
+    boolean seed;
 
     @Override
     public <R> R accept(final Delta.Visitor<R> visitor) {

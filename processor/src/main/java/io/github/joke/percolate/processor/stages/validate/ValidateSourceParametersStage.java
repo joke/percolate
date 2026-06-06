@@ -1,19 +1,27 @@
 package io.github.joke.percolate.processor.stages.validate;
 
 import static java.util.stream.Collectors.joining;
+import static java.util.stream.Collectors.toUnmodifiableList;
 import static java.util.stream.Collectors.toUnmodifiableSet;
 
 import io.github.joke.percolate.processor.Diagnostics;
 import io.github.joke.percolate.processor.MapperContext;
 import io.github.joke.percolate.processor.model.MapperMappings;
+import io.github.joke.percolate.processor.model.MappingDirective;
 import io.github.joke.percolate.processor.model.MethodMappings;
 import io.github.joke.percolate.processor.stages.Stage;
 import jakarta.inject.Inject;
+import java.util.Set;
 import javax.lang.model.element.ExecutableElement;
 import javax.lang.model.element.TypeElement;
 import javax.lang.model.type.TypeKind;
 import lombok.RequiredArgsConstructor;
 
+/**
+ * Hard precondition for the seed stage: every directive that survives this stage has a non-empty source whose
+ * first segment names a method parameter. A directive that fails the check is diagnosed <em>and dropped</em> from
+ * the mappings, so the seed stage never has to mint an orphan source node or silently skip an empty source.
+ */
 @RequiredArgsConstructor(onConstructor_ = @Inject)
 public final class ValidateSourceParametersStage implements Stage {
 
@@ -25,30 +33,43 @@ public final class ValidateSourceParametersStage implements Stage {
         if (mappings == null) {
             return;
         }
-        validate(mappings);
+        ctx.setMappings(validate(mappings));
     }
 
-    void validate(final MapperMappings mappings) {
-        mappings.getMethods().forEach(this::validateMethod);
+    MapperMappings validate(final MapperMappings mappings) {
+        final var validated =
+                mappings.getMethods().stream().map(this::validateMethod).collect(toUnmodifiableList());
+        return new MapperMappings(mappings.getType(), validated);
     }
 
-    private void validateMethod(final MethodMappings methodMappings) {
+    private MethodMappings validateMethod(final MethodMappings methodMappings) {
         final var method = methodMappings.getMethod();
         final var paramNames = method.getParameters().stream()
                 .map(p -> p.getSimpleName().toString())
                 .collect(toUnmodifiableSet());
         final var methodSig = formatMethodSig(method);
 
-        methodMappings.getDirectives().stream()
-                .filter(d -> !paramNames.contains(firstSegment(d.getSource())))
-                .forEach(d -> {
-                    final var seg = firstSegment(d.getSource());
-                    diagnostics.error(
-                            method,
-                            d.getMirror(),
-                            d.getSourceValue(),
-                            "unknown source parameter '" + seg + "' in @Map on " + methodSig);
-                });
+        final var valid = methodMappings.getDirectives().stream()
+                .filter(d -> isValidOrDiagnose(d, paramNames, method, methodSig))
+                .collect(toUnmodifiableList());
+        return new MethodMappings(method, valid);
+    }
+
+    private boolean isValidOrDiagnose(
+            final MappingDirective directive,
+            final Set<String> paramNames,
+            final ExecutableElement method,
+            final String methodSig) {
+        final var seg = firstSegment(directive.getSource());
+        if (paramNames.contains(seg)) {
+            return true;
+        }
+        diagnostics.error(
+                method,
+                directive.getMirror(),
+                directive.getSourceValue(),
+                "unknown source parameter '" + seg + "' in @Map on " + methodSig);
+        return false;
     }
 
     private static String firstSegment(final String source) {

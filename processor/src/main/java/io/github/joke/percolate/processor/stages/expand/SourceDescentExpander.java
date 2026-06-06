@@ -24,7 +24,7 @@ final class SourceDescentExpander implements GroupExpander {
 
     @Override
     public GroupStepResult step(final ExpansionGroup group, final ExpansionSnapshot snapshot) {
-        final var slot = group.getSlots().get(0);
+        final var slot = group.inputs().get(0);
         final var root = group.getRoot();
         if (snapshot.typeOf(slot).isEmpty()) {
             return new GroupStepResult(List.of(), List.of(slot));

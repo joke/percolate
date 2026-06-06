@@ -27,7 +27,7 @@ final class BridgeExpander implements GroupExpander {
     public GroupStepResult step(final ExpansionGroup group, final ExpansionSnapshot snapshot) {
         final var bundles = new ArrayList<DeltaBundle>();
         final var pendingSlots = new ArrayList<Node>();
-        for (final var slot : group.getSlots()) {
+        for (final var slot : group.inputs()) {
             if (!slotResolver.resolve(slot, group, snapshot, bundles)) {
                 pendingSlots.add(slot);
             }

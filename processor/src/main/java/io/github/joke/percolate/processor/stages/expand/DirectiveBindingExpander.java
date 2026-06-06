@@ -26,7 +26,7 @@ final class DirectiveBindingExpander implements GroupExpander {
 
     @Override
     public GroupStepResult step(final ExpansionGroup group, final ExpansionSnapshot snapshot) {
-        final var slot = group.getSlots().get(0);
+        final var slot = group.inputs().get(0);
         final var root = group.getRoot();
         final var bundles = new ArrayList<DeltaBundle>();
         final var slotResolved = slotResolver.resolve(slot, group, snapshot, bundles);

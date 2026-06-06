@@ -3,6 +3,7 @@ package io.github.joke.percolate.processor.graph;
 import io.github.joke.percolate.spi.Codegen;
 import io.github.joke.percolate.spi.EdgeCodegen;
 import io.github.joke.percolate.spi.ElementScope;
+import io.github.joke.percolate.spi.Slot;
 import java.util.Comparator;
 import java.util.Optional;
 import javax.lang.model.element.AnnotationMirror;
@@ -10,7 +11,7 @@ import lombok.EqualsAndHashCode;
 import lombok.Value;
 
 @Value
-@EqualsAndHashCode(exclude = {"codegen", "elementScope", "strategyClassFqn"})
+@EqualsAndHashCode(exclude = {"codegen", "elementScope", "strategyClassFqn", "consumerSlot"})
 public class Edge implements Comparable<Edge> {
 
     private static final Comparator<Edge> EDGE_ORDER = Comparator.<Edge, String>comparing(e -> e.from.id())
@@ -33,6 +34,14 @@ public class Edge implements Comparable<Edge> {
 
     Optional<String> strategyClassFqn;
 
+    /**
+     * The consumer {@link Slot} this edge wires (the declared input type and the {@code AnnotatedConstruct
+     * producedFrom} consumer contract), for a {@code REALISED} operand edge feeding an n-ary producer. Empty for
+     * scalar/container/seed/marker edges. Code generation reads the consumer contract from this slot — never from
+     * an {@code ExpansionGroup}.
+     */
+    Optional<Slot> consumerSlot;
+
     Edge(
             final Node from,
             final Node to,
@@ -41,7 +50,8 @@ public class Edge implements Comparable<Edge> {
             final Optional<AnnotationMirror> directive,
             final Optional<Codegen> codegen,
             final Optional<ElementScope> elementScope,
-            final Optional<String> strategyClassFqn) {
+            final Optional<String> strategyClassFqn,
+            final Optional<Slot> consumerSlot) {
         this.from = from;
         this.to = to;
         this.weight = weight;
@@ -50,6 +60,7 @@ public class Edge implements Comparable<Edge> {
         this.codegen = codegen;
         this.elementScope = elementScope;
         this.strategyClassFqn = strategyClassFqn;
+        this.consumerSlot = consumerSlot;
     }
 
     public static Edge seed(
@@ -65,7 +76,8 @@ public class Edge implements Comparable<Edge> {
                 directive,
                 Optional.empty(),
                 Optional.empty(),
-                strategyClassFqn);
+                strategyClassFqn,
+                Optional.empty());
     }
 
     static Edge seedForTest(final Node from, final Node to) {
@@ -81,7 +93,8 @@ public class Edge implements Comparable<Edge> {
                 original.directive,
                 original.codegen,
                 original.elementScope,
-                original.strategyClassFqn);
+                original.strategyClassFqn,
+                original.consumerSlot);
     }
 
     public static Edge realised(
@@ -90,6 +103,16 @@ public class Edge implements Comparable<Edge> {
             final int weight,
             final EdgeCodegen codegen,
             final String strategyClassFqn) {
+        return realised(from, to, weight, codegen, strategyClassFqn, null);
+    }
+
+    public static Edge realised(
+            final Node from,
+            final Node to,
+            final int weight,
+            final EdgeCodegen codegen,
+            final String strategyClassFqn,
+            final @org.jspecify.annotations.Nullable Slot consumerSlot) {
         return new Edge(
                 from,
                 to,
@@ -98,7 +121,8 @@ public class Edge implements Comparable<Edge> {
                 Optional.empty(),
                 Optional.of(codegen),
                 Optional.empty(),
-                Optional.of(strategyClassFqn));
+                Optional.of(strategyClassFqn),
+                Optional.ofNullable(consumerSlot));
     }
 
     public static Edge realised(
@@ -108,6 +132,17 @@ public class Edge implements Comparable<Edge> {
             final Codegen provider,
             final ElementScope elementScope,
             final String strategyClassFqn) {
+        return realised(from, to, weight, provider, elementScope, strategyClassFqn, null);
+    }
+
+    public static Edge realised(
+            final Node from,
+            final Node to,
+            final int weight,
+            final Codegen provider,
+            final ElementScope elementScope,
+            final String strategyClassFqn,
+            final @org.jspecify.annotations.Nullable Slot consumerSlot) {
         return new Edge(
                 from,
                 to,
@@ -116,7 +151,8 @@ public class Edge implements Comparable<Edge> {
                 Optional.empty(),
                 Optional.of(provider),
                 Optional.of(elementScope),
-                Optional.of(strategyClassFqn));
+                Optional.of(strategyClassFqn),
+                Optional.ofNullable(consumerSlot));
     }
 
     public static Edge marker(final Node from, final Node to, final String strategyClassFqn) {
@@ -128,7 +164,8 @@ public class Edge implements Comparable<Edge> {
                 Optional.empty(),
                 Optional.empty(),
                 Optional.empty(),
-                Optional.of(strategyClassFqn));
+                Optional.of(strategyClassFqn),
+                Optional.empty());
     }
 
     @Override

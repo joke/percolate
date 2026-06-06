@@ -5,6 +5,7 @@ import static java.util.Objects.requireNonNull;
 import io.github.joke.percolate.processor.graph.Edge;
 import io.github.joke.percolate.processor.graph.EdgeKind;
 import io.github.joke.percolate.processor.graph.ExpansionGroup;
+import io.github.joke.percolate.processor.graph.GroupId;
 import io.github.joke.percolate.processor.graph.MapperGraph;
 import io.github.joke.percolate.processor.graph.Node;
 import io.github.joke.percolate.processor.nullability.NullabilityResolver;
@@ -94,12 +95,6 @@ final class Applier implements Delta.Visitor<Void> {
     }
 
     @Override
-    public Void visitAddEdgeToView(final AddEdgeToView delta) {
-        delta.getGroup().addEdgeToView(delta.getEdge());
-        return null;
-    }
-
-    @Override
     public Void visitTypeNode(final TypeNode delta) {
         final var node = delta.getNode();
         if (node.getType().isPresent()) {
@@ -114,44 +109,15 @@ final class Applier implements Delta.Visitor<Void> {
     }
 
     @Override
-    public Void visitRegisterConversionFrontier(final RegisterConversionFrontier delta) {
-        final var group = delta.getGroup();
-        group.addVertexToView(delta.getNode());
-        group.addConversionFrontier(delta.getNode());
-        return null;
-    }
-
-    @Override
     public Void visitAddGroup(final AddGroup delta) {
         final var graph = graph();
-        final var group = ExpansionGroup.of(
-                delta.getRoot(),
-                delta.getSlots(),
-                delta.getCodegen(),
-                delta.getStrategyClassFqn(),
-                delta.getInitialEdges(),
-                graph,
-                delta.getSlotMetadata());
-        for (final var boundary : delta.getBoundaryImports()) {
-            if (!group.getView().containsVertex(boundary)) {
-                group.addVertexToView(boundary);
-            }
-        }
+        final var id = GroupId.next(delta.isSeed());
+        final var group = new ExpansionGroup(id, delta.getRoot(), graph);
+        delta.getRoot().joinGroup(id);
+        delta.getInputs().forEach(node -> node.joinGroup(id));
+        delta.getBoundaryImports().forEach(node -> node.joinGroup(id));
         graph.addGroup(group);
-        pinExpectedTypesOnProducers(graph, delta);
         return null;
-    }
-
-    /**
-     * Propagates each slot's consumer-declared type onto the group that produces that slot. When an assembly
-     * step (e.g. ConstructorCall) binds a slot to a pre-seeded target leaf, the leaf's directive-binding group
-     * learns the declared target type it must produce toward — the role the deleted {@code ResolveTargetChainsPhase}
-     * filled. A slot bound to a fresh node has no producing group yet, so this is a no-op for it.
-     */
-    private static void pinExpectedTypesOnProducers(final MapperGraph graph, final AddGroup delta) {
-        delta.getSlotMetadata().forEach((slotNode, slot) -> graph.groups()
-                .filter(producer -> producer.getRoot().equals(slotNode))
-                .forEach(producer -> producer.recordExpectedType(slotNode, slot)));
     }
 
     private MapperGraph graph() {
@@ -173,14 +139,12 @@ final class Applier implements Delta.Visitor<Void> {
         @Override
         public Void visitAddEdge(final AddEdge delta) {
             final var edge = delta.getEdge();
+            if (edge.getKind() != EdgeKind.REALISED) {
+                return null;
+            }
             probe.addVertex(edge.getFrom());
             probe.addVertex(edge.getTo());
             probe.addEdge(edge.getFrom(), edge.getTo(), edge);
-            return null;
-        }
-
-        @Override
-        public Void visitAddEdgeToView(final AddEdgeToView delta) {
             return null;
         }
 
@@ -191,11 +155,6 @@ final class Applier implements Delta.Visitor<Void> {
 
         @Override
         public Void visitAddGroup(final AddGroup delta) {
-            return null;
-        }
-
-        @Override
-        public Void visitRegisterConversionFrontier(final RegisterConversionFrontier delta) {
             return null;
         }
     }

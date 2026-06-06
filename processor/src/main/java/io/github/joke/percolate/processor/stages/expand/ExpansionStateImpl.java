@@ -47,7 +47,7 @@ final class ExpansionStateImpl implements ExpansionState {
 
     @Override
     public Graph<Node, Edge> viewOf(final ExpansionGroup group) {
-        return new AsUnmodifiableGraph<>(group.getView());
+        return new AsUnmodifiableGraph<>(group.view());
     }
 
     @Override
@@ -62,8 +62,7 @@ final class ExpansionStateImpl implements ExpansionState {
 
     @Override
     public @Nullable TypeMirror effectiveTypeFor(final Node node, final ExpansionGroup group) {
-        final var typed = node.getType().orElse(null);
-        return typed != null ? typed : group.expectedTypeFor(node);
+        return node.getType().orElse(null);
     }
 
     @Override
@@ -99,9 +98,8 @@ final class ExpansionStateImpl implements ExpansionState {
         if (isSat(group)) {
             return GroupOutcome.sat(group);
         }
-        final var failingSlot = pendingFailures.getOrDefault(
-                group,
-                group.getSlots().isEmpty() ? group.getRoot() : group.getSlots().get(0));
+        final var inputs = group.inputs();
+        final var failingSlot = pendingFailures.getOrDefault(group, inputs.isEmpty() ? group.getRoot() : inputs.get(0));
         return converged
                 ? GroupOutcome.unsatNoPlan(group, failingSlot)
                 : GroupOutcome.unsatDidNotConverge(group, failingSlot);

@@ -3,12 +3,16 @@ package io.github.joke.percolate.processor.graph;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import lombok.NoArgsConstructor;
+import lombok.Value;
 import org.jgrapht.alg.cycle.CycleDetector;
 import org.jgrapht.graph.DirectedMultigraph;
 import org.jgrapht.graph.MaskSubgraph;
@@ -19,6 +23,7 @@ public final class MapperGraph implements GraphSource {
     private final Set<Edge> edgeIndex = new HashSet<>();
     private final List<ExpansionGroup> expansionGroups = new ArrayList<>();
     private final List<GroupOutcome> outcomes = new ArrayList<>();
+    private final Map<VariableKey, Node> variableIndex = new HashMap<>();
 
     private List<Node> sortedNodes = List.of();
     private List<Edge> sortedEdges = List.of();
@@ -29,6 +34,29 @@ public final class MapperGraph implements GraphSource {
         if (graph.addVertex(node)) {
             sortedNodesDirty = true;
         }
+    }
+
+    /**
+     * The single canonical {@link Node} for {@code (scope, location)}, created untyped on first request. Used by
+     * the seed stage for structural variables so a shared path prefix reuses one node without transient caches.
+     * Expansion-minted nodes (per-{@code (name, type)} divergent leaves, conversion intermediates) are fresh
+     * instances and SHALL NOT route through this method — they rely on instance identity (design D7).
+     */
+    public Node variableFor(final Scope scope, final Location location) {
+        return variableIndex.computeIfAbsent(new VariableKey(scope, location), key -> {
+            final var node = new Node(Optional.empty(), location, scope);
+            addNode(node);
+            return node;
+        });
+    }
+
+    /**
+     * Registers an already-created (possibly typed) structural node as the canonical variable for its
+     * {@code (scope, location)}, so subsequent {@link #variableFor} requests reuse it. Used by the seed stage to
+     * share typed parameter roots and the return root across directives.
+     */
+    public void registerVariable(final Node node) {
+        variableIndex.putIfAbsent(new VariableKey(node.getScope(), node.getLoc()), node);
     }
 
     public boolean addEdge(final Edge edge) {
@@ -59,11 +87,6 @@ public final class MapperGraph implements GraphSource {
     public void addGroup(final ExpansionGroup group) {
         if (!graph.containsVertex(group.getRoot())) {
             throw new IllegalArgumentException("ExpansionGroup root is not a vertex of this graph");
-        }
-        for (final var slot : group.getSlots()) {
-            if (!graph.containsVertex(slot)) {
-                throw new IllegalArgumentException("ExpansionGroup slot is not a vertex of this graph");
-            }
         }
         expansionGroups.add(group);
     }
@@ -142,5 +165,12 @@ public final class MapperGraph implements GraphSource {
 
     public DirectedMultigraph<Node, Edge> underlyingGraph() {
         return graph;
+    }
+
+    /** Value key for {@link #variableFor}: the {@code (scope, location)} a structural variable is canonical for. */
+    @Value
+    private static class VariableKey {
+        Scope scope;
+        Location location;
     }
 }

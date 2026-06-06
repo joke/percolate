@@ -1,6 +1,5 @@
 package io.github.joke.percolate.processor.stages.expand;
 
-import com.palantir.javapoet.CodeBlock;
 import io.github.joke.percolate.processor.graph.Edge;
 import io.github.joke.percolate.processor.graph.ElementLocation;
 import io.github.joke.percolate.processor.graph.ExpansionGroup;
@@ -14,16 +13,13 @@ import io.github.joke.percolate.spi.EdgeCodegen;
 import io.github.joke.percolate.spi.ElementScope;
 import io.github.joke.percolate.spi.ExpansionStep;
 import io.github.joke.percolate.spi.ExpansionStrategy;
-import io.github.joke.percolate.spi.GroupCodegen;
 import io.github.joke.percolate.spi.Intent;
 import io.github.joke.percolate.spi.ResolveCtx;
 import io.github.joke.percolate.spi.Slot;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashSet;
-import java.util.IdentityHashMap;
 import java.util.List;
-import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
@@ -51,13 +47,6 @@ import org.jspecify.annotations.Nullable;
  */
 @SuppressWarnings("PMD.GodClass")
 final class FrontierMatcher {
-
-    /** FQN marking a minted directive-binding group as a seed group (so {@link GroupShapes} dispatches it). */
-    private static final String SEED_FQN = GroupShapes.SEED_PACKAGE_PREFIX + "SeedStage";
-
-    /** Placeholder codegen for a minted directive-binding group; never rendered (its edges carry the codegen). */
-    private static final GroupCodegen PLACEHOLDER_GROUP_CODEGEN =
-            (vars, inputs) -> CodeBlock.of("/* unresolved seed-group */");
 
     private final List<ExpansionStrategy> allStrategies;
     private final List<ExpansionStrategy> generalStrategies;
@@ -141,7 +130,7 @@ final class FrontierMatcher {
 
     /** The declared-child names of an assembly umbrella group: the target-field names a constructor must match. */
     private Set<String> declaredChildNames(final ExpansionGroup group) {
-        return group.getSlots().stream().map(FrontierMatcher::slotName).collect(Collectors.toUnmodifiableSet());
+        return group.inputs().stream().map(FrontierMatcher::slotName).collect(Collectors.toUnmodifiableSet());
     }
 
     /**
@@ -165,7 +154,7 @@ final class FrontierMatcher {
      */
     List<DeltaBundle> descend(final ExpansionGroup group, final ExpansionSnapshot snapshot) {
         final var root = group.getRoot();
-        final var slot = group.getSlots().get(0);
+        final var slot = group.inputs().get(0);
         final var parentType = snapshot.typeOf(slot).orElse(null);
         if (parentType == null) {
             return List.of();
@@ -216,14 +205,11 @@ final class FrontierMatcher {
 
     private DeltaBundle descentBundle(final Node root, final Node slot, final ExpansionStep step, final String fqn) {
         final var codegen = (EdgeCodegen) step.getCodegen();
-        final var edge = Edge.realised(slot, root, step.getWeight(), codegen, fqn);
+        final var edge = Edge.realised(slot, root, step.getWeight(), codegen, fqn, step.getInputs().get(0));
         final var deltas = new ArrayList<Delta>();
         deltas.add(new AddEdge(edge));
         deltas.add(new TypeNode(root, step.getOutput(), descentScope(step)));
-        @SuppressWarnings({"PMD.LooseCoupling", "IdentityHashMapUsage"})
-        final IdentityHashMap<Node, Slot> slotMetadata = new IdentityHashMap<>(1);
-        slotMetadata.put(slot, step.getInputs().get(0));
-        deltas.add(new AddGroup(root, List.of(slot), codegen::render, fqn, Set.of(edge), slotMetadata, List.of()));
+        deltas.add(new AddGroup(root, List.of(slot), List.of(), false));
         return new DeltaBundle(fqn, deltas);
     }
 
@@ -268,10 +254,12 @@ final class FrontierMatcher {
     }
 
     /**
-     * Folds a CONVERSION edge into {@code group}'s view, re-using an in-view node of the input type when one
-     * exists (type-dedup) or synthesizing a fresh type-keyed conversion frontier when none does (design E1/E2).
-     * A round-trip that re-derives a type already on the chain reuses its node and closes a cycle the
-     * {@link Applier} rejects.
+     * Folds a CONVERSION edge into {@code group} by binding the converted value to an existing in-view node of the
+     * input type (type-dedup / reuse). The fold edge's endpoints are both already tagged into the group, so the
+     * group's derived view shows it without any explicit view mutation. A round-trip that re-derives a type already
+     * on the chain reuses its node and closes a cycle the {@link Applier} rejects. When no in-view node of the
+     * input type exists no fold is possible (multi-hop conversion synthesis is deferred to the type-conversion
+     * change — see project notes); the step is dropped.
      */
     private Optional<DeltaBundle> convertBundle(
             final Node frontier,
@@ -280,37 +268,21 @@ final class FrontierMatcher {
             final ExpansionSnapshot snapshot,
             final String fqn) {
         final var inputType = step.getInputs().get(0).getType();
+        final var input = findInViewByType(inputType, frontier, group, snapshot);
+        if (input == null) {
+            return Optional.empty();
+        }
         final var deltas = new ArrayList<Delta>();
-        final var input = reuseOrSynthesizeInput(inputType, frontier, group, snapshot, deltas);
         final var codegen = (EdgeCodegen) step.getCodegen();
-        final var edge = Edge.realised(input, frontier, step.getWeight(), codegen, fqn);
+        final var edge = Edge.realised(input, frontier, step.getWeight(), codegen, fqn, step.getInputs().get(0));
         deltas.add(new AddEdge(edge));
-        deltas.add(new AddEdgeToView(group, edge));
         if (snapshot.typeOf(frontier).isEmpty()) {
             deltas.add(new TypeNode(frontier, step.getOutput(), snapshot.producerScopeOf(input)));
         }
         return Optional.of(new DeltaBundle(fqn, deltas));
     }
 
-    /** Reuses the in-view node of {@code inputType}, or synthesizes one and registers it as a conversion frontier. */
-    private Node reuseOrSynthesizeInput(
-            final TypeMirror inputType,
-            final Node frontier,
-            final ExpansionGroup group,
-            final ExpansionSnapshot snapshot,
-            final List<Delta> deltas) {
-        final var existing = findInViewByType(inputType, frontier, group, snapshot);
-        if (existing != null) {
-            return existing;
-        }
-        final var synthesized =
-                new Node(Optional.of(inputType), frontier.getLoc(), frontier.getScope(), frontier.getParent());
-        deltas.add(new AddNode(synthesized, frontier.getDirective().orElse(null)));
-        deltas.add(new RegisterConversionFrontier(group, synthesized));
-        return synthesized;
-    }
-
-    /** Opens a new sub-group rooted at {@code frontier} with the step's slots. */
+    /** Opens a new sub-group rooted at {@code frontier} with the step's slots; each slot edge carries its Slot. */
     DeltaBundle boundaryBundle(
             final Node frontier,
             final ExpansionStep step,
@@ -320,35 +292,32 @@ final class FrontierMatcher {
             final boolean assembly,
             final Set<String> claimedNames) {
         final var codegen = step.getCodegen();
-        final var groupCodegen = groupCodegenOf(codegen);
         final var deltas = new ArrayList<Delta>();
         final var slotNodes = new ArrayList<Node>(step.getInputs().size());
-        final var slotEdges = new HashSet<Edge>(step.getInputs().size());
-        @SuppressWarnings({"PMD.LooseCoupling", "IdentityHashMapUsage"})
-        final IdentityHashMap<Node, Slot> slotMetadata =
-                new IdentityHashMap<>(step.getInputs().size());
         for (final var spiSlot : step.getInputs()) {
             final var node = assembly
                     ? bindAssemblySlot(spiSlot, group, snapshot, claimedNames, deltas)
                     : bindSlot(spiSlot, frontier, group, step.getScope(), snapshot, deltas);
             slotNodes.add(node);
-            slotMetadata.put(node, spiSlot);
-            final var edge = realisedEdge(node, frontier, step.getWeight(), codegen, step.getScope(), fqn);
-            deltas.add(new AddEdge(edge));
-            slotEdges.add(edge);
+            // Type a reused-but-untyped slot node with its declared type (replacing pinExpectedTypesOnProducers):
+            // a pre-seeded target leaf bound by an assembly / by-name reuse learns the type its directive-binding
+            // group must produce toward (effectiveTypeFor now reads node.getType()). Fresh nodes are already typed.
+            if (snapshot.typeOf(node).isEmpty()) {
+                deltas.add(new TypeNode(node, spiSlot.getType(), slotScope(spiSlot)));
+            }
+            deltas.add(new AddEdge(realisedEdge(node, frontier, step.getWeight(), codegen, step.getScope(), fqn, spiSlot)));
         }
         if (snapshot.typeOf(frontier).isEmpty()) {
             deltas.add(new TypeNode(frontier, step.getOutput(), producerScopeFor(slotNodes, snapshot)));
         }
-        deltas.add(new AddGroup(
-                frontier,
-                slotNodes,
-                groupCodegen,
-                fqn,
-                slotEdges,
-                slotMetadata,
-                boundaryImports(frontier, slotNodes, group, snapshot)));
+        deltas.add(new AddGroup(frontier, slotNodes, boundaryImports(frontier, slotNodes, group, snapshot), false));
         return new DeltaBundle(fqn, deltas);
+    }
+
+    @Nullable
+    private static Element slotScope(final Slot slot) {
+        final AnnotatedConstruct produced = slot.getProducedFrom();
+        return produced instanceof Element ? (Element) produced : null;
     }
 
     /**
@@ -377,7 +346,7 @@ final class FrontierMatcher {
 
     @Nullable
     private Node existingSlotByName(final ExpansionGroup group, final String name) {
-        return group.getSlots().stream()
+        return group.inputs().stream()
                 .filter(slot -> name.equals(slotName(slot)))
                 .findFirst()
                 .orElse(null);
@@ -423,7 +392,7 @@ final class FrontierMatcher {
         return snapshot.groups()
                 .filter(GroupShapes::isDirectiveBinding)
                 .filter(candidate -> candidate.getRoot().equals(leaf))
-                .map(candidate -> candidate.getSlots().get(0))
+                .map(candidate -> candidate.inputs().get(0))
                 .findFirst()
                 .orElse(null);
     }
@@ -437,8 +406,11 @@ final class FrontierMatcher {
     private Node mintTypedLeaf(final Node seeded, final Node source, final List<Delta> deltas) {
         final var fresh = new Node(Optional.empty(), seeded.getLoc(), seeded.getScope(), seeded.getParent());
         deltas.add(new AddNode(fresh));
-        deltas.add(new AddGroup(
-                fresh, List.of(source), PLACEHOLDER_GROUP_CODEGEN, SEED_FQN, Set.of(), Map.of(), List.of()));
+        // A SEED bridging edge from the shared source to the fresh leaf, mirroring the seed stage: the minted
+        // directive-binding group derives its single input from this edge (a seed group reads its SEED scaffolding
+        // edges), and the per-type divergent leaf stays disjoint from the seeded one (design D3 / D7).
+        deltas.add(new AddEdge(Edge.seed(source, fresh, Optional.empty(), Optional.empty())));
+        deltas.add(new AddGroup(fresh, List.of(source), List.of(), true));
         return fresh;
     }
 
@@ -468,19 +440,12 @@ final class FrontierMatcher {
             final int weight,
             final Codegen codegen,
             final Optional<ElementScope> scope,
-            final String fqn) {
+            final String fqn,
+            final Slot consumerSlot) {
         if (codegen instanceof EdgeCodegen && scope.isEmpty()) {
-            return Edge.realised(from, to, weight, (EdgeCodegen) codegen, fqn);
+            return Edge.realised(from, to, weight, (EdgeCodegen) codegen, fqn, consumerSlot);
         }
-        return Edge.realised(from, to, weight, codegen, scope.orElseThrow(), fqn);
-    }
-
-    private static GroupCodegen groupCodegenOf(final Codegen codegen) {
-        if (codegen instanceof EdgeCodegen) {
-            return ((EdgeCodegen) codegen)::render;
-        }
-        // Container step: the realised edge carries the provider + scope; the group codegen is a dead passthrough.
-        return (vars, inputs) -> inputs.single();
+        return Edge.realised(from, to, weight, codegen, scope.orElseThrow(), fqn, consumerSlot);
     }
 
     private static boolean scopeMatches(final Optional<ElementScope> scope, final Node frontier) {

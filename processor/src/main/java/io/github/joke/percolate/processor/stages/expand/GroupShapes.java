@@ -23,20 +23,19 @@ import lombok.experimental.UtilityClass;
 @UtilityClass
 class GroupShapes {
 
-    static final String SEED_PACKAGE_PREFIX = "io.github.joke.percolate.processor.stages.seed.";
-
     private static final int SINGLE_SLOT = 1;
 
     boolean isSeed(final ExpansionGroup group) {
-        return group.getStrategyClassFqn().startsWith(SEED_PACKAGE_PREFIX);
+        return group.isSeed();
     }
 
     boolean isSourceDescent(final ExpansionGroup group) {
-        if (!isSeed(group) || group.getSlots().size() != SINGLE_SLOT) {
+        final var inputs = group.inputs();
+        if (!isSeed(group) || inputs.size() != SINGLE_SLOT) {
             return false;
         }
         final var root = group.getRoot();
-        final var slot = group.getSlots().get(0);
+        final var slot = inputs.get(0);
         if (!(root.getLoc() instanceof SourceLocation) || !(slot.getLoc() instanceof SourceLocation)) {
             return false;
         }
@@ -47,17 +46,19 @@ class GroupShapes {
     }
 
     boolean isAssembly(final ExpansionGroup group) {
+        final var inputs = group.inputs();
         return isSeed(group)
-                && !group.getSlots().isEmpty()
+                && !inputs.isEmpty()
                 && group.getRoot().getLoc() instanceof TargetLocation
-                && group.getSlots().stream().allMatch(slot -> slot.getLoc() instanceof TargetLocation);
+                && inputs.stream().allMatch(slot -> slot.getLoc() instanceof TargetLocation);
     }
 
     boolean isDirectiveBinding(final ExpansionGroup group) {
-        if (!isSeed(group) || group.getSlots().size() != SINGLE_SLOT) {
+        final var inputs = group.inputs();
+        if (!isSeed(group) || inputs.size() != SINGLE_SLOT) {
             return false;
         }
         return group.getRoot().getLoc() instanceof TargetLocation
-                && group.getSlots().get(0).getLoc() instanceof SourceLocation;
+                && inputs.get(0).getLoc() instanceof SourceLocation;
     }
 }

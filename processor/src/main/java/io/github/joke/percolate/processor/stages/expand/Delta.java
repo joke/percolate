@@ -18,12 +18,8 @@ public interface Delta {
 
         R visitAddEdge(AddEdge delta);
 
-        R visitAddEdgeToView(AddEdgeToView delta);
-
         R visitTypeNode(TypeNode delta);
 
         R visitAddGroup(AddGroup delta);
-
-        R visitRegisterConversionFrontier(RegisterConversionFrontier delta);
     }
 }

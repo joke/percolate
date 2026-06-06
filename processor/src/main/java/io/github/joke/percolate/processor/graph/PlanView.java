@@ -27,8 +27,6 @@ import org.jgrapht.graph.MaskSubgraph;
  */
 public final class PlanView implements GraphSource {
 
-    private static final String SEED_PACKAGE_PREFIX = "io.github.joke.percolate.processor.stages.seed.";
-
     /** A node with at most one inbound edge already has a single producer; nothing to resolve. */
     private static final int SINGLE_PRODUCER = 1;
 
@@ -101,7 +99,7 @@ public final class PlanView implements GraphSource {
                 .flatMap(e -> Stream.of(e.getFrom(), e.getTo()))
                 .collect(toCollection(HashSet::new));
         final var planGroups = satGroups.stream()
-                .filter(g -> incident.contains(g.getRoot()) && incident.containsAll(g.getSlots()))
+                .filter(g -> incident.contains(g.getRoot()) && incident.containsAll(g.inputs()))
                 .collect(toUnmodifiableList());
 
         final var mask = new MaskSubgraph<>(underlying, (Node v) -> false, (Edge e) -> !planEdges.contains(e));
@@ -109,13 +107,21 @@ public final class PlanView implements GraphSource {
     }
 
     private static boolean isBridgeGroup(final ExpansionGroup group) {
-        return !group.getStrategyClassFqn().startsWith(SEED_PACKAGE_PREFIX);
+        return !group.isSeed();
+    }
+
+    /** An edge belongs to a group's view iff it is REALISED and both endpoints are tagged with the group's id. */
+    private static boolean inGroup(final ExpansionGroup group, final Edge edge) {
+        final var id = group.getId();
+        return edge.getKind() == EdgeKind.REALISED
+                && edge.getFrom().groups().contains(id)
+                && edge.getTo().groups().contains(id);
     }
 
     private static boolean keepEdge(
             final Edge edge, final List<ExpansionGroup> allGroups, final List<ExpansionGroup> satGroups) {
-        final var hasGroup = allGroups.stream().anyMatch(g -> g.contains(edge));
-        final var inSatGroup = satGroups.stream().anyMatch(g -> g.contains(edge));
+        final var hasGroup = allGroups.stream().anyMatch(g -> inGroup(g, edge));
+        final var inSatGroup = satGroups.stream().anyMatch(g -> inGroup(g, edge));
         return !hasGroup || inSatGroup;
     }
 
@@ -188,18 +194,18 @@ public final class PlanView implements GraphSource {
             final List<ExpansionGroup> groups, final Set<Edge> eligible, final Map<Node, Double> cost) {
         return groups.stream()
                 .min(Comparator.<ExpansionGroup>comparingDouble(g -> groupCost(g, eligible, cost))
-                        .thenComparing(g -> g.getSlots().stream()
+                        .thenComparing(g -> g.inputs().stream()
                                 .map(Node::id)
                                 .sorted()
                                 .findFirst()
                                 .orElse(""))
-                        .thenComparing(ExpansionGroup::getStrategyClassFqn))
+                        .thenComparingInt(g -> g.getId().getValue()))
                 .orElseThrow();
     }
 
     private static double groupCost(
             final ExpansionGroup group, final Set<Edge> eligible, final Map<Node, Double> cost) {
-        return group.getSlots().stream()
+        return group.inputs().stream()
                 .mapToDouble(slot ->
                         minSlotEdgeWeight(group, slot, eligible) + cost.getOrDefault(slot, Double.POSITIVE_INFINITY))
                 .sum();
@@ -210,13 +216,13 @@ public final class PlanView implements GraphSource {
     }
 
     private static Stream<Edge> groupEdges(final ExpansionGroup group, final Set<Edge> edges) {
-        return group.getSlots().stream().flatMap(slot -> slotEdges(group, slot, edges));
+        return group.inputs().stream().flatMap(slot -> slotEdges(group, slot, edges));
     }
 
     private static Stream<Edge> slotEdges(final ExpansionGroup group, final Node slot, final Set<Edge> eligible) {
         return eligible.stream()
                 .filter(e -> e.getFrom().equals(slot) && e.getTo().equals(group.getRoot()))
-                .filter(group::contains);
+                .filter(e -> inGroup(group, e));
     }
 
     private static boolean isReturnRoot(final Node node) {
