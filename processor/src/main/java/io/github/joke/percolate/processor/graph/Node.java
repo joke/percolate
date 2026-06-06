@@ -26,6 +26,7 @@ public final class Node implements Comparable<Node> {
      * {@link #joinGroup}. Excluded from {@link #equals}/{@link #hashCode}, which stay instance-identity.
      */
     @Getter(lombok.AccessLevel.NONE)
+    @SuppressWarnings("PMD.AvoidFieldNameMatchingMethodName") // backs the groups() accessor of the same name
     private final Set<GroupId> groups = new LinkedHashSet<>();
 
     /**

@@ -70,9 +70,9 @@ class AssemblyDataDependencySpec extends Specification {
         bundles[0].deltas.findAll { it instanceof AddNode }.empty
 
         and: 'the assembly edges run from exactly the pre-seeded leaves into the root (by data dependency)'
-        def edgeFroms = bundles[0].deltas.findAll { it instanceof AddEdge }*.edge
-        edgeFroms.every { it.to.is(root) }
-        edgeFroms*.from.toSet() == [nameLeaf, ageLeaf].toSet()
+        def addEdges = bundles[0].deltas.findAll { it instanceof AddEdge }
+        addEdges.every { it.to.is(root) }
+        addEdges*.from.toSet() == [nameLeaf, ageLeaf].toSet()
 
         and: 'the opened sub-group is rooted at the assembly root over those same leaves as its slots'
         def addGroup = bundles[0].deltas.find { it instanceof AddGroup }

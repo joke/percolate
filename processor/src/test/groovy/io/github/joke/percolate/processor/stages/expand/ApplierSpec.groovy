@@ -30,10 +30,10 @@ class ApplierSpec extends Specification {
         def frontier = source('f', TypeUniverse.STRING)
         def input = source('i', TypeUniverse.STRING)
         graph.addNode(frontier)
-        def edge = Edge.realised(input, frontier, 1, EDGE_NOOP, 'test.Bridge')
+        def edge = Edge.realised(1, EDGE_NOOP, 'test.Bridge')
         def bundle = new DeltaBundle('test.Bridge', [
                 new AddNode(input),
-                new AddEdge(edge),
+                new AddEdge(input, frontier, edge),
                 new AddGroup(frontier, [input], [], false),
         ])
 
@@ -53,10 +53,10 @@ class ApplierSpec extends Specification {
         def b = target('b', TypeUniverse.STRING)
         graph.addNode(a)
         graph.addNode(b)
-        graph.addEdge(Edge.realised(a, b, 1, EDGE_NOOP, 'test.Forward'))
+        graph.addEdge(a, b, Edge.realised(1, EDGE_NOOP, 'test.Forward'))
         def orphan = source('orphan', TypeUniverse.STRING)
-        def backEdge = Edge.realised(b, a, 1, EDGE_NOOP, 'test.Back')
-        def bundle = new DeltaBundle('test.Back', [new AddNode(orphan), new AddEdge(backEdge)])
+        def backEdge = Edge.realised(1, EDGE_NOOP, 'test.Back')
+        def bundle = new DeltaBundle('test.Back', [new AddNode(orphan), new AddEdge(b, a, backEdge)])
 
         when:
         def applied = applier.apply(state, [bundle])

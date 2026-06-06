@@ -60,10 +60,10 @@ public final class RealisationDiagnosticsStage implements Stage {
         while (!queue.isEmpty()) {
             final var current = queue.removeFirst();
             for (final var edge : realisedEdges) {
-                if (!edge.getFrom().equals(current)) {
+                if (!graph.getEdgeSource(edge).equals(current)) {
                     continue;
                 }
-                final var next = edge.getTo();
+                final var next = graph.getEdgeTarget(edge);
                 if (visited.add(next)) {
                     if (satRoots.contains(next)) {
                         return true;
@@ -138,10 +138,10 @@ public final class RealisationDiagnosticsStage implements Stage {
         while (!queue.isEmpty()) {
             final var current = queue.removeFirst();
             for (final var edge : realisedEdges) {
-                if (!edge.getTo().equals(current)) {
+                if (!graph.getEdgeTarget(edge).equals(current)) {
                     continue;
                 }
-                final var prev = edge.getFrom();
+                final var prev = graph.getEdgeSource(edge);
                 if (visited.add(prev)) {
                     deepest = prev;
                     queue.add(prev);

@@ -61,7 +61,7 @@ public final class ExpansionGroup {
         final var kind = id.isSeed() ? EdgeKind.SEED : EdgeKind.REALISED;
         return underlying.incomingEdgesOf(root).stream()
                 .filter(edge -> edge.getKind() == kind)
-                .map(Edge::getFrom)
+                .map(underlying::getEdgeSource)
                 .filter(from -> from.groups().contains(id))
                 .distinct()
                 .sorted(Comparator.comparing(Node::id))

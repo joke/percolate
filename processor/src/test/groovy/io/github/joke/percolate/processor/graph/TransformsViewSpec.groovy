@@ -43,8 +43,8 @@ class TransformsViewSpec extends Specification {
         final var nodes = view.nodes().toList()
 
         then:
-        nodes.contains(realisedEdges[0].from)
-        nodes.contains(realisedEdges[0].to)
+        nodes.contains(graph.getEdgeSource(realisedEdges[0]))
+        nodes.contains(graph.getEdgeTarget(realisedEdges[0]))
         nodes.size() == 2
     }
 
@@ -84,8 +84,8 @@ class TransformsViewSpec extends Specification {
         final b = new Node(Optional.of(TypeUniverse.STRING), new TargetLocation(TargetPath.of('out')), scope) 
         graph.addNode(a)
         graph.addNode(b)
-        final realised = Edge.realised(a, b, 1, { _, _ -> com.palantir.javapoet.CodeBlock.of('') }, 'test.Strategy')
-        graph.addEdge(realised)
+        final realised = Edge.realised(1, { _, _ -> com.palantir.javapoet.CodeBlock.of('') }, 'test.Strategy')
+        graph.addEdge(a, b, realised)
         graph
     }
 
@@ -100,11 +100,10 @@ class TransformsViewSpec extends Specification {
         graph.addNode(b)
         graph.addNode(c)
         graph.addNode(d)
-        graph.addEdge(Edge.seedForTest(a, b))
-        final realised = Edge.realised(c, d, 1, { _, _ -> com.palantir.javapoet.CodeBlock.of('') }, 'test.Strategy')
-        graph.addEdge(realised)
-        graph.addEdge(Edge.seed(a, c, Optional.empty(), Optional.of('test.Strategy')))
-        graph.addEdge(Edge.marker(a, b, 'test.Strategy'))
+        graph.addEdge(a, b, Edge.seedForTest())
+        final realised = Edge.realised(1, { _, _ -> com.palantir.javapoet.CodeBlock.of('') }, 'test.Strategy')
+        graph.addEdge(c, d, realised)
+        graph.addEdge(a, c, Edge.seed(Optional.empty()))
         graph
     }
 
@@ -117,9 +116,9 @@ class TransformsViewSpec extends Specification {
         graph.addNode(a)
         graph.addNode(b)
         graph.addNode(c)
-        final realised = Edge.realised(a, b, 1, { _, _ -> com.palantir.javapoet.CodeBlock.of('') }, 'test.Strategy')
-        graph.addEdge(realised)
-        graph.addEdge(Edge.seed(c, a, Optional.empty(), Optional.of('test.Strategy')))
+        final realised = Edge.realised(1, { _, _ -> com.palantir.javapoet.CodeBlock.of('') }, 'test.Strategy')
+        graph.addEdge(a, b, realised)
+        graph.addEdge(c, a, Edge.seed(Optional.empty()))
         graph
     }
 
@@ -130,8 +129,8 @@ class TransformsViewSpec extends Specification {
         final y = new Node(Optional.of(TypeUniverse.STRING), new TargetLocation(TargetPath.of('y')), scope) 
         graph.addNode(x)
         graph.addNode(y)
-        final xToY = Edge.realised(x, y, 1, { _, _ -> com.palantir.javapoet.CodeBlock.of('') }, 'test.Strategy')
-        graph.addEdge(xToY)
+        final xToY = Edge.realised(1, { _, _ -> com.palantir.javapoet.CodeBlock.of('') }, 'test.Strategy')
+        graph.addEdge(x, y, xToY)
         graph
     }
 

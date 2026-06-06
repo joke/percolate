@@ -5,6 +5,7 @@ import io.github.joke.percolate.processor.graph.AccessPath;
 import io.github.joke.percolate.processor.graph.Edge;
 import io.github.joke.percolate.processor.graph.ExpansionGroup;
 import io.github.joke.percolate.processor.graph.GroupId;
+import io.github.joke.percolate.processor.graph.Location;
 import io.github.joke.percolate.processor.graph.MapperGraph;
 import io.github.joke.percolate.processor.graph.MethodScope;
 import io.github.joke.percolate.processor.graph.Node;
@@ -22,6 +23,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import lombok.RequiredArgsConstructor;
+import lombok.Value;
 
 /**
  * Populates the {@link MapperGraph} with the structural scaffolding of every directive: parameter roots, the
@@ -54,13 +56,14 @@ public final class SeedStage implements Stage {
 
     MapperGraph apply(final MapperMappings mappings) {
         final var graph = new MapperGraph();
+        final var canon = new Canonicalizer(graph);
         for (final var methodMappings : mappings.getMethods()) {
-            seedMethod(graph, methodMappings);
+            seedMethod(graph, canon, methodMappings);
         }
         return graph;
     }
 
-    private void seedMethod(final MapperGraph graph, final MethodMappings methodMappings) {
+    private void seedMethod(final MapperGraph graph, final Canonicalizer canon, final MethodMappings methodMappings) {
         final var method = methodMappings.getMethod();
         final var scope = new MethodScope(method);
 
@@ -69,22 +72,23 @@ public final class SeedStage implements Stage {
                     new SourceLocation(AccessPath.of(param.getSimpleName().toString()));
             final var node = new Node(Optional.of(param.asType()), loc, scope);
             graph.addNode(node);
-            graph.registerVariable(node);
+            canon.register(node);
         }
 
         final var returnRoot =
                 new Node(Optional.of(method.getReturnType()), new TargetLocation(TargetPath.of("")), scope);
         graph.addNode(returnRoot);
-        graph.registerVariable(returnRoot);
+        canon.register(returnRoot);
 
         final var umbrellas = new HashMap<Node, GroupId>();
         for (final var directive : methodMappings.getDirectives()) {
-            seedDirective(graph, scope, directive, returnRoot, umbrellas);
+            seedDirective(graph, canon, scope, directive, returnRoot, umbrellas);
         }
     }
 
     private void seedDirective(
             final MapperGraph graph,
+            final Canonicalizer canon,
             final Scope scope,
             final MappingDirective directive,
             final Node returnRoot,
@@ -93,14 +97,16 @@ public final class SeedStage implements Stage {
         // ValidateSourceParametersStage is a hard precondition: a validated directive always has a non-empty
         // source whose first segment names a parameter, so there is no empty-source drop and no orphan-source
         // fallback branch here.
-        final var deepestSource = buildSourceChain(graph, scope, sourceSegments);
+        final var deepestSource = buildSourceChain(graph, canon, scope, sourceSegments);
         final var deepestTarget =
-                buildTargetChain(graph, scope, splitPath(directive.getTarget()), returnRoot, umbrellas);
+                buildTargetChain(graph, canon, scope, splitPath(directive.getTarget()), returnRoot, umbrellas);
 
-        final var bridgingEdge =
-                Edge.seed(deepestSource, deepestTarget, Optional.of(directive.getMirror()), Optional.empty());
-        if (graph.addEdge(bridgingEdge)) {
-            registerDemand(graph, bridgingEdge.getTo(), bridgingEdge.getFrom());
+        // The directive-bridging edge is emitted once per MappingDirective. The degenerate case of two directives
+        // sharing both source and target is guarded producer-side by a single existence check, not by a graph
+        // value-dedup index (design D3/D5).
+        if (graph.underlyingGraph().getAllEdges(deepestSource, deepestTarget).isEmpty()) {
+            graph.addEdge(deepestSource, deepestTarget, Edge.seed(Optional.of(directive.getMirror())));
+            registerDemand(graph, deepestTarget, deepestSource);
         }
     }
 
@@ -108,17 +114,21 @@ public final class SeedStage implements Stage {
      * Builds (or reuses) the source path chain and returns its deepest variable. A single-segment source whose
      * segment names a parameter resolves directly to the typed parameter root (no untyped twin is minted); a
      * multi-segment source extends from that root through untyped path nodes, registering one path-segment demand
-     * per extension edge.
+     * per extension edge. A shared prefix reuses the canonical node, so its producer edge and demand are emitted
+     * only when the node is freshly created (design D3).
      */
-    private Node buildSourceChain(final MapperGraph graph, final Scope scope, final List<String> segments) {
-        var previous = graph.variableFor(scope, new SourceLocation(new AccessPath(List.of(segments.get(0)))));
+    private Node buildSourceChain(
+            final MapperGraph graph, final Canonicalizer canon, final Scope scope, final List<String> segments) {
+        var previous = canon.canonical(scope, new SourceLocation(new AccessPath(List.of(segments.get(0)))))
+                .getNode();
         for (var i = 1; i < segments.size(); i++) {
             final var loc = new SourceLocation(new AccessPath(List.copyOf(segments.subList(0, i + 1))));
-            final var node = graph.variableFor(scope, loc);
-            // Structural chain edges carry no @Map mirror: a shared path prefix produces one deduplicated edge
-            // (and so one path-segment demand) across directives. The directive is read from the bridging edge.
-            final var edge = Edge.seed(previous, node, Optional.empty(), Optional.empty());
-            if (graph.addEdge(edge)) {
+            final var resolved = canon.canonical(scope, loc);
+            final var node = resolved.getNode();
+            if (resolved.isCreated()) {
+                // Structural chain edges carry no @Map mirror: a shared path prefix produces one edge (and so one
+                // path-segment demand) across directives. The directive is read from the bridging edge.
+                graph.addEdge(previous, node, Edge.seed(Optional.empty()));
                 registerDemand(graph, node, previous);
             }
             previous = node;
@@ -128,6 +138,7 @@ public final class SeedStage implements Stage {
 
     private Node buildTargetChain(
             final MapperGraph graph,
+            final Canonicalizer canon,
             final Scope scope,
             final List<String> segments,
             final Node returnRoot,
@@ -135,10 +146,11 @@ public final class SeedStage implements Stage {
         var previous = returnRoot;
         for (var i = 1; i <= segments.size(); i++) {
             final var loc = new TargetLocation(new TargetPath(List.copyOf(segments.subList(0, i))));
-            final var node = graph.variableFor(scope, loc);
+            final var resolved = canon.canonical(scope, loc);
+            final var node = resolved.getNode();
             final var parent = previous;
-            final var edge = Edge.seed(node, parent, Optional.empty(), Optional.empty());
-            if (graph.addEdge(edge)) {
+            if (resolved.isCreated()) {
+                graph.addEdge(node, parent, Edge.seed(Optional.empty()));
                 tagUmbrellaChild(graph, parent, node, umbrellas);
             }
             previous = node;
@@ -171,5 +183,53 @@ public final class SeedStage implements Stage {
             return List.of();
         }
         return List.of(path.split("\\.", -1));
+    }
+
+    /**
+     * Owns the {@code (scope, location) -> Node} canonical map for one {@link #apply} invocation, so a shared path
+     * prefix reuses one {@link Node} instance without the {@link MapperGraph} holding any seed-time knowledge
+     * (design D2). A structural variable is created untyped on first request and added to the graph; later requests
+     * for the same key reuse it. Already-typed nodes (parameter roots, the return root) are pre-{@link #register}ed
+     * so the chains share them. Expansion-minted nodes never route through here — they rely on instance identity.
+     */
+    @RequiredArgsConstructor
+    private static final class Canonicalizer {
+
+        private final MapperGraph graph;
+
+        @SuppressWarnings("PMD.UseConcurrentHashMap") // local, single-threaded per-apply canonical map
+        private final Map<VariableKey, Node> index = new HashMap<>();
+
+        /** The canonical node for {@code (scope, loc)}, creating it untyped on first request (design D2/D3). */
+        Canonical canonical(final Scope scope, final Location loc) {
+            final var key = new VariableKey(scope, loc);
+            final var existing = index.get(key);
+            if (existing != null) {
+                return new Canonical(existing, false);
+            }
+            final var node = new Node(Optional.empty(), loc, scope);
+            graph.addNode(node);
+            index.put(key, node);
+            return new Canonical(node, true);
+        }
+
+        /** Registers an already-created (typed) node as the canonical variable for its {@code (scope, location)}. */
+        void register(final Node node) {
+            index.putIfAbsent(new VariableKey(node.getScope(), node.getLoc()), node);
+        }
+    }
+
+    /** The canonical node for a {@code (scope, location)} request plus whether this request created it. */
+    @Value
+    private static class Canonical {
+        Node node;
+        boolean created;
+    }
+
+    /** Value key for the canonical map: the {@code (scope, location)} a structural variable is canonical for. */
+    @Value
+    private static class VariableKey {
+        Scope scope;
+        Location location;
     }
 }

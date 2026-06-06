@@ -8,23 +8,22 @@ This spec defines the core graph model value types (`Node`, `Edge`, `Location`, 
 
 ### Requirement: EdgeKind enum
 
-The processor SHALL define an enum `EdgeKind` in `io.github.joke.percolate.processor.graph` with exactly three values:
+The processor SHALL define an enum `EdgeKind` in `io.github.joke.percolate.processor.graph` with exactly two values:
 
-- `SEED` — directive-seeded framing edges produced by `SeedGraph` from user `@Map` directives. ∞-weight (`Weights.SENTINEL_UNREALISED`).
+- `SEED` — directive-seeded framing edges produced by `SeedStage` from user `@Map` directives. ∞-weight (`Weights.SENTINEL_UNREALISED`).
 - `REALISED` — transformation edges produced by `ExpansionStrategy` strategies (bridge, assembly, conversion, and container) during expansion. These are the codegen substrate.
-- `MARKER` — `realises` edges linking an untyped seed node to its typed counterpart. Weight `Weights.NOOP`.
 
-`EdgeKind` SHALL be referenced by `Edge.kind` and SHALL participate in `Edge` equality, hash, and comparison.
+`EdgeKind` SHALL be referenced by `Edge.kind` and SHALL participate in `Edge` comparison and view filtering.
 
-The earlier `SUB_SEED` and `ELEMENT_SEED` values were removed when target-to-source per-group expansion replaced forward-driven `SUB_SEED` emission. Nested expansion work is expressed via `ExpansionGroup` registration, not via new SEED edge variants.
+The earlier `SUB_SEED`, `ELEMENT_SEED`, and `MARKER` values were removed: `SUB_SEED`/`ELEMENT_SEED` when target-to-source per-group expansion replaced forward-driven emission, and `MARKER` because it had no production producer (it once linked an untyped seed node to its typed counterpart, a role that vanished when typing became in-place `Node.setTyping`). Nested expansion work is expressed via `ExpansionGroup` registration, not via new edge variants.
 
-#### Scenario: EdgeKind has exactly three values
+#### Scenario: EdgeKind has exactly two values
 - **WHEN** `EdgeKind.values()` is invoked
-- **THEN** the result contains exactly `SEED`, `REALISED`, `MARKER` in declaration order
+- **THEN** the result contains exactly `SEED`, `REALISED` in declaration order
 
-#### Scenario: SUB_SEED and ELEMENT_SEED are not present
+#### Scenario: SUB_SEED, ELEMENT_SEED, and MARKER are not present
 - **WHEN** the source of `EdgeKind` is inspected
-- **THEN** no `SUB_SEED` or `ELEMENT_SEED` constant is declared
+- **THEN** no `SUB_SEED`, `ELEMENT_SEED`, or `MARKER` constant is declared
 
 ### Requirement: Weights constants
 The processor SHALL define a final class `Weights` in `io.github.joke.percolate.processor.graph` exposing the documented edge-weight scale as `public static final int` constants:
@@ -117,7 +116,7 @@ The processor SHALL define a type `VarNames` in `io.github.joke.percolate.proces
 
 ### Requirement: RealisedSubgraph view
 The processor SHALL define a class `RealisedSubgraph` in `io.github.joke.percolate.processor.graph` exposing a read-only view over a `MapperGraph` filtered to:
-- **edges:** only edges with `kind == EdgeKind.REALISED` (excludes `SEED`, `MARKER`),
+- **edges:** only edges with `kind == EdgeKind.REALISED` (excludes `SEED`),
 - **nodes:** only nodes incident on at least one `REALISED` edge.
 
 `RealisedSubgraph` SHALL expose:
@@ -127,19 +126,17 @@ The processor SHALL define a class `RealisedSubgraph` in `io.github.joke.percola
 
 `RealisedSubgraph` SHALL be read-only — no `addNode` / `addEdge` surface. The wrapper SHALL be implemented over `org.jgrapht.graph.MaskSubgraph` or an equivalent JGraphT view; no graph copy is performed.
 
-In this change `MapperGraph.realisedSubgraph()` always returns an empty subgraph (zero nodes, zero edges) because no `REALISED` edges are produced.
-
 #### Scenario: RealisedSubgraph is empty for seed-only graphs
-- **WHEN** `MapperGraph.realisedSubgraph()` is invoked on a graph produced by `SeedGraph` for any non-empty mapper
+- **WHEN** `MapperGraph.realisedSubgraph()` is invoked on a graph produced by `SeedStage` for any non-empty mapper
 - **THEN** `nodes().count() == 0` and `edges().count() == 0`
 
 #### Scenario: RealisedSubgraph is read-only
 - **WHEN** the public surface of `RealisedSubgraph` is inspected
 - **THEN** no method exposes adding nodes or edges to the underlying graph
 
-#### Scenario: RealisedSubgraph filter excludes SEED and MARKER edges
-- **WHEN** a `MapperGraph` is constructed with one `SEED` edge and one `MARKER` edge (via direct construction in tests)
-- **THEN** `realisedSubgraph().edges().count() == 0`
+#### Scenario: RealisedSubgraph filter excludes SEED edges
+- **WHEN** a `MapperGraph` is constructed with one `SEED` edge and one `REALISED` edge (via direct construction in tests)
+- **THEN** `realisedSubgraph().edges().count() == 1` and the retained edge is the `REALISED` one
 
 #### Scenario: RealisedSubgraph includes only nodes incident on REALISED edges
 - **WHEN** a `MapperGraph` is constructed with a `REALISED` edge between nodes A and B, plus a third unconnected node C (via direct construction in tests)
@@ -296,126 +293,120 @@ The processor SHALL define a `Scope` interface with two implementations:
 - **WHEN** a `MethodScope` is constructed for an `ExecutableElement` representing `Human map(Person person)`
 - **THEN** its text-encoding is a stable string derived from the method name and erased parameter types (e.g., `map(Person)`) and is identical for repeated invocations
 
+### Requirement: Edge endpoints are graph-maintained, not stored on the Edge
+
+`Edge` SHALL NOT carry `from`/`to` fields. The `(source, target)` topology of every edge SHALL be maintained solely by the underlying JGraphT `DirectedMultigraph<Node, Edge>`. Consumers SHALL obtain an edge's endpoints from the graph (or a JGraphT view) via `getEdgeSource(edge)` / `getEdgeTarget(edge)`, or by iterating `incomingEdgesOf(node)` / `outgoingEdgesOf(node)` — never from the `Edge` value.
+
+Every mutation that adds an edge SHALL supply the edge's endpoints alongside the `Edge` payload: `MapperGraph.addEdge(Node from, Node to, Edge edge)`, the `GraphDelta`/`AddEdge` carriers (see their requirements), and the expansion `Applier`. "Re-parenting" an edge (formerly `copyWithEndpoints`) SHALL be expressed as adding the same payload between new vertices, not as cloning endpoint fields.
+
+Because endpoints no longer live on the value, deterministic edge ordering (the `edges()` stream) SHALL be computed by the graph using `getEdgeSource`/`getEdgeTarget` ids, not by an `Edge`-internal `Comparable`.
+
+#### Scenario: Edge exposes no endpoint accessors
+- **WHEN** the public surface of `Edge` is inspected
+- **THEN** it exposes no `getFrom()` / `getTo()` (or equivalent endpoint) accessor
+
+#### Scenario: Endpoints are read from the graph
+- **WHEN** a consumer needs the source or target of an edge `e` in a `MapperGraph` or view `g`
+- **THEN** it obtains them via `g.getEdgeSource(e)` / `g.getEdgeTarget(e)` (or `incomingEdgesOf`/`outgoingEdgesOf`)
+- **AND** the same edge added between vertices `(a, b)` reports `getEdgeSource == a` and `getEdgeTarget == b`
+
 ### Requirement: Edge value type
-The processor SHALL define a Lombok `@Value` class `Edge` in `io.github.joke.percolate.processor.graph` with the following fields:
-- `Node from`
-- `Node to`
-- `int weight` — uses the scale documented in `Weights`. `SEED` edges use `Weights.SENTINEL_UNREALISED`. `REALISED` edges use a value in `{0, 1, 2, 3}`. `MARKER` edges use `Weights.NOOP`.
+The processor SHALL define a `Edge` class in `io.github.joke.percolate.processor.graph` carrying only edge *payload* (no endpoints — see "Edge endpoints are graph-maintained"):
+- `int weight` — uses the scale documented in `Weights`. `SEED` edges use `Weights.SENTINEL_UNREALISED`. `REALISED` edges use a value in `{0, 1, 2, 3}`.
 - `EdgeKind kind` — categorises the edge for view filtering, DOT styling, and dispatch.
-- `Optional<AnnotationMirror> directive` — present when the edge was seeded by a user `@Map` directive (i.e., `kind == SEED` and emitted from `SeedGraph`); empty for `REALISED` and `MARKER` edges.
-- `Optional<Codegen> codegen` — present on `REALISED` edges; empty on `SEED` and `MARKER` edges. The value is a member of the `Codegen` family: an `EdgeCodegen` for a scalar edge, or a **container provider** (`ContainerCodegen`/`WrapperCodegen`) for a container edge. The composer reads it and, for a container provider, asks for the paradigm-appropriate snippet.
-- `Optional<ElementScope> elementScope` — present (`ENTERING` / `EXITING`) on a container edge that crosses element scope, empty on a scalar (scope-preserving) edge. Persisted from the producing `ExpansionStep`'s `ElementScope`. For container edges the composer derives the container operation (iterate/collect/unwrap/map) from `(elementScope, isStream-of-child, handle-kind)`. Scalar edges (including the single-element `wrap`) carry empty `elementScope`.
-- `Optional<String> strategyClassFqn` — fully-qualified class name of the strategy that emitted this edge; populated by strategies via `getClass().getName()` at edge construction; empty for edges emitted by `SeedGraph` (which is not a strategy).
+- `Optional<AnnotationMirror> directive` — present when the edge was seeded by a user `@Map` directive (`kind == SEED`, emitted from `SeedStage`); empty for `REALISED` edges.
+- `Optional<Codegen> codegen` — present on `REALISED` edges; empty on `SEED` edges. The value is a member of the `Codegen` family: an `EdgeCodegen` for a scalar edge, or a container provider for a container edge.
+- `Optional<ElementScope> elementScope` — present (`ENTERING` / `EXITING`) on a container edge crossing element scope; empty on a scalar edge.
+- `Optional<String> strategyClassFqn` — fully-qualified class name of the emitting strategy; empty for `SeedStage`-emitted edges.
+- `Optional<Slot> consumerSlot` — the consumer `Slot` for a `REALISED` operand edge (see "Edge carries the consumer Slot contract").
 
-`Edge` SHALL be annotated `@Value @EqualsAndHashCode(exclude = {"codegen", "elementScope", "strategyClassFqn"})` so that equality and hashing are structural over `(from, to, weight, kind, directive)`. The `codegen`, `elementScope`, and `strategyClassFqn` fields are emission metadata and SHALL NOT participate in equality.
+`Edge.equals` SHALL return `this == other` and `Edge.hashCode` SHALL return `System.identityHashCode(this)` — edge equality is **instance identity**, matching `Node`. Structural value-equality (the former `@EqualsAndHashCode(exclude = …)` over `(from, to, weight, kind, directive)`) is removed; it existed only to drive the graph's now-removed dedup index. Duplicate-edge prevention is owned by the mutation sites (`SeedStage`, `Applier`), not by `Edge` equality.
 
-`Edge` SHALL implement `Comparable<Edge>` ordered by `(from.id(), to.id(), weight, kind, presence-of-directive)` so that sorted iteration of edges is well-defined.
+`Edge` SHALL NOT implement an endpoint-based `Comparable`; deterministic edge ordering is computed by the graph (see "MapperGraph wrapper").
 
-`Edge` SHALL provide static factory methods. The all-args constructor SHALL be package-private; consumers SHALL go through the factories:
+`Edge` SHALL provide static factory methods that construct endpoint-less payload; endpoints are supplied to `MapperGraph.addEdge(from, to, edge)`:
+- `Edge.seed(Optional<AnnotationMirror> directive)` — a SEED payload with `kind = SEED`, `weight = Weights.SENTINEL_UNREALISED`, empty `codegen`/`elementScope`/`strategyClassFqn`/`consumerSlot`.
+- `Edge.realised(int weight, EdgeCodegen codegen, String strategyClassFqn[, Slot consumerSlot])` — scalar REALISED payload.
+- `Edge.realised(int weight, Codegen provider, ElementScope elementScope, String strategyClassFqn[, Slot consumerSlot])` — container REALISED payload.
 
-- `Edge.seed(Node from, Node to, Optional<AnnotationMirror> directive, Optional<String> strategyClassFqn)` — produces a SEED edge with `kind = SEED`, `weight = Weights.SENTINEL_UNREALISED`, the supplied `directive` and `strategyClassFqn`, empty `codegen`, empty `elementScope`. User-directive seeds pass non-empty `directive` and empty `strategyClassFqn`.
-- `Edge.realised(Node from, Node to, int weight, EdgeCodegen codegen, String strategyClassFqn)` — scalar REALISED edge with `kind = REALISED`, the supplied weight, `directive` empty, `codegen` populated, empty `elementScope`, `strategyClassFqn` populated.
-- `Edge.realised(Node from, Node to, int weight, Codegen provider, ElementScope elementScope, String strategyClassFqn)` — container REALISED edge carrying the container provider and its element-scope crossing.
-- `Edge.marker(Node from, Node to, String strategyClassFqn)` — produces a MARKER edge with `kind = MARKER`, `weight = Weights.NOOP`, `directive`, `codegen`, and `elementScope` empty, `strategyClassFqn` populated.
+The `Edge.marker(...)` factory is removed (see "EdgeKind enum"). The forward-expansion factories `Edge.subSeed(...)`/`Edge.elementSeed(...)` remain removed. Group membership is determined by `Node` group tags, not by `Edge`.
 
-The forward-expansion factories `Edge.subSeed(...)` and `Edge.elementSeed(...)` are removed. Group membership of a `REALISED` edge is determined by membership in an `ExpansionGroup.view().edgeSet()`; `Edge` does NOT carry a `groupId` field.
+#### Scenario: Edge carries no endpoints
+- **WHEN** an `Edge` value is inspected
+- **THEN** it exposes `kind`, `weight`, `directive`, `codegen`, `elementScope`, `strategyClassFqn`, `consumerSlot`
+- **AND** it exposes no `from`/`to`
 
 #### Scenario: Directive-seeded edge carries the mirror, kind SEED, sentinel weight
 - **WHEN** `Edge.seed(...)` is invoked with a `@Map(target = "lastName", source = "lastName")` directive's mirror
-- **THEN** the resulting edge has `kind == EdgeKind.SEED`, `weight == Weights.SENTINEL_UNREALISED`, non-empty `directive` containing that `AnnotationMirror`, empty `codegen`
+- **THEN** the resulting edge has `kind == EdgeKind.SEED`, `weight == Weights.SENTINEL_UNREALISED`, non-empty `directive`, empty `codegen`
 
 #### Scenario: Realised edge factory populates codegen and strategyClassFqn
-- **WHEN** `Edge.realised(from, to, Weights.STEP, <closure>, "com.example.SomeBridge")` is invoked
+- **WHEN** `Edge.realised(Weights.STEP, <closure>, "com.example.SomeBridge")` is invoked
 - **THEN** the resulting edge has `kind == EdgeKind.REALISED`, `weight == 1`, empty `directive`, non-empty `codegen`, empty `elementScope`, `strategyClassFqn == "com.example.SomeBridge"`
 
-#### Scenario: Container realised edge carries provider and element-scope crossing
-- **WHEN** `Edge.realised(from, to, Weights.COPY, <SequenceContainer>, ElementScope.EXITING, "io.github.joke.percolate.spi.builtins.SetContainer")` is invoked
-- **THEN** the edge has `kind == REALISED`, `codegen` holding the container provider, `elementScope == Optional.of(ElementScope.EXITING)`
-
-#### Scenario: Marker edge has weight zero, no codegen
-- **WHEN** `Edge.marker(seedNode, realisedNode, "com.example.SomeResolver")` is invoked
-- **THEN** the resulting edge has `kind == EdgeKind.MARKER`, `weight == 0`, empty `directive`, empty `codegen`, non-empty `strategyClassFqn`
-
-#### Scenario: Edge equality excludes codegen, elementScope, and strategyClassFqn
-- **WHEN** two `Edge` instances are constructed with field-equal `(from, to, weight, kind, directive)` but different `codegen`, `elementScope`, or `strategyClassFqn`
-- **THEN** they compare equal under `equals` and produce identical hash codes
-
-#### Scenario: Edge equality includes kind
-- **WHEN** two `Edge` instances are constructed with field-equal `(from, to, weight, directive)` but different `kind` values
-- **THEN** they compare unequal under `equals`
-
-#### Scenario: Edges have stable ordering
-- **WHEN** two `Edge` values are compared
-- **THEN** the comparison is determined entirely by `from.id()`, then `to.id()`, then `weight`, then `kind`, then directive-presence (no reliance on identity hashes)
+#### Scenario: Edge equality is identity
+- **WHEN** two `Edge` instances are constructed with field-equal payload `(weight, kind, directive, …)`
+- **THEN** they compare unequal under `equals` (distinct objects) and their `hashCode`s are the respective identity hashes
+- **AND** no `Edge.marker` factory exists
 
 ### Requirement: GraphDelta value type
 
-The processor SHALL define an immutable Lombok `@Value` type `io.github.joke.percolate.processor.graph.GraphDelta` with these fields, in this order:
-- `List<Node> nodes` — nodes to add to a `MapperGraph`. The list is unmodifiable; an empty list is permitted.
-- `List<Edge> edges` — edges to add to a `MapperGraph`. The list is unmodifiable; an empty list is permitted.
+The processor SHALL define an immutable `io.github.joke.percolate.processor.graph.GraphDelta` carrying:
+- `List<Node> nodes` — nodes to add. Unmodifiable; empty permitted.
+- a list of edge entries to add, each pairing an `Edge` payload with its `(from, to)` endpoints (endpoints are no longer on `Edge` — see "Edge endpoints are graph-maintained"). Unmodifiable; empty permitted.
 
-`GraphDelta` SHALL provide static factory methods:
-- `GraphDelta of(List<Node> nodes, List<Edge> edges)` — constructs a delta with the given nodes and edges.
-- `GraphDelta empty()` — returns a shared, immutable empty delta.
-- `GraphDelta nodes(Node... nodes)` and `GraphDelta edges(Edge... edges)` — convenience constructors for single-kind deltas (optional; either may be omitted if not used in v1).
+`GraphDelta` SHALL provide static factories `of(...)`, `empty()`, and single-kind convenience constructors. `GraphDelta` SHALL NOT reference `MapperGraph` or mutable graph state; instances are pure values.
 
-`GraphDelta` SHALL NOT contain references to `MapperGraph` or any other mutable graph state. Instances are pure values.
-
-#### Scenario: GraphDelta exposes its two list fields
-- **WHEN** a `GraphDelta` is constructed with a list of nodes and a list of edges
-- **THEN** `getNodes()` returns the same nodes in declared order
-- **AND** `getEdges()` returns the same edges in declared order
+#### Scenario: GraphDelta exposes its node and edge entries
+- **WHEN** a `GraphDelta` is constructed with nodes and edge-entries
+- **THEN** `getNodes()` returns the nodes in declared order
+- **AND** the edge-entries are returned in declared order, each exposing its `(from, to, edge)`
 
 #### Scenario: GraphDelta.empty has no nodes or edges
 - **WHEN** `GraphDelta.empty()` is invoked
-- **THEN** the returned delta's `getNodes()` is empty
-- **AND** the returned delta's `getEdges()` is empty
+- **THEN** the returned delta has no nodes and no edge-entries
 
 #### Scenario: GraphDelta is immutable
-- **WHEN** a caller attempts to mutate the list returned by `getNodes()` or `getEdges()`
+- **WHEN** a caller attempts to mutate the lists returned by the accessors
 - **THEN** the operation throws `UnsupportedOperationException`
 
 ### Requirement: MapperGraph wrapper
 The processor SHALL define a class `MapperGraph` in `io.github.joke.percolate.processor.graph` that:
 - internally holds a `org.jgrapht.graph.DirectedMultigraph<Node, Edge>`,
 - exposes `addNode(Node)` (idempotent on equal nodes),
-- exposes `addEdge(Edge)` (rejects duplicate edges by structural equality of the `Edge` non-excluded fields),
-- exposes `apply(GraphDelta)` (commits all nodes then all edges from the delta in a single call; equivalent to invoking `addNode` for each node followed by `addEdge` for each edge),
+- exposes `addEdge(Node from, Node to, Edge edge)` — a **thin append** that adds both endpoints then the JGraphT edge and returns JGraphT's "was added" boolean. It SHALL NOT maintain a percolate-level structural-equality dedup index; preventing duplicate parallel edges is the responsibility of the mutation callers (`SeedStage`, `Applier`),
+- exposes `apply(GraphDelta)` (commits all nodes then all edge-entries, each via `addEdge(from, to, edge)`),
 - exposes `nodes()` returning a `Stream<Node>` in ascending `id()` order,
-- exposes `edges()` returning a `Stream<Edge>` in ascending natural order,
-- exposes `nodeCount()` returning the current number of vertices,
-- exposes `edgeCount()` returning the current number of edges,
-- exposes `nodesByScope(Scope)` returning the subset of nodes matching that scope, in ascending `id()` order,
-- exposes `realisedSubgraph()` returning a `RealisedSubgraph` view (see the corresponding requirement),
-- exposes `addGroup(ExpansionGroup group)` and `groups()` for registering and iterating expansion groups,
+- exposes `edges()` returning a `Stream<Edge>` in ascending order, where the order is computed by the graph from `getEdgeSource(e).id()`, then `getEdgeTarget(e).id()`, then `weight`, then `kind` (the `Edge` no longer self-orders),
+- exposes `nodeCount()`, `edgeCount()`, `nodesByScope(Scope)`,
+- exposes `realisedSubgraph()`,
+- exposes `addGroup(ExpansionGroup)` / `groups()` / `recordGroupOutcome(...)` / `groupOutcomes()`,
+- exposes `getEdgeSource(Edge)` / `getEdgeTarget(Edge)` (delegating to JGraphT) for endpoint reads,
 - is mutable only via `addNode` / `addEdge` / `apply(GraphDelta)` / `addGroup` / `recordGroupOutcome`; no removal is exposed.
 
-`addGroup` SHALL append the group to the registry in insertion order. `groups()` SHALL return a `Stream<ExpansionGroup>` over the registered groups. The registry is append-only; no removal is exposed.
-
-`apply(GraphDelta)` is the preferred mutation entry point for `ExpansionPhase` implementations (see graph-expansion spec). `addNode` and `addEdge` remain available and are used by `SeedGraph` and internally by `apply`.
-
-A fresh `MapperGraph` SHALL be constructed for each `Pipeline.process(TypeElement)` invocation; instances SHALL NOT be retained across processor rounds.
+`MapperGraph` SHALL NOT expose node canonicalization (`variableFor`/`registerVariable`) — node identity for seed-time structural variables is owned by `SeedStage` (see "Idempotent node and edge addition" in seed-graph). A fresh `MapperGraph` SHALL be constructed per `Pipeline.process(TypeElement)` invocation.
 
 #### Scenario: addNode is idempotent
-- **WHEN** `addNode(n)` is invoked twice with two `Node` values that compare equal
+- **WHEN** `addNode(n)` is invoked twice with the same `Node` instance
 - **THEN** `nodes()` contains exactly one node equal to `n`
 
-#### Scenario: nodes() iteration is sorted by id
-- **WHEN** three nodes are added in arbitrary order
-- **THEN** `nodes().collect(...)` returns them in ascending `id()` order
+#### Scenario: addEdge appends without structural dedup
+- **WHEN** `addEdge(a, b, e)` is invoked
+- **THEN** the edge is present with `getEdgeSource(e) == a`, `getEdgeTarget(e) == b`
+- **AND** `MapperGraph` exposes no structural-equality dedup index
 
-#### Scenario: edges() iteration is sorted by natural order
+#### Scenario: edges() iteration is sorted by graph-derived order
 - **WHEN** several edges are added in arbitrary order
-- **THEN** `edges().collect(...)` returns them in ascending edge order
+- **THEN** `edges()` returns them ordered by source `id()`, then target `id()`, then `weight`, then `kind`
+
+#### Scenario: MapperGraph exposes no variable canonicalization
+- **WHEN** the public surface of `MapperGraph` is inspected
+- **THEN** it exposes no `variableFor` or `registerVariable` method
 
 #### Scenario: nodesByScope filters and preserves order
 - **WHEN** a graph contains nodes scoped to `map(Person)` and nodes scoped to `map(Address)`
 - **THEN** `nodesByScope(MethodScope(<map(Person)>))` returns only the `map(Person)`-scoped nodes
 - **AND** they are returned in ascending `id()` order
-
-#### Scenario: realisedSubgraph returns an empty view for seed-only graphs
-- **WHEN** `realisedSubgraph()` is invoked on a graph populated only with `SEED` edges by `SeedGraph`
-- **THEN** the returned view's `nodes().count()` and `edges().count()` are both `0`
 
 #### Scenario: addGroup appends to the registry
 - **WHEN** `addGroup(g1)` is invoked, then `addGroup(g2)` is invoked
@@ -425,22 +416,17 @@ A fresh `MapperGraph` SHALL be constructed for each `Pipeline.process(TypeElemen
 - **WHEN** `addGroup(group)` is invoked with a `group` whose root is not in `underlyingGraph().vertexSet()`
 - **THEN** an `IllegalArgumentException` is thrown and the registry is unchanged
 
-#### Scenario: apply commits all nodes and edges from a delta
-- **WHEN** `apply(GraphDelta.of(List.of(n1, n2), List.of(e1, e2)))` is invoked on a fresh graph
+#### Scenario: apply commits all nodes and edge-entries from a delta
+- **WHEN** `apply(...)` is invoked on a fresh graph with a delta carrying nodes `n1, n2` and an edge-entry `(n1, n2, e1)`
 - **THEN** `nodes()` contains `n1` and `n2`
-- **AND** `edges()` contains `e1` and `e2`
+- **AND** `edges()` contains `e1` with `getEdgeSource(e1) == n1`, `getEdgeTarget(e1) == n2`
 
 #### Scenario: apply with an empty delta is a no-op
 - **WHEN** `apply(GraphDelta.empty())` is invoked
 - **THEN** `nodeCount()` and `edgeCount()` are unchanged
 
-#### Scenario: apply is idempotent on duplicate deltas
-- **WHEN** the same `GraphDelta` is committed twice via `apply`
-- **THEN** the post-state of `nodes()` and `edges()` matches the post-state of a single commit
-- **AND** no exception is thrown for the duplicate edges or nodes
-
 #### Scenario: apply commits nodes before edges
-- **WHEN** a delta carries an edge whose endpoint nodes are also in the delta's `nodes` list
+- **WHEN** a delta carries an edge-entry whose endpoint nodes are also in the delta's `nodes` list
 - **THEN** the call succeeds (nodes are added before the edge references them)
 
 ### Requirement: ExpansionGroup value type
@@ -529,25 +515,6 @@ consumer contract from the **consuming edge's** `Slot` (the operand edge), not f
   `AnnotatedConstruct producedFrom`
 - **AND** code generation derives the consumer contract from that edge, not from a group
 
-### Requirement: MapperGraph variable identity
-
-`MapperGraph` SHALL expose a get-or-create `variableFor(Scope scope, Location location)` that returns
-the single canonical `Node` for `(scope, location)`, creating it (untyped) on first request. It is
-used by `SeedStage` for seed-time structural variables so that shared path prefixes reuse one node
-without transient caches. Expansion-minted nodes (per-`(name, type)` divergent leaves, conversion
-intermediates) SHALL NOT route through `variableFor` — they are fresh instances, preserving the
-instance-identity rule that prevents cross-sub-group cycles.
-
-#### Scenario: Shared seed prefix resolves to one variable
-- **WHEN** `SeedStage` requests `variableFor(scope, SourceLocation(["person"]))` for two directives
-  `person.address` and `person.lastName`
-- **THEN** both requests return the same `Node` instance
-
-#### Scenario: Expansion-minted divergent leaves stay distinct
-- **WHEN** expansion mints two leaves at the same `(scope, location)` but with different required
-  types (`int` and `long`) via the assembly path
-- **THEN** they are distinct `Node` instances and were not obtained via `variableFor`
-
 ### Requirement: GroupOutcome value type
 
 The processor SHALL define a final value type `GroupOutcome` in `io.github.joke.percolate.processor.graph` with three Lombok-generated factory constants/methods:
@@ -574,7 +541,7 @@ After the discover, seed, and expand stages have populated a `MapperGraph`, no s
 
 Filtering for any downstream consumer (validation, dumping, future codegen) SHALL be expressed as a view (`RealisedSubgraph`, `transformsView`, `ExpansionGroup.getView()`, or another `MaskSubgraph`) rather than as a destructive mutation.
 
-`MARKER` edges and other expansion artifacts SHALL remain in the underlying graph after expansion. The decision whether to render them is made at the view / renderer layer.
+`SEED` edges and other expansion artifacts SHALL remain in the underlying graph after expansion. The decision whether to render them is made at the view / renderer layer.
 
 #### Scenario: MapperGraph exposes no node, edge, or group removal
 - **WHEN** the public surface of `MapperGraph` is inspected

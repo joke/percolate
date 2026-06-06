@@ -18,7 +18,7 @@ class MapperGraphAppendOnlySpec extends Specification {
         !hasRemovalMethod(MapperGraph, 'evict')
     }
 
-    def 'MARKER edges survive into the post-expansion graph'() {
+    def 'SEED edges survive into the post-expansion graph'() {
         given:
         final var graph = new MapperGraph()
         final var scope = new HarnessScope('test()')
@@ -28,16 +28,15 @@ class MapperGraphAppendOnlySpec extends Specification {
         graph.addNode(source)
         graph.addNode(target)
         graph.addNode(realised)
-        graph.addEdge(Edge.seedForTest(source, target))
-        graph.addEdge(Edge.marker(source, realised, 'test.Strategy'))
-        final var markerCountBefore = graph.edges().filter { it.kind == EdgeKind.MARKER }.count()
+        graph.addEdge(source, target, Edge.seedForTest())
+        final var seedCountBefore = graph.edges().filter { it.kind == EdgeKind.SEED }.count()
 
         when:
         // Simulate expansion by adding a realised edge
-        graph.addEdge(Edge.realised(realised, target, 1, { _, _ -> com.palantir.javapoet.CodeBlock.of('') }, 'test.Strategy'))
+        graph.addEdge(realised, target, Edge.realised(1, { _, _ -> com.palantir.javapoet.CodeBlock.of('') }, 'test.Strategy'))
 
         then:
-        graph.edges().filter { it.kind == EdgeKind.MARKER }.count() == markerCountBefore
+        graph.edges().filter { it.kind == EdgeKind.SEED }.count() == seedCountBefore
     }
 
     def 'adding nodes and edges never removes existing ones'() {
@@ -49,13 +48,13 @@ class MapperGraphAppendOnlySpec extends Specification {
         final var n3 = new Node(Optional.of(TypeUniverse.STRING), new SourceLocation(AccessPath.of('c')), scope) 
         graph.addNode(n1)
         graph.addNode(n2)
-        graph.addEdge(Edge.seedForTest(n1, n2))
+        graph.addEdge(n1, n2, Edge.seedForTest())
         final var nodesBefore = graph.nodeCount()
         final var edgesBefore = graph.edgeCount()
 
         when:
         graph.addNode(n3)
-        graph.addEdge(Edge.seedForTest(n2, n3))
+        graph.addEdge(n2, n3, Edge.seedForTest())
 
         then:
         graph.nodeCount() == nodesBefore + 1

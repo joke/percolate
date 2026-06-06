@@ -37,10 +37,9 @@ class ConversionSynthesisReachabilitySpec extends Specification {
         def dead = new Node(Optional.of(TypeUniverse.LONG), new ElementLocation('dead'), scope)
         def top2 = new Node(Optional.of(TypeUniverse.LONG_TYPE), new ElementLocation('top2'), scope)
         [base, mid, top, dead, top2].each { graph.addNode(it) }
-        def bm = Edge.realised(base, mid, Weights.STEP, EDGE_NOOP, 'test.W')
-        def mt = Edge.realised(mid, top, Weights.STEP, EDGE_NOOP, 'test.B')
-        def dt = Edge.realised(dead, top2, Weights.STEP, EDGE_NOOP, 'test.B')
-        [bm, mt, dt].each { graph.addEdge(it) }
+        graph.addEdge(base, mid, Edge.realised(Weights.STEP, EDGE_NOOP, 'test.W'))
+        graph.addEdge(mid, top, Edge.realised(Weights.STEP, EDGE_NOOP, 'test.B'))
+        graph.addEdge(dead, top2, Edge.realised(Weights.STEP, EDGE_NOOP, 'test.B'))
 
         and: 'a group whose view holds the whole chain (every node tagged with the group id)'
         def id = GroupId.next(false)

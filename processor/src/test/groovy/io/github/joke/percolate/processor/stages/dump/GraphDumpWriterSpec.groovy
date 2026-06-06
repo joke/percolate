@@ -96,7 +96,7 @@ class GraphDumpWriterSpec extends Specification {
         final graph = new MapperGraph()
         graph.addNode(from)
         graph.addNode(to)
-        graph.addEdge(Edge.realised(from, to, 1, { _, _ -> com.palantir.javapoet.CodeBlock.of('') }, 'test.Strategy'))
+        graph.addEdge(from, to, Edge.realised(1, { _, _ -> com.palantir.javapoet.CodeBlock.of('') }, 'test.Strategy'))
         final filer = new RecordingFiler()
         final writer = new GraphDumpWriter(filer, silentDiagnostics(), new ProcessorOptions(true, Set.of()), new DotRenderer())
 

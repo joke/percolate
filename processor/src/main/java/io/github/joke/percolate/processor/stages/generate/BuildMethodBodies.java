@@ -40,7 +40,6 @@ import lombok.RequiredArgsConstructor;
  * consumer nullability contract is read from each operand edge's {@link Slot}.
  */
 @RequiredArgsConstructor(onConstructor_ = @Inject)
-@SuppressWarnings("PMD.GodClass")
 public final class BuildMethodBodies {
 
     private static final int SINGLE_EDGE = 1;
@@ -105,8 +104,9 @@ public final class BuildMethodBodies {
                 .orElseThrow(() -> new IllegalStateException("REALISED edge has no codegen: " + inbound.get(0)));
         if (inbound.size() == SINGLE_EDGE) {
             final var edge = inbound.get(0);
-            final var child = render(edge.getFrom(), realised, method, varGen);
-            final var name = slotName(edge.getFrom());
+            final var source = realised.getEdgeSource(edge);
+            final var child = render(source, realised, method, varGen);
+            final var name = slotName(source);
             if (child.isStream()) {
                 final var handle = child.getStreamHandle()
                         .orElseThrow(
@@ -115,14 +115,15 @@ public final class BuildMethodBodies {
                 final var body = producer.render(new VarNamesImpl(), incoming(name, CodeBlock.of("$N", var)));
                 return new Rendered(handle.mapElements(child.getBlock(), var, body), true, child.getStreamHandle());
             }
-            final var operand = applyNullabilityContract(edge, name, child.getBlock());
+            final var operand = applyNullabilityContract(realised, edge, name, child.getBlock());
             return Rendered.scalar(producer.render(new VarNamesImpl(), incoming(name, operand)));
         }
         final var byName = new LinkedHashMap<String, CodeBlock>();
         for (final var edge : inbound) {
-            final var name = slotName(edge.getFrom());
-            final var child = render(edge.getFrom(), realised, method, varGen);
-            byName.put(name, applyNullabilityContract(edge, name, child.getBlock()));
+            final var source = realised.getEdgeSource(edge);
+            final var name = slotName(source);
+            final var child = render(source, realised, method, varGen);
+            byName.put(name, applyNullabilityContract(realised, edge, name, child.getBlock()));
         }
         final var positional = List.copyOf(byName.values());
         return Rendered.scalar(
@@ -140,12 +141,12 @@ public final class BuildMethodBodies {
     private Rendered renderContainerEdge(
             final Edge edge, final PlanView realised, final ExecutableElement method, final VarGen varGen) {
         final var provider = (StreamOps) edge.getCodegen().orElseThrow();
-        final var child = render(edge.getFrom(), realised, method, varGen);
+        final var child = render(realised.getEdgeSource(edge), realised, method, varGen);
         final var scope = edge.getElementScope()
                 .orElseThrow(() -> new IllegalStateException("container provider on a scope-preserving edge: " + edge));
         switch (scope) {
             case ENTERING:
-                return renderEntering(edge, provider, child, varGen);
+                return renderEntering(realised, edge, provider, child, varGen);
             case EXITING:
                 // collect closes a stream back into a container — a sequence terminal only.
                 return Rendered.scalar(((ContainerCodegen) provider).collect(child.getBlock()));
@@ -154,12 +155,17 @@ public final class BuildMethodBodies {
     }
 
     private Rendered renderEntering(
-            final Edge edge, final StreamOps provider, final Rendered child, final VarGen varGen) {
+            final PlanView realised,
+            final Edge edge,
+            final StreamOps provider,
+            final Rendered child,
+            final VarGen varGen) {
         if (provider instanceof WrapperCodegen) {
             final var wrapper = (WrapperCodegen) provider;
             if (!child.isStream()) {
                 // Top-level wrapper: collapse to a scalar under the target's nullability.
-                final var nullability = edge.getTo().getNullability().orElse(Nullability.UNKNOWN);
+                final var nullability =
+                        realised.getEdgeTarget(edge).getNullability().orElse(Nullability.UNKNOWN);
                 return Rendered.scalar(wrapper.unwrap(child.getBlock(), nullability));
             }
             // Wrapper inside a stream: flat-map its element stream, dropping empties (FilterPresent).
@@ -177,8 +183,9 @@ public final class BuildMethodBodies {
      * {@code producedFrom}. A {@code NULLABLE → NON_NULL} crossing wraps the operand in {@code requireNonNull};
      * all other combinations emit the operand unchanged. The contract is never read from an {@code ExpansionGroup}.
      */
-    private CodeBlock applyNullabilityContract(final Edge edge, final String slotName, final CodeBlock expr) {
-        final var producer = edge.getFrom().getNullability().orElse(Nullability.UNKNOWN);
+    private CodeBlock applyNullabilityContract(
+            final PlanView realised, final Edge edge, final String slotName, final CodeBlock expr) {
+        final var producer = realised.getEdgeSource(edge).getNullability().orElse(Nullability.UNKNOWN);
         if (producer != Nullability.NULLABLE) {
             return expr;
         }
@@ -243,7 +250,9 @@ public final class BuildMethodBodies {
     }
 
     private List<Edge> inboundRealisedEdges(final Node node, final PlanView realised) {
-        return realised.edges().filter(e -> e.getTo().equals(node)).collect(toUnmodifiableList());
+        return realised.edges()
+                .filter(e -> realised.getEdgeTarget(e).equals(node))
+                .collect(toUnmodifiableList());
     }
 
     private static String slotName(final Node slot) {

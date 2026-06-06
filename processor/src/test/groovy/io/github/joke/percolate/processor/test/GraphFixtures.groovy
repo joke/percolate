@@ -20,8 +20,8 @@ final class GraphFixtures {
         final target = node(scope, targetLoc('out'), TypeUniverse.STRING)
         graph.addNode(source)
         graph.addNode(target)
-        graph.addEdge(Edge.seedForTest(source, target))
-        graph.addEdge(Edge.realised(source, target, 1, NO_OP_CODEGEN, 'Identity'))
+        graph.addEdge(source, target, Edge.seedForTest())
+        graph.addEdge(source, target, Edge.realised(1, NO_OP_CODEGEN, 'Identity'))
         graph
     }
 
@@ -36,9 +36,9 @@ final class GraphFixtures {
         graph.addNode(seedTgt)
         graph.addNode(a)
         graph.addNode(b)
-        graph.addEdge(Edge.seedForTest(seedSrc, seedTgt))
-        graph.addEdge(Edge.seed(a, b, Optional.empty(), Optional.of('cycle.strategy')))
-        graph.addEdge(Edge.seed(b, a, Optional.empty(), Optional.of('cycle.strategy')))
+        graph.addEdge(seedSrc, seedTgt, Edge.seedForTest())
+        graph.addEdge(a, b, Edge.seed(Optional.empty()))
+        graph.addEdge(b, a, Edge.seed(Optional.empty()))
         graph
     }
 
@@ -53,8 +53,8 @@ final class GraphFixtures {
         graph.addNode(seedTgt)
         graph.addNode(stray1)
         graph.addNode(stray2)
-        graph.addEdge(Edge.seedForTest(seedSrc, seedTgt))
-        graph.addEdge(Edge.realised(stray1, stray2, 1, NO_OP_CODEGEN, 'Stray'))
+        graph.addEdge(seedSrc, seedTgt, Edge.seedForTest())
+        graph.addEdge(stray1, stray2, Edge.realised(1, NO_OP_CODEGEN, 'Stray'))
         graph
     }
 

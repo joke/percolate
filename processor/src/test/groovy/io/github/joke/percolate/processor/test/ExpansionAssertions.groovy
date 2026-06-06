@@ -72,16 +72,17 @@ final class ExpansionAssertions {
                 if (current == to) {
                     return true
                 }
-                enqueueRealisedSuccessors(current, realisedEdges, visited, queue)
+                enqueueRealisedSuccessors(current, realisedEdges, visited, queue, graph)
             }
             false
         }
 
         private void enqueueRealisedSuccessors(
-                final Node current, final List<Edge> realisedEdges, final Set<Node> visited, final Deque<Node> queue) {
+                final Node current, final List<Edge> realisedEdges, final Set<Node> visited, final Deque<Node> queue,
+                final MapperGraph graph) {
             for (final edge in realisedEdges) {
-                if (edge.from == current && visited.add(edge.to)) {
-                    queue.add(edge.to)
+                if (graph.getEdgeSource(edge) == current && visited.add(graph.getEdgeTarget(edge))) {
+                    queue.add(graph.getEdgeTarget(edge))
                 }
             }
         }

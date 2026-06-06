@@ -16,10 +16,8 @@ class ExpansionGroupSpec extends Specification {
         def slot1 = new Node(Optional.of(TypeUniverse.STRING), new TargetLocation(TargetPath.of('a')), scope)
         def slot2 = new Node(Optional.of(TypeUniverse.STRING), new TargetLocation(TargetPath.of('b')), scope)
         [root, slot1, slot2].each { graph.addNode(it) }
-        def edge1 = realised(slot1, root)
-        def edge2 = realised(slot2, root)
-        graph.addEdge(edge1)
-        graph.addEdge(edge2)
+        def edge1 = addRealised(graph, slot1, root)
+        def edge2 = addRealised(graph, slot2, root)
 
         when:
         def id = GroupId.next(false)
@@ -48,10 +46,8 @@ class ExpansionGroupSpec extends Specification {
         def street = new Node(Optional.of(TypeUniverse.STRING), new TargetLocation(TargetPath.of('address.street')), scope)
         [person, address, street].each { graph.addNode(it) }
         // A: person -> address (address is A's root); B: address -> street (street is B's root)
-        def edgeA = realised(person, address)
-        def edgeB = realised(address, street)
-        graph.addEdge(edgeA)
-        graph.addEdge(edgeB)
+        def edgeA = addRealised(graph, person, address)
+        def edgeB = addRealised(graph, address, street)
 
         when:
         def a = GroupId.next(false)
@@ -75,7 +71,7 @@ class ExpansionGroupSpec extends Specification {
         def src = new Node(Optional.of(TypeUniverse.STRING), new SourceLocation(AccessPath.of('person')), scope)
         def tgt = new Node(Optional.empty(), new TargetLocation(TargetPath.of('name')), scope)
         [src, tgt].each { graph.addNode(it) }
-        graph.addEdge(Edge.seed(src, tgt, Optional.empty(), Optional.empty()))
+        graph.addEdge(src, tgt, Edge.seed(Optional.empty()))
 
         when:
         def id = GroupId.next(true)
@@ -87,7 +83,7 @@ class ExpansionGroupSpec extends Specification {
         group.inputs() == [src]
     }
 
-    def 'two type-divergent leaves at one (scope, location) stay distinct and are not obtained via variableFor (7.3)'() {
+    def 'two type-divergent leaves at one (scope, location) stay distinct instances in the graph (7.3)'() {
         given:
         def graph = new MapperGraph()
         def scope = new HarnessScope('m()')
@@ -99,17 +95,15 @@ class ExpansionGroupSpec extends Specification {
         graph.addNode(intLeaf)
         graph.addNode(longLeaf)
 
-        then: 'they are distinct instances'
+        then: 'they are distinct instances and both survive in the graph (no graph-level canonicalization)'
         !intLeaf.is(longLeaf)
-
-        and: 'variableFor returns a single canonical node, not either minted leaf'
-        def canonical = graph.variableFor(scope, loc)
-        !canonical.is(intLeaf)
-        !canonical.is(longLeaf)
-        graph.variableFor(scope, loc).is(canonical)
+        graph.nodes().anyMatch { it.is(intLeaf) }
+        graph.nodes().anyMatch { it.is(longLeaf) }
     }
 
-    private static realised(from, to) {
-        Edge.realised(from, to, 1, { _, _ -> com.palantir.javapoet.CodeBlock.of('') }, 'test.Strategy')
+    private static addRealised(graph, from, to) {
+        final edge = Edge.realised(1, { _, _ -> com.palantir.javapoet.CodeBlock.of('') }, 'test.Strategy')
+        graph.addEdge(from, to, edge)
+        edge
     }
 }

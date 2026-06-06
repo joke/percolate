@@ -103,8 +103,9 @@ final class SlotResolver {
         if (isParameterRootSlot(node) || hasSatChildAt(node, snapshot)) {
             return true;
         }
-        return snapshot.viewOf(group).incomingEdgesOf(node).stream()
-                .anyMatch(edge -> reachable(edge.getFrom(), group, snapshot, visiting));
+        final var view = snapshot.viewOf(group);
+        return view.incomingEdgesOf(node).stream()
+                .anyMatch(edge -> reachable(view.getEdgeSource(edge), group, snapshot, visiting));
     }
 
     boolean hasSatChildAt(final Node node, final ExpansionSnapshot snapshot) {

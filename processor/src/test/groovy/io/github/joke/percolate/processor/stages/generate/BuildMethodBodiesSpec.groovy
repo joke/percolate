@@ -50,7 +50,7 @@ class BuildMethodBodiesSpec extends Specification {
         def returnRoot = node(scope, returnRootLoc(), TypeUniverse.STRING)
         graph.addNode(param)
         graph.addNode(returnRoot)
-        graph.addEdge(Edge.realised(param, returnRoot, Weights.NOOP, DIRECT_ASSIGN, 'DirectAssign'))
+        graph.addEdge(param, returnRoot, Edge.realised(Weights.NOOP, DIRECT_ASSIGN, 'DirectAssign'))
         def ctx = ctxWith(graph, method)
 
         when:
@@ -72,8 +72,8 @@ class BuildMethodBodiesSpec extends Specification {
         graph.addNode(param)
         graph.addNode(field)
         graph.addNode(returnRoot)
-        graph.addEdge(Edge.realised(param, field, Weights.STEP_GETTER, GETTER_FIRST_NAME, 'GetterPathResolver'))
-        graph.addEdge(Edge.realised(field, returnRoot, Weights.NOOP, DIRECT_ASSIGN, 'DirectAssign'))
+        graph.addEdge(param, field, Edge.realised(Weights.STEP_GETTER, GETTER_FIRST_NAME, 'GetterPathResolver'))
+        graph.addEdge(field, returnRoot, Edge.realised(Weights.NOOP, DIRECT_ASSIGN, 'DirectAssign'))
         def ctx = ctxWith(graph, method)
 
         when:
@@ -98,19 +98,19 @@ class BuildMethodBodiesSpec extends Specification {
 
         [param, firstNameSrc, lastNameSrc, firstNameSlot, lastNameSlot, returnRoot].each { graph.addNode(it) }
 
-        graph.addEdge(Edge.realised(param, firstNameSrc, Weights.STEP_GETTER, GETTER_FIRST_NAME, 'GetterPathResolver'))
-        graph.addEdge(Edge.realised(param, lastNameSrc, Weights.STEP_GETTER, GETTER_LAST_NAME, 'GetterPathResolver'))
-        graph.addEdge(Edge.realised(firstNameSrc, firstNameSlot, Weights.NOOP, DIRECT_ASSIGN, 'DirectAssign'))
-        graph.addEdge(Edge.realised(lastNameSrc, lastNameSlot, Weights.NOOP, DIRECT_ASSIGN, 'DirectAssign'))
+        graph.addEdge(param, firstNameSrc, Edge.realised(Weights.STEP_GETTER, GETTER_FIRST_NAME, 'GetterPathResolver'))
+        graph.addEdge(param, lastNameSrc, Edge.realised(Weights.STEP_GETTER, GETTER_LAST_NAME, 'GetterPathResolver'))
+        graph.addEdge(firstNameSrc, firstNameSlot, Edge.realised(Weights.NOOP, DIRECT_ASSIGN, 'DirectAssign'))
+        graph.addEdge(lastNameSrc, lastNameSlot, Edge.realised(Weights.NOOP, DIRECT_ASSIGN, 'DirectAssign'))
 
         // The constructor codegen rides on each operand edge (the fan-in shares one producer codegen instance).
         EdgeCodegen ctorCodegen = { vars, inputs ->
             CodeBlock.of('new Human($L, $L)', inputs.byName('firstName'), inputs.byName('lastName'))
         } as EdgeCodegen
-        def firstEdge = Edge.realised(firstNameSlot, returnRoot, Weights.STEP, ctorCodegen, 'io.github.joke.percolate.spi.builtins.ConstructorCall')
-        def lastEdge = Edge.realised(lastNameSlot, returnRoot, Weights.STEP, ctorCodegen, 'io.github.joke.percolate.spi.builtins.ConstructorCall')
-        graph.addEdge(firstEdge)
-        graph.addEdge(lastEdge)
+        def firstEdge = Edge.realised(Weights.STEP, ctorCodegen, 'io.github.joke.percolate.spi.builtins.ConstructorCall')
+        def lastEdge = Edge.realised(Weights.STEP, ctorCodegen, 'io.github.joke.percolate.spi.builtins.ConstructorCall')
+        graph.addEdge(firstNameSlot, returnRoot, firstEdge)
+        graph.addEdge(lastNameSlot, returnRoot, lastEdge)
         // The constructor's group marks returnRoot as an AND fan-in (protected from PlanView's OR-pruning).
         def ctorGroup = TestGroups.of(returnRoot, [firstNameSlot, lastNameSlot], 'io.github.joke.percolate.spi.builtins.ConstructorCall', [firstEdge, lastEdge] as Set, graph)
         graph.recordGroupOutcome(GroupOutcome.sat(ctorGroup))
@@ -140,14 +140,14 @@ class BuildMethodBodiesSpec extends Specification {
 
         [param, ageSrc, ageSlot, returnRoot].each { graph.addNode(it) }
 
-        graph.addEdge(Edge.realised(param, ageSrc, Weights.STEP_GETTER, GETTER_AGE, 'GetterPathResolver'))
+        graph.addEdge(param, ageSrc, Edge.realised(Weights.STEP_GETTER, GETTER_AGE, 'GetterPathResolver'))
         // the folded conversion: a plain realised edge, no enclosing single-slot group
-        graph.addEdge(Edge.realised(ageSrc, ageSlot, Weights.STEP, BOX_LONG, 'io.github.joke.percolate.spi.builtins.BoxingBridge'))
+        graph.addEdge(ageSrc, ageSlot, Edge.realised(Weights.STEP, BOX_LONG, 'io.github.joke.percolate.spi.builtins.BoxingBridge'))
 
         EdgeCodegen ctorCodegen = { vars, inputs ->
             CodeBlock.of('new Person($L)', inputs.byName('age'))
         } as EdgeCodegen
-        graph.addEdge(Edge.realised(ageSlot, returnRoot, Weights.STEP, ctorCodegen, 'io.github.joke.percolate.spi.builtins.ConstructorCall'))
+        graph.addEdge(ageSlot, returnRoot, Edge.realised(Weights.STEP, ctorCodegen, 'io.github.joke.percolate.spi.builtins.ConstructorCall'))
 
         def ctx = ctxWith(graph, method)
 
@@ -170,9 +170,9 @@ class BuildMethodBodiesSpec extends Specification {
 
         [param, elemSlot, returnRoot].each { graph.addNode(it) }
 
-        graph.addEdge(Edge.realised(param, elemSlot, Weights.NOOP, DIRECT_ASSIGN, 'DirectAssign'))
+        graph.addEdge(param, elemSlot, Edge.realised(Weights.NOOP, DIRECT_ASSIGN, 'DirectAssign'))
         EdgeCodegen listCodegen = { vars, inputs -> CodeBlock.of('$T.of($L)', List, inputs.single()) } as EdgeCodegen
-        graph.addEdge(Edge.realised(elemSlot, returnRoot, Weights.CONTAINER, listCodegen, 'io.github.joke.percolate.spi.builtins.ListCollect'))
+        graph.addEdge(elemSlot, returnRoot, Edge.realised(Weights.CONTAINER, listCodegen, 'io.github.joke.percolate.spi.builtins.ListCollect'))
 
         def ctx = ctxWith(graph, method)
 
@@ -197,11 +197,11 @@ class BuildMethodBodiesSpec extends Specification {
 
         [param, innerElem, outerElem, returnRoot].each { graph.addNode(it) }
 
-        graph.addEdge(Edge.realised(param, innerElem, Weights.NOOP, DIRECT_ASSIGN, 'DirectAssign'))
+        graph.addEdge(param, innerElem, Edge.realised(Weights.NOOP, DIRECT_ASSIGN, 'DirectAssign'))
         EdgeCodegen setCodegen = { vars, inputs -> CodeBlock.of('$T.of($L)', Set, inputs.single()) } as EdgeCodegen
         EdgeCodegen optCodegen = { vars, inputs -> CodeBlock.of('$T.of($L)', Optional, inputs.single()) } as EdgeCodegen
-        graph.addEdge(Edge.realised(innerElem, outerElem, Weights.CONTAINER, setCodegen, 'io.github.joke.percolate.spi.builtins.SetCollect'))
-        graph.addEdge(Edge.realised(outerElem, returnRoot, Weights.CONTAINER, optCodegen, 'io.github.joke.percolate.spi.builtins.OptionalCollect'))
+        graph.addEdge(innerElem, outerElem, Edge.realised(Weights.CONTAINER, setCodegen, 'io.github.joke.percolate.spi.builtins.SetCollect'))
+        graph.addEdge(outerElem, returnRoot, Edge.realised(Weights.CONTAINER, optCodegen, 'io.github.joke.percolate.spi.builtins.OptionalCollect'))
 
         def ctx = ctxWith(graph, method)
 
@@ -228,11 +228,11 @@ class BuildMethodBodiesSpec extends Specification {
 
         EdgeCodegen aliveCodegen = { vars, inputs -> CodeBlock.of('$T.of($L)', List, inputs.single()) } as EdgeCodegen
         EdgeCodegen deadCodegen = { vars, inputs -> CodeBlock.of('DEAD($L)', inputs.single()) } as EdgeCodegen
-        graph.addEdge(Edge.realised(param, aliveSlot, Weights.NOOP, DIRECT_ASSIGN, 'DirectAssign'))
-        def aliveEdge = Edge.realised(aliveSlot, returnRoot, Weights.CONTAINER, aliveCodegen, 'io.github.joke.percolate.spi.builtins.ListCollect')
-        def deadEdge = Edge.realised(deadSlot, returnRoot, Weights.CONTAINER, deadCodegen, 'io.github.joke.percolate.spi.builtins.OptionalUnwrap')
-        graph.addEdge(aliveEdge)
-        graph.addEdge(deadEdge)
+        graph.addEdge(param, aliveSlot, Edge.realised(Weights.NOOP, DIRECT_ASSIGN, 'DirectAssign'))
+        def aliveEdge = Edge.realised(Weights.CONTAINER, aliveCodegen, 'io.github.joke.percolate.spi.builtins.ListCollect')
+        def deadEdge = Edge.realised(Weights.CONTAINER, deadCodegen, 'io.github.joke.percolate.spi.builtins.OptionalUnwrap')
+        graph.addEdge(aliveSlot, returnRoot, aliveEdge)
+        graph.addEdge(deadSlot, returnRoot, deadEdge)
 
         // Two SAT/UNSAT sibling producers of returnRoot; the UNSAT one's edge must be pruned from the plan.
         def aliveGroup = TestGroups.of(returnRoot, [aliveSlot], 'io.github.joke.percolate.spi.builtins.ListCollect', [aliveEdge] as Set, graph)

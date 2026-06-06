@@ -68,9 +68,9 @@ class ExpansionFailureModesSpec extends Specification {
         graph.addNode(source)
         graph.addNode(returnRoot)
         graph.addNode(slot)
-        final var realisedEdge = Edge.realised(slot, returnRoot, 1, { vars, inputs -> com.palantir.javapoet.CodeBlock.of('') }, 'test.GroupTarget')
-        graph.addEdge(realisedEdge)
-        graph.addEdge(Edge.seedForTest(source, slot))
+        final var realisedEdge = Edge.realised(1, { vars, inputs -> com.palantir.javapoet.CodeBlock.of('') }, 'test.GroupTarget')
+        graph.addEdge(slot, returnRoot, realisedEdge)
+        graph.addEdge(source, slot, Edge.seedForTest())
         TestGroups.of(returnRoot, [slot], 'test.GroupTarget', Set.of(realisedEdge), graph)
         graph
     }

@@ -24,11 +24,9 @@ class PlanViewSpec extends Specification {
         final var root = returnRoot(scope)
         [param, aliveSlot, deadSlot, root].each { graph.addNode(it) }
 
-        graph.addEdge(realised(param, aliveSlot, 0))
-        final var aliveEdge = realised(aliveSlot, root, 1)
-        final var deadEdge = realised(deadSlot, root, 1)
-        graph.addEdge(aliveEdge)
-        graph.addEdge(deadEdge)
+        addRealised(graph, param, aliveSlot, 0)
+        final var aliveEdge = addRealised(graph, aliveSlot, root, 1)
+        final var deadEdge = addRealised(graph, deadSlot, root, 1)
         final var aliveGroup = TestGroups.of(root, [aliveSlot], 'Alive', [aliveEdge] as Set, graph)
         final var deadGroup = TestGroups.of(root, [deadSlot], 'Dead', [deadEdge] as Set, graph)
         graph.addGroup(aliveGroup)
@@ -56,12 +54,10 @@ class PlanViewSpec extends Specification {
         final var root = returnRoot(scope)
         [param, firstSlot, lastSlot, root].each { graph.addNode(it) }
 
-        graph.addEdge(realised(param, firstSlot, 1))
-        graph.addEdge(realised(param, lastSlot, 1))
-        final var firstEdge = realised(firstSlot, root, 1)
-        final var lastEdge = realised(lastSlot, root, 1)
-        graph.addEdge(firstEdge)
-        graph.addEdge(lastEdge)
+        addRealised(graph, param, firstSlot, 1)
+        addRealised(graph, param, lastSlot, 1)
+        final var firstEdge = addRealised(graph, firstSlot, root, 1)
+        final var lastEdge = addRealised(graph, lastSlot, root, 1)
         final var ctor = TestGroups.of(root, [firstSlot, lastSlot], 'Ctor', [firstEdge, lastEdge] as Set, graph)
         graph.addGroup(ctor)
         graph.recordGroupOutcome(GroupOutcome.sat(ctor))
@@ -84,12 +80,10 @@ class PlanViewSpec extends Specification {
         final var root = returnRoot(scope)
         [param, cheapSlot, pricySlot, root].each { graph.addNode(it) }
 
-        graph.addEdge(realised(param, cheapSlot, 0))
-        graph.addEdge(realised(param, pricySlot, 0))
-        final var cheapEdge = realised(cheapSlot, root, 1)
-        final var pricyEdge = realised(pricySlot, root, 5)
-        graph.addEdge(cheapEdge)
-        graph.addEdge(pricyEdge)
+        addRealised(graph, param, cheapSlot, 0)
+        addRealised(graph, param, pricySlot, 0)
+        final var cheapEdge = addRealised(graph, cheapSlot, root, 1)
+        final var pricyEdge = addRealised(graph, pricySlot, root, 5)
         final var cheapGroup = TestGroups.of(root, [cheapSlot], 'Cheap', [cheapEdge] as Set, graph)
         final var pricyGroup = TestGroups.of(root, [pricySlot], 'Pricy', [pricyEdge] as Set, graph)
         graph.addGroup(cheapGroup)
@@ -121,8 +115,10 @@ class PlanViewSpec extends Specification {
         new Node(Optional.of(TypeUniverse.STRING), new TargetLocation(TargetPath.of('')), scope)
     }
 
-    private static Edge realised(final Node from, final Node to, final int weight) {
-        Edge.realised(from, to, weight, { vars, inputs -> CodeBlock.of('') }, 'test.Strategy')
+    private static Edge addRealised(final MapperGraph graph, final Node from, final Node to, final int weight) {
+        final var edge = Edge.realised(weight, { vars, inputs -> CodeBlock.of('') }, 'test.Strategy')
+        graph.addEdge(from, to, edge)
+        edge
     }
 
     private static final class HarnessScope implements Scope {

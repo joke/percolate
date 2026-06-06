@@ -95,7 +95,7 @@ Consumers SHALL access `HarnessResolveCtx` by declaring `testImplementation test
 - **Convergence flag** — `result.converged()` returns `false` when `ExpandStage` emitted an "Expansion did not converge after N rounds" diagnostic, otherwise `true`.
 - **Idempotence stub** — `result.isIdempotent()` is reserved for a structural same-graph check; the current implementation returns `true` unconditionally. Wiring it to a real comparison is a future concern.
 - **Identity collapse** — `result.hasIdentityCollisions()` SHALL return `true` iff two distinct `Node` instances in the result share the same `Node.id()` (which encodes `(scope, location, type)`).
-- **Orphan REALISED nodes** — `result.hasOrphanRealisedNodes()` SHALL return `true` iff any `REALISED` edge endpoint is unreachable, via `REALISED`/`MARKER` edges, from any `SEED`-edge endpoint.
+- **Orphan REALISED nodes** — `result.hasOrphanRealisedNodes()` SHALL return `true` iff any `REALISED` edge endpoint is unreachable, via `REALISED`/`SEED` edges, from any `SEED`-edge endpoint. (The traversable lattice is `REALISED | SEED`; the former `MARKER` rung is removed with the `EdgeKind.MARKER` value.)
 
 The `roundCount()` accessor SHALL be present but its value is currently a placeholder (`1`) until `ExpandStage` publishes rounds through `MapperContext`. Tests SHOULD NOT rely on the value today.
 
@@ -105,7 +105,7 @@ The `roundCount()` accessor SHALL be present but its value is currently a placeh
 - **AND** returns `true` iff at least two distinct nodes share `Node.id()`
 
 #### Scenario: Orphan-detection respects the traversable lattice
-- **WHEN** a result graph contains a `REALISED` edge whose endpoints have no `REALISED`/`MARKER` path to any `SEED`-edge endpoint
+- **WHEN** a result graph contains a `REALISED` edge whose endpoints have no `REALISED`/`SEED` path to any `SEED`-edge endpoint
 - **THEN** `result.hasOrphanRealisedNodes()` returns `true`
 - **AND** a result graph whose `REALISED` edges are all anchored to `SEED` endpoints returns `false`
 

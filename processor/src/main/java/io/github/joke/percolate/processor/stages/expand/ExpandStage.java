@@ -23,16 +23,17 @@ public final class ExpandStage implements Stage {
         if (graph == null) {
             return;
         }
-        setCurrentMethodFromSeedEdges(collectSeedEdges(graph), ctx);
+        setCurrentMethodFromSeedEdges(graph, collectSeedEdges(graph), ctx);
 
         for (final var phase : phases) {
             phase.apply(graph);
         }
     }
 
-    private void setCurrentMethodFromSeedEdges(final List<Edge> seedEdges, final MapperContext ctx) {
+    private void setCurrentMethodFromSeedEdges(
+            final MapperGraph graph, final List<Edge> seedEdges, final MapperContext ctx) {
         seedEdges.stream()
-                .map(Edge::getFrom)
+                .map(graph::getEdgeSource)
                 .map(Node::getScope)
                 .filter(s -> s instanceof MethodScope)
                 .map(s -> (MethodScope) s)

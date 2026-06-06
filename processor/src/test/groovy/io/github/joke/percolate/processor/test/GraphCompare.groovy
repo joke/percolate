@@ -14,19 +14,19 @@ final class GraphCompare {
     }
 
     static Set<String> edgeTuples(final MapperGraph graph) {
-        graph.edges().map { edgeKey(it) }.collect(Collectors.toUnmodifiableSet())
+        graph.edges().map { edgeKey(graph, it) }.collect(Collectors.toUnmodifiableSet())
     }
 
     static MapperGraph union(final MapperGraph a, final MapperGraph b) {
         final result = new MapperGraph()
         a.nodes().forEach(result.&addNode)
-        a.edges().forEach(result.&addEdge)
+        a.edges().forEach { result.addEdge(a.getEdgeSource(it), a.getEdgeTarget(it), it) }
         b.nodes().forEach(result.&addNode)
-        b.edges().forEach(result.&addEdge)
+        b.edges().forEach { result.addEdge(b.getEdgeSource(it), b.getEdgeTarget(it), it) }
         result
     }
 
-    private static String edgeKey(final Edge edge) {
-        "${edge.from.id()} -> ${edge.to.id()} :: ${edge.kind}"
+    private static String edgeKey(final MapperGraph graph, final Edge edge) {
+        "${graph.getEdgeSource(edge).id()} -> ${graph.getEdgeTarget(edge).id()} :: ${edge.kind}"
     }
 }

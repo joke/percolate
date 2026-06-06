@@ -29,7 +29,7 @@ class TestGroups {
         def group = new ExpansionGroup(id, root, graph)
         root.joinGroup(id)
         slots.each { it.joinGroup(id) }
-        edges.each { it.from.joinGroup(id); it.to.joinGroup(id) }
+        edges.each { graph.getEdgeSource(it).joinGroup(id); graph.getEdgeTarget(it).joinGroup(id) }
         graph.addGroup(group)
         group
     }
@@ -40,14 +40,14 @@ class TestGroups {
 
     private static void ensureSlotEdge(MapperGraph graph, Node slot, Node root, boolean seed, String fqn, Set<Edge> edges) {
         def kind = seed ? EdgeKind.SEED : EdgeKind.REALISED
-        def present = graph.edges().anyMatch { e -> e.from.is(slot) && e.to.is(root) && e.kind == kind } ||
-                edges.any { e -> e.from.is(slot) && e.to.is(root) }
+        def present = graph.edges().anyMatch { e -> graph.getEdgeSource(e).is(slot) && graph.getEdgeTarget(e).is(root) && e.kind == kind } ||
+                edges.any { e -> graph.getEdgeSource(e).is(slot) && graph.getEdgeTarget(e).is(root) }
         if (present) {
             return
         }
         def edge = seed
-                ? Edge.seed(slot, root, Optional.empty(), Optional.empty())
-                : Edge.realised(slot, root, 1, NOOP, fqn)
-        graph.addEdge(edge)
+                ? Edge.seed(Optional.empty())
+                : Edge.realised(1, NOOP, fqn)
+        graph.addEdge(slot, root, edge)
     }
 }

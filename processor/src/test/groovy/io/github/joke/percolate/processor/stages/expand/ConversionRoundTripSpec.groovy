@@ -41,8 +41,8 @@ class ConversionRoundTripSpec extends Specification {
         def integerNode = new Node(Optional.of(TypeUniverse.INTEGER), new SourceLocation(AccessPath.of('i')), scope)
         graph.addNode(intNode)
         graph.addNode(integerNode)
-        def boxEdge = Edge.realised(intNode, integerNode, Weights.NOOP, EDGE_NOOP, 'test.Box')
-        graph.addEdge(boxEdge)
+        def boxEdge = Edge.realised(Weights.NOOP, EDGE_NOOP, 'test.Box')
+        graph.addEdge(intNode, integerNode, boxEdge)
         // Tag both nodes into the group (its view holds the box edge); no slot->root edge is synthesized here —
         // the unbox fold itself would be the (rejected) inverse edge.
         def gid = GroupId.next(false)
@@ -62,7 +62,7 @@ class ConversionRoundTripSpec extends Specification {
         then:
         bundles.size() == 1
         bundles[0].deltas.findAll { it instanceof AddNode }.empty
-        def folded = bundles[0].deltas.find { it instanceof AddEdge }.edge
+        def folded = bundles[0].deltas.find { it instanceof AddEdge }
         folded.from.is(integerNode)
         folded.to.is(intNode)
 
@@ -71,6 +71,6 @@ class ConversionRoundTripSpec extends Specification {
 
         then: 'the whole bundle is dropped; no inverse edge lands and no recurrence guard was needed'
         applied == 0
-        graph.edges().filter { it.kind == EdgeKind.REALISED && it.from.is(integerNode) && it.to.is(intNode) }.toList().empty
+        graph.edges().filter { it.kind == EdgeKind.REALISED && graph.getEdgeSource(it).is(integerNode) && graph.getEdgeTarget(it).is(intNode) }.toList().empty
     }
 }

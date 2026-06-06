@@ -57,7 +57,7 @@ public final class PlanView implements GraphSource {
         // Keep every REALISED edge except those owned solely by UNSAT groups (dead multi-fire siblings).
         final var keep = underlying.edgeSet().stream()
                 .filter(e -> e.getKind() == EdgeKind.REALISED)
-                .filter(e -> keepEdge(e, allGroups, satGroups))
+                .filter(e -> keepEdge(underlying, e, allGroups, satGroups))
                 .collect(toCollection(HashSet::new));
 
         // Resolve OR-choices at true multi-fire roots: only NON-SEED bridge groups compete. Seed-registered
@@ -71,8 +71,10 @@ public final class PlanView implements GraphSource {
         final var loserEdges = byRoot.values().stream()
                 .filter(groups -> groups.size() > 1)
                 .flatMap(groups -> {
-                    final var chosen = cheapest(groups, keep, cost);
-                    return groups.stream().filter(g -> g != chosen).flatMap(loser -> groupEdges(loser, keep));
+                    final var chosen = cheapest(underlying, groups, keep, cost);
+                    return groups.stream()
+                            .filter(g -> g != chosen)
+                            .flatMap(loser -> groupEdges(underlying, loser, keep));
                 })
                 .collect(toCollection(HashSet::new));
         keep.removeAll(loserEdges);
@@ -89,14 +91,14 @@ public final class PlanView implements GraphSource {
                 .collect(toCollection(HashSet::new));
         final var conversionLosers = underlying.vertexSet().stream()
                 .filter(n -> !groupRootNodes.contains(n))
-                .flatMap(n -> losingConversionEdges(n, keep, cost))
+                .flatMap(n -> losingConversionEdges(underlying, n, keep, cost))
                 .collect(toCollection(HashSet::new));
         keep.removeAll(conversionLosers);
 
         // Reachability-filter from each return-root so disconnected loser/dead subtrees drop out.
         final var planEdges = reachableEdges(underlying, keep);
         final var incident = planEdges.stream()
-                .flatMap(e -> Stream.of(e.getFrom(), e.getTo()))
+                .flatMap(e -> Stream.of(underlying.getEdgeSource(e), underlying.getEdgeTarget(e)))
                 .collect(toCollection(HashSet::new));
         final var planGroups = satGroups.stream()
                 .filter(g -> incident.contains(g.getRoot()) && incident.containsAll(g.inputs()))
@@ -111,17 +113,20 @@ public final class PlanView implements GraphSource {
     }
 
     /** An edge belongs to a group's view iff it is REALISED and both endpoints are tagged with the group's id. */
-    private static boolean inGroup(final ExpansionGroup group, final Edge edge) {
+    private static boolean inGroup(final Graph<Node, Edge> graph, final ExpansionGroup group, final Edge edge) {
         final var id = group.getId();
         return edge.getKind() == EdgeKind.REALISED
-                && edge.getFrom().groups().contains(id)
-                && edge.getTo().groups().contains(id);
+                && graph.getEdgeSource(edge).groups().contains(id)
+                && graph.getEdgeTarget(edge).groups().contains(id);
     }
 
     private static boolean keepEdge(
-            final Edge edge, final List<ExpansionGroup> allGroups, final List<ExpansionGroup> satGroups) {
-        final var hasGroup = allGroups.stream().anyMatch(g -> inGroup(g, edge));
-        final var inSatGroup = satGroups.stream().anyMatch(g -> inGroup(g, edge));
+            final Graph<Node, Edge> graph,
+            final Edge edge,
+            final List<ExpansionGroup> allGroups,
+            final List<ExpansionGroup> satGroups) {
+        final var hasGroup = allGroups.stream().anyMatch(g -> inGroup(graph, g, edge));
+        final var inSatGroup = satGroups.stream().anyMatch(g -> inGroup(graph, g, edge));
         return !hasGroup || inSatGroup;
     }
 
@@ -141,8 +146,9 @@ public final class PlanView implements GraphSource {
                     continue;
                 }
                 planEdges.add(edge);
-                if (seen.add(edge.getFrom())) {
-                    queue.add(edge.getFrom());
+                final var source = graph.getEdgeSource(edge);
+                if (seen.add(source)) {
+                    queue.add(source);
                 }
             }
         }
@@ -175,25 +181,29 @@ public final class PlanView implements GraphSource {
 
     /** All but the cheapest inbound REALISED edge of a conversion node (cost of the source plus the edge weight). */
     private static Stream<Edge> losingConversionEdges(
-            final Node node, final Set<Edge> keep, final Map<Node, Double> cost) {
-        final var inbound = keep.stream().filter(e -> e.getTo().equals(node)).collect(toUnmodifiableList());
+            final Graph<Node, Edge> graph, final Node node, final Set<Edge> keep, final Map<Node, Double> cost) {
+        final var inbound =
+                keep.stream().filter(e -> graph.getEdgeTarget(e).equals(node)).collect(toUnmodifiableList());
         if (inbound.size() <= SINGLE_PRODUCER) {
             return Stream.empty();
         }
         return inbound.stream()
-                .sorted(Comparator.comparingDouble((Edge e) -> edgeCost(e, cost))
-                        .thenComparing(Comparator.naturalOrder()))
+                .sorted(Comparator.comparingDouble((Edge e) -> edgeCost(graph, e, cost))
+                        .thenComparing(EdgeOrder.by(graph)))
                 .skip(1);
     }
 
-    private static double edgeCost(final Edge edge, final Map<Node, Double> cost) {
-        return cost.getOrDefault(edge.getFrom(), Double.POSITIVE_INFINITY) + edge.getWeight();
+    private static double edgeCost(final Graph<Node, Edge> graph, final Edge edge, final Map<Node, Double> cost) {
+        return cost.getOrDefault(graph.getEdgeSource(edge), Double.POSITIVE_INFINITY) + edge.getWeight();
     }
 
     private static ExpansionGroup cheapest(
-            final List<ExpansionGroup> groups, final Set<Edge> eligible, final Map<Node, Double> cost) {
+            final Graph<Node, Edge> graph,
+            final List<ExpansionGroup> groups,
+            final Set<Edge> eligible,
+            final Map<Node, Double> cost) {
         return groups.stream()
-                .min(Comparator.<ExpansionGroup>comparingDouble(g -> groupCost(g, eligible, cost))
+                .min(Comparator.<ExpansionGroup>comparingDouble(g -> groupCost(graph, g, eligible, cost))
                         .thenComparing(g -> g.inputs().stream()
                                 .map(Node::id)
                                 .sorted()
@@ -204,25 +214,35 @@ public final class PlanView implements GraphSource {
     }
 
     private static double groupCost(
-            final ExpansionGroup group, final Set<Edge> eligible, final Map<Node, Double> cost) {
+            final Graph<Node, Edge> graph,
+            final ExpansionGroup group,
+            final Set<Edge> eligible,
+            final Map<Node, Double> cost) {
         return group.inputs().stream()
-                .mapToDouble(slot ->
-                        minSlotEdgeWeight(group, slot, eligible) + cost.getOrDefault(slot, Double.POSITIVE_INFINITY))
+                .mapToDouble(slot -> minSlotEdgeWeight(graph, group, slot, eligible)
+                        + cost.getOrDefault(slot, Double.POSITIVE_INFINITY))
                 .sum();
     }
 
-    private static double minSlotEdgeWeight(final ExpansionGroup group, final Node slot, final Set<Edge> eligible) {
-        return slotEdges(group, slot, eligible).mapToInt(Edge::getWeight).min().orElse(0);
+    private static double minSlotEdgeWeight(
+            final Graph<Node, Edge> graph, final ExpansionGroup group, final Node slot, final Set<Edge> eligible) {
+        return slotEdges(graph, group, slot, eligible)
+                .mapToInt(Edge::getWeight)
+                .min()
+                .orElse(0);
     }
 
-    private static Stream<Edge> groupEdges(final ExpansionGroup group, final Set<Edge> edges) {
-        return group.inputs().stream().flatMap(slot -> slotEdges(group, slot, edges));
+    private static Stream<Edge> groupEdges(
+            final Graph<Node, Edge> graph, final ExpansionGroup group, final Set<Edge> edges) {
+        return group.inputs().stream().flatMap(slot -> slotEdges(graph, group, slot, edges));
     }
 
-    private static Stream<Edge> slotEdges(final ExpansionGroup group, final Node slot, final Set<Edge> eligible) {
+    private static Stream<Edge> slotEdges(
+            final Graph<Node, Edge> graph, final ExpansionGroup group, final Node slot, final Set<Edge> eligible) {
         return eligible.stream()
-                .filter(e -> e.getFrom().equals(slot) && e.getTo().equals(group.getRoot()))
-                .filter(e -> inGroup(group, e));
+                .filter(e -> graph.getEdgeSource(e).equals(slot)
+                        && graph.getEdgeTarget(e).equals(group.getRoot()))
+                .filter(e -> inGroup(graph, group, e));
     }
 
     private static boolean isReturnRoot(final Node node) {
@@ -237,7 +257,17 @@ public final class PlanView implements GraphSource {
 
     @Override
     public Stream<Edge> edges() {
-        return subgraph.edgeSet().stream().sorted();
+        return subgraph.edgeSet().stream().sorted(EdgeOrder.by(subgraph));
+    }
+
+    @Override
+    public Node getEdgeSource(final Edge edge) {
+        return subgraph.getEdgeSource(edge);
+    }
+
+    @Override
+    public Node getEdgeTarget(final Edge edge) {
+        return subgraph.getEdgeTarget(edge);
     }
 
     public Stream<Node> nodesByScope(final Scope scope) {

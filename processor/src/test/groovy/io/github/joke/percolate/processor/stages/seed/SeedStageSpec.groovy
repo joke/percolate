@@ -46,7 +46,7 @@ class SeedStageSpec extends Specification {
         then:
         groups.size() == edges.size()
         edges.every { edge ->
-            groups.count { it.root.is(edge.to) && it.inputs().size() == 1 && it.inputs()[0].is(edge.from) } == 1
+            groups.count { it.root.is(graph.getEdgeTarget(edge)) && it.inputs().size() == 1 && it.inputs()[0].is(graph.getEdgeSource(edge)) } == 1
         }
     }
 
@@ -62,13 +62,13 @@ class SeedStageSpec extends Specification {
 
         then: 'one path-segment SEED edge: src[person]:Person → src[person.lastName]:?'
         def pathEdges = graph.edges()
-                .filter { it.from.loc instanceof SourceLocation && it.to.loc instanceof SourceLocation }
+                .filter { graph.getEdgeSource(it).loc instanceof SourceLocation && graph.getEdgeTarget(it).loc instanceof SourceLocation }
                 .toList()
         pathEdges.size() == 1
-        pathEdges[0].from.loc.path.segments == ['person']
-        pathEdges[0].from.type.present
-        pathEdges[0].to.loc.path.segments == ['person', 'lastName']
-        pathEdges[0].to.type.empty
+        graph.getEdgeSource(pathEdges[0]).loc.path.segments == ['person']
+        graph.getEdgeSource(pathEdges[0]).type.present
+        graph.getEdgeTarget(pathEdges[0]).loc.path.segments == ['person', 'lastName']
+        graph.getEdgeTarget(pathEdges[0]).type.empty
 
         and: 'matching ExpansionGroup with root = src[person.lastName] and slot = src[person]'
         def groups = graph.groups().filter {
@@ -91,12 +91,12 @@ class SeedStageSpec extends Specification {
 
         then:
         def bridges = graph.edges()
-                .filter { it.from.loc instanceof SourceLocation && it.to.loc instanceof TargetLocation }
+                .filter { graph.getEdgeSource(it).loc instanceof SourceLocation && graph.getEdgeTarget(it).loc instanceof TargetLocation }
                 .toList()
         bridges.size() == 1
-        bridges[0].from.type.empty
-        bridges[0].from.loc.path.segments == ['person', 'lastName']
-        bridges[0].to.loc.path.segments == ['lastName']
+        graph.getEdgeSource(bridges[0]).type.empty
+        graph.getEdgeSource(bridges[0]).loc.path.segments == ['person', 'lastName']
+        graph.getEdgeTarget(bridges[0]).loc.path.segments == ['lastName']
 
         and:
         def groups = graph.groups().filter {
@@ -118,11 +118,11 @@ class SeedStageSpec extends Specification {
 
         then: 'one target-chain SEED edge tgt[addresses]:? → tgt[]:String'
         def chainEdges = graph.edges()
-                .filter { it.from.loc instanceof TargetLocation && it.to.loc instanceof TargetLocation }
+                .filter { graph.getEdgeSource(it).loc instanceof TargetLocation && graph.getEdgeTarget(it).loc instanceof TargetLocation }
                 .toList()
         chainEdges.size() == 1
-        chainEdges[0].from.loc.path.segments == ['addresses']
-        chainEdges[0].to.loc.path.segments == []
+        graph.getEdgeSource(chainEdges[0]).loc.path.segments == ['addresses']
+        graph.getEdgeTarget(chainEdges[0]).loc.path.segments == []
 
         and:
         def groups = graph.groups().filter {
@@ -170,15 +170,15 @@ class SeedStageSpec extends Specification {
 
         then: 'directive bridging edge starts at the typed paramRoot src[person]:Person'
         def bridges = graph.edges()
-                .filter { it.from.loc instanceof SourceLocation && it.to.loc instanceof TargetLocation }
+                .filter { graph.getEdgeSource(it).loc instanceof SourceLocation && graph.getEdgeTarget(it).loc instanceof TargetLocation }
                 .toList()
         bridges.size() == 1
-        bridges[0].from.loc.path.segments == ['person']
-        bridges[0].from.type.present
-        bridges[0].to.loc.path.segments == ['x']
+        graph.getEdgeSource(bridges[0]).loc.path.segments == ['person']
+        graph.getEdgeSource(bridges[0]).type.present
+        graph.getEdgeTarget(bridges[0]).loc.path.segments == ['x']
 
         and: 'no SourceLocation→SourceLocation path-segment edge or group is registered'
-        graph.edges().filter { it.from.loc instanceof SourceLocation && it.to.loc instanceof SourceLocation }.toList().empty
+        graph.edges().filter { graph.getEdgeSource(it).loc instanceof SourceLocation && graph.getEdgeTarget(it).loc instanceof SourceLocation }.toList().empty
         graph.groups().filter { it.root.loc instanceof SourceLocation }.toList().empty
     }
 

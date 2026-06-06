@@ -53,7 +53,7 @@ class FrontierMatcherSpec extends Specification {
         bundles.size() == 1
         bundles[0].deltas.findAll { it instanceof AddNode }.empty
         bundles[0].deltas.findAll { it instanceof AddGroup }.empty
-        def edge = bundles[0].deltas.find { it instanceof AddEdge }.edge
+        def edge = bundles[0].deltas.find { it instanceof AddEdge }
         edge.from.is(candidate)
         edge.to.is(frontier)
     }
@@ -70,7 +70,7 @@ class FrontierMatcherSpec extends Specification {
         bundles.size() == 1
         def added = bundles[0].deltas.find { it instanceof AddNode }.node
         added != null
-        def edge = bundles[0].deltas.find { it instanceof AddEdge }.edge
+        def edge = bundles[0].deltas.find { it instanceof AddEdge }
         edge.from.is(added)
         edge.to.is(frontier)
         bundles[0].deltas.any { it instanceof AddGroup }

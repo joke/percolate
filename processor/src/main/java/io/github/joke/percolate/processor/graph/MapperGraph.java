@@ -3,16 +3,11 @@ package io.github.joke.percolate.processor.graph;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
-import java.util.HashMap;
-import java.util.HashSet;
 import java.util.List;
-import java.util.Map;
-import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import lombok.NoArgsConstructor;
-import lombok.Value;
 import org.jgrapht.alg.cycle.CycleDetector;
 import org.jgrapht.graph.DirectedMultigraph;
 import org.jgrapht.graph.MaskSubgraph;
@@ -20,10 +15,8 @@ import org.jgrapht.graph.MaskSubgraph;
 @NoArgsConstructor
 public final class MapperGraph implements GraphSource {
     private final DirectedMultigraph<Node, Edge> graph = new DirectedMultigraph<>(Edge.class);
-    private final Set<Edge> edgeIndex = new HashSet<>();
     private final List<ExpansionGroup> expansionGroups = new ArrayList<>();
     private final List<GroupOutcome> outcomes = new ArrayList<>();
-    private final Map<VariableKey, Node> variableIndex = new HashMap<>();
 
     private List<Node> sortedNodes = List.of();
     private List<Edge> sortedEdges = List.of();
@@ -37,51 +30,40 @@ public final class MapperGraph implements GraphSource {
     }
 
     /**
-     * The single canonical {@link Node} for {@code (scope, location)}, created untyped on first request. Used by
-     * the seed stage for structural variables so a shared path prefix reuses one node without transient caches.
-     * Expansion-minted nodes (per-{@code (name, type)} divergent leaves, conversion intermediates) are fresh
-     * instances and SHALL NOT route through this method — they rely on instance identity (design D7).
+     * A thin append: adds both endpoints then the JGraphT edge, returning JGraphT's "was added" boolean. It holds
+     * no percolate-level structural-equality dedup index — preventing duplicate parallel edges is owned by the
+     * mutation callers ({@code SeedStage}'s create-gate, the expansion {@code Applier}; design D5).
      */
-    public Node variableFor(final Scope scope, final Location location) {
-        return variableIndex.computeIfAbsent(new VariableKey(scope, location), key -> {
-            final var node = new Node(Optional.empty(), location, scope);
-            addNode(node);
-            return node;
-        });
+    public boolean addEdge(final Node from, final Node to, final Edge edge) {
+        addNode(from);
+        addNode(to);
+        final var added = graph.addEdge(from, to, edge);
+        if (added) {
+            sortedEdgesDirty = true;
+        }
+        return added;
+    }
+
+    @Override
+    public Node getEdgeSource(final Edge edge) {
+        return graph.getEdgeSource(edge);
+    }
+
+    @Override
+    public Node getEdgeTarget(final Edge edge) {
+        return graph.getEdgeTarget(edge);
     }
 
     /**
-     * Registers an already-created (possibly typed) structural node as the canonical variable for its
-     * {@code (scope, location)}, so subsequent {@link #variableFor} requests reuse it. Used by the seed stage to
-     * share typed parameter roots and the return root across directives.
+     * The parallel edges between {@code from} and {@code to}, or an empty set when either endpoint is not yet a
+     * vertex. Used by the expansion {@code Applier} to own edge non-duplication at the mutation site (design D5)
+     * without the graph holding a standing dedup index.
      */
-    public void registerVariable(final Node node) {
-        variableIndex.putIfAbsent(new VariableKey(node.getScope(), node.getLoc()), node);
-    }
-
-    public boolean addEdge(final Edge edge) {
-        addNode(edge.getFrom());
-        addNode(edge.getTo());
-        if (!edgeIndex.add(edge)) {
-            return false;
+    public Set<Edge> getAllEdges(final Node from, final Node to) {
+        if (!graph.containsVertex(from) || !graph.containsVertex(to)) {
+            return Set.of();
         }
-        graph.addEdge(edge.getFrom(), edge.getTo(), edge);
-        sortedEdgesDirty = true;
-        return true;
-    }
-
-    public boolean addEdgeIfAcyclic(final Edge edge) {
-        if (!addEdge(edge)) {
-            return false;
-        }
-        final var mask = new MaskSubgraph<>(graph, v -> false, e -> e.getKind() != EdgeKind.REALISED);
-        if (new CycleDetector<>(mask).detectCycles()) {
-            edgeIndex.remove(edge);
-            graph.removeEdge(edge);
-            sortedEdgesDirty = true;
-            return false;
-        }
-        return true;
+        return graph.getAllEdges(from, to);
     }
 
     public void addGroup(final ExpansionGroup group) {
@@ -105,7 +87,7 @@ public final class MapperGraph implements GraphSource {
 
     public void apply(final GraphDelta delta) {
         delta.getNodeList().forEach(this::addNode);
-        delta.getEdgeList().forEach(this::addEdge);
+        delta.getEdgeList().forEach(entry -> addEdge(entry.getFrom(), entry.getTo(), entry.getEdge()));
         delta.getGroups().forEach(this::addGroup);
     }
 
@@ -123,7 +105,7 @@ public final class MapperGraph implements GraphSource {
     @Override
     public Stream<Edge> edges() {
         if (sortedEdgesDirty) {
-            sortedEdges = graph.edgeSet().stream().sorted().collect(Collectors.toUnmodifiableList());
+            sortedEdges = graph.edgeSet().stream().sorted(EdgeOrder.by(graph)).collect(Collectors.toUnmodifiableList());
             sortedEdgesDirty = false;
         }
         return sortedEdges.stream();
@@ -165,12 +147,5 @@ public final class MapperGraph implements GraphSource {
 
     public DirectedMultigraph<Node, Edge> underlyingGraph() {
         return graph;
-    }
-
-    /** Value key for {@link #variableFor}: the {@code (scope, location)} a structural variable is canonical for. */
-    @Value
-    private static class VariableKey {
-        Scope scope;
-        Location location;
     }
 }

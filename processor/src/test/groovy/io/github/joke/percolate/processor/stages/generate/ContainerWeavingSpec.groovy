@@ -58,9 +58,9 @@ class ContainerWeavingSpec extends Specification {
         def elemOut = node(scope, new ElementLocation())
         def root = node(scope, returnRootLoc())
         [src, elemIn, elemOut, root].each { graph.addNode(it) }
-        graph.addEdge(Edge.realised(src, elemIn, Weights.CONTAINER, SEQ, ElementScope.ENTERING, 'Seq'))
-        graph.addEdge(Edge.realised(elemIn, elemOut, Weights.STEP, MAP_X, 'MapX'))
-        graph.addEdge(Edge.realised(elemOut, root, Weights.CONTAINER, SEQ, ElementScope.EXITING, 'Seq'))
+        graph.addEdge(src, elemIn, Edge.realised(Weights.CONTAINER, SEQ, ElementScope.ENTERING, 'Seq'))
+        graph.addEdge(elemIn, elemOut, Edge.realised(Weights.STEP, MAP_X, 'MapX'))
+        graph.addEdge(elemOut, root, Edge.realised(Weights.CONTAINER, SEQ, ElementScope.EXITING, 'Seq'))
 
         expect:
         body(graph, method) == 'return p.stream().map(v0 -> mapX(v0)).collect(toList());'
@@ -74,7 +74,7 @@ class ContainerWeavingSpec extends Specification {
         def src = node(scope, sourceLoc('o'))
         def root = typedNode(scope, returnRootLoc(), nullability)
         [src, root].each { graph.addNode(it) }
-        graph.addEdge(Edge.realised(src, root, Weights.CONTAINER, WRAP, ElementScope.ENTERING, 'Opt'))
+        graph.addEdge(src, root, Edge.realised(Weights.CONTAINER, WRAP, ElementScope.ENTERING, 'Opt'))
 
         expect:
         body(graph, method) == expected
@@ -96,10 +96,10 @@ class ContainerWeavingSpec extends Specification {
         def elemY = node(scope, new ElementLocation())
         def root = node(scope, returnRootLoc())
         [src, elemOpt, elemX, elemY, root].each { graph.addNode(it) }
-        graph.addEdge(Edge.realised(src, elemOpt, Weights.CONTAINER, SEQ, ElementScope.ENTERING, 'Seq'))
-        graph.addEdge(Edge.realised(elemOpt, elemX, Weights.CONTAINER, WRAP, ElementScope.ENTERING, 'Opt'))
-        graph.addEdge(Edge.realised(elemX, elemY, Weights.STEP, MAP_X, 'MapX'))
-        graph.addEdge(Edge.realised(elemY, root, Weights.CONTAINER, SEQ, ElementScope.EXITING, 'Seq'))
+        graph.addEdge(src, elemOpt, Edge.realised(Weights.CONTAINER, SEQ, ElementScope.ENTERING, 'Seq'))
+        graph.addEdge(elemOpt, elemX, Edge.realised(Weights.CONTAINER, WRAP, ElementScope.ENTERING, 'Opt'))
+        graph.addEdge(elemX, elemY, Edge.realised(Weights.STEP, MAP_X, 'MapX'))
+        graph.addEdge(elemY, root, Edge.realised(Weights.CONTAINER, SEQ, ElementScope.EXITING, 'Seq'))
 
         expect:
         body(graph, method) ==
@@ -116,9 +116,9 @@ class ContainerWeavingSpec extends Specification {
         def elemOut = node(scope, new ElementLocation())
         def root = typedNode(scope, returnRootLoc(), Nullability.NULLABLE)
         [src, elemIn, elemOut, root].each { graph.addNode(it) }
-        graph.addEdge(Edge.realised(src, elemIn, Weights.CONTAINER, SEQ, ElementScope.ENTERING, 'Seq'))
-        graph.addEdge(Edge.realised(elemIn, elemOut, Weights.STEP, MAP_X, 'MapX'))
-        graph.addEdge(Edge.realised(elemOut, root, Weights.CONTAINER, SEQ, ElementScope.EXITING, 'Seq'))
+        graph.addEdge(src, elemIn, Edge.realised(Weights.CONTAINER, SEQ, ElementScope.ENTERING, 'Seq'))
+        graph.addEdge(elemIn, elemOut, Edge.realised(Weights.STEP, MAP_X, 'MapX'))
+        graph.addEdge(elemOut, root, Edge.realised(Weights.CONTAINER, SEQ, ElementScope.EXITING, 'Seq'))
 
         expect:
         body(graph, method) == 'return p.stream().map(v0 -> mapX(v0)).collect(toList());'
@@ -137,8 +137,8 @@ class ContainerWeavingSpec extends Specification {
         [src, elem, root].each { graph.addNode(it) }
         // The scalar bridge codegen rides on its REALISED edge; a single inbound edge needs no group.
         EdgeCodegen conv = { vars, inputs -> CodeBlock.of('conv($L)', inputs.single()) } as EdgeCodegen
-        graph.addEdge(Edge.realised(src, elem, Weights.CONTAINER, SEQ, ElementScope.ENTERING, 'Seq'))
-        graph.addEdge(Edge.realised(elem, root, Weights.STEP, conv, 'Conv'))
+        graph.addEdge(src, elem, Edge.realised(Weights.CONTAINER, SEQ, ElementScope.ENTERING, 'Seq'))
+        graph.addEdge(elem, root, Edge.realised(Weights.STEP, conv, 'Conv'))
 
         expect:
         body(graph, method) == 'return p.stream().map(v0 -> conv(v0));'
@@ -152,7 +152,7 @@ class ContainerWeavingSpec extends Specification {
         def src = node(scope, sourceLoc('o'))
         def root = typedNode(scope, returnRootLoc(), Nullability.NULLABLE)
         [src, root].each { graph.addNode(it) }
-        graph.addEdge(Edge.realised(src, root, Weights.CONTAINER, WRAP, ElementScope.ENTERING, 'Opt'))
+        graph.addEdge(src, root, Edge.realised(Weights.CONTAINER, WRAP, ElementScope.ENTERING, 'Opt'))
 
         expect:
         body(graph, method) == 'return o.orElse(null);'

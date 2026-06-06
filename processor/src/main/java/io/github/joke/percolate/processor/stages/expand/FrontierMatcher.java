@@ -205,10 +205,10 @@ final class FrontierMatcher {
 
     private DeltaBundle descentBundle(final Node root, final Node slot, final ExpansionStep step, final String fqn) {
         final var codegen = (EdgeCodegen) step.getCodegen();
-        final var edge = Edge.realised(
-                slot, root, step.getWeight(), codegen, fqn, step.getInputs().get(0));
+        final var edge =
+                Edge.realised(step.getWeight(), codegen, fqn, step.getInputs().get(0));
         final var deltas = new ArrayList<Delta>();
-        deltas.add(new AddEdge(edge));
+        deltas.add(new AddEdge(slot, root, edge));
         deltas.add(new TypeNode(root, step.getOutput(), descentScope(step)));
         deltas.add(new AddGroup(root, List.of(slot), List.of(), false));
         return new DeltaBundle(fqn, deltas);
@@ -275,14 +275,9 @@ final class FrontierMatcher {
         final var deltas = new ArrayList<Delta>();
         final var input = reuseOrSynthesizeInput(inputType, frontier, group, snapshot, deltas);
         final var codegen = (EdgeCodegen) step.getCodegen();
-        final var edge = Edge.realised(
-                input,
-                frontier,
-                step.getWeight(),
-                codegen,
-                fqn,
-                step.getInputs().get(0));
-        deltas.add(new AddEdge(edge));
+        final var edge =
+                Edge.realised(step.getWeight(), codegen, fqn, step.getInputs().get(0));
+        deltas.add(new AddEdge(input, frontier, edge));
         if (snapshot.typeOf(frontier).isEmpty()) {
             deltas.add(new TypeNode(frontier, step.getOutput(), snapshot.producerScopeOf(input)));
         }
@@ -330,7 +325,7 @@ final class FrontierMatcher {
                 deltas.add(new TypeNode(node, spiSlot.getType(), slotScope(spiSlot)));
             }
             deltas.add(new AddEdge(
-                    realisedEdge(node, frontier, step.getWeight(), codegen, step.getScope(), fqn, spiSlot)));
+                    node, frontier, realisedEdge(step.getWeight(), codegen, step.getScope(), fqn, spiSlot)));
         }
         if (snapshot.typeOf(frontier).isEmpty()) {
             deltas.add(new TypeNode(frontier, step.getOutput(), producerScopeFor(slotNodes, snapshot)));
@@ -434,7 +429,7 @@ final class FrontierMatcher {
         // A SEED bridging edge from the shared source to the fresh leaf, mirroring the seed stage: the minted
         // directive-binding group derives its single input from this edge (a seed group reads its SEED scaffolding
         // edges), and the per-type divergent leaf stays disjoint from the seeded one (design D3 / D7).
-        deltas.add(new AddEdge(Edge.seed(source, fresh, Optional.empty(), Optional.empty())));
+        deltas.add(new AddEdge(source, fresh, Edge.seed(Optional.empty())));
         deltas.add(new AddGroup(fresh, List.of(source), List.of(), true));
         return fresh;
     }
@@ -460,17 +455,15 @@ final class FrontierMatcher {
     }
 
     private static Edge realisedEdge(
-            final Node from,
-            final Node to,
             final int weight,
             final Codegen codegen,
             final Optional<ElementScope> scope,
             final String fqn,
             final Slot consumerSlot) {
         if (codegen instanceof EdgeCodegen && scope.isEmpty()) {
-            return Edge.realised(from, to, weight, (EdgeCodegen) codegen, fqn, consumerSlot);
+            return Edge.realised(weight, (EdgeCodegen) codegen, fqn, consumerSlot);
         }
-        return Edge.realised(from, to, weight, codegen, scope.orElseThrow(), fqn, consumerSlot);
+        return Edge.realised(weight, codegen, scope.orElseThrow(), fqn, consumerSlot);
     }
 
     private static boolean scopeMatches(final Optional<ElementScope> scope, final Node frontier) {

@@ -84,11 +84,15 @@ public final class GraphDumpWriter {
     private static Graph<Node, Edge> sliceByScope(final GraphSource source, final Scope scope) {
         final var slice = new DirectedMultigraph<Node, Edge>(Edge.class);
         source.nodes().filter(node -> node.getScope().equals(scope)).forEach(slice::addVertex);
-        source.edges().filter(edge -> edge.getFrom().getScope().equals(scope)).forEach(edge -> {
-            slice.addVertex(edge.getFrom());
-            slice.addVertex(edge.getTo());
-            slice.addEdge(edge.getFrom(), edge.getTo(), edge);
-        });
+        source.edges()
+                .filter(edge -> source.getEdgeSource(edge).getScope().equals(scope))
+                .forEach(edge -> {
+                    final var from = source.getEdgeSource(edge);
+                    final var to = source.getEdgeTarget(edge);
+                    slice.addVertex(from);
+                    slice.addVertex(to);
+                    slice.addEdge(from, to, edge);
+                });
         return slice;
     }
 

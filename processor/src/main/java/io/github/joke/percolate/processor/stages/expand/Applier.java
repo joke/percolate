@@ -69,9 +69,11 @@ final class Applier implements Delta.Visitor<Void> {
     private static boolean wouldBeAcyclic(final MapperGraph graph, final DeltaBundle bundle) {
         final var probe = new DirectedMultigraph<Node, Edge>(Edge.class);
         graph.edges().filter(e -> e.getKind() == EdgeKind.REALISED).forEach(e -> {
-            probe.addVertex(e.getFrom());
-            probe.addVertex(e.getTo());
-            probe.addEdge(e.getFrom(), e.getTo(), e);
+            final var from = graph.getEdgeSource(e);
+            final var to = graph.getEdgeTarget(e);
+            probe.addVertex(from);
+            probe.addVertex(to);
+            probe.addEdge(from, to, e);
         });
         bundle.getDeltas().forEach(delta -> delta.accept(new CycleProbe(probe)));
         return !new CycleDetector<>(probe).detectCycles();
@@ -94,8 +96,23 @@ final class Applier implements Delta.Visitor<Void> {
 
     @Override
     public Void visitAddEdge(final AddEdge delta) {
-        graph().addEdge(delta.getEdge());
+        final var graph = graph();
+        if (!isDuplicate(graph, delta)) {
+            graph.addEdge(delta.getFrom(), delta.getTo(), delta.getEdge());
+        }
         return null;
+    }
+
+    /**
+     * The expansion-time owner of edge non-duplication (design D5). Two groups reading the same start-of-pass
+     * snapshot can each offer the same producer edge between a shared source and frontier; with identity-keyed
+     * {@link Edge}s JGraphT no longer collapses the value-equal parallel edge, so the {@code Applier} skips an
+     * {@link AddEdge} whose endpoints already carry a payload-equal edge (same {@code kind} and {@code weight}).
+     */
+    private static boolean isDuplicate(final MapperGraph graph, final AddEdge delta) {
+        final var edge = delta.getEdge();
+        return graph.getAllEdges(delta.getFrom(), delta.getTo()).stream()
+                .anyMatch(existing -> existing.getKind() == edge.getKind() && existing.getWeight() == edge.getWeight());
     }
 
     @Override
@@ -146,9 +163,9 @@ final class Applier implements Delta.Visitor<Void> {
             if (edge.getKind() != EdgeKind.REALISED) {
                 return null;
             }
-            probe.addVertex(edge.getFrom());
-            probe.addVertex(edge.getTo());
-            probe.addEdge(edge.getFrom(), edge.getTo(), edge);
+            probe.addVertex(delta.getFrom());
+            probe.addVertex(delta.getTo());
+            probe.addEdge(delta.getFrom(), delta.getTo(), edge);
             return null;
         }
 

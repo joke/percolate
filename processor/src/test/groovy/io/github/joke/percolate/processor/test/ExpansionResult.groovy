@@ -87,9 +87,11 @@ final class ExpansionResult {
         final Graph<Node, Edge> whole = new DirectedMultigraph<>(Edge)
         graph.nodes().forEach { whole.addVertex(it) }
         graph.edges().forEach { e ->
-            whole.addVertex(e.from)
-            whole.addVertex(e.to)
-            whole.addEdge(e.from, e.to, e)
+            final f = graph.getEdgeSource(e)
+            final t = graph.getEdgeTarget(e)
+            whole.addVertex(f)
+            whole.addVertex(t)
+            whole.addEdge(f, t, e)
         }
         new DotRenderer().render(whole, mapperType.qualifiedName.toString())
     }
@@ -118,7 +120,6 @@ final class ExpansionResult {
 
     private static boolean isTraversable(final EdgeKind kind) {
         kind == EdgeKind.REALISED
-                || kind == EdgeKind.MARKER
                 || kind == EdgeKind.SEED
     }
 
@@ -131,7 +132,7 @@ final class ExpansionResult {
     private List<Node> collectSeedNodes() {
         final seedEndpoints = graph.edges()
                 .filter { it.kind == EdgeKind.SEED }
-                .flatMap { Stream.of(it.from, it.to) }
+                .flatMap { Stream.of(graph.getEdgeSource(it), graph.getEdgeTarget(it)) }
                 .collect(Collectors.toUnmodifiableSet())
         graph.nodes().filter { seedEndpoints.contains(it) }.collect(Collectors.toUnmodifiableList())
     }
@@ -146,11 +147,13 @@ final class ExpansionResult {
                 if (!isTraversable(edge.kind)) {
                     continue
                 }
-                if (edge.from == current) {
-                    enqueueIfNew(edge.to, visited, queue)
+                final f = graph.getEdgeSource(edge)
+                final t = graph.getEdgeTarget(edge)
+                if (f == current) {
+                    enqueueIfNew(t, visited, queue)
                 }
-                if (edge.to == current) {
-                    enqueueIfNew(edge.from, visited, queue)
+                if (t == current) {
+                    enqueueIfNew(f, visited, queue)
                 }
             }
         }
@@ -160,6 +163,6 @@ final class ExpansionResult {
     private boolean anyRealisedEdgeIsOrphan(final Set<Node> visited) {
         graph.edges()
                 .filter { it.kind == EdgeKind.REALISED }
-                .anyMatch { !visited.contains(it.from) || !visited.contains(it.to) }
+                .anyMatch { !visited.contains(graph.getEdgeSource(it)) || !visited.contains(graph.getEdgeTarget(it)) }
     }
 }

@@ -69,8 +69,8 @@ class DirectiveBindingExpanderSpec extends Specification {
         def deltas = result.bundles.collectMany { it.deltas }
         def edges = deltas.findAll { it instanceof AddEdge }
         edges.size() == 1
-        edges[0].edge.from.is(group.inputs()[0])
-        edges[0].edge.to.is(group.root)
+        edges[0].from.is(group.inputs()[0])
+        edges[0].to.is(group.root)
         edges[0].edge.weight == Weights.NOOP
 
         and: 'the root was already typed (by its parent constructor in the real flow), so the fold emits no TypeNode'

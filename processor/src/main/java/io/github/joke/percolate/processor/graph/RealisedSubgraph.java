@@ -18,7 +18,7 @@ public final class RealisedSubgraph {
         this.subgraph = subgraph;
         this.mapperGraph = delegate;
         final var incident = subgraph.edgeSet().stream()
-                .flatMap(e -> Stream.of(e.getFrom(), e.getTo()))
+                .flatMap(e -> Stream.of(subgraph.getEdgeSource(e), subgraph.getEdgeTarget(e)))
                 .collect(toCollection(HashSet::new));
         this.incidentNodes = Collections.unmodifiableSet(incident);
     }
@@ -28,7 +28,7 @@ public final class RealisedSubgraph {
     }
 
     public Stream<Edge> edges() {
-        return subgraph.edgeSet().stream().sorted(Comparator.naturalOrder());
+        return subgraph.edgeSet().stream().sorted(EdgeOrder.by(subgraph));
     }
 
     public Stream<Node> nodesByScope(final Scope scope) {

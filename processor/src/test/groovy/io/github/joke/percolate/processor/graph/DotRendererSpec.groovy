@@ -10,15 +10,14 @@ import spock.lang.Tag
 @Tag('unit')
 class DotRendererSpec extends Specification {
 
-    def 'renders REALISED, SEED, and MARKER edge labels; emits no cluster subgraphs'() {
+    def 'renders REALISED and SEED edge labels; emits no cluster subgraphs'() {
         given:
         def scope = new HarnessScope('m()')
         def src = new Node(Optional.of(TypeUniverse.STRING), new SourceLocation(AccessPath.of('in')), scope)
         def tgt = new Node(Optional.of(TypeUniverse.STRING), new TargetLocation(TargetPath.of('out')), scope)
         def edges = [
-                Edge.seedForTest(src, tgt),
-                Edge.marker(src, tgt, 'test.Strategy'),
-                Edge.realised(src, tgt, 1, { _, _ -> com.palantir.javapoet.CodeBlock.of('') }, 'test.Strategy'),
+                [src, tgt, Edge.seedForTest()],
+                [src, tgt, Edge.realised(1, { _, _ -> com.palantir.javapoet.CodeBlock.of('') }, 'test.Strategy')],
         ]
         def renderer = new DotRenderer()
 
@@ -27,7 +26,7 @@ class DotRendererSpec extends Specification {
 
         then:
         dot.contains('SEED')
-        dot.contains('MARKER')
+        !dot.contains('MARKER')
         !dot.contains('cluster_')
         !dot.contains('SUB_SEED')
         !dot.contains('ELEMENT_SEED')
@@ -74,12 +73,12 @@ class DotRendererSpec extends Specification {
         def scope = new HarnessScope('m()')
         def a = new Node(Optional.of(TypeUniverse.STRING), new SourceLocation(AccessPath.of('a')), scope)
         def b = new Node(Optional.of(TypeUniverse.STRING), new TargetLocation(TargetPath.of('b')), scope)
-        def realised = Edge.realised(a, b, 2, { _, _ -> com.palantir.javapoet.CodeBlock.of('') }, 'io.github.joke.percolate.spi.builtins.IterableUnwrap')
-        def seed = Edge.seedForTest(a, b)
+        def realised = Edge.realised(2, { _, _ -> com.palantir.javapoet.CodeBlock.of('') }, 'io.github.joke.percolate.spi.builtins.IterableUnwrap')
+        def seed = Edge.seedForTest()
         def renderer = new DotRenderer()
 
         when:
-        def dot = renderer.render(sliceOf([a, b], [realised, seed]), scope.encode())
+        def dot = renderer.render(sliceOf([a, b], [[a, b, realised], [a, b, seed]]), scope.encode())
 
         then:
         // realised label: simple strategy name + weight, no package prefix
@@ -98,11 +97,11 @@ class DotRendererSpec extends Specification {
         def scope = new HarnessScope('m()')
         def a = new Node(Optional.of(TypeUniverse.STRING), new SourceLocation(AccessPath.of('a')), scope)
         def b = new Node(Optional.of(TypeUniverse.STRING), new TargetLocation(TargetPath.of('b')), scope)
-        def realised = Edge.realised(a, b, Weights.SENTINEL_UNREALISED, { _, _ -> com.palantir.javapoet.CodeBlock.of('') }, 'test.Strategy')
+        def realised = Edge.realised(Weights.SENTINEL_UNREALISED, { _, _ -> com.palantir.javapoet.CodeBlock.of('') }, 'test.Strategy')
         def renderer = new DotRenderer()
 
         when:
-        def dot = renderer.render(sliceOf([a, b], [realised]), scope.encode())
+        def dot = renderer.render(sliceOf([a, b], [[a, b, realised]]), scope.encode())
 
         then:
         dot.contains('∞')
@@ -135,13 +134,13 @@ class DotRendererSpec extends Specification {
         dot.contains('say \\"hi\\"')
     }
 
-    private static Graph<Node, Edge> sliceOf(Collection<Node> nodes, Collection<Edge> edges) {
+    private static Graph<Node, Edge> sliceOf(Collection<Node> nodes, Collection<List> edges) {
         final Graph<Node, Edge> g = new DirectedMultigraph<>(Edge)
         nodes.each { g.addVertex(it) }
-        edges.each {
-            g.addVertex(it.from)
-            g.addVertex(it.to)
-            g.addEdge(it.from, it.to, it)
+        edges.each { triple ->
+            g.addVertex(triple[0])
+            g.addVertex(triple[1])
+            g.addEdge(triple[0], triple[1], triple[2])
         }
         g
     }

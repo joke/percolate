@@ -39,7 +39,7 @@ class DirectiveBindingConversionShapeSpec extends Specification {
         def leaf = new Node(Optional.empty(), new TargetLocation(TargetPath.of('x')), methodScope)
         def source = new Node(Optional.of(TypeUniverse.STRING), new SourceLocation(AccessPath.of(paramName)), methodScope)
         [leaf, source].each { graph.addNode(it) }
-        graph.addEdge(Edge.seedForTest(source, leaf))
+        graph.addEdge(source, leaf, Edge.seedForTest())
         // The consuming assembly types the leaf as LONG (wider than the STRING source) when it binds it; here we
         // type it directly to stand in for that constructor bind. SeedStage registers the directive-binding demand.
         leaf.setTyping(TypeUniverse.LONG_TYPE, io.github.joke.percolate.spi.Nullability.UNKNOWN)
@@ -59,9 +59,9 @@ class DirectiveBindingConversionShapeSpec extends Specification {
         !TypeUniverse.types().isSameType(tgtX.type.get(), TypeUniverse.STRING)
 
         and: 'a realised edge reaches the leaf, folded from the STRING source (a conversion, not a same-type assign)'
-        def into = g.edges().filter { it.kind == EdgeKind.REALISED && it.to.is(tgtX) }.toList()
+        def into = g.edges().filter { it.kind == EdgeKind.REALISED && g.getEdgeTarget(it).is(tgtX) }.toList()
         !into.empty
-        into.every { TypeUniverse.types().isSameType(it.from.type.get(), TypeUniverse.STRING) }
+        into.every { TypeUniverse.types().isSameType(g.getEdgeSource(it).type.get(), TypeUniverse.STRING) }
     }
 
     private static ExecutableElement singleParamMethod() {

@@ -83,9 +83,9 @@ class RealisationErrorMessagesSpec extends Specification {
         graph.addNode(returnRoot)
         graph.addNode(slot)
 
-        def realisedEdge = Edge.realised(slot, returnRoot, 1, { vars, inputs -> com.palantir.javapoet.CodeBlock.of('') }, 'io.github.joke.percolate.builtin.ListMap')
-        graph.addEdge(realisedEdge)
-        graph.addEdge(Edge.seedForTest(source, slot))
+        def realisedEdge = Edge.realised(1, { vars, inputs -> com.palantir.javapoet.CodeBlock.of('') }, 'io.github.joke.percolate.builtin.ListMap')
+        graph.addEdge(slot, returnRoot, realisedEdge)
+        graph.addEdge(source, slot, Edge.seedForTest())
 
         TestGroups.of(returnRoot, [slot], 'io.github.joke.percolate.builtin.ListMap', Set.of(realisedEdge), graph)
 
@@ -113,9 +113,9 @@ class RealisationErrorMessagesSpec extends Specification {
         graph.addNode(returnRoot)
         graph.addNode(slot)
 
-        def realisedEdge = Edge.realised(slot, returnRoot, 1, { vars, inputs -> com.palantir.javapoet.CodeBlock.of('') }, 'test.GroupTarget')
-        graph.addEdge(realisedEdge)
-        graph.addEdge(Edge.seedForTest(source, slot))
+        def realisedEdge = Edge.realised(1, { vars, inputs -> com.palantir.javapoet.CodeBlock.of('') }, 'test.GroupTarget')
+        graph.addEdge(slot, returnRoot, realisedEdge)
+        graph.addEdge(source, slot, Edge.seedForTest())
 
         TestGroups.of(returnRoot, [slot], 'test.GroupTarget', Set.of(realisedEdge), graph)
         graph

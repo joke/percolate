@@ -94,9 +94,6 @@ public final class DotRenderer {
         if (kind == EdgeKind.SEED) {
             return buildSeedLabel(edge);
         }
-        if (kind == EdgeKind.MARKER) {
-            return buildMarkerLabel(edge);
-        }
         return "";
     }
 
@@ -119,10 +116,6 @@ public final class DotRenderer {
         }
         edge.getStrategyClassFqn().ifPresent(parts::add);
         return String.join(" | ", parts);
-    }
-
-    private String buildMarkerLabel(final Edge edge) {
-        return "MARKER | " + weightLabel(edge.getWeight());
     }
 
     private static String weightLabel(final int weight) {

@@ -107,7 +107,8 @@ Each rendered edge's `kind` SHALL be identifiable from the DOT output without co
 
 - For `EdgeKind.SEED` edges, the edge `label` attribute SHALL include the literal token `SEED`.
 - For `EdgeKind.REALISED` edges, the kind is identified by the combination of the edge's style attributes and the strategy short name in its label (see the "Node and edge visual distinction" requirement); the explicit token `REALISED` is not required in the label.
-- For `EdgeKind.MARKER` edges (which appear only in views that retain non-`REALISED` edges, i.e. `seed` and `full`, and never in the `REALISED`-only `transforms`/`plan` views), the `label` attribute SHALL include the literal token `MARKER`.
+
+(`EdgeKind.MARKER` no longer exists; the renderer SHALL NOT special-case a MARKER token.)
 
 #### Scenario: SEED edge label includes the SEED token
 - **WHEN** the renderer writes an edge with `kind == EdgeKind.SEED`
@@ -119,10 +120,6 @@ Each rendered edge's `kind` SHALL be identifiable from the DOT output without co
 - **AND** the edge's style attributes match the documented REALISED styling (distinct from SEED)
 - **AND** the edge's `label` attribute does NOT contain the literal token `REALISED`
 
-#### Scenario: MARKER edge retains the MARKER token
-- **WHEN** the renderer writes an edge with `kind == EdgeKind.MARKER` (in a view that retains it)
-- **THEN** the edge's `label` attribute contains the literal `MARKER`
-
 ### Requirement: Node and edge visual distinction
 
 The DOT renderer SHALL render **every** node with `shape=box` and `style=filled`, distinguishing source-located, target-located, and container-element nodes by `fillcolor` rather than by shape. Source-located (`SourceLocation`) nodes, target-located (`TargetLocation`) nodes, and container-element (`ElementLocation`) nodes SHALL each receive a distinct, stable `fillcolor`. No node SHALL render as `oval`, `diamond`, or any non-`box` shape.
@@ -130,7 +127,6 @@ The DOT renderer SHALL render **every** node with `shape=box` and `style=filled`
 The DOT renderer SHALL render edges with attributes keyed off `Edge.kind`:
 - `REALISED` edges SHALL render with the heaviest visible stroke — a solid black line with elevated `penwidth` — and SHALL dominate the visual hierarchy; they represent the load-bearing transformations.
 - `SEED` edges SHALL render so they recede to the background: the edge line `color` and the edge `fontcolor` SHALL both be a muted grey, so the line and its label read as secondary information without competing with `REALISED` edges.
-- `MARKER` edges, when rendered directly, MAY use a neutral default style; no dedicated `MARKER` style is required.
 
 The exact colour values are implementation-defined but SHALL be stable across runs.
 
