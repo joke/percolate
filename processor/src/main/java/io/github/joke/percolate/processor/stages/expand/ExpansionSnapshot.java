@@ -6,7 +6,6 @@ import io.github.joke.percolate.processor.graph.Node;
 import java.util.Optional;
 import java.util.stream.Stream;
 import javax.lang.model.element.Element;
-import javax.lang.model.element.ExecutableElement;
 import javax.lang.model.type.TypeMirror;
 import org.jgrapht.Graph;
 import org.jspecify.annotations.Nullable;
@@ -30,12 +29,9 @@ public interface ExpansionSnapshot {
 
     /** The producer-stamped type if present, else the group's recorded expected type, else {@code null}. */
     @Nullable
-    TypeMirror effectiveTypeFor(Node node, ExpansionGroup group);
+    TypeMirror effectiveTypeFor(Node node);
 
     /** The {@link Element} scope that drove {@code node}'s typing, or a source-parameter fallback; may be {@code null}. */
     @Nullable
     Element producerScopeOf(Node node);
-
-    @Nullable
-    ExecutableElement currentMethod();
 }

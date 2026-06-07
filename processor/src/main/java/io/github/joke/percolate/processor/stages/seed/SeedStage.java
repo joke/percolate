@@ -43,8 +43,6 @@ import lombok.Value;
 @RequiredArgsConstructor(onConstructor_ = @Inject)
 public final class SeedStage implements Stage {
 
-    static final String STRATEGY_FQN = "io.github.joke.percolate.processor.stages.seed.SeedStage";
-
     @Override
     public void run(final MapperContext ctx) {
         final var mappings = ctx.getMappings();

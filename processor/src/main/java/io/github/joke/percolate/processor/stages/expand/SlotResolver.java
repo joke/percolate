@@ -33,7 +33,7 @@ final class SlotResolver {
         if (reachable(frontier, group, snapshot)) {
             return true;
         }
-        final var effectiveType = snapshot.effectiveTypeFor(frontier, group);
+        final var effectiveType = snapshot.effectiveTypeFor(frontier);
         if (effectiveType == null) {
             return false;
         }

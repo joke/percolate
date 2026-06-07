@@ -28,10 +28,6 @@ public class AddNode implements Delta {
         this(node, null, null);
     }
 
-    public AddNode(final Node node, final @Nullable Directive inheritedDirective) {
-        this(node, inheritedDirective, null);
-    }
-
     public AddNode(final Node node, final @Nullable Directive inheritedDirective, final @Nullable GroupId joinGroup) {
         this.node = node;
         this.inheritedDirective = inheritedDirective;

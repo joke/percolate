@@ -68,8 +68,8 @@ class ExpansionStateSpec extends Specification {
 
         expect:
         state.typeOf(slot).empty
-        state.effectiveTypeFor(slot, group) == null
-        TypeUniverse.types().isSameType(state.effectiveTypeFor(root, group), TypeUniverse.STRING)
+        state.effectiveTypeFor(slot) == null
+        TypeUniverse.types().isSameType(state.effectiveTypeFor(root), TypeUniverse.STRING)
     }
 
     def 'producerScopeOf reads the scope the applier recorded at typing'() {

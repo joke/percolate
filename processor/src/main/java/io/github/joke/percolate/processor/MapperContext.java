@@ -22,8 +22,4 @@ public final class MapperContext {
     private @Nullable MapperGraph graph;
     private @Nullable CallableMethods callableMethods;
     private @Nullable ExecutableElement currentMethod;
-
-    public boolean isScarred(final Diagnostics diagnostics) {
-        return diagnostics.hasErrorsFor(mapperType);
-    }
 }

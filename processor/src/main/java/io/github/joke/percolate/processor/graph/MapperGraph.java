@@ -1,14 +1,12 @@
 package io.github.joke.percolate.processor.graph;
 
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import lombok.NoArgsConstructor;
-import org.jgrapht.alg.cycle.CycleDetector;
 import org.jgrapht.graph.DirectedMultigraph;
 import org.jgrapht.graph.MaskSubgraph;
 
@@ -85,12 +83,6 @@ public final class MapperGraph implements GraphSource {
         return outcomes.stream();
     }
 
-    public void apply(final GraphDelta delta) {
-        delta.getNodeList().forEach(this::addNode);
-        delta.getEdgeList().forEach(entry -> addEdge(entry.getFrom(), entry.getTo(), entry.getEdge()));
-        delta.getGroups().forEach(this::addGroup);
-    }
-
     @Override
     public Stream<Node> nodes() {
         if (sortedNodesDirty) {
@@ -111,10 +103,6 @@ public final class MapperGraph implements GraphSource {
         return sortedEdges.stream();
     }
 
-    public Stream<Node> nodesByScope(final Scope scope) {
-        return nodes().filter(n -> n.getScope().equals(scope));
-    }
-
     public int nodeCount() {
         return graph.vertexSet().size();
     }
@@ -123,26 +111,13 @@ public final class MapperGraph implements GraphSource {
         return graph.edgeSet().size();
     }
 
-    public RealisedSubgraph realisedSubgraph() {
-        final var mask = new MaskSubgraph<>(graph, v -> false, e -> e.getKind() != EdgeKind.REALISED);
-        return new RealisedSubgraph(mask, this);
-    }
-
     public TransformsView transformsView() {
         final var mask = new MaskSubgraph<>(graph, v -> false, e -> e.getKind() != EdgeKind.REALISED);
-        return new TransformsView(mask, this);
+        return new TransformsView(mask);
     }
 
     public PlanView planView() {
         return PlanView.of(this);
-    }
-
-    public boolean isAcyclic() {
-        return !new CycleDetector<>(graph).detectCycles();
-    }
-
-    Set<Edge> edgeSet() {
-        return Collections.unmodifiableSet(graph.edgeSet());
     }
 
     public DirectedMultigraph<Node, Edge> underlyingGraph() {

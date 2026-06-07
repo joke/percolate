@@ -5,13 +5,12 @@ import io.github.joke.percolate.processor.graph.ExpansionGroup;
 import io.github.joke.percolate.processor.graph.GroupOutcome;
 import io.github.joke.percolate.processor.graph.MapperGraph;
 import io.github.joke.percolate.processor.graph.Node;
-import io.github.joke.percolate.spi.ResolveCtx;
 import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Optional;
 import javax.lang.model.element.Element;
-import javax.lang.model.element.ExecutableElement;
 import javax.lang.model.type.TypeMirror;
+import lombok.RequiredArgsConstructor;
 import org.jgrapht.Graph;
 import org.jgrapht.graph.AsUnmodifiableGraph;
 import org.jspecify.annotations.Nullable;
@@ -22,23 +21,17 @@ import org.jspecify.annotations.Nullable;
  * (with a source-parameter fallback for nodes typed outside this phase). Group views are wrapped in
  * {@code Graphs.unmodifiableGraph} so expanders cannot mutate them.
  */
+@RequiredArgsConstructor
 final class ExpansionStateImpl implements ExpansionState {
 
     private final MapperGraph graph;
     private final Applier applier;
-    private final ResolveCtx resolveCtx;
 
     @SuppressWarnings({"PMD.LooseCoupling", "IdentityHashMapUsage"})
     private final IdentityHashMap<ExpansionGroup, Boolean> satGroups = new IdentityHashMap<>();
 
     @SuppressWarnings({"PMD.LooseCoupling", "IdentityHashMapUsage"})
     private final IdentityHashMap<ExpansionGroup, Node> pendingFailures = new IdentityHashMap<>();
-
-    ExpansionStateImpl(final MapperGraph graph, final Applier applier, final ResolveCtx resolveCtx) {
-        this.graph = graph;
-        this.applier = applier;
-        this.resolveCtx = resolveCtx;
-    }
 
     @Override
     public java.util.stream.Stream<ExpansionGroup> groups() {
@@ -61,7 +54,7 @@ final class ExpansionStateImpl implements ExpansionState {
     }
 
     @Override
-    public @Nullable TypeMirror effectiveTypeFor(final Node node, final ExpansionGroup group) {
+    public @Nullable TypeMirror effectiveTypeFor(final Node node) {
         return node.getType().orElse(null);
     }
 
@@ -71,11 +64,6 @@ final class ExpansionStateImpl implements ExpansionState {
             return applier.producerScope(node);
         }
         return SourceParams.forSlot(node);
-    }
-
-    @Override
-    public @Nullable ExecutableElement currentMethod() {
-        return resolveCtx.currentMethod();
     }
 
     @Override
@@ -89,7 +77,6 @@ final class ExpansionStateImpl implements ExpansionState {
         pendingFailures.put(group, slots.isEmpty() ? group.getRoot() : slots.get(0));
     }
 
-    @Override
     public void recordOutcomes(final boolean converged) {
         graph.groups().forEach(group -> graph.recordGroupOutcome(outcomeFor(group, converged)));
     }

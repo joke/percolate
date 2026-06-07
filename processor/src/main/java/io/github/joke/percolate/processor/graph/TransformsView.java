@@ -11,12 +11,10 @@ import org.jgrapht.graph.MaskSubgraph;
 
 public final class TransformsView implements GraphSource {
     private final MaskSubgraph<Node, Edge> subgraph;
-    private final MapperGraph mapperGraph;
     private final Set<Node> incidentNodes;
 
-    TransformsView(final MaskSubgraph<Node, Edge> subgraph, final MapperGraph delegate) {
+    TransformsView(final MaskSubgraph<Node, Edge> subgraph) {
         this.subgraph = subgraph;
-        this.mapperGraph = delegate;
         final var incident = subgraph.edgeSet().stream()
                 .flatMap(e -> Stream.of(subgraph.getEdgeSource(e), subgraph.getEdgeTarget(e)))
                 .collect(toCollection(HashSet::new));
@@ -45,9 +43,5 @@ public final class TransformsView implements GraphSource {
 
     public Stream<Node> nodesByScope(final Scope scope) {
         return nodes().filter(n -> n.getScope().equals(scope));
-    }
-
-    MapperGraph delegate() {
-        return mapperGraph;
     }
 }

@@ -45,14 +45,6 @@ public final class Diagnostics {
         messager.printMessage(Diagnostic.Kind.WARNING, message, element);
     }
 
-    public void warning(
-            final Element element,
-            final @Nullable AnnotationMirror mirror,
-            final @Nullable AnnotationValue value,
-            final String message) {
-        messager.printMessage(Diagnostic.Kind.WARNING, message, element, mirror, value);
-    }
-
     public boolean hasErrorsFor(final Element element) {
         return scarred.contains(element)
                 || scarredWithEnclosing.values().stream().anyMatch(element::equals);

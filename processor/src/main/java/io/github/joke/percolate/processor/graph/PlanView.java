@@ -13,6 +13,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Stream;
+import lombok.RequiredArgsConstructor;
 import org.jgrapht.Graph;
 import org.jgrapht.alg.shortestpath.DijkstraShortestPath;
 import org.jgrapht.graph.AsWeightedGraph;
@@ -25,26 +26,14 @@ import org.jgrapht.graph.MaskSubgraph;
  * itself is assembled by a target-to-source walk that keeps all slots of AND nodes and the cheapest
  * group at OR nodes.
  */
+@RequiredArgsConstructor
 public final class PlanView implements GraphSource {
 
     /** A node with at most one inbound edge already has a single producer; nothing to resolve. */
     private static final int SINGLE_PRODUCER = 1;
 
     private final MaskSubgraph<Node, Edge> subgraph;
-    private final MapperGraph mapperGraph;
-    private final List<ExpansionGroup> planGroups;
     private final Set<Node> incidentNodes;
-
-    private PlanView(
-            final MaskSubgraph<Node, Edge> subgraph,
-            final MapperGraph mapperGraph,
-            final List<ExpansionGroup> planGroups,
-            final Set<Node> incidentNodes) {
-        this.subgraph = subgraph;
-        this.mapperGraph = mapperGraph;
-        this.planGroups = planGroups;
-        this.incidentNodes = incidentNodes;
-    }
 
     public static PlanView of(final MapperGraph graph) {
         final var underlying = graph.underlyingGraph();
@@ -100,12 +89,9 @@ public final class PlanView implements GraphSource {
         final var incident = planEdges.stream()
                 .flatMap(e -> Stream.of(underlying.getEdgeSource(e), underlying.getEdgeTarget(e)))
                 .collect(toCollection(HashSet::new));
-        final var planGroups = satGroups.stream()
-                .filter(g -> incident.contains(g.getRoot()) && incident.containsAll(g.inputs()))
-                .collect(toUnmodifiableList());
 
         final var mask = new MaskSubgraph<>(underlying, (Node v) -> false, (Edge e) -> !planEdges.contains(e));
-        return new PlanView(mask, graph, planGroups, Collections.unmodifiableSet(incident));
+        return new PlanView(mask, Collections.unmodifiableSet(incident));
     }
 
     private static boolean isBridgeGroup(final ExpansionGroup group) {
@@ -268,17 +254,5 @@ public final class PlanView implements GraphSource {
     @Override
     public Node getEdgeTarget(final Edge edge) {
         return subgraph.getEdgeTarget(edge);
-    }
-
-    public Stream<Node> nodesByScope(final Scope scope) {
-        return nodes().filter(n -> n.getScope().equals(scope));
-    }
-
-    public Stream<ExpansionGroup> groups() {
-        return planGroups.stream();
-    }
-
-    public MapperGraph delegate() {
-        return mapperGraph;
     }
 }

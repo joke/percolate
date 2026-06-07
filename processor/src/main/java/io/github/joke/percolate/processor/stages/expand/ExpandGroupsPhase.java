@@ -29,7 +29,6 @@ public final class ExpandGroupsPhase implements ExpansionPhase {
 
     private final List<GroupExpander> expanders;
     private final Applier applier;
-    private final ResolveCtx resolveCtx;
 
     public static ExpandGroupsPhase create(
             final List<ExpansionStrategy> strategies,
@@ -44,13 +43,13 @@ public final class ExpandGroupsPhase implements ExpansionPhase {
                 new AssemblyExpander(frontierMatcher, slotResolver),
                 new DirectiveBindingExpander(slotResolver, frontierMatcher),
                 new BridgeExpander(slotResolver));
-        return new ExpandGroupsPhase(expanders, applier, resolveCtx);
+        return new ExpandGroupsPhase(expanders, applier);
     }
 
     @Override
     public void apply(final MapperGraph graph) {
         applier.reset();
-        final var state = new ExpansionStateImpl(graph, applier, resolveCtx);
+        final var state = new ExpansionStateImpl(graph, applier);
         state.recordOutcomes(runFixedPoint(state));
     }
 

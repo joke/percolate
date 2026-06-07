@@ -28,14 +28,6 @@ public abstract class SequenceContainer implements ContainerMatch, ContainerCode
         return Optional.empty();
     }
 
-    public ContainerCodegen streamCodegen() {
-        return this;
-    }
-
-    public Optional<LoopContainerCodegen> loopCodegen() {
-        return Optional.empty();
-    }
-
     @Override
     public final Stream<ExpansionStep> bridge(final TypeMirror from, final TypeMirror to, final ResolveCtx ctx) {
         final var steps = Stream.<ExpansionStep>builder();

@@ -88,7 +88,7 @@ final class FrontierMatcher {
             final ExpansionGroup group,
             final ExpansionSnapshot snapshot,
             final List<ExpansionStrategy> strategies) {
-        final var targetType = snapshot.effectiveTypeFor(frontier, group);
+        final var targetType = snapshot.effectiveTypeFor(frontier);
         if (targetType == null) {
             return List.of();
         }

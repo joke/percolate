@@ -35,7 +35,7 @@ final class DirectiveBindingExpander implements GroupExpander {
                 !snapshot.viewOf(group).incomingEdgesOf(root).isEmpty() || slotResolver.hasSatChildAt(root, snapshot);
         if (slotResolved
                 && !rootExpanded
-                && snapshot.effectiveTypeFor(root, group) != null
+                && snapshot.effectiveTypeFor(root) != null
                 && !slotResolver.hasAnyChildAt(root, group, snapshot)) {
             bundles.addAll(frontierMatcher.matchAt(root, group, snapshot));
         }

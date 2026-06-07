@@ -29,14 +29,6 @@ public abstract class WrapperContainer implements ContainerMatch, WrapperCodegen
      */
     protected abstract Optional<TypeMirror> wrapped(TypeMirror element, ResolveCtx ctx);
 
-    public WrapperCodegen streamCodegen() {
-        return this;
-    }
-
-    public Optional<LoopContainerCodegen> loopCodegen() {
-        return Optional.empty();
-    }
-
     /**
      * Unlike a sequence (which iterates an <em>existing</em> source), a wrapper's unwrap is offered for a scalar
      * target by synthesising the wrapper type ({@code Optional<to>}) as its input — so a wrapped source can be

@@ -16,8 +16,5 @@ public interface ExpansionState extends ExpansionSnapshot {
 
     void recordPending(ExpansionGroup group, List<Node> slots);
 
-    /** Records SAT/UNSAT outcomes for every group once the outer fixed-point loop terminates. */
-    void recordOutcomes(boolean converged);
-
     MapperGraph underlying();
 }
