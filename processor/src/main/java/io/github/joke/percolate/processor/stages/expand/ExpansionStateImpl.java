@@ -77,7 +77,7 @@ final class ExpansionStateImpl implements ExpansionState {
         pendingFailures.put(group, slots.isEmpty() ? group.getRoot() : slots.get(0));
     }
 
-    public void recordOutcomes(final boolean converged) {
+    void recordOutcomes(final boolean converged) {
         graph.groups().forEach(group -> graph.recordGroupOutcome(outcomeFor(group, converged)));
     }
 

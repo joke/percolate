@@ -7,7 +7,6 @@ import io.github.joke.percolate.processor.nullability.JspecifyNullabilityResolve
 import io.github.joke.percolate.processor.nullability.NullabilityAnnotations
 import io.github.joke.percolate.processor.test.HarnessScope
 import io.github.joke.percolate.spi.EdgeCodegen
-import io.github.joke.percolate.spi.test.HarnessResolveCtx
 import io.github.joke.percolate.spi.test.TypeUniverse
 import spock.lang.Specification
 import spock.lang.Subject
@@ -23,7 +22,7 @@ class ApplierSpec extends Specification {
     def resolver = new JspecifyNullabilityResolver(NullabilityAnnotations.jspecifyDefaults(), TypeUniverse.elements())
     @Subject
     Applier applier = new Applier(resolver)
-    def state = new ExpansionStateImpl(graph, applier, HarnessResolveCtx.create())
+    def state = new ExpansionStateImpl(graph, applier)
 
     def 'accepted bundle applies every delta and builds the nested group'() {
         given:
@@ -102,7 +101,7 @@ class ApplierSpec extends Specification {
         def synthesized = new Node(Optional.of(TypeUniverse.STRING), new SourceLocation(AccessPath.of('s')), scope)
 
         when:
-        applier.apply(state, [new DeltaBundle('test.Conversion', [new AddNode(synthesized, directive)])])
+        applier.apply(state, [new DeltaBundle('test.Conversion', [new AddNode(synthesized, directive, null)])])
 
         then: 'the node inherits D, so the Frontier later built for it returns D from directive()'
         synthesized.directive.present

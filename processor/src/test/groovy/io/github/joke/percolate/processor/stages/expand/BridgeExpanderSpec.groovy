@@ -44,7 +44,7 @@ class BridgeExpanderSpec extends Specification {
         graph.addNode(root)
         graph.addNode(slot)
         def group = TestGroups.of(root, [slot], 'test.G', [].toSet(), graph)
-        def state = new ExpansionStateImpl(graph, new Applier(nullResolver()), ctx)
+        def state = new ExpansionStateImpl(graph, new Applier(nullResolver()))
 
         when:
         def result = expander.step(group, state)
@@ -62,7 +62,7 @@ class BridgeExpanderSpec extends Specification {
         graph.addNode(root)
         graph.addNode(slot)
         def group = TestGroups.of(root, [slot], 'test.G', [].toSet(), graph)
-        def state = new ExpansionStateImpl(graph, new Applier(nullResolver()), ctx)
+        def state = new ExpansionStateImpl(graph, new Applier(nullResolver()))
 
         when:
         def result = expander.step(group, state)
@@ -80,7 +80,7 @@ class BridgeExpanderSpec extends Specification {
         graph.addNode(candidate)
         graph.addNode(slot)
         def group = TestGroups.of(candidate, [slot], 'test.G', [].toSet(), graph)
-        def state = new ExpansionStateImpl(graph, new Applier(nullResolver()), ctx)
+        def state = new ExpansionStateImpl(graph, new Applier(nullResolver()))
 
         when:
         def result = expander.step(group, state)

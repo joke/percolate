@@ -7,12 +7,17 @@ public class TargetLocation implements Location {
     TargetPath path;
 
     @Override
-    public String encode() {
+    public String segment() {
         return "tgt[" + path + "]";
     }
 
     @Override
-    public String segment() {
-        return "tgt[" + path + "]";
+    public String slotName() {
+        return path.lastSegment();
+    }
+
+    @Override
+    public boolean isReturnRoot() {
+        return path.getSegments().isEmpty();
     }
 }

@@ -38,8 +38,7 @@ class AssemblyDataDependencySpec extends Specification {
     def ctx = HarnessResolveCtx.create()
     def state = new ExpansionStateImpl(
             graph,
-            new Applier(new JspecifyNullabilityResolver(NullabilityAnnotations.jspecifyDefaults(), TypeUniverse.elements())),
-            ctx)
+            new Applier(new JspecifyNullabilityResolver(NullabilityAnnotations.jspecifyDefaults(), TypeUniverse.elements())))
 
     def 'an assembly BOUNDARY binds its slots by name to the pre-seeded target leaves, allocating no fresh inputs'() {
         given: 'a pre-seeded assembly group: a tgt[] root over its child target leaves name/age'

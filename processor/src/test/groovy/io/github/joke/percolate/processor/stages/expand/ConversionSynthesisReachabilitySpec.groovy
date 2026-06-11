@@ -26,7 +26,7 @@ class ConversionSynthesisReachabilitySpec extends Specification {
     def scope = new HarnessScope('m()')
     def ctx = HarnessResolveCtx.create()
     def applier = new Applier(new JspecifyNullabilityResolver(NullabilityAnnotations.jspecifyDefaults(), TypeUniverse.elements()))
-    def state = new ExpansionStateImpl(graph, applier, ctx)
+    def state = new ExpansionStateImpl(graph, applier)
     def slotResolver = new SlotResolver(new FrontierMatcher([], new InputAllocator(ctx), ctx))
 
     def 'reachability requires a complete realised path to a base case (no first-edge premature SAT)'() {

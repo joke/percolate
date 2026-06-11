@@ -15,12 +15,12 @@ public class ElementLocation implements Location {
     }
 
     @Override
-    public String encode() {
+    public String segment() {
         return "elem(" + role + ")";
     }
 
     @Override
-    public String segment() {
-        return "elem(" + role + ")";
+    public String slotName() {
+        return role;
     }
 }

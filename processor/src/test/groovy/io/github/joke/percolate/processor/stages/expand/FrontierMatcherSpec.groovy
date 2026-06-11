@@ -37,8 +37,7 @@ class FrontierMatcherSpec extends Specification {
     def ctx = HarnessResolveCtx.create()
     def state = new ExpansionStateImpl(
             graph,
-            new Applier(new JspecifyNullabilityResolver(NullabilityAnnotations.jspecifyDefaults(), TypeUniverse.elements())),
-            ctx)
+            new Applier(new JspecifyNullabilityResolver(NullabilityAnnotations.jspecifyDefaults(), TypeUniverse.elements())))
 
     def 'a CONVERSION step folds an edge from an in-view candidate into the current group — no node, no sub-group'() {
         given:

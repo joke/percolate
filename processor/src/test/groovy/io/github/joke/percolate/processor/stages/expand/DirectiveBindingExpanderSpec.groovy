@@ -38,7 +38,7 @@ class DirectiveBindingExpanderSpec extends Specification {
     def scope = new HarnessScope('m()')
     def ctx = HarnessResolveCtx.create()
     def resolver = new JspecifyNullabilityResolver(NullabilityAnnotations.jspecifyDefaults(), TypeUniverse.elements())
-    def state = new ExpansionStateImpl(graph, new Applier(resolver), ctx)
+    def state = new ExpansionStateImpl(graph, new Applier(resolver))
     def frontierMatcher = new FrontierMatcher([sameTypeAssign()], new InputAllocator(ctx), ctx)
     def slotResolver = new SlotResolver(frontierMatcher)
     @Subject

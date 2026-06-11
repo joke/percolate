@@ -1,5 +1,8 @@
 package io.github.joke.percolate.processor.stages.expand;
 
+import static java.util.stream.Collectors.toUnmodifiableList;
+import static java.util.stream.Collectors.toUnmodifiableSet;
+
 import io.github.joke.percolate.processor.graph.Edge;
 import io.github.joke.percolate.processor.graph.ElementLocation;
 import io.github.joke.percolate.processor.graph.ExpansionGroup;
@@ -24,9 +27,11 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 import javax.lang.model.AnnotatedConstruct;
 import javax.lang.model.element.Element;
 import javax.lang.model.type.TypeMirror;
+import lombok.RequiredArgsConstructor;
 import org.jspecify.annotations.Nullable;
 
 /**
@@ -45,7 +50,6 @@ import org.jspecify.annotations.Nullable;
  * matching. Each accepted step becomes one atomic {@link DeltaBundle}; multi-fire siblings are pruned later by the
  * cost oracle, cycle-rejected siblings by the {@link Applier}.
  */
-@SuppressWarnings("PMD.GodClass")
 final class FrontierMatcher {
 
     private final List<ExpansionStrategy> allStrategies;
@@ -60,7 +64,7 @@ final class FrontierMatcher {
         this.allStrategies = strategies;
         this.generalStrategies = strategies.stream()
                 .filter(strategy -> !(strategy instanceof AssemblyStrategy))
-                .collect(Collectors.toUnmodifiableList());
+                .collect(toUnmodifiableList());
         this.inputAllocator = inputAllocator;
         this.resolveCtx = resolveCtx;
     }
@@ -88,49 +92,15 @@ final class FrontierMatcher {
             final ExpansionGroup group,
             final ExpansionSnapshot snapshot,
             final List<ExpansionStrategy> strategies) {
-        final var targetType = snapshot.effectiveTypeFor(frontier);
-        if (targetType == null) {
-            return List.of();
-        }
-        final var ctx =
-                new FrontierContext(targetType, frontier.getDirective(), candidatesOf(frontier, group, snapshot));
-        final var bundles = new ArrayList<DeltaBundle>();
-        final var seen = new HashSet<String>();
-        final var declaredNames = declaredChildNames(group);
-        final var claimedNames = new HashSet<String>();
-        for (final var strategy : strategies) {
-            final var fqn = strategy.getClass().getName();
-            final var assembly = strategy instanceof AssemblyStrategy;
-            strategy.expand(ctx, resolveCtx)
-                    .filter(step -> accepts(step, targetType, frontier, assembly, declaredNames, seen, fqn))
-                    .forEach(step -> toBundle(frontier, step, group, snapshot, fqn, assembly, claimedNames)
-                            .ifPresent(bundles::add));
-        }
-        return bundles;
-    }
-
-    /**
-     * Whether an emitted step survives the round's guards: it produces the frontier's type, its element-scope fits
-     * the frontier, an assembly step's parameter names equal the declared children, and it is not a structural
-     * duplicate already seen this round. Ordered so {@code seen} is only marked for an otherwise-acceptable step.
-     */
-    private boolean accepts(
-            final ExpansionStep step,
-            final TypeMirror targetType,
-            final Node frontier,
-            final boolean assembly,
-            final Set<String> declaredNames,
-            final Set<String> seen,
-            final String fqn) {
-        return resolveCtx.types().isSameType(step.getOutput(), targetType)
-                && scopeMatches(step.getScope(), frontier)
-                && (!assembly || assemblyParamsMatchDeclared(step, declaredNames))
-                && seen.add(stepSignature(fqn, step));
+        return Optional.ofNullable(snapshot.effectiveTypeFor(frontier))
+                .map(targetType ->
+                        new Round(frontier, group, snapshot, targetType, declaredChildNames(group)).produce(strategies))
+                .orElseGet(List::of);
     }
 
     /** The declared-child names of an assembly umbrella group: the target-field names a constructor must match. */
-    private Set<String> declaredChildNames(final ExpansionGroup group) {
-        return group.inputs().stream().map(FrontierMatcher::slotName).collect(Collectors.toUnmodifiableSet());
+    private static Set<String> declaredChildNames(final ExpansionGroup group) {
+        return group.inputs().stream().map(slot -> slot.getLoc().slotName()).collect(toUnmodifiableSet());
     }
 
     /**
@@ -140,7 +110,7 @@ final class FrontierMatcher {
      * it and never opens a sub-group.
      */
     private static boolean assemblyParamsMatchDeclared(final ExpansionStep step, final Set<String> declaredNames) {
-        final var paramNames = step.getInputs().stream().map(Slot::getName).collect(Collectors.toUnmodifiableSet());
+        final var paramNames = step.getInputs().stream().map(Slot::getName).collect(toUnmodifiableSet());
         return paramNames.equals(declaredNames);
     }
 
@@ -153,26 +123,23 @@ final class FrontierMatcher {
      * and whose output genuinely differs from it (excluding identity folds from non-descent strategies).
      */
     List<DeltaBundle> descend(final ExpansionGroup group, final ExpansionSnapshot snapshot) {
-        final var root = group.getRoot();
         final var slot = group.inputs().get(0);
-        final var parentType = snapshot.typeOf(slot).orElse(null);
-        if (parentType == null) {
-            return List.of();
-        }
+        return snapshot.typeOf(slot)
+                .map(parentType -> descentBundles(group, slot, parentType))
+                .orElseGet(List::of);
+    }
+
+    private List<DeltaBundle> descentBundles(final ExpansionGroup group, final Node slot, final TypeMirror parentType) {
         final var ctx = new FrontierContext(
                 parentType,
                 Optional.of(new SegmentDirective(appendedSegment(group))),
                 List.of(new Candidate(parentType)));
-        final var bundles = new ArrayList<DeltaBundle>();
-        for (final var strategy : generalStrategies) {
-            final var fqn = strategy.getClass().getName();
-            strategy.expand(ctx, resolveCtx).forEach(step -> {
-                if (isDescentStep(step, parentType)) {
-                    bundles.add(descentBundle(root, slot, step, fqn));
-                }
-            });
-        }
-        return bundles;
+        return generalStrategies.stream()
+                .flatMap(strategy -> strategy.expand(ctx, resolveCtx)
+                        .filter(step -> isDescentStep(step, parentType))
+                        .map(step -> descentBundle(
+                                group.getRoot(), slot, step, strategy.getClass().getName())))
+                .collect(toUnmodifiableList());
     }
 
     /**
@@ -204,256 +171,28 @@ final class FrontierMatcher {
     }
 
     private DeltaBundle descentBundle(final Node root, final Node slot, final ExpansionStep step, final String fqn) {
-        final var codegen = (EdgeCodegen) step.getCodegen();
-        final var edge =
-                Edge.realised(step.getWeight(), codegen, fqn, step.getInputs().get(0));
-        final var deltas = new ArrayList<Delta>();
-        deltas.add(new AddEdge(slot, root, edge));
-        deltas.add(new TypeNode(root, step.getOutput(), descentScope(step)));
-        deltas.add(new AddGroup(root, List.of(slot), List.of(), false));
-        return new DeltaBundle(fqn, deltas);
+        final var input = step.getInputs().get(0);
+        final var edge = Edge.realised(step.getWeight(), (EdgeCodegen) step.getCodegen(), fqn, input);
+        return new DeltaBundle(
+                fqn,
+                List.of(
+                        new AddEdge(slot, root, edge),
+                        new TypeNode(root, step.getOutput(), producedElement(input)),
+                        new AddGroup(root, List.of(slot), List.of(), false)));
     }
 
+    /** The {@link Element} a slot's value is produced from, when its {@code producedFrom} is one. */
     @Nullable
-    private static Element descentScope(final ExpansionStep step) {
-        final AnnotatedConstruct produced = step.getInputs().get(0).getProducedFrom();
-        return produced instanceof Element ? (Element) produced : null;
-    }
-
-    private static String appendedSegment(final ExpansionGroup group) {
-        final var rootSegs =
-                ((SourceLocation) group.getRoot().getLoc()).getPath().getSegments();
-        return rootSegs.get(rootSegs.size() - 1);
-    }
-
-    private List<Candidate> candidatesOf(
-            final Node frontier, final ExpansionGroup group, final ExpansionSnapshot snapshot) {
-        return snapshot.viewOf(group).vertexSet().stream()
-                .filter(node -> !node.equals(frontier))
-                .filter(node -> !(node.getLoc() instanceof TargetLocation))
-                .filter(node -> node.getType().isPresent())
-                .sorted(Comparator.comparing(Node::id))
-                .map(node -> new Candidate(node.getType().orElseThrow()))
-                .collect(Collectors.toUnmodifiableList());
-    }
-
-    private Optional<DeltaBundle> toBundle(
-            final Node frontier,
-            final ExpansionStep step,
-            final ExpansionGroup group,
-            final ExpansionSnapshot snapshot,
-            final String fqn,
-            final boolean assembly,
-            final Set<String> claimedNames) {
-        switch (step.getIntent()) {
-            case CONVERSION:
-                return convertBundle(frontier, step, group, snapshot, fqn);
-            case BOUNDARY:
-                return Optional.of(boundaryBundle(frontier, step, group, snapshot, fqn, assembly, claimedNames));
-        }
-        throw new IllegalStateException("Unknown intent: " + step.getIntent());
-    }
-
-    /**
-     * Folds a CONVERSION edge into {@code group}, re-using an in-view node of the input type when one exists
-     * (type-dedup) or synthesizing a fresh type-keyed conversion intermediate when none does. The fold edge's
-     * endpoints are both tagged into the group (the reused node already is; a synthesized one is tagged as it is
-     * added), so the group's derived view shows the edge without any explicit view mutation, and a later pass
-     * expands the synthesized intermediate's own producers (design E1/E2). A synthesized intermediate never
-     * pollutes the group's demand {@code inputs()}: a seed group derives inputs from its SEED edges, and a
-     * sub-group from its slot edges into the root — neither is the synthesized node's REALISED fold edge. A
-     * round-trip that re-derives a type already on the chain reuses its node and closes a cycle the
-     * {@link Applier} rejects.
-     */
-    private Optional<DeltaBundle> convertBundle(
-            final Node frontier,
-            final ExpansionStep step,
-            final ExpansionGroup group,
-            final ExpansionSnapshot snapshot,
-            final String fqn) {
-        final var inputType = step.getInputs().get(0).getType();
-        final var deltas = new ArrayList<Delta>();
-        final var input = reuseOrSynthesizeInput(inputType, frontier, group, snapshot, deltas);
-        final var codegen = (EdgeCodegen) step.getCodegen();
-        final var edge =
-                Edge.realised(step.getWeight(), codegen, fqn, step.getInputs().get(0));
-        deltas.add(new AddEdge(input, frontier, edge));
-        if (snapshot.typeOf(frontier).isEmpty()) {
-            deltas.add(new TypeNode(frontier, step.getOutput(), snapshot.producerScopeOf(input)));
-        }
-        return Optional.of(new DeltaBundle(fqn, deltas));
-    }
-
-    /** Reuses the in-view node of {@code inputType}, or synthesizes one tagged into the group's view. */
-    private Node reuseOrSynthesizeInput(
-            final TypeMirror inputType,
-            final Node frontier,
-            final ExpansionGroup group,
-            final ExpansionSnapshot snapshot,
-            final List<Delta> deltas) {
-        final var existing = findInViewByType(inputType, frontier, group, snapshot);
-        if (existing != null) {
-            return existing;
-        }
-        final var synthesized =
-                new Node(Optional.of(inputType), frontier.getLoc(), frontier.getScope(), frontier.getParent());
-        deltas.add(new AddNode(synthesized, frontier.getDirective().orElse(null), group.getId()));
-        return synthesized;
-    }
-
-    /** Opens a new sub-group rooted at {@code frontier} with the step's slots; each slot edge carries its Slot. */
-    DeltaBundle boundaryBundle(
-            final Node frontier,
-            final ExpansionStep step,
-            final ExpansionGroup group,
-            final ExpansionSnapshot snapshot,
-            final String fqn,
-            final boolean assembly,
-            final Set<String> claimedNames) {
-        final var codegen = step.getCodegen();
-        final var deltas = new ArrayList<Delta>();
-        final var slotNodes = new ArrayList<Node>(step.getInputs().size());
-        for (final var spiSlot : step.getInputs()) {
-            final var node = assembly
-                    ? bindAssemblySlot(spiSlot, group, snapshot, claimedNames, deltas)
-                    : bindSlot(spiSlot, frontier, group, step.getScope(), snapshot, deltas);
-            slotNodes.add(node);
-            // Type a reused-but-untyped slot node with its declared type (replacing pinExpectedTypesOnProducers):
-            // a pre-seeded target leaf bound by an assembly / by-name reuse learns the type its directive-binding
-            // group must produce toward (effectiveTypeFor now reads node.getType()). Fresh nodes are already typed.
-            if (snapshot.typeOf(node).isEmpty()) {
-                deltas.add(new TypeNode(node, spiSlot.getType(), slotScope(spiSlot)));
-            }
-            deltas.add(new AddEdge(
-                    node, frontier, realisedEdge(step.getWeight(), codegen, step.getScope(), fqn, spiSlot)));
-        }
-        if (snapshot.typeOf(frontier).isEmpty()) {
-            deltas.add(new TypeNode(frontier, step.getOutput(), producerScopeFor(slotNodes, snapshot)));
-        }
-        deltas.add(new AddGroup(frontier, slotNodes, boundaryImports(frontier, slotNodes, group, snapshot), false));
-        return new DeltaBundle(fqn, deltas);
-    }
-
-    @Nullable
-    private static Element slotScope(final Slot slot) {
+    private static Element producedElement(final Slot slot) {
         final AnnotatedConstruct produced = slot.getProducedFrom();
         return produced instanceof Element ? (Element) produced : null;
     }
 
-    /**
-     * Binds a boundary slot to a graph node: when producing the group's own root, an existing child slot of the
-     * same name (an assembly target leaf) is reused; otherwise a fresh input is allocated by {@link InputAllocator}.
-     */
-    private Node bindSlot(
-            final Slot spiSlot,
-            final Node frontier,
-            final ExpansionGroup group,
-            final Optional<ElementScope> scope,
-            final ExpansionSnapshot snapshot,
-            final List<Delta> deltas) {
-        if (frontier.equals(group.getRoot())) {
-            final var existing = existingSlotByName(group, spiSlot.getName());
-            if (existing != null) {
-                return existing;
-            }
-        }
-        final var allocation = inputAllocator.allocate(spiSlot.getType(), scope, frontier, group, snapshot);
-        if (allocation.getAddNode() != null) {
-            deltas.add(allocation.getAddNode());
-        }
-        return allocation.getNode();
+    private static String appendedSegment(final ExpansionGroup group) {
+        return group.getRoot().getLoc().slotName();
     }
 
-    @Nullable
-    private Node existingSlotByName(final ExpansionGroup group, final String name) {
-        return group.inputs().stream()
-                .filter(slot -> name.equals(slotName(slot)))
-                .findFirst()
-                .orElse(null);
-    }
-
-    /**
-     * Binds an assembly (constructor) parameter to a per-{@code (name, required-type)} typed leaf. The first
-     * constructor to demand a declared child claims the pre-seeded leaf for its type; a later constructor that
-     * disagrees on the type (a type-divergent overload) gets its own freshly minted leaf, fed from the very same
-     * shared source value by its own directive-binding group. The leaf is never sourced from anything but a
-     * directive-declared child — there is no {@link InputAllocator} fall-through here — so an un-declared parameter
-     * can never be auto-sourced (the name-set-equality gate in {@code produce} already rejected such constructors).
-     */
-    private Node bindAssemblySlot(
-            final Slot spiSlot,
-            final ExpansionGroup group,
-            final ExpansionSnapshot snapshot,
-            final Set<String> claimedNames,
-            final List<Delta> deltas) {
-        final var name = spiSlot.getName();
-        final var seeded = existingSlotByName(group, name);
-        if (seeded == null) {
-            throw new IllegalStateException("assembly parameter has no declared child of the same name: " + name);
-        }
-        // The first constructor to demand a declared child claims the pre-seeded leaf; every later (OR-sibling)
-        // constructor mints its OWN private leaf for the child, even when the type agrees. Sibling constructor
-        // groups must keep disjoint slots: PlanView resolves the OR by dropping the losing group's slot edges, and
-        // a shared leaf would yield a structurally-equal (value-equal) edge in both groups — dropping the loser's
-        // copy would take the winner's with it.
-        if (claimedNames.add(name)) {
-            return seeded;
-        }
-        final var source = directiveSourceFor(seeded, snapshot);
-        if (source == null) {
-            return seeded;
-        }
-        return mintTypedLeaf(seeded, source, deltas);
-    }
-
-    /** The shared source value feeding {@code leaf}, read from the directive-binding seed group rooted at it. */
-    @Nullable
-    private Node directiveSourceFor(final Node leaf, final ExpansionSnapshot snapshot) {
-        return snapshot.groups()
-                .filter(GroupShapes::isDirectiveBinding)
-                .filter(candidate -> candidate.getRoot().equals(leaf))
-                .map(candidate -> candidate.inputs().get(0))
-                .findFirst()
-                .orElse(null);
-    }
-
-    /**
-     * Mints a fresh typed leaf at the seeded leaf's location and registers a directive-binding group feeding it from
-     * the shared {@code source} (reusing the one source node — never a duplicate). The leaf is left untyped: its
-     * directive-binding group pins the declared type via {@code Applier.pinExpectedTypesOnProducers} and produces it
-     * (identity direct-assign for an exact match, a widen/box chain for a divergence).
-     */
-    private Node mintTypedLeaf(final Node seeded, final Node source, final List<Delta> deltas) {
-        final var fresh = new Node(Optional.empty(), seeded.getLoc(), seeded.getScope(), seeded.getParent());
-        deltas.add(new AddNode(fresh));
-        // A SEED bridging edge from the shared source to the fresh leaf, mirroring the seed stage: the minted
-        // directive-binding group derives its single input from this edge (a seed group reads its SEED scaffolding
-        // edges), and the per-type divergent leaf stays disjoint from the seeded one (design D3 / D7).
-        deltas.add(new AddEdge(source, fresh, Edge.seed(Optional.empty())));
-        deltas.add(new AddGroup(fresh, List.of(source), List.of(), true));
-        return fresh;
-    }
-
-    /**
-     * Conversion-input dedup: the in-view node of {@code inputType}, excluding only the frontier itself. Unlike
-     * the boundary {@code InputAllocator} search this does NOT exclude {@link TargetLocation} — re-deriving a type
-     * already on the chain (incl. the target root) must reuse that node so a round-trip closes a cycle the
-     * {@link Applier} rejects, rather than synthesizing fresh nodes forever (design E1).
-     */
-    @Nullable
-    private Node findInViewByType(
-            final TypeMirror inputType,
-            final Node frontier,
-            final ExpansionGroup group,
-            final ExpansionSnapshot snapshot) {
-        return snapshot.viewOf(group).vertexSet().stream()
-                .filter(node -> !node.equals(frontier))
-                .filter(node -> node.getType().isPresent())
-                .filter(node -> resolveCtx.types().isSameType(node.getType().get(), inputType))
-                .min(Comparator.comparing(Node::id))
-                .orElse(null);
-    }
-
+    /** Mints a realised edge, attaching the container {@link ElementScope} when the step carries one. */
     private static Edge realisedEdge(
             final int weight,
             final Codegen codegen,
@@ -484,30 +223,233 @@ final class FrontierMatcher {
                 .orElse(null);
     }
 
-    private List<Node> boundaryImports(
-            final Node frontier,
-            final List<Node> slotNodes,
-            final ExpansionGroup group,
-            final ExpansionSnapshot snapshot) {
-        return snapshot.viewOf(group).vertexSet().stream()
-                .filter(node -> node.getLoc() instanceof SourceLocation)
-                .filter(node -> !node.equals(frontier) && !slotNodes.contains(node))
-                .sorted(Comparator.comparing(Node::id))
-                .collect(Collectors.toUnmodifiableList());
+    /**
+     * Mints a fresh typed leaf at the seeded leaf's location and registers a directive-binding group feeding it from
+     * the shared {@code source} (reusing the one source node — never a duplicate). The leaf is left untyped: its
+     * directive-binding group pins the declared type via {@code Applier.pinExpectedTypesOnProducers} and produces it
+     * (identity direct-assign for an exact match, a widen/box chain for a divergence).
+     */
+    private static Node mintTypedLeaf(final Node seeded, final Node source, final List<Delta> deltas) {
+        final var fresh = new Node(Optional.empty(), seeded.getLoc(), seeded.getScope(), seeded.getParent());
+        deltas.add(new AddNode(fresh));
+        // A SEED bridging edge from the shared source to the fresh leaf, mirroring the seed stage: the minted
+        // directive-binding group derives its single input from this edge (a seed group reads its SEED scaffolding
+        // edges), and the per-type divergent leaf stays disjoint from the seeded one (design D3 / D7).
+        deltas.add(new AddEdge(source, fresh, Edge.seed(Optional.empty())));
+        deltas.add(new AddGroup(fresh, List.of(source), List.of(), true));
+        return fresh;
     }
 
-    private static String slotName(final Node slot) {
-        if (slot.getLoc() instanceof TargetLocation) {
-            final var segments = ((TargetLocation) slot.getLoc()).getPath().getSegments();
-            return segments.isEmpty() ? "" : segments.get(segments.size() - 1);
+    /**
+     * One production round at a single frontier: holds the per-round state (the frontier, its group and snapshot,
+     * the demanded type, the declared-child names, and the round's dedup / claim sets) so each step decision reads
+     * it without parameter threading.
+     */
+    @RequiredArgsConstructor
+    private final class Round {
+
+        private final Node frontier;
+        private final ExpansionGroup group;
+        private final ExpansionSnapshot snapshot;
+        private final TypeMirror targetType;
+        private final Set<String> declaredNames;
+        private final Set<String> seen = new HashSet<>();
+        private final Set<String> claimedNames = new HashSet<>();
+
+        List<DeltaBundle> produce(final List<ExpansionStrategy> strategies) {
+            final var ctx = new FrontierContext(targetType, frontier.getDirective(), candidates());
+            return strategies.stream()
+                    .flatMap(strategy -> bundlesFrom(strategy, ctx))
+                    .collect(toUnmodifiableList());
         }
-        if (slot.getLoc() instanceof SourceLocation) {
-            final var segments = ((SourceLocation) slot.getLoc()).getPath().getSegments();
-            return segments.isEmpty() ? "" : segments.get(segments.size() - 1);
+
+        private Stream<DeltaBundle> bundlesFrom(final ExpansionStrategy strategy, final FrontierContext ctx) {
+            final var fqn = strategy.getClass().getName();
+            final var assembly = strategy instanceof AssemblyStrategy;
+            return strategy.expand(ctx, resolveCtx)
+                    .filter(step -> accepts(step, assembly, fqn))
+                    .map(step -> toBundle(step, fqn, assembly));
         }
-        if (slot.getLoc() instanceof ElementLocation) {
-            return ((ElementLocation) slot.getLoc()).getRole();
+
+        /**
+         * Whether an emitted step survives the round's guards: it produces the frontier's type, its element-scope
+         * fits the frontier, an assembly step's parameter names equal the declared children, and it is not a
+         * structural duplicate already seen this round. Ordered so {@code seen} is only marked for an
+         * otherwise-acceptable step.
+         */
+        private boolean accepts(final ExpansionStep step, final boolean assembly, final String fqn) {
+            return resolveCtx.types().isSameType(step.getOutput(), targetType)
+                    && scopeMatches(step.getScope(), frontier)
+                    && (!assembly || assemblyParamsMatchDeclared(step, declaredNames))
+                    && seen.add(stepSignature(fqn, step));
         }
-        return "";
+
+        private List<Candidate> candidates() {
+            return snapshot.viewOf(group).vertexSet().stream()
+                    .filter(node -> !node.equals(frontier))
+                    .filter(node -> !(node.getLoc() instanceof TargetLocation))
+                    .filter(node -> node.getType().isPresent())
+                    .sorted(Comparator.comparing(Node::id))
+                    .map(node -> new Candidate(node.getType().orElseThrow()))
+                    .collect(toUnmodifiableList());
+        }
+
+        private DeltaBundle toBundle(final ExpansionStep step, final String fqn, final boolean assembly) {
+            switch (step.getIntent()) {
+                case CONVERSION:
+                    return convertBundle(step, fqn);
+                case BOUNDARY:
+                    return boundaryBundle(step, fqn, assembly);
+            }
+            throw new IllegalStateException("Unknown intent: " + step.getIntent());
+        }
+
+        /**
+         * Folds a CONVERSION edge into {@code group}, re-using an in-view node of the input type when one exists
+         * (type-dedup) or synthesizing a fresh type-keyed conversion intermediate when none does. The fold edge's
+         * endpoints are both tagged into the group (the reused node already is; a synthesized one is tagged as it is
+         * added), so the group's derived view shows the edge without any explicit view mutation, and a later pass
+         * expands the synthesized intermediate's own producers (design E1/E2). A synthesized intermediate never
+         * pollutes the group's demand {@code inputs()}: a seed group derives inputs from its SEED edges, and a
+         * sub-group from its slot edges into the root — neither is the synthesized node's REALISED fold edge. A
+         * round-trip that re-derives a type already on the chain reuses its node and closes a cycle the
+         * {@link Applier} rejects.
+         */
+        private DeltaBundle convertBundle(final ExpansionStep step, final String fqn) {
+            final var consumerSlot = step.getInputs().get(0);
+            final var deltas = new ArrayList<Delta>();
+            final var input = findInViewByType(consumerSlot.getType())
+                    .orElseGet(() -> synthesizeInput(consumerSlot.getType(), deltas));
+            deltas.add(new AddEdge(
+                    input,
+                    frontier,
+                    Edge.realised(step.getWeight(), (EdgeCodegen) step.getCodegen(), fqn, consumerSlot)));
+            if (snapshot.typeOf(frontier).isEmpty()) {
+                deltas.add(new TypeNode(frontier, step.getOutput(), snapshot.producerScopeOf(input)));
+            }
+            return new DeltaBundle(fqn, deltas);
+        }
+
+        /** Synthesizes a fresh conversion intermediate at the frontier's location, tagged into the group's view. */
+        private Node synthesizeInput(final TypeMirror inputType, final List<Delta> deltas) {
+            final var synthesized =
+                    new Node(Optional.of(inputType), frontier.getLoc(), frontier.getScope(), frontier.getParent());
+            deltas.add(new AddNode(synthesized, frontier.getDirective().orElse(null), group.getId()));
+            return synthesized;
+        }
+
+        /**
+         * Conversion-input dedup: the in-view node of {@code inputType}, excluding only the frontier itself. Unlike
+         * the boundary {@code InputAllocator} search this does NOT exclude {@link TargetLocation} — re-deriving a
+         * type already on the chain (incl. the target root) must reuse that node so a round-trip closes a cycle the
+         * {@link Applier} rejects, rather than synthesizing fresh nodes forever (design E1).
+         */
+        private Optional<Node> findInViewByType(final TypeMirror inputType) {
+            return snapshot.viewOf(group).vertexSet().stream()
+                    .filter(node -> !node.equals(frontier))
+                    .filter(node -> node.getType().isPresent())
+                    .filter(node -> resolveCtx.types().isSameType(node.getType().orElseThrow(), inputType))
+                    .min(Comparator.comparing(Node::id));
+        }
+
+        /** Opens a new sub-group rooted at the frontier with the step's slots; each slot edge carries its Slot. */
+        private DeltaBundle boundaryBundle(final ExpansionStep step, final String fqn, final boolean assembly) {
+            final var deltas = new ArrayList<Delta>();
+            final var slotNodes = step.getInputs().stream()
+                    .map(spiSlot -> bindAndWireSlot(step, spiSlot, fqn, assembly, deltas))
+                    .collect(toUnmodifiableList());
+            if (snapshot.typeOf(frontier).isEmpty()) {
+                deltas.add(new TypeNode(frontier, step.getOutput(), producerScopeFor(slotNodes, snapshot)));
+            }
+            deltas.add(new AddGroup(frontier, slotNodes, boundaryImports(slotNodes), false));
+            return new DeltaBundle(fqn, deltas);
+        }
+
+        private Node bindAndWireSlot(
+                final ExpansionStep step,
+                final Slot spiSlot,
+                final String fqn,
+                final boolean assembly,
+                final List<Delta> deltas) {
+            final var node = assembly ? bindAssemblySlot(spiSlot, deltas) : bindSlot(spiSlot, step.getScope(), deltas);
+            // Type a reused-but-untyped slot node with its declared type (replacing pinExpectedTypesOnProducers):
+            // a pre-seeded target leaf bound by an assembly / by-name reuse learns the type its directive-binding
+            // group must produce toward (effectiveTypeFor now reads node.getType()). Fresh nodes are already typed.
+            if (snapshot.typeOf(node).isEmpty()) {
+                deltas.add(new TypeNode(node, spiSlot.getType(), producedElement(spiSlot)));
+            }
+            deltas.add(new AddEdge(
+                    node, frontier, realisedEdge(step.getWeight(), step.getCodegen(), step.getScope(), fqn, spiSlot)));
+            return node;
+        }
+
+        /**
+         * Binds a boundary slot to a graph node: when producing the group's own root, an existing child slot of the
+         * same name (an assembly target leaf) is reused; otherwise a fresh input is allocated by
+         * {@link InputAllocator}.
+         */
+        private Node bindSlot(final Slot spiSlot, final Optional<ElementScope> scope, final List<Delta> deltas) {
+            return reusableRootSlot(spiSlot.getName()).orElseGet(() -> allocateSlot(spiSlot, scope, deltas));
+        }
+
+        private Optional<Node> reusableRootSlot(final String name) {
+            return frontier.equals(group.getRoot()) ? existingSlotByName(name) : Optional.empty();
+        }
+
+        private Node allocateSlot(final Slot spiSlot, final Optional<ElementScope> scope, final List<Delta> deltas) {
+            final var allocation = inputAllocator.allocate(spiSlot.getType(), scope, frontier, group, snapshot);
+            Optional.ofNullable(allocation.getAddNode()).ifPresent(deltas::add);
+            return allocation.getNode();
+        }
+
+        private Optional<Node> existingSlotByName(final String name) {
+            return group.inputs().stream()
+                    .filter(slot -> name.equals(slot.getLoc().slotName()))
+                    .findFirst();
+        }
+
+        /**
+         * Binds an assembly (constructor) parameter to a per-{@code (name, required-type)} typed leaf. The first
+         * constructor to demand a declared child claims the pre-seeded leaf for its type; a later constructor that
+         * disagrees on the type (a type-divergent overload) gets its own freshly minted leaf, fed from the very same
+         * shared source value by its own directive-binding group. The leaf is never sourced from anything but a
+         * directive-declared child — there is no {@link InputAllocator} fall-through here — so an un-declared
+         * parameter can never be auto-sourced (the name-set-equality gate in {@code produce} already rejected such
+         * constructors).
+         */
+        private Node bindAssemblySlot(final Slot spiSlot, final List<Delta> deltas) {
+            final var name = spiSlot.getName();
+            final var seeded = existingSlotByName(name)
+                    .orElseThrow(() -> new IllegalStateException(
+                            "assembly parameter has no declared child of the same name: " + name));
+            // The first constructor to demand a declared child claims the pre-seeded leaf; every later (OR-sibling)
+            // constructor mints its OWN private leaf for the child, even when the type agrees. Sibling constructor
+            // groups must keep disjoint slots: PlanView resolves the OR by dropping the losing group's slot edges,
+            // and a shared leaf would yield a structurally-equal (value-equal) edge in both groups — dropping the
+            // loser's copy would take the winner's with it.
+            if (claimedNames.add(name)) {
+                return seeded;
+            }
+            return directiveSourceFor(seeded)
+                    .map(source -> mintTypedLeaf(seeded, source, deltas))
+                    .orElse(seeded);
+        }
+
+        /** The shared source value feeding {@code leaf}, read from the directive-binding seed group rooted at it. */
+        private Optional<Node> directiveSourceFor(final Node leaf) {
+            return snapshot.groups()
+                    .filter(GroupShapes::isDirectiveBinding)
+                    .filter(candidate -> candidate.getRoot().equals(leaf))
+                    .map(candidate -> candidate.inputs().get(0))
+                    .findFirst();
+        }
+
+        private List<Node> boundaryImports(final List<Node> slotNodes) {
+            return snapshot.viewOf(group).vertexSet().stream()
+                    .filter(node -> node.getLoc() instanceof SourceLocation)
+                    .filter(node -> !node.equals(frontier) && !slotNodes.contains(node))
+                    .sorted(Comparator.comparing(Node::id))
+                    .collect(toUnmodifiableList());
+        }
     }
 }

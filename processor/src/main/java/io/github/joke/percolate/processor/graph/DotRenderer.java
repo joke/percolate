@@ -1,5 +1,6 @@
 package io.github.joke.percolate.processor.graph;
 
+import jakarta.inject.Inject;
 import java.io.StringWriter;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -16,7 +17,7 @@ import org.jgrapht.nio.dot.DOTExporter;
  * the attribute providers. Node roles are distinguished by {@code fillcolor} on a uniform {@code box} shape;
  * {@code SEED} edges recede to grey while {@code REALISED} edges keep the heaviest stroke.
  */
-@NoArgsConstructor
+@NoArgsConstructor(onConstructor_ = @Inject)
 public final class DotRenderer {
 
     private static final String UNKNOWN_TYPE = "?";
@@ -100,7 +101,7 @@ public final class DotRenderer {
     private String buildRealisedLabel(final Edge edge) {
         final var weightLabel = weightLabel(edge.getWeight());
         final var strategyShort =
-                edge.getStrategyClassFqn().map(this::simpleClassName).orElse("");
+                edge.getStrategyClassFqn().map(DotRenderer::simpleClassName).orElse("");
         if (strategyShort.isEmpty()) {
             return weightLabel;
         }
@@ -122,29 +123,15 @@ public final class DotRenderer {
         return Weights.isSentinel(weight) ? SENTINEL_LABEL : String.valueOf(weight);
     }
 
-    private String simpleClassName(final String fqn) {
+    private static String simpleClassName(final String fqn) {
         final var lastDot = fqn.lastIndexOf('.');
         return lastDot >= 0 ? fqn.substring(lastDot + 1) : fqn;
     }
 
-    private String nodeLabel(final Node node) {
-        final var loc = node.getLoc();
-        if (loc == null) {
-            return "?\\n?";
-        }
-        final String locationSegment;
-        if (loc instanceof SourceLocation) {
-            locationSegment = "src[" + ((SourceLocation) loc).getPath() + "]";
-        } else if (loc instanceof TargetLocation) {
-            locationSegment = "tgt[" + ((TargetLocation) loc).getPath() + "]";
-        } else if (loc instanceof ElementLocation) {
-            locationSegment = loc.segment();
-        } else {
-            locationSegment = "?";
-        }
+    private static String nodeLabel(final Node node) {
         final var typeSegment =
                 simplifyTypeName(node.getType().map(Object::toString).orElse(UNKNOWN_TYPE));
-        return locationSegment + "\\n" + typeSegment;
+        return node.getLoc().segment() + "\\n" + typeSegment;
     }
 
     static String simplifyTypeName(final String typeName) {

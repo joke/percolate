@@ -33,7 +33,7 @@ class ConversionRoundTripSpec extends Specification {
     def scope = new HarnessScope('m()')
     def ctx = HarnessResolveCtx.create()
     def applier = new Applier(new JspecifyNullabilityResolver(NullabilityAnnotations.jspecifyDefaults(), TypeUniverse.elements()))
-    def state = new ExpansionStateImpl(graph, applier, ctx)
+    def state = new ExpansionStateImpl(graph, applier)
 
     def 'an unbox CONVERSION folding back over an existing box edge is rejected as a cycle'() {
         given: 'int is already boxed to Integer (a realised box edge int -> Integer)'

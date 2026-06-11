@@ -6,7 +6,6 @@ import io.github.joke.percolate.processor.graph.*
 import io.github.joke.percolate.processor.nullability.JspecifyNullabilityResolver
 import io.github.joke.percolate.processor.nullability.NullabilityAnnotations
 import io.github.joke.percolate.processor.test.HarnessScope
-import io.github.joke.percolate.spi.test.HarnessResolveCtx
 import io.github.joke.percolate.spi.test.TypeUniverse
 import spock.lang.Specification
 import spock.lang.Subject
@@ -21,7 +20,7 @@ class ExpansionStateSpec extends Specification {
     def resolver = new JspecifyNullabilityResolver(NullabilityAnnotations.jspecifyDefaults(), TypeUniverse.elements())
     def applier = new Applier(resolver)
     @Subject
-    ExpansionStateImpl state = new ExpansionStateImpl(graph, applier, HarnessResolveCtx.create())
+    ExpansionStateImpl state = new ExpansionStateImpl(graph, applier)
 
     def 'viewOf returns a read-only graph that rejects mutation'() {
         given:
@@ -64,7 +63,7 @@ class ExpansionStateSpec extends Specification {
         def slot = new Node(Optional.empty(), new ElementLocation('name'), scope, Optional.of(root))
         graph.addNode(root)
         graph.addNode(slot)
-        def group = TestGroups.of(root, [slot], 'test.G', [].toSet(), graph)
+        TestGroups.of(root, [slot], 'test.G', [].toSet(), graph)
 
         expect:
         state.typeOf(slot).empty

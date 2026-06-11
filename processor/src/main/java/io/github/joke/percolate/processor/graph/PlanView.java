@@ -1,11 +1,11 @@
 package io.github.joke.percolate.processor.graph;
 
+import static java.util.stream.Collectors.groupingBy;
 import static java.util.stream.Collectors.toCollection;
 import static java.util.stream.Collectors.toUnmodifiableList;
+import static java.util.stream.Collectors.toUnmodifiableSet;
 
 import java.util.ArrayDeque;
-import java.util.ArrayList;
-import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -43,55 +43,80 @@ public final class PlanView implements GraphSource {
                 .map(GroupOutcome::getGroup)
                 .collect(toUnmodifiableList());
 
-        // Keep every REALISED edge except those owned solely by UNSAT groups (dead multi-fire siblings).
-        final var keep = underlying.edgeSet().stream()
-                .filter(e -> e.getKind() == EdgeKind.REALISED)
-                .filter(e -> keepEdge(underlying, e, allGroups, satGroups))
-                .collect(toCollection(HashSet::new));
-
-        // Resolve OR-choices at true multi-fire roots: only NON-SEED bridge groups compete. Seed-registered
-        // scaffolding (path-segment / target-chain / directive-binding) co-roots with the real producer and
-        // must never be pruned. At a node rooted by more than one competing group, drop the losers' edges.
+        final var keep = liveRealisedEdges(underlying, allGroups, satGroups);
         final var cost = costToSource(underlying, keep);
-        final var byRoot = new HashMap<Node, List<ExpansionGroup>>();
-        satGroups.stream().filter(PlanView::isBridgeGroup).forEach(g -> byRoot.computeIfAbsent(
-                        g.getRoot(), k -> new ArrayList<>())
-                .add(g));
-        final var loserEdges = byRoot.values().stream()
-                .filter(groups -> groups.size() > 1)
-                .flatMap(groups -> {
-                    final var chosen = cheapest(underlying, groups, keep, cost);
-                    return groups.stream()
-                            .filter(g -> g != chosen)
-                            .flatMap(loser -> groupEdges(underlying, loser, keep));
-                })
-                .collect(toCollection(HashSet::new));
-        keep.removeAll(loserEdges);
+        keep.removeAll(multiFireLoserEdges(underlying, satGroups, keep, cost));
+        keep.removeAll(conversionLoserEdges(underlying, satGroups, keep, cost));
 
-        // Resolve in-group conversion OR-choices: a non-group-root node fed by several REALISED conversion edges
-        // (e.g. widen's narrower-source fan-out, plus dead-end alternatives) keeps only its single cheapest
-        // inbound edge so code-generation sees one producer per conversion node. Dead alternatives drop out.
-        // Only NON-SEED (bridge/constructor/container) roots are rendered as group targets (their inbound slot
-        // edges are an AND and must all be kept). Seed roots — directive-binding and assembly — render via the
-        // scalar-edge path, so a directive-binding root fed by a widen fan-out is reduced like any conversion node.
-        final var groupRootNodes = satGroups.stream()
+        final var planEdges = reachableEdges(underlying, keep);
+        final var mask = new MaskSubgraph<>(underlying, (Node v) -> false, (Edge e) -> !planEdges.contains(e));
+        return new PlanView(mask, incidentNodesOf(underlying, planEdges));
+    }
+
+    /** Every REALISED edge except those owned solely by UNSAT groups (dead multi-fire siblings). */
+    private static Set<Edge> liveRealisedEdges(
+            final Graph<Node, Edge> graph, final List<ExpansionGroup> allGroups, final List<ExpansionGroup> satGroups) {
+        return graph.edgeSet().stream()
+                .filter(e -> e.getKind() == EdgeKind.REALISED)
+                .filter(e -> keepEdge(graph, e, allGroups, satGroups))
+                .collect(toCollection(HashSet::new));
+    }
+
+    /**
+     * Resolves OR-choices at true multi-fire roots: only NON-SEED bridge groups compete. Seed-registered
+     * scaffolding (path-segment / target-chain / directive-binding) co-roots with the real producer and
+     * must never be pruned. At a node rooted by more than one competing group, the losers' edges drop.
+     */
+    private static Set<Edge> multiFireLoserEdges(
+            final Graph<Node, Edge> graph,
+            final List<ExpansionGroup> satGroups,
+            final Set<Edge> keep,
+            final Map<Node, Double> cost) {
+        final var byRoot =
+                satGroups.stream().filter(PlanView::isBridgeGroup).collect(groupingBy(ExpansionGroup::getRoot));
+        return byRoot.values().stream()
+                .filter(groups -> groups.size() > 1)
+                .flatMap(groups -> loserEdges(graph, groups, keep, cost))
+                .collect(toUnmodifiableSet());
+    }
+
+    /** The slot edges of every group at a shared root except the cheapest one. */
+    private static Stream<Edge> loserEdges(
+            final Graph<Node, Edge> graph,
+            final List<ExpansionGroup> groups,
+            final Set<Edge> keep,
+            final Map<Node, Double> cost) {
+        final var chosen = cheapest(graph, groups, keep, cost);
+        return groups.stream().filter(g -> !g.equals(chosen)).flatMap(loser -> groupEdges(graph, loser, keep));
+    }
+
+    /**
+     * Resolves in-group conversion OR-choices: a non-group-root node fed by several REALISED conversion edges
+     * (e.g. widen's narrower-source fan-out, plus dead-end alternatives) keeps only its single cheapest
+     * inbound edge so code-generation sees one producer per conversion node. Dead alternatives drop out.
+     * Only NON-SEED (bridge/constructor/container) roots are rendered as group targets (their inbound slot
+     * edges are an AND and must all be kept). Seed roots — directive-binding and assembly — render via the
+     * scalar-edge path, so a directive-binding root fed by a widen fan-out is reduced like any conversion node.
+     */
+    private static Set<Edge> conversionLoserEdges(
+            final Graph<Node, Edge> graph,
+            final List<ExpansionGroup> satGroups,
+            final Set<Edge> keep,
+            final Map<Node, Double> cost) {
+        final var groupRoots = satGroups.stream()
                 .filter(PlanView::isBridgeGroup)
                 .map(ExpansionGroup::getRoot)
-                .collect(toCollection(HashSet::new));
-        final var conversionLosers = underlying.vertexSet().stream()
-                .filter(n -> !groupRootNodes.contains(n))
-                .flatMap(n -> losingConversionEdges(underlying, n, keep, cost))
-                .collect(toCollection(HashSet::new));
-        keep.removeAll(conversionLosers);
+                .collect(toUnmodifiableSet());
+        return graph.vertexSet().stream()
+                .filter(node -> !groupRoots.contains(node))
+                .flatMap(node -> losingConversionEdges(graph, node, keep, cost))
+                .collect(toUnmodifiableSet());
+    }
 
-        // Reachability-filter from each return-root so disconnected loser/dead subtrees drop out.
-        final var planEdges = reachableEdges(underlying, keep);
-        final var incident = planEdges.stream()
-                .flatMap(e -> Stream.of(underlying.getEdgeSource(e), underlying.getEdgeTarget(e)))
-                .collect(toCollection(HashSet::new));
-
-        final var mask = new MaskSubgraph<>(underlying, (Node v) -> false, (Edge e) -> !planEdges.contains(e));
-        return new PlanView(mask, Collections.unmodifiableSet(incident));
+    private static Set<Node> incidentNodesOf(final Graph<Node, Edge> graph, final Set<Edge> planEdges) {
+        return planEdges.stream()
+                .flatMap(e -> Stream.of(graph.getEdgeSource(e), graph.getEdgeTarget(e)))
+                .collect(toUnmodifiableSet());
     }
 
     private static boolean isBridgeGroup(final ExpansionGroup group) {
@@ -116,15 +141,15 @@ public final class PlanView implements GraphSource {
         return !hasGroup || inSatGroup;
     }
 
+    /** Reachability-filters from each return-root so disconnected loser/dead subtrees drop out. */
     private static Set<Edge> reachableEdges(final Graph<Node, Edge> graph, final Set<Edge> keep) {
         final var planEdges = new HashSet<Edge>();
         final var queue = new ArrayDeque<Node>();
         final var seen = new HashSet<Node>();
-        graph.vertexSet().stream().filter(PlanView::isReturnRoot).forEach(root -> {
-            if (seen.add(root)) {
-                queue.add(root);
-            }
-        });
+        graph.vertexSet().stream()
+                .filter(node -> node.getLoc().isReturnRoot())
+                .filter(seen::add)
+                .forEach(queue::add);
         while (!queue.isEmpty()) {
             final var node = queue.remove();
             for (final var edge : graph.incomingEdgesOf(node)) {
@@ -229,11 +254,6 @@ public final class PlanView implements GraphSource {
                 .filter(e -> graph.getEdgeSource(e).equals(slot)
                         && graph.getEdgeTarget(e).equals(group.getRoot()))
                 .filter(e -> inGroup(graph, group, e));
-    }
-
-    private static boolean isReturnRoot(final Node node) {
-        return node.getLoc() instanceof TargetLocation
-                && ((TargetLocation) node.getLoc()).getPath().getSegments().isEmpty();
     }
 
     @Override

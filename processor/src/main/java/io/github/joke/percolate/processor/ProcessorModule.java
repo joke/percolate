@@ -1,8 +1,10 @@
 package io.github.joke.percolate.processor;
 
+import static java.util.stream.Collectors.toUnmodifiableList;
+import static java.util.stream.Collectors.toUnmodifiableSet;
+
 import dagger.Module;
 import dagger.Provides;
-import io.github.joke.percolate.processor.graph.DotRenderer;
 import io.github.joke.percolate.processor.nullability.JspecifyNullabilityResolver;
 import io.github.joke.percolate.processor.nullability.NullabilityAnnotations;
 import io.github.joke.percolate.processor.nullability.NullabilityResolver;
@@ -14,14 +16,11 @@ import io.github.joke.percolate.processor.stages.dump.DumpFullGraphStage;
 import io.github.joke.percolate.processor.stages.dump.DumpGraphStage;
 import io.github.joke.percolate.processor.stages.dump.DumpPlanStage;
 import io.github.joke.percolate.processor.stages.dump.DumpTransformsStage;
-import io.github.joke.percolate.processor.stages.dump.GraphDumpWriter;
 import io.github.joke.percolate.processor.stages.expand.ExpandGroupsPhase;
 import io.github.joke.percolate.processor.stages.expand.ExpandStage;
-import io.github.joke.percolate.processor.stages.expand.ExpansionPhase;
-import io.github.joke.percolate.processor.stages.generate.AssembleMapperType;
-import io.github.joke.percolate.processor.stages.generate.BuildMethodBodies;
 import io.github.joke.percolate.processor.stages.generate.GenerateStage;
 import io.github.joke.percolate.processor.stages.seed.SeedStage;
+import io.github.joke.percolate.processor.stages.validate.RealisationDiagnosticsStage;
 import io.github.joke.percolate.processor.stages.validate.ValidateNoDuplicateTargetsStage;
 import io.github.joke.percolate.processor.stages.validate.ValidateSourceParametersStage;
 import io.github.joke.percolate.spi.CallableMethods;
@@ -30,9 +29,10 @@ import io.github.joke.percolate.spi.ResolveCtx;
 import jakarta.inject.Inject;
 import jakarta.inject.Named;
 import jakarta.inject.Singleton;
-import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
 import java.util.ServiceLoader;
+import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
 import javax.annotation.processing.Filer;
 import javax.annotation.processing.Messager;
@@ -95,64 +95,15 @@ public final class ProcessorModule {
         if (custom.isEmpty()) {
             return defaults;
         }
-        final var merged = new java.util.HashSet<String>(defaults.getNullableFqns());
-        merged.addAll(custom);
+        final var merged = Stream.concat(defaults.getNullableFqns().stream(), custom.stream())
+                .collect(toUnmodifiableSet());
         return new NullabilityAnnotations(merged, defaults.getMarkedFqns(), defaults.getUnmarkedFqns());
     }
 
     @Provides
     @Singleton
-    NullabilityResolver nullabilityResolver(final NullabilityAnnotations annotations, final Elements elements) {
-        return new JspecifyNullabilityResolver(annotations, elements);
-    }
-
-    @Provides
-    DotRenderer dotRenderer() {
-        return new DotRenderer();
-    }
-
-    @Provides
-    DiscoverAbstractMethodsStage discoverAbstractMethods(final Elements elements, final Types types) {
-        return new DiscoverAbstractMethodsStage(elements, types);
-    }
-
-    @Provides
-    DiscoverMappingsStage discoverMappings(final Elements elements) {
-        return new DiscoverMappingsStage(elements);
-    }
-
-    @Provides
-    DiscoverCallableMethodsStage discoverCallableMethods(final Elements elements, final Types types) {
-        return new DiscoverCallableMethodsStage(elements, types);
-    }
-
-    @Provides
-    ValidateNoDuplicateTargetsStage validateNoDuplicateTargets(final Diagnostics diagnostics) {
-        return new ValidateNoDuplicateTargetsStage(diagnostics);
-    }
-
-    @Provides
-    ValidateSourceParametersStage validateSourceParameters(final Diagnostics diagnostics) {
-        return new ValidateSourceParametersStage(diagnostics);
-    }
-
-    @Provides
-    SeedStage seedGraph() {
-        return new SeedStage();
-    }
-
-    @Provides
-    GraphDumpWriter graphDumpWriter(
-            final Filer filer,
-            final Diagnostics diagnostics,
-            final ProcessorOptions processorOptions,
-            final DotRenderer dotRenderer) {
-        return new GraphDumpWriter(filer, diagnostics, processorOptions, dotRenderer);
-    }
-
-    @Provides
-    DumpGraphStage dumpGraph(final GraphDumpWriter writer) {
-        return new DumpGraphStage(writer);
+    NullabilityResolver nullabilityResolver(final JspecifyNullabilityResolver resolver) {
+        return resolver;
     }
 
     public static ExpandStage assembleExpansionPipeline(
@@ -160,8 +111,7 @@ public final class ProcessorModule {
             final ResolveCtx resolveCtx,
             final NullabilityResolver nullabilityResolver) {
         final var groupsPhase = ExpandGroupsPhase.create(strategies, resolveCtx, nullabilityResolver);
-        final List<ExpansionPhase> phases = List.of(groupsPhase);
-        return new ExpandStage(phases);
+        return new ExpandStage(List.of(groupsPhase));
     }
 
     @Provides
@@ -170,39 +120,6 @@ public final class ProcessorModule {
             final ResolveCtx resolveCtx,
             final NullabilityResolver nullabilityResolver) {
         return assembleExpansionPipeline(strategies, resolveCtx, nullabilityResolver);
-    }
-
-    @Provides
-    DumpFullGraphStage dumpFullGraph(final GraphDumpWriter writer) {
-        return new DumpFullGraphStage(writer);
-    }
-
-    @Provides
-    DumpTransformsStage dumpTransforms(final GraphDumpWriter writer) {
-        return new DumpTransformsStage(writer);
-    }
-
-    @Provides
-    DumpPlanStage dumpPlan(final GraphDumpWriter writer) {
-        return new DumpPlanStage(writer);
-    }
-
-    @Provides
-    BuildMethodBodies buildMethodBodies(final NullabilityResolver nullabilityResolver) {
-        return new BuildMethodBodies(nullabilityResolver);
-    }
-
-    @Provides
-    AssembleMapperType assembleMapperType(final Filer filer, final Elements elements) {
-        return new AssembleMapperType(filer, elements);
-    }
-
-    @Provides
-    GenerateStage generateStage(
-            final Diagnostics diagnostics,
-            final BuildMethodBodies buildMethodBodies,
-            final AssembleMapperType assembleMapperType) {
-        return new GenerateStage(diagnostics, buildMethodBodies, assembleMapperType);
     }
 
     @Provides
@@ -220,27 +137,28 @@ public final class ProcessorModule {
             @Named("discover") final List<Stage> discoverStages,
             final ValidateNoDuplicateTargetsStage validateNoDuplicateTargets,
             final ValidateSourceParametersStage validateSourceParameters,
-            final SeedStage seedGraph,
+            final SeedStage seedStage,
             final DumpGraphStage dumpGraph,
             final ExpandStage expandStage,
             final DumpFullGraphStage dumpFullGraph,
             final DumpTransformsStage dumpTransforms,
             final DumpPlanStage dumpPlan,
-            final io.github.joke.percolate.processor.stages.validate.RealisationDiagnosticsStage
-                    realisationDiagnosticsStage,
+            final RealisationDiagnosticsStage realisationDiagnostics,
             final GenerateStage generateStage) {
-        final var all = new ArrayList<Stage>(discoverStages);
-        all.add(validateNoDuplicateTargets);
-        all.add(validateSourceParameters);
-        all.add(seedGraph);
-        all.add(dumpGraph);
-        all.add(expandStage);
-        all.add(dumpFullGraph);
-        all.add(dumpTransforms);
-        all.add(dumpPlan);
-        all.add(realisationDiagnosticsStage);
-        all.add(generateStage);
-        return List.copyOf(all);
+        return Stream.concat(
+                        discoverStages.stream(),
+                        Stream.<Stage>of(
+                                validateNoDuplicateTargets,
+                                validateSourceParameters,
+                                seedStage,
+                                dumpGraph,
+                                expandStage,
+                                dumpFullGraph,
+                                dumpTransforms,
+                                dumpPlan,
+                                realisationDiagnostics,
+                                generateStage))
+                .collect(toUnmodifiableList());
     }
 
     /**
@@ -254,9 +172,9 @@ public final class ProcessorModule {
                         ServiceLoader.load(ExpansionStrategy.class, ProcessorModule.class.getClassLoader())
                                 .spliterator(),
                         false)
-                .sorted(java.util.Comparator.comparingInt(ExpansionStrategy::priority)
+                .sorted(Comparator.comparingInt(ExpansionStrategy::priority)
                         .thenComparing(strategy -> strategy.getClass().getName()))
-                .collect(java.util.stream.Collectors.toUnmodifiableList());
+                .collect(toUnmodifiableList());
     }
 
     @Provides

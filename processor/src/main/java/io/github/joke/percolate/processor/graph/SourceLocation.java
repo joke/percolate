@@ -7,12 +7,12 @@ public class SourceLocation implements Location {
     AccessPath path;
 
     @Override
-    public String encode() {
+    public String segment() {
         return "src[" + path + "]";
     }
 
     @Override
-    public String segment() {
-        return "src[" + path + "]";
+    public String slotName() {
+        return path.lastSegment();
     }
 }
