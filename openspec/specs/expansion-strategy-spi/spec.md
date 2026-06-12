@@ -115,12 +115,26 @@ The `percolate-spi` module SHALL define a Java interface `io.github.joke.percola
 
 ### Requirement: Directive type
 
-The `percolate-spi` module SHALL define a `io.github.joke.percolate.spi.Directive` type that exposes the relevant `@Map` configuration to strategies (source path / segment access, and any author-declared attributes such as conversion patterns or default values) WITHOUT exposing raw compiler internals as the primary surface. A strategy SHALL read its per-binding configuration from `Directive`; it SHALL NOT need to inspect an `AnnotationMirror` directly for the common cases.
+The `percolate-spi` module SHALL define a `io.github.joke.percolate.spi.Directive` type that exposes the relevant `@Map` configuration to strategies (source path / segment access, and the author-declared `constant` and `defaultValue` attributes) WITHOUT exposing raw compiler internals as the primary surface. A strategy SHALL read its per-binding configuration from `Directive`; it SHALL NOT need to inspect an `AnnotationMirror` directly for the common cases.
+
+`Directive` SHALL expose the directive's `constant` and `defaultValue` values to strategies. Each SHALL be reported **present** only when it is not equal to `Map.UNSET`; an empty string SHALL be reported as a present value, never as absent. `ConstantValue` reads `constant` and `DefaultValue` reads `defaultValue` through this surface.
 
 #### Scenario: Directive hides compiler internals
 - **WHEN** the `Directive` type is inspected
 - **THEN** its public accessors expose `@Map` configuration through `Directive`'s own surface
 - **AND** a strategy reading the source path or a declared attribute does not require importing `javax.lang.model` annotation-mirror types
+
+#### Scenario: Directive exposes a present constant
+- **WHEN** a strategy reads the `constant` of a `Directive` built from `@Map(target = "status", constant = "ACTIVE")`
+- **THEN** it observes the value present as `"ACTIVE"`
+
+#### Scenario: Directive reports an unspecified attribute as absent
+- **WHEN** a strategy reads the `defaultValue` of a `Directive` built from `@Map(target = "x", source = "in.x")`
+- **THEN** it observes the value absent (equal to `Map.UNSET`)
+
+#### Scenario: Directive reports an empty-string attribute as present
+- **WHEN** a strategy reads the `constant` of a `Directive` built from `@Map(target = "note", constant = "")`
+- **THEN** it observes the value present as the empty string, not absent
 
 ### Requirement: Candidate snapshot type
 
@@ -360,7 +374,7 @@ The percolate-spi module SHALL expose a constant `CONTAINER` (a positive `int`) 
 
 The `percolate-strategies-builtin` module SHALL contain a Spock specification at `strategies-builtin/src/test/groovy/io/github/joke/percolate/spi/builtins/BuiltinServiceRegistrationSpec.groovy` that asserts the cross-module contract: when `percolate-strategies-builtin` is on the classpath, `ServiceLoader.load(ExpansionStrategy.class)` discovers exactly the expected built-in classes. There is a **single** strategy SPI interface (`ExpansionStrategy`); there is no separate `Bridge` / `GroupTarget` / `PathSegmentResolver` registration.
 
-The spec SHALL assert that `ServiceLoader.load(ExpansionStrategy.class)` discovers, at minimum, the shipped built-ins: `DirectAssign`, `MethodCallBridge`, `ConstructorCall`, `WidenPrimitive`, `PrimitiveWrapperConversion`, `OptionalContainer`, `ListContainer`, `SetContainer`, `ArrayContainer`, `GetterPathResolver`, `FieldPathResolver`, and `MethodPathResolver`.
+The spec SHALL assert that `ServiceLoader.load(ExpansionStrategy.class)` discovers, at minimum, the shipped built-ins: `DirectAssign`, `MethodCallBridge`, `ConstructorCall`, `WidenPrimitive`, `PrimitiveWrapperConversion`, `ConstantValue`, `DefaultValue`, `OptionalContainer`, `ListContainer`, `SetContainer`, `ArrayContainer`, `GetterPathResolver`, `FieldPathResolver`, and `MethodPathResolver`.
 
 The spec SHALL additionally assert that the superseded per-operation container classes (`OptionalWrap`, `OptionalUnwrap`, `OptionalCollect`, `ListWrap`, `ListCollect`, `SetWrap`, `SetCollect`, `ArrayCollect`, `IterableUnwrap`, `SetMap`, `ListMap`, `OptionalMap`) are NOT discovered — they were folded into the one-class-per-container-type strategies.
 
@@ -368,7 +382,7 @@ The spec SHALL be tagged `@spock.lang.Tag('unit')` and SHALL NOT invoke `Expansi
 
 #### Scenario: ServiceLoader discovers all expected ExpansionStrategy builtins
 - **WHEN** `ServiceLoader.load(ExpansionStrategy.class)` is invoked from `BuiltinServiceRegistrationSpec`
-- **THEN** the returned classes contain, as a subset, `DirectAssign`, `MethodCallBridge`, `ConstructorCall`, `WidenPrimitive`, `PrimitiveWrapperConversion`, `OptionalContainer`, `ListContainer`, `SetContainer`, `ArrayContainer`, `GetterPathResolver`, `FieldPathResolver`, and `MethodPathResolver`
+- **THEN** the returned classes contain, as a subset, `DirectAssign`, `MethodCallBridge`, `ConstructorCall`, `WidenPrimitive`, `PrimitiveWrapperConversion`, `ConstantValue`, `DefaultValue`, `OptionalContainer`, `ListContainer`, `SetContainer`, `ArrayContainer`, `GetterPathResolver`, `FieldPathResolver`, and `MethodPathResolver`
 
 #### Scenario: Superseded per-operation container classes are absent
 - **WHEN** the discovered `ExpansionStrategy` set is inspected
