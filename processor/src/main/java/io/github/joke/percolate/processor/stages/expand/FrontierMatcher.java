@@ -87,6 +87,59 @@ final class FrontierMatcher {
         return produce(frontier, group, snapshot, allStrategies);
     }
 
+    /**
+     * Produces a constant-binding root: runs the general strategies on the constant-value slot offered as a frontier
+     * typed to the demanded (root) target type, keeps the zero-input {@code BOUNDARY} terminal producer
+     * ({@code ConstantValue}), types the constant node to that type, and realises the literal producer edge from the
+     * constant node into the root. Emits nothing until the root's declared type is known (it is pinned by the
+     * consuming assembly), and nothing when the literal cannot be coerced — leaving the demand UNSAT for the late
+     * coercion-failure diagnostic. The constant node carries the {@code @Map} {@link io.github.joke.percolate.spi.Directive}
+     * (stamped at seed time) so {@code ConstantValue} reads its {@code constant}.
+     */
+    List<DeltaBundle> produceConstant(final ExpansionGroup group, final ExpansionSnapshot snapshot) {
+        final var constNode = group.inputs().get(0);
+        final var root = group.getRoot();
+        final var targetType = snapshot.effectiveTypeFor(root);
+        if (targetType == null) {
+            return List.of();
+        }
+        final var ctx = new FrontierContext(targetType, constNode.getDirective(), List.of());
+        final var alreadyTyped = snapshot.typeOf(constNode).isPresent();
+        return generalStrategies.stream()
+                .flatMap(strategy -> strategy.expand(ctx, resolveCtx)
+                        .filter(step -> isConstantStep(step, targetType))
+                        .map(step -> constantBundle(
+                                constNode,
+                                root,
+                                step,
+                                alreadyTyped,
+                                strategy.getClass().getName())))
+                .collect(toUnmodifiableList());
+    }
+
+    private boolean isConstantStep(final ExpansionStep step, final TypeMirror targetType) {
+        return step.getIntent() == Intent.BOUNDARY
+                && step.getInputs().isEmpty()
+                && resolveCtx.types().isSameType(step.getOutput(), targetType);
+    }
+
+    private static DeltaBundle constantBundle(
+            final Node constNode,
+            final Node root,
+            final ExpansionStep step,
+            final boolean alreadyTyped,
+            final String fqn) {
+        final var edge = Edge.realised(step.getWeight(), (EdgeCodegen) step.getCodegen(), fqn);
+        final var deltas = new ArrayList<Delta>();
+        if (!alreadyTyped) {
+            // Scope is null: the engine stamps a constant-value node NON_NULL by its ConstantLocation (design D6),
+            // never via the resolver.
+            deltas.add(new TypeNode(constNode, step.getOutput(), null));
+        }
+        deltas.add(new AddEdge(constNode, root, edge));
+        return new DeltaBundle(fqn, deltas);
+    }
+
     private List<DeltaBundle> produce(
             final Node frontier,
             final ExpansionGroup group,

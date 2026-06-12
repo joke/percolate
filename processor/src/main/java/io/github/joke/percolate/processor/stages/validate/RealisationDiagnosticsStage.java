@@ -32,6 +32,11 @@ public final class RealisationDiagnosticsStage implements Stage {
         if (graph == null) {
             return;
         }
+        // A targeted earlier diagnostic (e.g. a constant coercion failure or a dead default) already explains why a
+        // group is UNSAT; suppress the generic "no plan" noise once the mapper is scarred.
+        if (diagnostics.hasErrorsFor(ctx.getMapperType())) {
+            return;
+        }
         final var satRoots = graph.groupOutcomes()
                 .filter(o -> o.getKind() == GroupOutcome.Kind.SAT)
                 .map(o -> o.getGroup().getRoot())

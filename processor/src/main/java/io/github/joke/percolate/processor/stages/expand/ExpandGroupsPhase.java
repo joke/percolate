@@ -42,6 +42,7 @@ public final class ExpandGroupsPhase implements ExpansionPhase {
                 new SourceDescentExpander(frontierMatcher, slotResolver),
                 new AssemblyExpander(frontierMatcher, slotResolver),
                 new DirectiveBindingExpander(slotResolver, frontierMatcher),
+                new ConstantBindingExpander(frontierMatcher),
                 new BridgeExpander(slotResolver));
         return new ExpandGroupsPhase(expanders, applier);
     }

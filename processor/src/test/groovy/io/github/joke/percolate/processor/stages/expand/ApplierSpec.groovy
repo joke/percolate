@@ -5,8 +5,10 @@ import com.palantir.javapoet.CodeBlock
 import io.github.joke.percolate.processor.graph.*
 import io.github.joke.percolate.processor.nullability.JspecifyNullabilityResolver
 import io.github.joke.percolate.processor.nullability.NullabilityAnnotations
+import io.github.joke.percolate.processor.nullability.NullabilityResolver
 import io.github.joke.percolate.processor.test.HarnessScope
 import io.github.joke.percolate.spi.EdgeCodegen
+import io.github.joke.percolate.spi.Nullability
 import io.github.joke.percolate.spi.test.TypeUniverse
 import spock.lang.Specification
 import spock.lang.Subject
@@ -118,6 +120,39 @@ class ApplierSpec extends Specification {
 
         then:
         slot.directive.empty
+    }
+
+    def 'a constant-value node is stamped NON_NULL directly, without invoking the resolver'() {
+        given:
+        def mockResolver = Mock(NullabilityResolver)
+        def applierWithMock = new Applier(mockResolver)
+        def stateWithMock = new ExpansionStateImpl(graph, applierWithMock)
+        def constNode = new Node(Optional.empty(), new ConstantLocation('ACTIVE'), scope)
+        graph.addNode(constNode)
+
+        when:
+        applierWithMock.apply(stateWithMock, [new DeltaBundle('test.Const', [new TypeNode(constNode, TypeUniverse.STRING, null)])])
+
+        then:
+        constNode.nullability.get() == Nullability.NON_NULL
+        0 * mockResolver.resolve(_, _)
+    }
+
+    def 'a node backed by a producer scope is typed via the resolver'() {
+        given:
+        def mockResolver = Mock(NullabilityResolver)
+        def applierWithMock = new Applier(mockResolver)
+        def stateWithMock = new ExpansionStateImpl(graph, applierWithMock)
+        def node = new Node(Optional.empty(), new SourceLocation(AccessPath.of('u')), scope)
+        graph.addNode(node)
+        def producer = TypeUniverse.anyConstruct() as javax.lang.model.element.Element
+
+        when:
+        applierWithMock.apply(stateWithMock, [new DeltaBundle('test', [new TypeNode(node, TypeUniverse.STRING, producer)])])
+
+        then:
+        1 * mockResolver.resolve(_, producer) >> Nullability.NON_NULL
+        node.nullability.get() == Nullability.NON_NULL
     }
 
     private Node source(final String path, final javax.lang.model.type.TypeMirror type) {

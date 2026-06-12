@@ -21,28 +21,40 @@ final class Frontiers {
      * path-resolver strategy.
      */
     static Frontier descend(final TypeMirror parentType, final String segment) {
-        new Frontier() {
-            TypeMirror targetType() { parentType }
-            Optional<Directive> directive() { Optional.of(segmentDirective(segment)) }
-            List<Candidate> candidates() { [new Candidate(parentType)] }
-        }
+        frontier(parentType, [new Candidate(parentType)], directive([segment], null, null))
     }
 
     /** A bare frontier asking for {@code target}, with no directive and the given candidate types in view. */
     static Frontier forTarget(final TypeMirror target, final List<TypeMirror> candidateTypes = []) {
+        frontier(target, candidateTypes.collect { new Candidate(it) }, null)
+    }
+
+    /** A frontier asking for {@code target} whose directive declares a present {@code constant}. */
+    static Frontier withConstant(final TypeMirror target, final String constant) {
+        frontier(target, [], directive([], constant, null))
+    }
+
+    /**
+     * A frontier asking for {@code target} whose directive declares a present {@code defaultValue}, with the given
+     * candidate types in view (the source value being defaulted).
+     */
+    static Frontier withDefault(final TypeMirror target, final String defaultValue, final List<TypeMirror> candidateTypes) {
+        frontier(target, candidateTypes.collect { new Candidate(it) }, directive([], null, defaultValue))
+    }
+
+    private static Frontier frontier(final TypeMirror target, final List<Candidate> candidates, final Directive directive) {
         new Frontier() {
             TypeMirror targetType() { target }
-            Optional<Directive> directive() { Optional.empty() }
-            List<Candidate> candidates() { candidateTypes.collect { new Candidate(it) } }
+            Optional<Directive> directive() { Optional.ofNullable(directive) }
+            List<Candidate> candidates() { candidates }
         }
     }
 
-    private static Directive segmentDirective(final String segment) {
+    private static Directive directive(final List<String> sourcePath, final String constant, final String defaultValue) {
         new Directive() {
-            List<String> sourcePath() { [segment] }
-
-            @SuppressWarnings('UnusedMethodParameter')
-            Optional<String> attribute(final String name) { Optional.empty() }
+            List<String> sourcePath() { sourcePath }
+            Optional<String> constant() { Optional.ofNullable(constant) }
+            Optional<String> defaultValue() { Optional.ofNullable(defaultValue) }
         }
     }
 }

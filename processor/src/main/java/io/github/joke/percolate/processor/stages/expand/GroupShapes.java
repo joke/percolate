@@ -1,5 +1,6 @@
 package io.github.joke.percolate.processor.stages.expand;
 
+import io.github.joke.percolate.processor.graph.ConstantLocation;
 import io.github.joke.percolate.processor.graph.ExpansionGroup;
 import io.github.joke.percolate.processor.graph.SourceLocation;
 import io.github.joke.percolate.processor.graph.TargetLocation;
@@ -60,5 +61,19 @@ class GroupShapes {
         }
         return group.getRoot().getLoc() instanceof TargetLocation
                 && inputs.get(0).getLoc() instanceof SourceLocation;
+    }
+
+    /**
+     * A constant-binding seed group: a {@code tgt[..]} root over a single {@link ConstantLocation} slot (the planted
+     * constant-value node). Resolved by {@code ConstantBindingExpander}: it types the constant node from the demanded
+     * target type and realises the literal producer edge into the root.
+     */
+    boolean isConstantBinding(final ExpansionGroup group) {
+        final var inputs = group.inputs();
+        if (!isSeed(group) || inputs.size() != SINGLE_SLOT) {
+            return false;
+        }
+        return group.getRoot().getLoc() instanceof TargetLocation
+                && inputs.get(0).getLoc() instanceof ConstantLocation;
     }
 }

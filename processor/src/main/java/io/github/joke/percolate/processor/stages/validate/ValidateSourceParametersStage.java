@@ -60,7 +60,12 @@ public final class ValidateSourceParametersStage implements Stage {
             final Set<String> paramNames,
             final ExecutableElement method,
             final String methodSig) {
-        final var seg = firstSegment(directive.getSource());
+        final var source = directive.getSource();
+        if (source == null) {
+            // A constant directive (or any sourceless directive) has no source to validate against a parameter.
+            return true;
+        }
+        final var seg = firstSegment(source);
         if (paramNames.contains(seg)) {
             return true;
         }

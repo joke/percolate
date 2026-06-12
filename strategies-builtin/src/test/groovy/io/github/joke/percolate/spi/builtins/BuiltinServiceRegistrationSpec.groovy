@@ -19,6 +19,12 @@ class BuiltinServiceRegistrationSpec extends Specification {
         discovered.contains('io.github.joke.percolate.spi.builtins.DirectAssign')
         discovered.contains('io.github.joke.percolate.spi.builtins.MethodCallBridge')
         discovered.contains('io.github.joke.percolate.spi.builtins.ConstructorCall')
+        discovered.contains('io.github.joke.percolate.spi.builtins.WidenPrimitive')
+        discovered.contains('io.github.joke.percolate.spi.builtins.PrimitiveWrapperConversion')
+
+        // Constants and defaults
+        discovered.contains('io.github.joke.percolate.spi.builtins.ConstantValue')
+        discovered.contains('io.github.joke.percolate.spi.builtins.DefaultValue')
 
         // Containers (the nine per-operation bridges were consolidated into these four)
         discovered.contains('io.github.joke.percolate.spi.builtins.ListContainer')

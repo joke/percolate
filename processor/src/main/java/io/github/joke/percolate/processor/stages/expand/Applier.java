@@ -2,6 +2,7 @@ package io.github.joke.percolate.processor.stages.expand;
 
 import static java.util.Objects.requireNonNull;
 
+import io.github.joke.percolate.processor.graph.ConstantLocation;
 import io.github.joke.percolate.processor.graph.Edge;
 import io.github.joke.percolate.processor.graph.EdgeKind;
 import io.github.joke.percolate.processor.graph.ExpansionGroup;
@@ -122,11 +123,23 @@ final class Applier implements Delta.Visitor<Void> {
             return null;
         }
         final var scope = delta.getScope();
-        final var nullability =
-                scope == null ? Nullability.UNKNOWN : nullabilityResolver.resolve(delta.getType(), scope);
-        node.setTyping(delta.getType(), nullability);
+        node.setTyping(delta.getType(), nullabilityFor(node, delta));
         producerScopes.put(node, scope);
         return null;
+    }
+
+    /**
+     * The nullability stamped paired with a node's typing. A constant-value node is intrinsically non-null (a literal
+     * has no {@code AnnotatedConstruct} to resolve), so it is stamped {@code NON_NULL} directly by its
+     * {@link ConstantLocation}, bypassing the resolver (design D6). Every other node is resolver-obtained from its
+     * producer scope, or {@code UNKNOWN} when no scope drove the typing.
+     */
+    private Nullability nullabilityFor(final Node node, final TypeNode delta) {
+        if (node.getLoc() instanceof ConstantLocation) {
+            return Nullability.NON_NULL;
+        }
+        final var scope = delta.getScope();
+        return scope == null ? Nullability.UNKNOWN : nullabilityResolver.resolve(delta.getType(), scope);
     }
 
     @Override

@@ -7,6 +7,7 @@ import io.github.joke.percolate.processor.MapperContext
 import io.github.joke.percolate.processor.graph.*
 import io.github.joke.percolate.processor.model.MapperShape
 import io.github.joke.percolate.spi.EdgeCodegen
+import io.github.joke.percolate.spi.Nullability
 import io.github.joke.percolate.spi.Weights
 import io.github.joke.percolate.spi.test.TypeUniverse
 import spock.lang.Specification
@@ -249,6 +250,36 @@ class BuildMethodBodiesSpec extends Specification {
         noExceptionThrown()
         bodies.size() == 1
         bodies[0].body.toString().trim() == 'return java.util.List.of(value);'
+    }
+
+    def 'a constant producer renders the literal operand with no incoming variable and no null guard'() {
+        given:
+        def method = mockMethod('map', [mockParam('in')], TypeUniverse.STRING)
+        def scope = new MethodScope(method)
+        def graph = new MapperGraph()
+        def constNode = new Node(Optional.empty(), new ConstantLocation('ACTIVE'), scope)
+        constNode.setTyping(TypeUniverse.STRING, Nullability.NON_NULL)
+        def statusSlot = node(scope, targetLoc('status'), TypeUniverse.STRING)
+        def returnRoot = node(scope, returnRootLoc(), TypeUniverse.STRING)
+        [constNode, statusSlot, returnRoot].each { graph.addNode(it) }
+
+        EdgeCodegen literal = { vars, inputs -> CodeBlock.of('$S', 'ACTIVE') } as EdgeCodegen
+        graph.addEdge(constNode, statusSlot, Edge.realised(Weights.STEP, literal, 'io.github.joke.percolate.spi.builtins.ConstantValue'))
+        EdgeCodegen ctorCodegen = { vars, inputs -> CodeBlock.of('new Thing($L)', inputs.byName('status')) } as EdgeCodegen
+        def ctorEdge = Edge.realised(Weights.STEP, ctorCodegen, 'io.github.joke.percolate.spi.builtins.ConstructorCall')
+        graph.addEdge(statusSlot, returnRoot, ctorEdge)
+        def ctorGroup = TestGroups.of(returnRoot, [statusSlot], 'io.github.joke.percolate.spi.builtins.ConstructorCall', [ctorEdge] as Set, graph)
+        graph.recordGroupOutcome(GroupOutcome.sat(ctorGroup))
+
+        def ctx = ctxWith(graph, method)
+
+        when:
+        def bodies = new BuildMethodBodies().build(ctx)
+
+        then:
+        bodies.size() == 1
+        bodies[0].body.toString().trim() == 'return new Thing("ACTIVE");'
+        !bodies[0].body.toString().contains('requireNonNull')
     }
 
     private MapperContext ctxWith(final MapperGraph graph, final ExecutableElement method) {

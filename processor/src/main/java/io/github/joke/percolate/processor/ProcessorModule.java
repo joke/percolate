@@ -21,6 +21,8 @@ import io.github.joke.percolate.processor.stages.expand.ExpandStage;
 import io.github.joke.percolate.processor.stages.generate.GenerateStage;
 import io.github.joke.percolate.processor.stages.seed.SeedStage;
 import io.github.joke.percolate.processor.stages.validate.RealisationDiagnosticsStage;
+import io.github.joke.percolate.processor.stages.validate.ValidateConstantDefaultLegalityStage;
+import io.github.joke.percolate.processor.stages.validate.ValidateMappingShapeStage;
 import io.github.joke.percolate.processor.stages.validate.ValidateNoDuplicateTargetsStage;
 import io.github.joke.percolate.processor.stages.validate.ValidateSourceParametersStage;
 import io.github.joke.percolate.spi.CallableMethods;
@@ -136,6 +138,7 @@ public final class ProcessorModule {
     static List<Stage> stages(
             @Named("discover") final List<Stage> discoverStages,
             final ValidateNoDuplicateTargetsStage validateNoDuplicateTargets,
+            final ValidateMappingShapeStage validateMappingShape,
             final ValidateSourceParametersStage validateSourceParameters,
             final SeedStage seedStage,
             final DumpGraphStage dumpGraph,
@@ -143,12 +146,14 @@ public final class ProcessorModule {
             final DumpFullGraphStage dumpFullGraph,
             final DumpTransformsStage dumpTransforms,
             final DumpPlanStage dumpPlan,
+            final ValidateConstantDefaultLegalityStage validateConstantDefaultLegality,
             final RealisationDiagnosticsStage realisationDiagnostics,
             final GenerateStage generateStage) {
         return Stream.concat(
                         discoverStages.stream(),
                         Stream.<Stage>of(
                                 validateNoDuplicateTargets,
+                                validateMappingShape,
                                 validateSourceParameters,
                                 seedStage,
                                 dumpGraph,
@@ -156,6 +161,7 @@ public final class ProcessorModule {
                                 dumpFullGraph,
                                 dumpTransforms,
                                 dumpPlan,
+                                validateConstantDefaultLegality,
                                 realisationDiagnostics,
                                 generateStage))
                 .collect(toUnmodifiableList());

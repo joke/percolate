@@ -8,7 +8,7 @@ import lombok.RequiredArgsConstructor;
 /**
  * A synthetic single-segment {@link Directive} the driver hands to a path-resolver strategy during source descent:
  * its {@link #sourcePath()} is exactly the one segment to resolve against the parent candidate. Carries no
- * attributes — descent reads only the segment.
+ * constant or default — descent reads only the segment.
  */
 @RequiredArgsConstructor
 final class SegmentDirective implements Directive {
@@ -21,7 +21,12 @@ final class SegmentDirective implements Directive {
     }
 
     @Override
-    public Optional<String> attribute(final String name) {
+    public Optional<String> constant() {
+        return Optional.empty();
+    }
+
+    @Override
+    public Optional<String> defaultValue() {
         return Optional.empty();
     }
 }

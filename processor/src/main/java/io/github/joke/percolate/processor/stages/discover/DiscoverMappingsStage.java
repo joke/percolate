@@ -19,6 +19,7 @@ import javax.lang.model.element.AnnotationValue;
 import javax.lang.model.element.ExecutableElement;
 import javax.lang.model.util.Elements;
 import lombok.RequiredArgsConstructor;
+import org.jspecify.annotations.Nullable;
 
 /**
  * Discovers {@code @Map} and {@code @MapList} directives on mapper methods via {@link javax.lang.model.element.AnnotationMirror} walking.
@@ -83,7 +84,30 @@ public final class DiscoverMappingsStage implements Stage {
     private MappingDirective toDirective(final AnnotationMirror mirror) {
         final var targetValue = getAnnotationValue(mirror, "target");
         final var sourceValue = getAnnotationValue(mirror, "source");
+        final var constantValue = getAnnotationValue(mirror, "constant");
+        final var defaultValueValue = getAnnotationValue(mirror, "defaultValue");
+        final var source = present(sourceValue);
+        final var constant = present(constantValue);
+        final var defaultValue = present(defaultValueValue);
         return new MappingDirective(
-                targetValue.getValue().toString(), sourceValue.getValue().toString(), mirror, targetValue, sourceValue);
+                targetValue.getValue().toString(),
+                source,
+                constant,
+                defaultValue,
+                mirror,
+                targetValue,
+                source == null ? null : sourceValue,
+                constant == null ? null : constantValue,
+                defaultValue == null ? null : defaultValueValue);
+    }
+
+    /**
+     * The member's written string value, or {@code null} when it is absent (left at {@link Map#UNSET}). Presence is
+     * decided against the sentinel, never via {@link String#isEmpty()}: an empty string is a present value.
+     */
+    @Nullable
+    private static String present(final AnnotationValue value) {
+        final var raw = value.getValue().toString();
+        return Map.UNSET.equals(raw) ? null : raw;
     }
 }

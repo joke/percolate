@@ -1,7 +1,10 @@
 package io.github.joke.percolate.processor.stages.seed;
 
+import static java.util.Objects.requireNonNull;
+
 import io.github.joke.percolate.processor.MapperContext;
 import io.github.joke.percolate.processor.graph.AccessPath;
+import io.github.joke.percolate.processor.graph.ConstantLocation;
 import io.github.joke.percolate.processor.graph.Edge;
 import io.github.joke.percolate.processor.graph.ExpansionGroup;
 import io.github.joke.percolate.processor.graph.GroupId;
@@ -91,18 +94,52 @@ public final class SeedStage implements Stage {
             final MappingDirective directive,
             final Node returnRoot,
             final Map<Node, GroupId> umbrellas) {
-        final var sourceSegments = splitPath(directive.getSource());
-        // ValidateSourceParametersStage is a hard precondition: a validated directive always has a non-empty
-        // source whose first segment names a parameter, so there is no empty-source drop and no orphan-source
-        // fallback branch here.
-        final var deepestSource = buildSourceChain(graph, canon, scope, sourceSegments);
         final var deepestTarget =
                 buildTargetChain(graph, canon, scope, splitPath(directive.getTarget()), returnRoot, umbrellas);
+        if (directive.hasConstant()) {
+            seedConstant(graph, scope, directive, deepestTarget);
+        } else {
+            seedSource(graph, canon, scope, directive, deepestTarget);
+        }
+    }
 
+    /**
+     * Plants a constant directive's untyped {@link ConstantLocation} node, bridges it to the deepest target node, and
+     * registers the directive-binding demand feeding that target from the constant node. No source chain and no
+     * parameter-root edge are emitted (a constant has no source). The {@code @Map} {@link MapDirective} is stamped
+     * onto the constant node so {@code ConstantValue} reads {@code constant} from local context.
+     */
+    private void seedConstant(
+            final MapperGraph graph, final Scope scope, final MappingDirective directive, final Node deepestTarget) {
+        final var constNode =
+                new Node(Optional.empty(), new ConstantLocation(requireNonNull(directive.getConstant())), scope);
+        constNode.inheritDirective(MapDirective.from(directive));
+        graph.addNode(constNode);
+        graph.addEdge(constNode, deepestTarget, Edge.seed(Optional.of(directive.getMirror())));
+        registerDemand(graph, deepestTarget, constNode);
+    }
+
+    /**
+     * Seeds a source-bearing directive's source chain and the bridging edge to the deepest target node. A present
+     * {@code defaultValue} stamps the {@code @Map} {@link MapDirective} onto the target node so {@code DefaultValue}
+     * reads it. {@code ValidateSourceParametersStage}/{@code ValidateMappingShapeStage} are hard preconditions: a
+     * surviving source directive always has a non-empty source whose first segment names a parameter.
+     */
+    private void seedSource(
+            final MapperGraph graph,
+            final Canonicalizer canon,
+            final Scope scope,
+            final MappingDirective directive,
+            final Node deepestTarget) {
+        final var deepestSource =
+                buildSourceChain(graph, canon, scope, splitPath(requireNonNull(directive.getSource())));
         // The directive-bridging edge is emitted once per MappingDirective. The degenerate case of two directives
         // sharing both source and target is guarded producer-side by a single existence check, not by a graph
         // value-dedup index (design D3/D5).
         if (graph.underlyingGraph().getAllEdges(deepestSource, deepestTarget).isEmpty()) {
+            if (directive.hasDefaultValue()) {
+                deepestTarget.inheritDirective(MapDirective.from(directive));
+            }
             graph.addEdge(deepestSource, deepestTarget, Edge.seed(Optional.of(directive.getMirror())));
             registerDemand(graph, deepestTarget, deepestSource);
         }

@@ -1,5 +1,6 @@
 package io.github.joke.percolate.processor.stages.seed
 
+import io.github.joke.percolate.processor.graph.ConstantLocation
 import io.github.joke.percolate.processor.graph.EdgeKind
 import io.github.joke.percolate.processor.graph.SourceLocation
 import io.github.joke.percolate.processor.graph.TargetLocation
@@ -7,6 +8,7 @@ import io.github.joke.percolate.processor.model.MapperMappings
 import io.github.joke.percolate.processor.model.MappingDirective
 import io.github.joke.percolate.processor.model.MethodMappings
 import io.github.joke.percolate.spi.test.TypeUniverse
+import org.jgrapht.alg.cycle.CycleDetector
 import spock.lang.Specification
 import spock.lang.Tag
 
@@ -182,6 +184,70 @@ class SeedStageSpec extends Specification {
         graph.groups().filter { it.root.loc instanceof SourceLocation }.toList().empty
     }
 
+    def 'a constant directive seeds an untyped constant-value node bridged to the target with a directive-binding demand'() {
+        given:
+        def method = mockMethod('m', [param('person', TypeUniverse.element('java.lang.Object').asType())], TypeUniverse.STRING)
+        def mappings = mappings(method, [constantDirective('status', 'ACTIVE')])
+
+        when:
+        def graph = new SeedStage().apply(mappings)
+
+        then: 'one untyped constant-value node carrying the raw literal'
+        def constNodes = graph.nodes().filter { it.loc instanceof ConstantLocation }.toList()
+        constNodes.size() == 1
+        constNodes[0].loc.raw == 'ACTIVE'
+        constNodes[0].type.empty
+
+        and: 'a bridging SEED edge from the constant node to tgt[status]'
+        def bridges = graph.edges().filter { graph.getEdgeSource(it).loc instanceof ConstantLocation }.toList()
+        bridges.size() == 1
+        bridges[0].kind == EdgeKind.SEED
+        graph.getEdgeTarget(bridges[0]).loc instanceof TargetLocation
+        graph.getEdgeTarget(bridges[0]).loc.path.segments == ['status']
+
+        and: 'a directive-binding demand root=tgt[status], single input = the constant node'
+        def groups = graph.groups()
+                .filter { it.root.loc instanceof TargetLocation && it.root.loc.path.segments == ['status'] }
+                .toList()
+        groups.size() == 1
+        groups[0].inputs().size() == 1
+        groups[0].inputs()[0].loc instanceof ConstantLocation
+
+        and: 'no source node (only the parameter root exists)'
+        graph.nodes().filter { it.loc instanceof SourceLocation }.collect { it.loc.path.segments } == [['person']]
+    }
+
+    def 'a constant directive still seeds its target chain to the root'() {
+        given:
+        def method = mockMethod('m', [param('p', TypeUniverse.element('java.lang.Object').asType())], TypeUniverse.STRING)
+        def mappings = mappings(method, [constantDirective('address.zip', '00000')])
+
+        when:
+        def graph = new SeedStage().apply(mappings)
+
+        then: 'target nodes for [address] and [address,zip] chained out to the return root'
+        def targetPaths = graph.nodes().filter { it.loc instanceof TargetLocation }.collect { it.loc.path.segments }
+        targetPaths.contains(['address'])
+        targetPaths.contains(['address', 'zip'])
+        targetPaths.contains([])
+
+        and: 'the bridge targets the deepest target node'
+        def bridges = graph.edges().filter { graph.getEdgeSource(it).loc instanceof ConstantLocation }.toList()
+        graph.getEdgeTarget(bridges[0]).loc.path.segments == ['address', 'zip']
+    }
+
+    def 'a seed graph containing a constant remains acyclic'() {
+        given:
+        def method = mockMethod('m', [param('p', TypeUniverse.element('java.lang.Object').asType())], TypeUniverse.STRING)
+        def mappings = mappings(method, [constantDirective('status', 'ACTIVE')])
+
+        when:
+        def graph = new SeedStage().apply(mappings)
+
+        then:
+        !new CycleDetector<>(graph.underlyingGraph()).detectCycles()
+    }
+
     def 'empty mapper produces an empty graph'() {
         given:
         def mappings = new MapperMappings(null, [])
@@ -218,7 +284,11 @@ class SeedStageSpec extends Specification {
     }
 
     private MappingDirective directive(final String target, final String source) {
-        new MappingDirective(target, source, Mock(AnnotationMirror), null, null)
+        new MappingDirective(target, source, null, null, Mock(AnnotationMirror), null, null, null, null)
+    }
+
+    private MappingDirective constantDirective(final String target, final String constant) {
+        new MappingDirective(target, null, constant, null, Mock(AnnotationMirror), null, null, null, null)
     }
 
     private MapperMappings mappings(final ExecutableElement method, final List<MappingDirective> directives) {

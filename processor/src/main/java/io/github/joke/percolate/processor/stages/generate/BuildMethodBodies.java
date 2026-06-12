@@ -5,6 +5,7 @@ import static java.util.stream.Collectors.toUnmodifiableList;
 
 import com.palantir.javapoet.CodeBlock;
 import io.github.joke.percolate.processor.MapperContext;
+import io.github.joke.percolate.processor.graph.ConstantLocation;
 import io.github.joke.percolate.processor.graph.Edge;
 import io.github.joke.percolate.processor.graph.MethodScope;
 import io.github.joke.percolate.processor.graph.Node;
@@ -233,6 +234,11 @@ public final class BuildMethodBodies {
     }
 
     private static CodeBlock renderLeaf(final Node node, final ExecutableElement method) {
+        if (node.getLoc() instanceof ConstantLocation) {
+            // A constant origin contributes no operand text: the producing edge's Codegen (from ConstantValue)
+            // renders the coerced literal and ignores this empty incoming value.
+            return CodeBlock.of("");
+        }
         if (!(node.getLoc() instanceof SourceLocation)) {
             throw new IllegalStateException("leaf node is not a SourceLocation: " + node.id());
         }

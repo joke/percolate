@@ -20,7 +20,8 @@ final class BridgeExpander implements GroupExpander {
     public boolean appliesTo(final ExpansionGroup group) {
         return !GroupShapes.isSourceDescent(group)
                 && !GroupShapes.isAssembly(group)
-                && !GroupShapes.isDirectiveBinding(group);
+                && !GroupShapes.isDirectiveBinding(group)
+                && !GroupShapes.isConstantBinding(group);
     }
 
     @Override
