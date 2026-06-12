@@ -72,9 +72,9 @@ A `defaultValue` can only fire when the source can be absent. After nullability 
 
 ### Requirement: Coalesced values are intrinsically non-null
 
-A coalesced (source-or-default) value is non-null by construction. The engine SHALL stamp a default-coalesced producer `NON_NULL` (see the `nullability` capability) without invoking `NullabilityResolver`, so a defaulted operand feeding a `NON_NULL` slot needs no `requireNonNull` guard.
+A coalesced (source-or-default) value is non-null by construction: the coalesce can never yield null. It is carried by the directive's target node (see the `nullability` capability) rather than a separate producer node; that target's resolver-obtained typing is `NON_NULL` for a non-null target. A defaulted operand feeding a `NON_NULL` slot SHALL therefore emit no `requireNonNull` guard.
 
 #### Scenario: A defaulted operand feeding a non-null slot needs no guard
 - **WHEN** a nullable source with a `defaultValue` feeds a `NON_NULL` assembly slot
-- **THEN** the coalesced operand is stamped `NON_NULL`
+- **THEN** the coalesced operand's producer (the target node) is read as `NON_NULL`
 - **AND** no `Objects.requireNonNull` guard is emitted around it

@@ -282,6 +282,49 @@ class BuildMethodBodiesSpec extends Specification {
         !bodies[0].body.toString().contains('requireNonNull')
     }
 
+    def 'a default-coalesced operand feeding a non-null slot renders the coalesce with no requireNonNull guard'() {
+        given: 'a nullable source folded through a default coalesce into a NON_NULL target slot'
+        def method = mockMethod('map', [mockParam('in')], TypeUniverse.STRING)
+        def scope = new MethodScope(method)
+        def graph = new MapperGraph()
+        def param = node(scope, sourceLoc('in'), TypeUniverse.STRING)
+        def nameSrc = new Node(Optional.empty(), sourceLoc('in', 'name'), scope)
+        nameSrc.setTyping(TypeUniverse.STRING, Nullability.NULLABLE)
+        // The coalesced producer IS the target leaf, typed NON_NULL by the assembly (see design D6 / nullability spec).
+        def nameSlot = new Node(Optional.empty(), targetLoc('name'), scope)
+        nameSlot.setTyping(TypeUniverse.STRING, Nullability.NON_NULL)
+        def returnRoot = node(scope, returnRootLoc(), TypeUniverse.STRING)
+        [param, nameSrc, nameSlot, returnRoot].each { graph.addNode(it) }
+
+        EdgeCodegen getName = { vars, inputs -> CodeBlock.of('$L.getName()', inputs.single()) } as EdgeCodegen
+        graph.addEdge(param, nameSrc, Edge.realised(Weights.STEP_GETTER, getName, 'GetterPathResolver'))
+        // The default coalesce: a folded CONVERSION edge that wraps the source value, carrying no consumer slot
+        // (so the nullable source flows in unguarded — the coalesce itself handles the null).
+        EdgeCodegen coalesce = { vars, inputs ->
+            CodeBlock.of('$T.requireNonNullElse($L, $S)', Objects, inputs.single(), 'unknown')
+        } as EdgeCodegen
+        graph.addEdge(nameSrc, nameSlot, Edge.realised(Weights.NOOP, coalesce, 'io.github.joke.percolate.spi.builtins.DefaultValue'))
+
+        EdgeCodegen ctorCodegen = { vars, inputs -> CodeBlock.of('new Thing($L)', inputs.byName('name')) } as EdgeCodegen
+        def ctorEdge = Edge.realised(Weights.STEP, ctorCodegen, 'io.github.joke.percolate.spi.builtins.ConstructorCall')
+        graph.addEdge(nameSlot, returnRoot, ctorEdge)
+        def ctorGroup = TestGroups.of(returnRoot, [nameSlot], 'io.github.joke.percolate.spi.builtins.ConstructorCall', [ctorEdge] as Set, graph)
+        graph.recordGroupOutcome(GroupOutcome.sat(ctorGroup))
+
+        def ctx = ctxWith(graph, method)
+
+        when:
+        def bodies = new BuildMethodBodies().build(ctx)
+
+        then: 'the operand is the coalesce expression, with no plain null guard wrapping it'
+        bodies.size() == 1
+        bodies[0].body.toString().trim() == 'return new Thing(java.util.Objects.requireNonNullElse(in.getName(), "unknown"));'
+
+        and: 'the coalesced producer is read as NON_NULL, so the non-null guard is suppressed'
+        nameSlot.nullability.get() == Nullability.NON_NULL
+        !bodies[0].body.toString().contains('source for slot')
+    }
+
     private MapperContext ctxWith(final MapperGraph graph, final ExecutableElement method) {
         def ctx = new MapperContext(null)
         ctx.shape = new MapperShape(null, List.of(method))
