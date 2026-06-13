@@ -16,7 +16,6 @@ import io.github.joke.percolate.processor.stages.dump.DumpFullGraphStage;
 import io.github.joke.percolate.processor.stages.dump.DumpGraphStage;
 import io.github.joke.percolate.processor.stages.dump.DumpPlanStage;
 import io.github.joke.percolate.processor.stages.dump.DumpTransformsStage;
-import io.github.joke.percolate.processor.stages.expand.ExpandGroupsPhase;
 import io.github.joke.percolate.processor.stages.expand.ExpandStage;
 import io.github.joke.percolate.processor.stages.generate.GenerateStage;
 import io.github.joke.percolate.processor.stages.seed.SeedStage;
@@ -112,8 +111,7 @@ public final class ProcessorModule {
             final List<ExpansionStrategy> strategies,
             final ResolveCtx resolveCtx,
             final NullabilityResolver nullabilityResolver) {
-        final var groupsPhase = ExpandGroupsPhase.create(strategies, resolveCtx, nullabilityResolver);
-        return new ExpandStage(List.of(groupsPhase));
+        return new ExpandStage(strategies, resolveCtx, nullabilityResolver);
     }
 
     @Provides

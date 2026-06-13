@@ -8,10 +8,10 @@ import io.github.joke.percolate.processor.graph.AccessPath;
 import io.github.joke.percolate.processor.graph.Location;
 import io.github.joke.percolate.processor.graph.MapperGraph;
 import io.github.joke.percolate.processor.graph.MethodScope;
-import io.github.joke.percolate.processor.graph.Node;
 import io.github.joke.percolate.processor.graph.SourceLocation;
 import io.github.joke.percolate.processor.graph.TargetLocation;
 import io.github.joke.percolate.processor.graph.TargetPath;
+import io.github.joke.percolate.processor.graph.Value;
 import io.github.joke.percolate.processor.model.MappingDirective;
 import io.github.joke.percolate.processor.stages.Stage;
 import io.github.joke.percolate.spi.LiteralCoercion;
@@ -116,36 +116,35 @@ public final class ValidateConstantDefaultLegalityStage implements Stage {
     }
 
     /** A default is dead when its source can never be absent: a primitive, or a {@code NON_NULL} non-{@code Optional}. */
-    private static boolean isDeadDefault(final Node source) {
+    private static boolean isDeadDefault(final Value source) {
         return source.getType()
                 .map(type -> type.getKind().isPrimitive() || neverAbsentReference(type, source))
                 .orElse(false);
     }
 
-    private static boolean neverAbsentReference(final TypeMirror type, final Node source) {
-        return !isOptional(type) && source.getNullability().orElse(Nullability.UNKNOWN) == Nullability.NON_NULL;
+    private static boolean neverAbsentReference(final TypeMirror type, final Value source) {
+        return !isOptional(type) && source.getNullness().orElse(Nullability.UNKNOWN) == Nullability.NON_NULL;
     }
 
     @Nullable
     private static TypeMirror targetType(final MapperGraph graph, final MethodScope scope, final String target) {
-        final var node = findTypedNode(graph, scope, new TargetLocation(new TargetPath(splitPath(target))));
-        return node == null ? null : node.getType().orElse(null);
+        final var value = findTypedValue(graph, scope, new TargetLocation(new TargetPath(splitPath(target))));
+        return value == null ? null : value.getType().orElse(null);
     }
 
     @Nullable
-    private static Node sourceNode(final MapperGraph graph, final MethodScope scope, final @Nullable String source) {
+    private static Value sourceNode(final MapperGraph graph, final MethodScope scope, final @Nullable String source) {
         if (source == null) {
             return null;
         }
-        return findTypedNode(graph, scope, new SourceLocation(new AccessPath(splitPath(source))));
+        return findTypedValue(graph, scope, new SourceLocation(new AccessPath(splitPath(source))));
     }
 
     @Nullable
-    private static Node findTypedNode(final MapperGraph graph, final MethodScope scope, final Location loc) {
-        return graph.nodes()
-                .filter(node -> node.getScope().equals(scope))
-                .filter(node -> node.getLoc().equals(loc))
-                .filter(node -> node.getType().isPresent())
+    private static Value findTypedValue(final MapperGraph graph, final MethodScope scope, final Location loc) {
+        return graph.valuesIn(scope)
+                .filter(value -> value.getLoc().equals(loc))
+                .filter(value -> value.getType().isPresent())
                 .findFirst()
                 .orElse(null);
     }

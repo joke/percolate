@@ -1,48 +1,39 @@
 package io.github.joke.percolate.processor.stages.generate;
 
-import static java.util.stream.Collectors.toMap;
 import static java.util.stream.Collectors.toUnmodifiableList;
 
 import com.palantir.javapoet.CodeBlock;
 import io.github.joke.percolate.processor.MapperContext;
-import io.github.joke.percolate.processor.graph.ConstantLocation;
-import io.github.joke.percolate.processor.graph.Edge;
+import io.github.joke.percolate.processor.graph.ExtractedPlan;
+import io.github.joke.percolate.processor.graph.MapperGraph;
 import io.github.joke.percolate.processor.graph.MethodScope;
-import io.github.joke.percolate.processor.graph.Node;
-import io.github.joke.percolate.processor.graph.PlanView;
+import io.github.joke.percolate.processor.graph.Operation;
 import io.github.joke.percolate.processor.graph.Scope;
 import io.github.joke.percolate.processor.graph.SourceLocation;
-import io.github.joke.percolate.processor.nullability.NullabilityResolver;
+import io.github.joke.percolate.processor.graph.Value;
 import io.github.joke.percolate.spi.ContainerCodegen;
-import io.github.joke.percolate.spi.EdgeCodegen;
-import io.github.joke.percolate.spi.Nullability;
-import io.github.joke.percolate.spi.Slot;
-import io.github.joke.percolate.spi.StreamOps;
+import io.github.joke.percolate.spi.OperationCodegen;
 import io.github.joke.percolate.spi.WrapperCodegen;
 import jakarta.inject.Inject;
+import java.util.IdentityHashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
-import java.util.Optional;
 import java.util.Set;
-import javax.lang.model.element.Element;
 import javax.lang.model.element.ExecutableElement;
 import lombok.RequiredArgsConstructor;
-import lombok.Value;
 
 /**
- * Composes each abstract method body by recursing over the plan view's {@link Node}s and {@link Edge}s only — it
- * never reads an {@code ExpansionGroup}. The n-ary producer (constructor / multi-arg call) is reconstructed from
- * the output node's fan-in: its incoming REALISED plan edges, which share a producer {@link EdgeCodegen}. The
- * consumer nullability contract is read from each operand edge's {@link Slot}.
+ * Composes each abstract method body by walking the {@link ExtractedPlan} from the method's return-root
+ * {@link Value} (design D8/codegen). Each in-plan Value's chosen producer {@link Operation} is rendered by
+ * invoking its codegen with {@link io.github.joke.percolate.spi.IncomingValues} keyed by port name; a leaf
+ * (a supply root) renders the parameter or the element lambda variable. A scope-owning Operation (container
+ * element mapping) weaves its container codegen around the child plan rendered as a lambda body. Producer
+ * identity is structural — no group, label, or shared-codegen inference — and no nullability is read (crossings
+ * are ordinary plan Operations).
  */
 @RequiredArgsConstructor(onConstructor_ = @Inject)
 public final class BuildMethodBodies {
-
-    private static final int SINGLE_EDGE = 1;
-
-    private final NullabilityResolver nullabilityResolver;
 
     List<MethodImpl> build(final MapperContext ctx) {
         final var shape = ctx.getShape();
@@ -50,257 +41,110 @@ public final class BuildMethodBodies {
         if (shape == null || graph == null) {
             return List.of();
         }
-        final var realised = graph.planView();
+        final var plan = ExtractedPlan.extract(graph);
         return shape.getAbstractMethods().stream()
-                .map(method -> renderMethod(realised, method))
+                .map(method -> renderMethod(graph, plan, method))
                 .collect(toUnmodifiableList());
     }
 
-    private MethodImpl renderMethod(final PlanView realised, final ExecutableElement method) {
-        final var root = findReturnRoot(realised, new MethodScope(method));
-        final var expression = render(root, realised, method, new VarGen());
-        final var body = CodeBlock.builder()
-                .addStatement("return $L", expression.getBlock())
-                .build();
+    private MethodImpl renderMethod(final MapperGraph graph, final ExtractedPlan plan, final ExecutableElement method) {
+        final var root = returnRoot(graph, new MethodScope(method));
+        final var expression = new Walk(graph, plan).render(root);
+        final var body =
+                CodeBlock.builder().addStatement("return $L", expression).build();
         return new MethodImpl(method, body, Set.of());
     }
 
-    /**
-     * Renders {@code node} as an expression, threading {@code isStream} and, when streaming, the owning
-     * {@link StreamOps} handle. Dispatches purely on the node's inbound plan edges: no inbound edge is a leaf; a
-     * single container edge is woven; a single scalar/producer edge or a multi-edge fan-in renders the producer
-     * codegen carried by the edge(s).
-     */
-    private Rendered render(
-            final Node node, final PlanView realised, final ExecutableElement method, final VarGen varGen) {
-        final var inbound = inboundRealisedEdges(node, realised);
-        if (inbound.isEmpty()) {
-            return Rendered.scalar(renderLeaf(node, method));
-        }
-        if (inbound.size() == SINGLE_EDGE && isContainerEdge(inbound.get(0))) {
-            return renderContainerEdge(inbound.get(0), realised, method, varGen);
-        }
-        return renderProducer(inbound, realised, method, varGen);
-    }
-
-    private static boolean isContainerEdge(final Edge edge) {
-        return edge.getCodegen().map(c -> c instanceof StreamOps).orElse(false);
-    }
-
-    /**
-     * Assembly fan-in / scalar producer case. The operands are the {@code from} nodes of {@code node}'s incoming
-     * REALISED plan edges, which share one producer {@link EdgeCodegen}; each operand is keyed by the slot-name
-     * rule and its nullability contract is read off the operand edge's {@link Slot}.
-     */
-    private Rendered renderProducer(
-            final List<Edge> inbound, final PlanView realised, final ExecutableElement method, final VarGen varGen) {
-        final var producer = producerCodegen(inbound.get(0));
-        if (inbound.size() == SINGLE_EDGE) {
-            return renderSingleOperand(producer, inbound.get(0), realised, method, varGen);
-        }
-        return renderFanIn(producer, inbound, realised, method, varGen);
-    }
-
-    private static EdgeCodegen producerCodegen(final Edge edge) {
-        return (EdgeCodegen)
-                edge.getCodegen().orElseThrow(() -> new IllegalStateException("REALISED edge has no codegen: " + edge));
-    }
-
-    /**
-     * A single-operand producer whose operand renders as an open stream applies the producer per element (a scalar
-     * bridge such as a conversion / method call); otherwise the producer renders once inline.
-     */
-    private Rendered renderSingleOperand(
-            final EdgeCodegen producer,
-            final Edge edge,
-            final PlanView realised,
-            final ExecutableElement method,
-            final VarGen varGen) {
-        final var source = realised.getEdgeSource(edge);
-        final var child = render(source, realised, method, varGen);
-        final var name = slotName(source);
-        if (child.isStream()) {
-            return renderPerElement(producer, edge, name, child, varGen);
-        }
-        final var operand = applyNullabilityContract(realised, edge, name, child.getBlock());
-        return Rendered.scalar(producer.render(new VarNamesImpl(), incoming(name, operand)));
-    }
-
-    private static Rendered renderPerElement(
-            final EdgeCodegen producer, final Edge edge, final String name, final Rendered child, final VarGen varGen) {
-        final var handle = child.getStreamHandle()
-                .orElseThrow(() -> new IllegalStateException("stream operand has no container handle: " + edge));
-        final var var = varGen.fresh();
-        final var body = producer.render(new VarNamesImpl(), incoming(name, CodeBlock.of("$N", var)));
-        return new Rendered(handle.mapElements(child.getBlock(), var, body), true, child.getStreamHandle());
-    }
-
-    private Rendered renderFanIn(
-            final EdgeCodegen producer,
-            final List<Edge> inbound,
-            final PlanView realised,
-            final ExecutableElement method,
-            final VarGen varGen) {
-        final var byName = inbound.stream()
-                .collect(toMap(
-                        edge -> slotName(realised.getEdgeSource(edge)),
-                        edge -> renderOperand(realised, edge, method, varGen),
-                        (first, second) -> second,
-                        LinkedHashMap::new));
-        return Rendered.scalar(producer.render(
-                new VarNamesImpl(), new IncomingValuesImpl(List.copyOf(byName.values()), Map.copyOf(byName))));
-    }
-
-    private CodeBlock renderOperand(
-            final PlanView realised, final Edge edge, final ExecutableElement method, final VarGen varGen) {
-        final var source = realised.getEdgeSource(edge);
-        final var child = render(source, realised, method, varGen);
-        return applyNullabilityContract(realised, edge, slotName(source), child.getBlock());
-    }
-
-    private static IncomingValuesImpl incoming(final String name, final CodeBlock value) {
-        return new IncomingValuesImpl(List.of(value), Map.of(name, value));
-    }
-
-    /**
-     * Container single-edge case. The provider + the edge's {@link io.github.joke.percolate.spi.ElementScope}
-     * (plus the child's {@code isStream}) select the operation; every {@code CodeBlock} comes from the provider.
-     */
-    private Rendered renderContainerEdge(
-            final Edge edge, final PlanView realised, final ExecutableElement method, final VarGen varGen) {
-        final var provider = (StreamOps) edge.getCodegen().orElseThrow();
-        final var child = render(realised.getEdgeSource(edge), realised, method, varGen);
-        final var scope = edge.getElementScope()
-                .orElseThrow(() -> new IllegalStateException("container provider on a scope-preserving edge: " + edge));
-        switch (scope) {
-            case ENTERING:
-                return renderEntering(realised, edge, provider, child, varGen);
-            case EXITING:
-                // collect closes a stream back into a container — a sequence terminal only.
-                return Rendered.scalar(((ContainerCodegen) provider).collect(child.getBlock()));
-        }
-        throw new IllegalStateException("unknown element scope: " + scope);
-    }
-
-    private Rendered renderEntering(
-            final PlanView realised,
-            final Edge edge,
-            final StreamOps provider,
-            final Rendered child,
-            final VarGen varGen) {
-        if (provider instanceof WrapperCodegen) {
-            final var wrapper = (WrapperCodegen) provider;
-            if (!child.isStream()) {
-                // Top-level wrapper: collapse to a scalar under the target's nullability.
-                final var nullability =
-                        realised.getEdgeTarget(edge).getNullability().orElse(Nullability.UNKNOWN);
-                return Rendered.scalar(wrapper.unwrap(child.getBlock(), nullability));
-            }
-            // Wrapper inside a stream: flat-map its element stream, dropping empties (FilterPresent).
-            final var var = varGen.fresh();
-            final var inner = provider.iterate(CodeBlock.of("$N", var));
-            return new Rendered(provider.flatMapElements(child.getBlock(), var, inner), true, Optional.of(provider));
-        }
-        // Sequence: open an element stream.
-        return new Rendered(provider.iterate(child.getBlock()), true, Optional.of(provider));
-    }
-
-    /**
-     * Nullability-aware wiring (the assembly fan-in operand case): compares the operand node's producer-stamped
-     * nullability against the consumer contract derived from the operand <strong>edge's</strong> {@link Slot}
-     * {@code producedFrom}. A {@code NULLABLE → NON_NULL} crossing wraps the operand in {@code requireNonNull};
-     * all other combinations emit the operand unchanged. The contract is never read from an {@code ExpansionGroup}.
-     */
-    private CodeBlock applyNullabilityContract(
-            final PlanView realised, final Edge edge, final String slotName, final CodeBlock expr) {
-        final var producer = realised.getEdgeSource(edge).getNullability().orElse(Nullability.UNKNOWN);
-        if (producer != Nullability.NULLABLE) {
-            return expr;
-        }
-        if (resolveConsumerContract(edge) == Nullability.NON_NULL) {
-            final var message = "source for slot '" + slotName + "' is null but target is non-null";
-            return CodeBlock.of("$T.requireNonNull($L, $S)", Objects.class, expr, message);
-        }
-        return expr;
-    }
-
-    private Nullability resolveConsumerContract(final Edge edge) {
-        return edge.getConsumerSlot()
-                .map(Slot::getProducedFrom)
-                .filter(Element.class::isInstance)
-                .map(Element.class::cast)
-                .map(consumer -> nullabilityResolver.resolve(consumer.asType(), consumer))
-                .orElse(Nullability.UNKNOWN);
-    }
-
-    private static CodeBlock renderLeaf(final Node node, final ExecutableElement method) {
-        if (node.getLoc() instanceof ConstantLocation) {
-            // A constant origin contributes no operand text: the producing edge's Codegen (from ConstantValue)
-            // renders the coerced literal and ignores this empty incoming value.
-            return CodeBlock.of("");
-        }
-        if (!(node.getLoc() instanceof SourceLocation)) {
-            throw new IllegalStateException("leaf node is not a SourceLocation: " + node.id());
-        }
-        final var segments = ((SourceLocation) node.getLoc()).getPath().getSegments();
-        if (segments.isEmpty()) {
-            throw new IllegalStateException("SourceLocation has no segments: " + node.id());
-        }
-        final var paramName = segments.get(0);
-        final var hasParam = method.getParameters().stream()
-                .anyMatch(p -> p.getSimpleName().toString().equals(paramName));
-        if (!hasParam) {
-            throw new IllegalStateException(
-                    "parameter '" + paramName + "' not found on method " + method.getSimpleName());
-        }
-        return CodeBlock.of("$N", paramName);
-    }
-
-    private static Node findReturnRoot(final PlanView realised, final Scope scope) {
-        return realised.nodes()
-                .filter(node -> node.getScope().equals(scope))
-                .filter(node -> node.getLoc().isReturnRoot())
+    private static Value returnRoot(final MapperGraph graph, final Scope scope) {
+        return graph.valuesIn(scope)
+                .filter(value -> value.getLoc().isReturnRoot())
                 .findFirst()
-                .orElseThrow(() -> new IllegalStateException("no return-root TargetLocation node in scope " + scope));
+                .orElseThrow(() -> new IllegalStateException("no return-root Value in scope " + scope.encode()));
     }
 
-    private static List<Edge> inboundRealisedEdges(final Node node, final PlanView realised) {
-        return realised.edges()
-                .filter(edge -> realised.getEdgeTarget(edge).equals(node))
-                .collect(toUnmodifiableList());
-    }
+    /** One method-body render: holds the graph, the plan, the lambda-variable environment, and the var generator. */
+    private static final class Walk {
 
-    private static String slotName(final Node slot) {
-        final var name = slot.getLoc().slotName();
-        if (name.isEmpty()) {
-            throw new IllegalStateException("cannot derive slot name from node: " + slot.id());
+        private final MapperGraph graph;
+        private final ExtractedPlan plan;
+
+        @SuppressWarnings({"PMD.UseConcurrentHashMap", "IdentityHashMapUsage"})
+        private final Map<Value, CodeBlock> lambdaVars = new IdentityHashMap<>();
+
+        private int nextVar;
+
+        private Walk(final MapperGraph graph, final ExtractedPlan plan) {
+            this.graph = graph;
+            this.plan = plan;
         }
-        return name;
-    }
 
-    /**
-     * A rendered expression plus the cross-hop facts that ride up the recursion: whether it is an open element
-     * stream and, if so, the {@link StreamOps} handle that owns the stream (consulted by a scalar element
-     * transform for {@code mapElements}).
-     */
-    @Value
-    private static class Rendered {
-        CodeBlock block;
-        boolean isStream;
-        Optional<StreamOps> streamHandle;
-
-        static Rendered scalar(final CodeBlock block) {
-            return new Rendered(block, false, Optional.empty());
+        private CodeBlock render(final Value value) {
+            final var producer = plan.chosenProducer(value);
+            if (producer.isEmpty()) {
+                return renderLeaf(value);
+            }
+            final var operation = producer.get();
+            if (operation.getChildScope().isPresent()) {
+                return renderContainerMapping(operation);
+            }
+            return renderPlain(operation);
         }
-    }
 
-    /** Generates fresh, deterministic lambda-parameter names per rendered method. */
-    private static final class VarGen {
-        private int next;
+        @SuppressWarnings("PMD.UseConcurrentHashMap") // single-threaded render; insertion order is the port order
+        private CodeBlock renderPlain(final Operation operation) {
+            final List<CodeBlock> positional = new java.util.ArrayList<>();
+            final Map<String, CodeBlock> byName = new LinkedHashMap<>();
+            for (final var port : operation.getPorts()) {
+                final var operand = graph.portSource(operation, port.getName())
+                        .map(this::render)
+                        .orElseThrow(
+                                () -> new IllegalStateException("operation port has no source: " + port.getName()));
+                positional.add(operand);
+                byName.put(port.getName(), operand);
+            }
+            return ((OperationCodegen) operation.getCodegen())
+                    .render(new VarNamesImpl(), new IncomingValuesImpl(positional, byName));
+        }
 
-        String fresh() {
-            final var current = next;
-            next += 1;
+        private CodeBlock renderContainerMapping(final Operation operation) {
+            final var sourcePort = operation.getPorts().get(0);
+            final var sourceExpr = graph.portSource(operation, sourcePort.getName())
+                    .map(this::render)
+                    .orElseThrow(() -> new IllegalStateException("container mapping has no source port"));
+            final var child = operation.getChildScope().orElseThrow();
+            final var var = freshVar();
+            lambdaVars.put(child.getParamRoot(), CodeBlock.of("$N", var));
+            final var childBody = render(child.getReturnRoot());
+            final var codegen = operation.getCodegen();
+            if (codegen instanceof ContainerCodegen) {
+                final var sequence = (ContainerCodegen) codegen;
+                final var stream = sequence.iterate(sourceExpr);
+                final var mapped = sequence.mapElements(stream, var, childBody);
+                return sequence.collect(mapped);
+            }
+            if (codegen instanceof WrapperCodegen) {
+                return ((WrapperCodegen) codegen).mapPresence(sourceExpr, var, childBody);
+            }
+            throw new IllegalStateException("scope-owning operation carries no container codegen: " + operation.id());
+        }
+
+        private CodeBlock renderLeaf(final Value value) {
+            final var bound = lambdaVars.get(value);
+            if (bound != null) {
+                return bound;
+            }
+            if (value.getLoc() instanceof SourceLocation) {
+                final var segments = ((SourceLocation) value.getLoc()).getPath().getSegments();
+                if (!segments.isEmpty()) {
+                    return CodeBlock.of("$N", segments.get(0));
+                }
+            }
+            throw new IllegalStateException("unproducible leaf Value in plan: " + value.id());
+        }
+
+        private String freshVar() {
+            final var current = nextVar;
+            nextVar++;
             return "v" + current;
         }
     }

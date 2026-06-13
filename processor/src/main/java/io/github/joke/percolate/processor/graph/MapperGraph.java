@@ -1,12 +1,10 @@
 package io.github.joke.percolate.processor.graph;
 
 import io.github.joke.percolate.spi.Nullability;
-import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.IdentityHashMap;
-import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
@@ -19,10 +17,16 @@ import org.jgrapht.graph.AsUnmodifiableGraph;
 import org.jgrapht.graph.DirectedMultigraph;
 import org.jgrapht.graph.MaskSubgraph;
 
+/**
+ * The bipartite resolution graph: a single JGraphT {@link DirectedMultigraph} of {@link GraphVertex}
+ * ({@link Value} / {@link Operation}) connected by pure {@link Dep} dependency edges. It is append-only after
+ * construction — vertices and edges are never removed; plan selection is a read-only view, not a mutation. It
+ * owns the {@code (scope, location, type, nullness)} Value dedup index ({@link #valueFor}), applies the
+ * {@link AddValue}/{@link AddOperation} deltas (Applier-only during expansion), holds the memoized SAT predicate,
+ * and exposes scope-confined {@link MaskSubgraph} views.
+ */
 @NoArgsConstructor
-public final class MapperGraph implements GraphSource {
-
-    // ---- Bipartite Value/Operation substrate ------------------------------------------------------------------
+public final class MapperGraph {
 
     private final DirectedMultigraph<GraphVertex, Dep> bipartite = new DirectedMultigraph<>(Dep.class);
 
@@ -35,23 +39,10 @@ public final class MapperGraph implements GraphSource {
 
     private int operationSeq;
 
-    // ---- Legacy Node/Edge fields (removed with the cutover; see openspec value-operation-graph) -----------------
-
-    private final DirectedMultigraph<Node, Edge> graph = new DirectedMultigraph<>(Edge.class);
-    private final List<ExpansionGroup> expansionGroups = new ArrayList<>();
-    private final List<GroupOutcome> outcomes = new ArrayList<>();
-
-    private List<Node> sortedNodes = List.of();
-    private List<Edge> sortedEdges = List.of();
-    private boolean sortedNodesDirty = true;
-    private boolean sortedEdgesDirty = true;
-
     /**
      * The canonical {@link Value} for {@code (scope, location, type, nullness)} — get-or-create. Nullness is part
      * of identity (JSpecify: {@code String!} and {@code String?} are different types), so type-identical demands
-     * share one instance while type- or nullness-divergent demands stay distinct. The key uses the deterministic
-     * string encodings ({@code Scope.encode}, {@code Location.segment}, {@code TypeMirror.toString}) because
-     * {@code TypeMirror} has no semantic {@code equals}.
+     * share one instance while type- or nullness-divergent demands stay distinct.
      */
     public Value valueFor(
             final Scope scope, final Location location, final TypeMirror type, final Nullability nullness) {
@@ -118,6 +109,8 @@ public final class MapperGraph implements GraphSource {
         bipartite.addEdge(from, to, dep);
     }
 
+    // ---- SAT predicate store ----------------------------------------------------------------------------------
+
     /** Marks a vertex SAT (Horn propagation result). Engine-only. */
     public void markSat(final GraphVertex vertex) {
         satVertices.add(vertex);
@@ -125,6 +118,58 @@ public final class MapperGraph implements GraphSource {
 
     public boolean isSat(final GraphVertex vertex) {
         return satVertices.contains(vertex);
+    }
+
+    public void clearSat() {
+        satVertices.clear();
+    }
+
+    // ---- Queries (read-only) ----------------------------------------------------------------------------------
+
+    /** The producer Operations of {@code value}: the sources of its inbound output {@link Dep}s. */
+    public Stream<Operation> producersOf(final Value value) {
+        return bipartite.incomingEdgesOf(value).stream()
+                .map(bipartite::getEdgeSource)
+                .filter(Operation.class::isInstance)
+                .map(Operation.class::cast)
+                .sorted(Comparator.comparing(GraphVertex::id));
+    }
+
+    /** All Values feeding {@code operation}'s ports, in declared port order. */
+    public Stream<Value> portSourcesOf(final Operation operation) {
+        return operation.getPorts().stream()
+                .map(port -> portSource(operation, port.getName()))
+                .filter(Optional::isPresent)
+                .map(Optional::get);
+    }
+
+    /** The Value feeding {@code operation}'s named port, or empty when no such port edge exists. */
+    public Optional<Value> portSource(final Operation operation, final String portId) {
+        return bipartite.incomingEdgesOf(operation).stream()
+                .filter(dep -> dep.getPortId().map(portId::equals).orElse(false))
+                .map(bipartite::getEdgeSource)
+                .filter(Value.class::isInstance)
+                .map(Value.class::cast)
+                .findFirst();
+    }
+
+    /** The Value an Operation produces: the target of its output {@link Dep}. */
+    public Optional<Value> outputOf(final Operation operation) {
+        return bipartite.outgoingEdgesOf(operation).stream()
+                .filter(dep -> dep.getPortId().isEmpty())
+                .map(bipartite::getEdgeTarget)
+                .filter(Value.class::isInstance)
+                .map(Value.class::cast)
+                .findFirst();
+    }
+
+    /** All Values living directly in {@code scope}, deterministically ordered. */
+    public Stream<Value> valuesIn(final Scope scope) {
+        return bipartite.vertexSet().stream()
+                .filter(Value.class::isInstance)
+                .map(Value.class::cast)
+                .filter(value -> value.getScope().equals(scope))
+                .sorted(Comparator.comparing(GraphVertex::id));
     }
 
     /** A read-only view of the whole bipartite graph. */
@@ -140,6 +185,16 @@ public final class MapperGraph implements GraphSource {
     /** All bipartite vertices in deterministic {@link GraphVertex#id()} order. */
     public Stream<GraphVertex> vertices() {
         return bipartite.vertexSet().stream().sorted(Comparator.comparing(GraphVertex::id));
+    }
+
+    /** All Values in deterministic order. */
+    public Stream<Value> values() {
+        return vertices().filter(Value.class::isInstance).map(Value.class::cast);
+    }
+
+    /** All Operations in deterministic order. */
+    public Stream<Operation> operations() {
+        return vertices().filter(Operation.class::isInstance).map(Operation.class::cast);
     }
 
     /** All dependency edges in deterministic (source id, target id, port) order. */
@@ -159,113 +214,12 @@ public final class MapperGraph implements GraphSource {
         return bipartite.getEdgeTarget(dep);
     }
 
+    public int vertexCount() {
+        return bipartite.vertexSet().size();
+    }
+
     private static String valueKey(
             final Scope scope, final Location location, final TypeMirror type, final Nullability nullness) {
         return scope.encode() + "::" + location.segment() + "::" + type + "::" + nullness.name();
-    }
-
-    // ---- Legacy Node/Edge surface (removed with the cutover; see openspec value-operation-graph) ---------------
-
-    public void addNode(final Node node) {
-        if (graph.addVertex(node)) {
-            sortedNodesDirty = true;
-        }
-    }
-
-    /**
-     * A thin append: adds both endpoints then the JGraphT edge, returning JGraphT's "was added" boolean. It holds
-     * no percolate-level structural-equality dedup index — preventing duplicate parallel edges is owned by the
-     * mutation callers ({@code SeedStage}'s create-gate, the expansion {@code Applier}; design D5).
-     */
-    public boolean addEdge(final Node from, final Node to, final Edge edge) {
-        addNode(from);
-        addNode(to);
-        final var added = graph.addEdge(from, to, edge);
-        if (added) {
-            sortedEdgesDirty = true;
-        }
-        return added;
-    }
-
-    @Override
-    public Node getEdgeSource(final Edge edge) {
-        return graph.getEdgeSource(edge);
-    }
-
-    @Override
-    public Node getEdgeTarget(final Edge edge) {
-        return graph.getEdgeTarget(edge);
-    }
-
-    /**
-     * The parallel edges between {@code from} and {@code to}, or an empty set when either endpoint is not yet a
-     * vertex. Used by the expansion {@code Applier} to own edge non-duplication at the mutation site (design D5)
-     * without the graph holding a standing dedup index.
-     */
-    public Set<Edge> getAllEdges(final Node from, final Node to) {
-        if (!graph.containsVertex(from) || !graph.containsVertex(to)) {
-            return Set.of();
-        }
-        return graph.getAllEdges(from, to);
-    }
-
-    public void addGroup(final ExpansionGroup group) {
-        if (!graph.containsVertex(group.getRoot())) {
-            throw new IllegalArgumentException("ExpansionGroup root is not a vertex of this graph");
-        }
-        expansionGroups.add(group);
-    }
-
-    public Stream<ExpansionGroup> groups() {
-        return expansionGroups.stream();
-    }
-
-    public void recordGroupOutcome(final GroupOutcome outcome) {
-        outcomes.add(outcome);
-    }
-
-    public Stream<GroupOutcome> groupOutcomes() {
-        return outcomes.stream();
-    }
-
-    @Override
-    public Stream<Node> nodes() {
-        if (sortedNodesDirty) {
-            sortedNodes = graph.vertexSet().stream()
-                    .sorted(Comparator.comparing(Node::id))
-                    .collect(Collectors.toUnmodifiableList());
-            sortedNodesDirty = false;
-        }
-        return sortedNodes.stream();
-    }
-
-    @Override
-    public Stream<Edge> edges() {
-        if (sortedEdgesDirty) {
-            sortedEdges = graph.edgeSet().stream().sorted(EdgeOrder.by(graph)).collect(Collectors.toUnmodifiableList());
-            sortedEdgesDirty = false;
-        }
-        return sortedEdges.stream();
-    }
-
-    public int nodeCount() {
-        return graph.vertexSet().size();
-    }
-
-    public int edgeCount() {
-        return graph.edgeSet().size();
-    }
-
-    public TransformsView transformsView() {
-        final var mask = new MaskSubgraph<>(graph, v -> false, e -> e.getKind() != EdgeKind.REALISED);
-        return new TransformsView(mask);
-    }
-
-    public PlanView planView() {
-        return PlanView.of(this);
-    }
-
-    public DirectedMultigraph<Node, Edge> underlyingGraph() {
-        return graph;
     }
 }

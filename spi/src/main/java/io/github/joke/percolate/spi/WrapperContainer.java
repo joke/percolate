@@ -57,8 +57,7 @@ public abstract class WrapperContainer implements ContainerMatch, WrapperCodegen
         if (matches(from, ctx)) {
             final var elementIn = element(from);
             final var port = new Port(SOURCE_ROLE, from, Nullability.NON_NULL);
-            final var child =
-                    new ChildScopeSpec(elementIn, Nullability.NON_NULL, elementOut, Nullability.NON_NULL);
+            final var child = new ChildScopeSpec(elementIn, Nullability.NON_NULL, elementOut, Nullability.NON_NULL);
             specs.add(OperationSpec.mapping(this, Weights.CONTAINER, List.of(port), to, Nullability.NON_NULL, child));
         }
         final OperationCodegen wrap = (vars, inputs) -> wrap(inputs.single());

@@ -13,6 +13,6 @@ public final class DumpGraphStage implements Stage {
 
     @Override
     public void run(final MapperContext ctx) {
-        writer.dump(ctx, "seed", graph -> graph);
+        writer.dump(ctx, "seed", vertex -> true);
     }
 }
