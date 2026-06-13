@@ -22,7 +22,7 @@
 - [x] 3.1 Rewrite `SeedStage`: parameter-root and return-root `Value`s only; no edges, groups, or target leaves
 - [x] 3.2 Derive per-level declared-bindings goal specs from dotted `@Map` target paths (constants/defaults included as bindings)
 - [x] 3.3 Attach goal specs to demands; remove `SEED` edge kinds and seed-group registration
-- [ ] 3.4 Spock specs: roots-plus-goals seeding, per-level grouping of nested targets, no silent directive loss
+- [x] 3.4 Spock specs: roots-plus-goals seeding, per-level grouping of nested targets, no silent directive loss
 
 ## 4. Expansion engine (design D6, D9, D10)
 
