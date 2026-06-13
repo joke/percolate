@@ -1,9 +1,9 @@
 package io.github.joke.percolate.spi.builtins
 
-import io.github.joke.percolate.spi.Intent
+import io.github.joke.percolate.spi.Nullability
+import io.github.joke.percolate.spi.OperationCodegen
 import io.github.joke.percolate.spi.Weights
-import io.github.joke.percolate.spi.builtins.test.Frontiers
-import io.github.joke.percolate.spi.builtins.test.Renders
+import io.github.joke.percolate.spi.builtins.test.Demands
 import io.github.joke.percolate.spi.builtins.test.ResolveCtxBuilder
 import io.github.joke.percolate.spi.test.TypeUniverse
 import spock.lang.Specification
@@ -15,37 +15,38 @@ class ConstantValueSpec extends Specification {
     def ctx = new ResolveCtxBuilder().build()
     def types = TypeUniverse.types()
 
-    def 'emits a zero-input BOUNDARY rendering the coerced String literal'() {
+    def 'emits a zero-port operation producing a NON_NULL value for a coercible String constant'() {
         when:
-        def steps = new ConstantValue().expand(Frontiers.withConstant(TypeUniverse.STRING, 'ACTIVE'), ctx).toList()
+        def specs = new ConstantValue().expand(Demands.withConstant(TypeUniverse.STRING, 'ACTIVE'), ctx).toList()
 
         then:
-        steps.size() == 1
-        steps[0].intent == Intent.BOUNDARY
-        steps[0].inputs.empty
-        types.isSameType(steps[0].output, TypeUniverse.STRING)
-        steps[0].weight == Weights.STEP
-        Renders.edge(steps[0].codegen, 'ignored') == '"ACTIVE"'
+        specs.size() == 1
+        def spec = specs[0]
+        spec.ports.empty
+        spec.childScope.empty
+        spec.codegen instanceof OperationCodegen
+        types.isSameType(spec.outputType, TypeUniverse.STRING)
+        spec.outputNullness == Nullability.NON_NULL
+        spec.weight == Weights.STEP
     }
 
-    def 'coerces to a primitive long target literal'() {
+    def 'coerces to a primitive long target'() {
         when:
-        def steps = new ConstantValue().expand(Frontiers.withConstant(TypeUniverse.LONG, '42'), ctx).toList()
+        def specs = new ConstantValue().expand(Demands.withConstant(TypeUniverse.LONG, '42'), ctx).toList()
 
         then:
-        steps.size() == 1
-        steps[0].inputs.empty
-        types.isSameType(steps[0].output, TypeUniverse.LONG)
-        Renders.edge(steps[0].codegen, 'ignored') == '42L'
+        specs.size() == 1
+        specs[0].ports.empty
+        types.isSameType(specs[0].outputType, TypeUniverse.LONG)
     }
 
     def 'emits nothing without a constant'() {
         expect:
-        new ConstantValue().expand(Frontiers.forTarget(TypeUniverse.STRING), ctx).toList().empty
+        new ConstantValue().expand(Demands.forTarget(TypeUniverse.STRING), ctx).toList().empty
     }
 
     def 'emits nothing for an uncoercible value'() {
         expect:
-        new ConstantValue().expand(Frontiers.withConstant(TypeUniverse.INT, 'abc'), ctx).toList().empty
+        new ConstantValue().expand(Demands.withConstant(TypeUniverse.INT, 'abc'), ctx).toList().empty
     }
 }

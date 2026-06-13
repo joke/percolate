@@ -1,14 +1,12 @@
 package io.github.joke.percolate.spi.builtins
 
-import com.palantir.javapoet.CodeBlock
-import io.github.joke.percolate.spi.Containers
 import io.github.joke.percolate.spi.ContainerCodegen
-import io.github.joke.percolate.spi.EdgeCodegen
-import io.github.joke.percolate.spi.ElementScope
-import io.github.joke.percolate.spi.Intent
+import io.github.joke.percolate.spi.Containers
+import io.github.joke.percolate.spi.Nullability
+import io.github.joke.percolate.spi.OperationCodegen
 import io.github.joke.percolate.spi.ResolveCtx
 import io.github.joke.percolate.spi.Weights
-import io.github.joke.percolate.spi.builtins.test.Renders
+import io.github.joke.percolate.spi.builtins.test.Demands
 import io.github.joke.percolate.spi.builtins.test.ResolveCtxBuilder
 import io.github.joke.percolate.spi.test.TypeUniverse
 import spock.lang.Shared
@@ -22,59 +20,56 @@ class ListContainerSpec extends Specification {
 
     @Shared ResolveCtx ctx = new ResolveCtxBuilder().build()
     @Shared TypeMirror listOfString
+    @Shared TypeMirror listOfInteger
     @Shared TypeMirror setOfString
 
     def setupSpec() {
         ['java.lang.Iterable', 'java.util.Collection', 'java.util.SequencedCollection',
          'java.util.List', 'java.util.Set'].each { TypeUniverse.elements().getTypeElement(it) }
         listOfString = TypeUniverse.LIST_OF_STRING
+        listOfInteger = TypeUniverse.LIST_OF_INT
         setOfString = TypeUniverse.types().getDeclaredType(
                 TypeUniverse.elements().getTypeElement('java.util.Set'), TypeUniverse.STRING)
         Containers.isList(listOfString, ctx)
     }
 
-    def 'List<E> target emits an EXITING collect (provider) and a scopeless single-element wrap (EdgeCodegen)'() {
+    def 'List<A> to List<B> emits a scope-owning element mapping declaring element types A and B'() {
         when:
-        def steps = new ListContainer().bridge(TypeUniverse.STRING, listOfString, ctx).toList()
+        def specs = new ListContainer().bridge(listOfInteger, Demands.forTarget(listOfString), ctx).toList()
 
         then:
-        steps.size() == 2
-        def collect = steps.find { it.scope.orElse(null) == ElementScope.EXITING }
-        def wrap = steps.find { it.intent == Intent.BOUNDARY && it.scope.empty }
-        collect != null && wrap != null
-        ctx.types().isSameType(collect.inputs[0].type, TypeUniverse.STRING)
-        ctx.types().isSameType(collect.output, listOfString)
-        collect.weight == Weights.CONTAINER
-        collect.codegen instanceof ContainerCodegen
-        wrap.codegen instanceof EdgeCodegen
-        Renders.edge(wrap.codegen, 'x') == 'java.util.List.of(x)'
+        def mapping = specs.find { it.childScope.present }
+        mapping != null
+        def child = mapping.childScope.get()
+        ctx.types().isSameType(child.elementIn, TypeUniverse.INTEGER)
+        child.elementInNullness == Nullability.NON_NULL
+        ctx.types().isSameType(child.elementOut, TypeUniverse.STRING)
+        child.elementOutNullness == Nullability.NON_NULL
+        mapping.ports.size() == 1
+        ctx.types().isSameType(mapping.ports[0].type, listOfInteger)
+        ctx.types().isSameType(mapping.outputType, listOfString)
+        mapping.outputNullness == Nullability.NON_NULL
+        mapping.weight == Weights.CONTAINER
+        mapping.codegen instanceof ContainerCodegen
     }
 
-    def 'List<E> source emits an ENTERING iterate carrying the provider'() {
+    def 'List<E> target with a scalar source emits a plain single-element wrap with no child scope'() {
         when:
-        def steps = new ListContainer().bridge(listOfString, TypeUniverse.STRING, ctx).toList()
+        def specs = new ListContainer().bridge(TypeUniverse.STRING, Demands.forTarget(listOfString), ctx).toList()
 
         then:
-        steps.size() == 1
-        steps[0].scope.orElse(null) == ElementScope.ENTERING
-        ctx.types().isSameType(steps[0].inputs[0].type, listOfString)
-        ctx.types().isSameType(steps[0].output, TypeUniverse.STRING)
-        steps[0].codegen instanceof ContainerCodegen
+        specs.size() == 1
+        def wrap = specs[0]
+        wrap.childScope.empty
+        wrap.codegen instanceof OperationCodegen
+        wrap.weight == Weights.CONTAINER
+        wrap.ports.size() == 1
+        ctx.types().isSameType(wrap.ports[0].type, TypeUniverse.STRING)
+        ctx.types().isSameType(wrap.outputType, listOfString)
     }
 
-    def 'declines when neither side is a List'() {
+    def 'declines when the target is not a List'() {
         expect:
-        new ListContainer().bridge(TypeUniverse.STRING, setOfString, ctx).toList().empty
-    }
-
-    def 'stream snippets render the List paradigm'() {
-        given:
-        def c = new ListContainer()
-
-        expect:
-        c.iterate(CodeBlock.of('xs')).toString() == 'xs.stream()'
-        c.mapElements(CodeBlock.of('s'), 'e', CodeBlock.of('f(e)')).toString() == 's.map(e -> f(e))'
-        c.flatMapElements(CodeBlock.of('s'), 'e', CodeBlock.of('e.stream()')).toString() == 's.flatMap(e -> e.stream())'
-        c.collect(CodeBlock.of('s')).toString() == 's.collect(java.util.stream.Collectors.toList())'
+        new ListContainer().bridge(TypeUniverse.STRING, Demands.forTarget(setOfString), ctx).toList().empty
     }
 }

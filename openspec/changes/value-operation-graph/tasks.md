@@ -11,11 +11,11 @@
 
 ## 2. SPI reshape (design D12)
 
-- [ ] 2.1 Define `OperationSpec` in `spi` (codegen, weight, ports, output typing, optional child-scope declaration) replacing `ExpansionStep`/`Slot`/`Intent`/`ElementScope`
-- [ ] 2.2 Define the demand decision context (demanded type+nullness, binding `Directive`, declared bindings, candidate snapshot of in-scope Values)
-- [ ] 2.3 Carry the `render(VarNames, IncomingValues)` codegen contract onto Operation codegen with port-name keying
-- [ ] 2.4 Port all `strategies-builtin` strategies to emit `OperationSpec`s (matching logic and `Weights` carried over; container strategies declare child scopes; wrap/unwrap plain)
-- [ ] 2.5 Update strategy unit specs to assert `OperationSpec` metadata (ports, weight, child-scope declaration; no render calls) per the `builtin-strategy-unit-tests` delta
+- [x] 2.1 Define `OperationSpec` in `spi` (codegen, weight, ports, output typing, optional child-scope declaration) replacing `ExpansionStep`/`Slot`/`Intent`/`ElementScope`
+- [x] 2.2 Define the demand decision context (demanded type+nullness, binding `Directive`, declared bindings, candidate snapshot of in-scope Values)
+- [x] 2.3 Carry the `render(VarNames, IncomingValues)` codegen contract onto Operation codegen with port-name keying
+- [x] 2.4 Port all `strategies-builtin` strategies to emit `OperationSpec`s (matching logic and `Weights` carried over; container strategies declare child scopes; wrap/unwrap plain)
+- [x] 2.5 Update strategy unit specs to assert `OperationSpec` metadata (ports, weight, child-scope declaration; no render calls) per the `builtin-strategy-unit-tests` delta
 
 ## 3. Seed stage (design D9)
 

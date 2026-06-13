@@ -1,8 +1,9 @@
 package io.github.joke.percolate.spi.builtins
 
-import io.github.joke.percolate.spi.Intent
+import io.github.joke.percolate.spi.Nullability
+import io.github.joke.percolate.spi.OperationCodegen
 import io.github.joke.percolate.spi.Weights
-import io.github.joke.percolate.spi.builtins.test.Frontiers
+import io.github.joke.percolate.spi.builtins.test.Demands
 import io.github.joke.percolate.spi.builtins.test.ResolveCtxBuilder
 import io.github.joke.percolate.spi.test.TypeUniverse
 import spock.lang.Specification
@@ -11,36 +12,42 @@ import spock.lang.Tag
 @Tag('unit')
 class FieldPathResolverSpec extends Specification {
 
-    def 'matches a public, non-static field'() {
-        given:
-        def ctx = new ResolveCtxBuilder().build()
-        def box = TypeUniverse.element('io.github.joke.percolate.spi.builtins.fixtures.BoxFixture').asType()
+    def ctx = new ResolveCtxBuilder().build()
+    def box = TypeUniverse.element('io.github.joke.percolate.spi.builtins.fixtures.BoxFixture').asType()
 
+    def 'matches a public, non-static field as a unary accessor operation typed to the field type'() {
         when:
-        def steps = new FieldPathResolver().expand(Frontiers.descend(box, 'value'), ctx).toList()
+        def specs = new FieldPathResolver().expand(Demands.descend(box, 'value'), ctx).toList()
 
         then:
-        steps.size() == 1
-        steps[0].intent == Intent.BOUNDARY
-        ctx.types().isSameType(steps[0].output, TypeUniverse.STRING)
-        steps[0].weight == Weights.STEP_FIELD
+        specs.size() == 1
+        def spec = specs[0]
+        spec.childScope.empty
+        spec.codegen instanceof OperationCodegen
+        spec.weight == Weights.STEP_FIELD
+        spec.ports.size() == 1
+        spec.ports[0].name == 'value'
+        ctx.types().isSameType(spec.ports[0].type, box)
+        ctx.types().isSameType(spec.outputType, TypeUniverse.STRING)
+        spec.outputNullness == Nullability.NON_NULL
+    }
+
+    def 'types the produced value through the demand nullness oracle'() {
+        when:
+        def specs = new FieldPathResolver().expand(Demands.descend(box, 'value', Nullability.NULLABLE), ctx).toList()
+
+        then:
+        specs.size() == 1
+        specs[0].outputNullness == Nullability.NULLABLE
     }
 
     def 'rejects private fields'() {
-        given:
-        def ctx = new ResolveCtxBuilder().build()
-        def box = TypeUniverse.element('io.github.joke.percolate.spi.builtins.fixtures.BoxFixture').asType()
-
         expect:
-        new FieldPathResolver().expand(Frontiers.descend(box, 'secret'), ctx).toList().empty
+        new FieldPathResolver().expand(Demands.descend(box, 'secret'), ctx).toList().empty
     }
 
     def 'rejects static fields'() {
-        given:
-        def ctx = new ResolveCtxBuilder().build()
-        def box = TypeUniverse.element('io.github.joke.percolate.spi.builtins.fixtures.BoxFixture').asType()
-
         expect:
-        new FieldPathResolver().expand(Frontiers.descend(box, 'DEFAULT'), ctx).toList().empty
+        new FieldPathResolver().expand(Demands.descend(box, 'DEFAULT'), ctx).toList().empty
     }
 }

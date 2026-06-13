@@ -1,9 +1,10 @@
 package io.github.joke.percolate.spi.builtins
 
-import io.github.joke.percolate.spi.Intent
+import io.github.joke.percolate.spi.Nullability
+import io.github.joke.percolate.spi.OperationCodegen
 import io.github.joke.percolate.spi.Weights
+import io.github.joke.percolate.spi.builtins.test.Demands
 import io.github.joke.percolate.spi.builtins.test.FakeReceiver
-import io.github.joke.percolate.spi.builtins.test.Frontiers
 import io.github.joke.percolate.spi.builtins.test.ResolveCtxBuilder
 import io.github.joke.percolate.spi.test.TypeUniverse
 import spock.lang.Specification
@@ -16,6 +17,8 @@ import java.util.stream.Stream
 @Tag('unit')
 class MethodCallBridgeSpec extends Specification {
 
+    def types = TypeUniverse.types()
+
     def 'returns empty when callableMethods is null'() {
         given:
         def ctx = new ResolveCtxBuilder()
@@ -23,7 +26,7 @@ class MethodCallBridgeSpec extends Specification {
                 .build()
 
         expect:
-        new MethodCallBridge().expand(Frontiers.forTarget(TypeUniverse.STRING), ctx).toList().empty
+        new MethodCallBridge().expand(Demands.forTarget(TypeUniverse.STRING), ctx).toList().empty
     }
 
     def 'returns empty when callableMethods produces an empty stream'() {
@@ -31,22 +34,26 @@ class MethodCallBridgeSpec extends Specification {
         def ctx = new ResolveCtxBuilder().build()
 
         expect:
-        new MethodCallBridge().expand(Frontiers.forTarget(TypeUniverse.STRING), ctx).toList().empty
+        new MethodCallBridge().expand(Demands.forTarget(TypeUniverse.STRING), ctx).toList().empty
     }
 
-    def 'emits a one-slot BOUNDARY step when CallableMethods provides a matching candidate'() {
+    def 'emits a one-port call operation when CallableMethods provides a matching candidate'() {
         given:
         def candidate = createExactMatchCandidate()
         def ctx = candidateCtx(candidate)
 
         when:
-        def steps = new MethodCallBridge().expand(Frontiers.forTarget(TypeUniverse.STRING), ctx).toList()
+        def specs = new MethodCallBridge().expand(Demands.forTarget(TypeUniverse.STRING), ctx).toList()
 
         then:
-        steps.size() == 1
-        steps[0].intent == Intent.BOUNDARY
-        steps[0].inputs.size() == 1
-        steps[0].weight >= Weights.METHOD
+        specs.size() == 1
+        def spec = specs[0]
+        spec.childScope.empty
+        spec.codegen instanceof OperationCodegen
+        spec.ports.size() == 1
+        spec.weight >= Weights.METHOD
+        types.isSameType(spec.outputType, TypeUniverse.STRING)
+        spec.outputNullness == Nullability.NON_NULL
     }
 
     def 'pins current behaviour: subtypeDistance returns 0 for a same-type return'() {
@@ -55,12 +62,12 @@ class MethodCallBridgeSpec extends Specification {
         def ctx = candidateCtx(candidate)
 
         when:
-        def steps = new MethodCallBridge().expand(Frontiers.forTarget(TypeUniverse.STRING), ctx).toList()
+        def specs = new MethodCallBridge().expand(Demands.forTarget(TypeUniverse.STRING), ctx).toList()
 
         then:
-        steps.size() == 1
+        specs.size() == 1
         // returnType String == target String → distance 0 → weight is METHOD + 0
-        steps[0].weight == Weights.METHOD
+        specs[0].weight == Weights.METHOD
     }
 
     def 'pins current behaviour: subtypeDistance returns 0 for a non-assignable parameter'() {
@@ -71,11 +78,11 @@ class MethodCallBridgeSpec extends Specification {
         when:
         // valueOf(Object) returns String; the parameter type is irrelevant to weight, which is driven only by
         // the return→target distance (0 here), so weight is METHOD.
-        def steps = new MethodCallBridge().expand(Frontiers.forTarget(TypeUniverse.STRING), ctx).toList()
+        def specs = new MethodCallBridge().expand(Demands.forTarget(TypeUniverse.STRING), ctx).toList()
 
         then:
-        steps.size() == 1
-        steps[0].weight == Weights.METHOD
+        specs.size() == 1
+        specs[0].weight == Weights.METHOD
     }
 
     private static io.github.joke.percolate.spi.ResolveCtx candidateCtx(final candidate) {
