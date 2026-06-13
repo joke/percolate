@@ -225,15 +225,21 @@ public final class ExpandStage implements Stage {
             }
             final var source = match.get();
             if (port.getNullness() == Nullability.NON_NULL && nullness(source) == Nullability.NULLABLE) {
-                crossNonNull(source, port);
+                crossNonNull(source, bindingName(target, port));
                 return new AddValue(source.getScope(), source.getLoc(), type(source), Nullability.NON_NULL);
             }
             return new AddValue(source.getScope(), source.getLoc(), type(source), nullness(source));
         }
 
+        /** The user-facing binding name for a crossing message: the target field's name, else the port name. */
+        private String bindingName(final Value target, final Port port) {
+            final var slot = target.getLoc().slotName();
+            return slot.isEmpty() ? port.getName() : slot;
+        }
+
         /** Emits a {@code [requireNonNull]} unary Operation producing a NON_NULL value from a nullable source. */
-        private void crossNonNull(final Value source, final Port port) {
-            final var message = "source for slot '" + port.getName() + "' is null but target is non-null";
+        private void crossNonNull(final Value source, final String slotName) {
+            final var message = "source for slot '" + slotName + "' is null but target is non-null";
             final Codegen codegen = (io.github.joke.percolate.spi.OperationCodegen)
                     (vars, inputs) -> com.palantir.javapoet.CodeBlock.of(
                             "$T.requireNonNull($L, $S)", Objects.class, inputs.single(), message);
