@@ -42,7 +42,7 @@
 - [x] 5.1 Implement bottom-up cost extraction (min over SAT producers, weight + sum over ports) with deterministic tie-break
 - [x] 5.2 Implement the read-only plan view (single `chosenProducer()` per in-plan Value; losers untouched); recurse through scope-owning Operations
 - [x] 5.3 Delete `PlanView` (three pruning passes), Dijkstra cost oracle, `RealisedSubgraph`
-- [ ] 5.4 Spock specs: sum-vs-min through an AND, cheapest-OR selection, deterministic ties, child-scope recursion, shared-Value inline duplication
+- [x] 5.4 Spock specs: sum-vs-min through an AND, cheapest-OR selection, deterministic ties, child-scope recursion, shared-Value inline duplication
 
 ## 6. Code generation
 
