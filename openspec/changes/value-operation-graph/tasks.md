@@ -35,7 +35,7 @@
 - [ ] 4.7 Rework `Applier` to `AddValue`/`AddOperation` with assertion-only cycle check (D10 gate); delete rollback
 - [x] 4.8 Delete `ExpansionGroup`, `GroupId`, `GroupOutcome`, group expanders/phases, group snapshots
 - [ ] 4.9 Harness: rework `ExpansionResult` to the bipartite surface and the three invariant checks (single chosen producer, scope boundary, port-signature completeness)
-- [ ] 4.10 Spock specs: Horn propagation (all-ports rule, cycle non-self-satisfaction), no-silent-sourcing starvation, goal gate (subset/zero-arg constructor rejection), overload coexistence with shared `street` Value
+- [x] 4.10 Spock specs: Horn propagation (all-ports rule, cycle non-self-satisfaction), no-silent-sourcing starvation, goal gate (subset/zero-arg constructor rejection), overload coexistence with shared `street` Value
 
 ## 5. Plan extraction (design D8)
 
