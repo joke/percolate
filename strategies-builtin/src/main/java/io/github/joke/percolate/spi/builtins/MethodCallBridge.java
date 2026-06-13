@@ -4,13 +4,13 @@ import static java.util.stream.Collectors.toUnmodifiableList;
 
 import com.google.auto.service.AutoService;
 import com.palantir.javapoet.CodeBlock;
-import io.github.joke.percolate.spi.EdgeCodegen;
-import io.github.joke.percolate.spi.ExpansionStep;
+import io.github.joke.percolate.spi.Demand;
 import io.github.joke.percolate.spi.ExpansionStrategy;
-import io.github.joke.percolate.spi.Frontier;
 import io.github.joke.percolate.spi.MethodCandidate;
+import io.github.joke.percolate.spi.OperationCodegen;
+import io.github.joke.percolate.spi.OperationSpec;
+import io.github.joke.percolate.spi.Port;
 import io.github.joke.percolate.spi.ResolveCtx;
-import io.github.joke.percolate.spi.Slot;
 import io.github.joke.percolate.spi.Weights;
 import java.util.ArrayList;
 import java.util.HashSet;
@@ -22,10 +22,10 @@ import javax.lang.model.type.TypeMirror;
 import lombok.NoArgsConstructor;
 
 /**
- * Produces the frontier's target type by calling a single-argument callable method that returns it: a
- * {@link io.github.joke.percolate.spi.Intent#BOUNDARY} step with one slot per argument (here always one). The slot
- * is the method argument, produced in turn from the in-scope source; the realised edge renders
- * {@code receiver.method(arg)}.
+ * Produces the demanded type by calling a single-argument callable method that returns it: a one-port
+ * {@link OperationSpec} whose port is the method argument, produced in turn from the in-scope source. The operation
+ * renders {@code receiver.method(arg)}. The argument port's and produced value's nullness are resolved through the
+ * demand oracle.
  */
 @AutoService(ExpansionStrategy.class)
 @NoArgsConstructor
@@ -34,33 +34,35 @@ public final class MethodCallBridge implements ExpansionStrategy {
     private static final int SINGLE_PARAM_COUNT = 1;
 
     @Override
-    public Stream<ExpansionStep> expand(final Frontier frontier, final ResolveCtx ctx) {
+    public Stream<OperationSpec> expand(final Demand demand, final ResolveCtx ctx) {
         final var callableMethods = ctx.callableMethods();
         if (callableMethods == null) {
             return Stream.empty();
         }
-        final var targetType = frontier.targetType();
+        final var targetType = demand.targetType();
         return callableMethods.producing(targetType).collect(toUnmodifiableList()).stream()
                 .filter(candidate -> {
                     final var method = candidate.getMethod();
                     return method.getParameters().size() == SINGLE_PARAM_COUNT
                             && ctx.types().isAssignable(method.getReturnType(), targetType);
                 })
-                .map(candidate -> buildStep(candidate, targetType, ctx));
+                .map(candidate -> buildSpec(candidate, targetType, demand, ctx));
     }
 
-    private ExpansionStep buildStep(
-            final MethodCandidate candidate, final TypeMirror targetType, final ResolveCtx ctx) {
+    private OperationSpec buildSpec(
+            final MethodCandidate candidate, final TypeMirror targetType, final Demand demand, final ResolveCtx ctx) {
         final var method = candidate.getMethod();
         final var param = method.getParameters().get(0);
         final var returnType = method.getReturnType();
         final var returnDistance = subtypeDistance(returnType, targetType, ctx);
         final var weight = Weights.METHOD + returnDistance;
-        final var slot = new Slot(param.getSimpleName().toString(), param.asType(), Weights.STEP, param);
-        return ExpansionStep.boundary(List.of(slot), returnType, renderCodegen(candidate), weight);
+        final var port =
+                new Port(param.getSimpleName().toString(), param.asType(), demand.nullnessOf(param.asType(), param));
+        return OperationSpec.of(
+                renderCodegen(candidate), weight, List.of(port), returnType, demand.nullnessOf(returnType, method));
     }
 
-    private EdgeCodegen renderCodegen(final MethodCandidate candidate) {
+    private OperationCodegen renderCodegen(final MethodCandidate candidate) {
         final var receiver = candidate.getReceiver().asExpression();
         final var method = candidate.getMethod();
         final var methodName = method.getSimpleName().toString();

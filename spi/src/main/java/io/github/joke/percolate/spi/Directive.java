@@ -4,7 +4,7 @@ import java.util.List;
 import java.util.Optional;
 
 /**
- * The {@code @Map} configuration in effect at a {@link Frontier}, exposed to strategies without raw compiler
+ * The {@code @Map} configuration in effect at a {@link Demand}, exposed to strategies without raw compiler
  * internals. A strategy reads its per-binding configuration here — the source path it descends, and the
  * author-declared {@code constant} / {@code defaultValue} attributes — rather than inspecting an
  * {@code AnnotationMirror}.

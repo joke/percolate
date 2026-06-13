@@ -1,7 +1,7 @@
 package io.github.joke.percolate.spi.builtins;
 
 import com.palantir.javapoet.CodeBlock;
-import io.github.joke.percolate.spi.EdgeCodegen;
+import io.github.joke.percolate.spi.OperationCodegen;
 import io.github.joke.percolate.spi.SequenceContainer;
 import java.util.Optional;
 import java.util.stream.Collectors;
@@ -20,7 +20,7 @@ abstract class CollectionContainer extends SequenceContainer {
     protected abstract Class<?> factoryType();
 
     @Override
-    protected final Optional<EdgeCodegen> singleElementWrap() {
+    protected final Optional<OperationCodegen> singleElementWrap() {
         return Optional.of((vars, inputs) -> CodeBlock.of("$T.of($L)", factoryType(), inputs.single()));
     }
 

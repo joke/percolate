@@ -2,13 +2,15 @@ package io.github.joke.percolate.spi.builtins;
 
 import com.google.auto.service.AutoService;
 import com.palantir.javapoet.CodeBlock;
-import io.github.joke.percolate.spi.EdgeCodegen;
-import io.github.joke.percolate.spi.ExpansionStep;
+import io.github.joke.percolate.spi.Demand;
 import io.github.joke.percolate.spi.ExpansionStrategy;
-import io.github.joke.percolate.spi.Frontier;
+import io.github.joke.percolate.spi.Nullability;
+import io.github.joke.percolate.spi.OperationCodegen;
+import io.github.joke.percolate.spi.OperationSpec;
+import io.github.joke.percolate.spi.Port;
 import io.github.joke.percolate.spi.ResolveCtx;
-import io.github.joke.percolate.spi.Slot;
 import io.github.joke.percolate.spi.Weights;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Stream;
@@ -19,11 +21,11 @@ import org.jspecify.annotations.Nullable;
 
 /**
  * Widening primitive conversion (JLS 5.1.2), authored target-to-source: a primitive target consumes each strictly
- * narrower primitive that widens to it, each as a single {@code CONVERSION} step with an explicit cast. The lattice
- * (consumes-direction) is held as data. {@code boolean} appears nowhere (no widening); {@code char} is a source
- * only. The three precision-losing IEEE legs ({@code int → float}, {@code long → float}, {@code long → double})
- * are included, matching javac's implicit-assignment behaviour. The engine composes cross-domain chains (e.g.
- * {@code Integer → long} as unbox-then-widen) by synthesizing the intermediate type node.
+ * narrower primitive that widens to it, each as a single unary {@link OperationSpec} with an explicit cast. The
+ * lattice (consumes-direction) is held as data. {@code boolean} appears nowhere (no widening); {@code char} is a
+ * source only. The three precision-losing IEEE legs ({@code int → float}, {@code long → float}, {@code long →
+ * double}) are included, matching javac's implicit-assignment behaviour. The engine composes cross-domain chains
+ * (e.g. {@code Integer → long} as unbox-then-widen) through deduped intermediate Values.
  */
 @AutoService(ExpansionStrategy.class)
 @NoArgsConstructor
@@ -38,19 +40,19 @@ public final class WidenPrimitive implements ExpansionStrategy {
                     Set.of(TypeKind.BYTE, TypeKind.SHORT, TypeKind.CHAR, TypeKind.INT, TypeKind.LONG, TypeKind.FLOAT));
 
     @Override
-    public Stream<ExpansionStep> expand(final Frontier frontier, final ResolveCtx ctx) {
-        final var target = frontier.targetType();
+    public Stream<OperationSpec> expand(final Demand demand, final ResolveCtx ctx) {
+        final var target = demand.targetType();
         final @Nullable Set<TypeKind> narrower = WIDENS_FROM.get(target.getKind());
         if (narrower == null) {
             return Stream.empty();
         }
-        return narrower.stream().map(from -> wideningStep(from, target, ctx));
+        return narrower.stream().map(from -> wideningSpec(from, target, ctx));
     }
 
-    private static ExpansionStep wideningStep(final TypeKind from, final TypeMirror target, final ResolveCtx ctx) {
+    private static OperationSpec wideningSpec(final TypeKind from, final TypeMirror target, final ResolveCtx ctx) {
         final TypeMirror inputType = ctx.types().getPrimitiveType(from);
-        final EdgeCodegen codegen = (vars, inputs) -> CodeBlock.of("($T) $L", target, inputs.single());
-        final var input = new Slot("value", inputType, Weights.NOOP, null);
-        return ExpansionStep.conversion(input, target, codegen, Weights.STEP);
+        final OperationCodegen codegen = (vars, inputs) -> CodeBlock.of("($T) $L", target, inputs.single());
+        final var port = new Port("value", inputType, Nullability.NON_NULL);
+        return OperationSpec.of(codegen, Weights.STEP, List.of(port), target, Nullability.NON_NULL);
     }
 }

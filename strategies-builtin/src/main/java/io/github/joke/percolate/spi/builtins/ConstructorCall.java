@@ -1,19 +1,22 @@
 package io.github.joke.percolate.spi.builtins;
 
 import static java.util.stream.Collectors.toUnmodifiableList;
+import static java.util.stream.Collectors.toUnmodifiableSet;
 
 import com.google.auto.service.AutoService;
 import com.palantir.javapoet.ClassName;
 import com.palantir.javapoet.CodeBlock;
 import io.github.joke.percolate.spi.AssemblyStrategy;
-import io.github.joke.percolate.spi.EdgeCodegen;
-import io.github.joke.percolate.spi.ExpansionStep;
+import io.github.joke.percolate.spi.Demand;
 import io.github.joke.percolate.spi.ExpansionStrategy;
-import io.github.joke.percolate.spi.Frontier;
+import io.github.joke.percolate.spi.Nullability;
+import io.github.joke.percolate.spi.OperationCodegen;
+import io.github.joke.percolate.spi.OperationSpec;
+import io.github.joke.percolate.spi.Port;
 import io.github.joke.percolate.spi.ResolveCtx;
-import io.github.joke.percolate.spi.Slot;
 import io.github.joke.percolate.spi.Weights;
 import java.util.List;
+import java.util.Set;
 import java.util.stream.Stream;
 import javax.lang.model.element.ElementKind;
 import javax.lang.model.element.ExecutableElement;
@@ -25,28 +28,30 @@ import lombok.NoArgsConstructor;
 import org.jspecify.annotations.Nullable;
 
 /**
- * Assembles the frontier's target type by calling one of its constructors: a multi-slot
- * {@link io.github.joke.percolate.spi.Intent#BOUNDARY} step whose slots are the constructor parameters, named after
- * them. It is myopic and over-emits — a step for every accessible constructor of any constructable target — and the
- * driver binds each slot, by name, to the pre-seeded target leaf of the same name. Constructions whose slots cannot
- * all resolve go UNSAT and are pruned by the fixed-point loop and the cost oracle.
+ * Assembles the demanded type by calling one of its constructors: a multi-port {@link OperationSpec} whose ports
+ * are the constructor parameters, named after them. It is gated by the demand's declared-children goal spec — a
+ * constructor is a candidate only when its parameter-name set equals {@link Demand#declaredChildren()} — so a
+ * zero-parameter constructor is never chosen over the user's declared mapping, and assembly never recurses
+ * unboundedly. Each port's nullness is resolved through the demand's nullness oracle.
  */
 @AutoService(ExpansionStrategy.class)
 @NoArgsConstructor
 public final class ConstructorCall implements AssemblyStrategy {
 
     @Override
-    public Stream<ExpansionStep> expand(final Frontier frontier, final ResolveCtx ctx) {
-        final var targetType = frontier.targetType();
+    public Stream<OperationSpec> expand(final Demand demand, final ResolveCtx ctx) {
+        final var targetType = demand.targetType();
         final var typeElement = resolveTypeElement(targetType, ctx);
         if (typeElement == null) {
             return Stream.empty();
         }
+        final var declared = demand.declaredChildren();
         return typeElement.getEnclosedElements().stream()
                 .filter(e -> e.getKind() == ElementKind.CONSTRUCTOR)
                 .map(ExecutableElement.class::cast)
                 .filter(ctor -> !ctor.getModifiers().contains(Modifier.PRIVATE))
-                .map(ctor -> buildStep(ctor, typeElement, targetType));
+                .filter(ctor -> parameterNames(ctor).equals(declared))
+                .map(ctor -> buildSpec(ctor, typeElement, targetType, demand));
     }
 
     @Nullable
@@ -58,23 +63,34 @@ public final class ConstructorCall implements AssemblyStrategy {
         return element instanceof TypeElement ? (TypeElement) element : null;
     }
 
-    private ExpansionStep buildStep(
-            final ExecutableElement ctor, final TypeElement typeElement, final TypeMirror targetType) {
-        final List<Slot> slots = ctor.getParameters().stream()
-                .map(param -> new Slot(param.getSimpleName().toString(), param.asType(), Weights.STEP, param))
-                .collect(toUnmodifiableList());
-        final List<String> slotNames = slots.stream().map(Slot::getName).collect(toUnmodifiableList());
-        return ExpansionStep.boundary(slots, targetType, buildCodegen(typeElement, slotNames), Weights.STEP);
+    private static Set<String> parameterNames(final ExecutableElement ctor) {
+        return ctor.getParameters().stream()
+                .map(param -> param.getSimpleName().toString())
+                .collect(toUnmodifiableSet());
     }
 
-    private EdgeCodegen buildCodegen(final TypeElement typeElement, final List<String> slotNames) {
+    private OperationSpec buildSpec(
+            final ExecutableElement ctor,
+            final TypeElement typeElement,
+            final TypeMirror targetType,
+            final Demand demand) {
+        final List<Port> ports = ctor.getParameters().stream()
+                .map(param -> new Port(
+                        param.getSimpleName().toString(), param.asType(), demand.nullnessOf(param.asType(), param)))
+                .collect(toUnmodifiableList());
+        final List<String> portNames = ports.stream().map(Port::getName).collect(toUnmodifiableList());
+        return OperationSpec.of(
+                buildCodegen(typeElement, portNames), Weights.STEP, ports, targetType, Nullability.NON_NULL);
+    }
+
+    private OperationCodegen buildCodegen(final TypeElement typeElement, final List<String> portNames) {
         return (vars, inputs) -> {
             final var builder = CodeBlock.builder().add("new $T(", ClassName.get(typeElement));
-            for (var i = 0; i < slotNames.size(); i++) {
+            for (var i = 0; i < portNames.size(); i++) {
                 if (i > 0) {
                     builder.add(", ");
                 }
-                builder.add("$L", inputs.byName(slotNames.get(i)));
+                builder.add("$L", inputs.byName(portNames.get(i)));
             }
             builder.add(")");
             return builder.build();

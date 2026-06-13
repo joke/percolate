@@ -8,16 +8,23 @@ import javax.lang.model.type.TypeMirror;
 /**
  * Base for a presence container (Optional, Mono). Like {@link SequenceContainer} the developer supplies only
  * {@link #matches}, {@link #element}, and the snippet methods ({@link WrapperCodegen}); the base derives candidacy
- * and emits the unwrap ({@code ENTERING} element-scope) and single-element wrap (scalar) {@link ExpansionStep}s.
- * The unwrap step carries this container as its codegen handle; the wrap step carries a scalar {@link EdgeCodegen}
- * built from {@link #wrap(com.palantir.javapoet.CodeBlock)}.
+ * and emits:
  *
- * <p>A presence wrapper has <b>no collect step</b>: {@code collect} is a sequence terminal (close a stream into a
- * container), which is meaningless for a 0-or-1 presence container. Only sequences collect.
+ * <ul>
+ *   <li>an <b>element mapping</b> {@link OperationSpec} (scope-owning, {@code Optional.map}) when both source and
+ *       target are this wrapper kind ({@code Optional<A> → Optional<B>}), with this container as the codegen
+ *       handle;</li>
+ *   <li>a <b>wrap</b> {@link OperationSpec} (plain) lifting a scalar into the wrapper ({@link #wrap});</li>
+ *   <li>an <b>unwrap</b> {@link OperationSpec} (plain) collapsing a synthesised wrapper into a scalar target
+ *       ({@link #wrapped}), with this container as the codegen handle (it collapses under the target nullability).</li>
+ * </ul>
+ *
+ * <p>A presence wrapper has <b>no collect step</b>: closing a stream into a 0-or-1 container is a sequence concern.
  */
 public abstract class WrapperContainer implements ContainerMatch, WrapperCodegen {
 
     private static final String ELEMENT_ROLE = "element";
+    private static final String SOURCE_ROLE = "source";
 
     protected abstract boolean matches(TypeMirror type, ResolveCtx ctx);
 
@@ -29,27 +36,34 @@ public abstract class WrapperContainer implements ContainerMatch, WrapperCodegen
      */
     protected abstract Optional<TypeMirror> wrapped(TypeMirror element, ResolveCtx ctx);
 
-    /**
-     * Unlike a sequence (which iterates an <em>existing</em> source), a wrapper's unwrap is offered for a scalar
-     * target by synthesising the wrapper type ({@code Optional<to>}) as its input — so a wrapped source can be
-     * reached even when no wrapper node exists yet. When {@code to} is itself the wrapper, the base emits only the
-     * single-element wrap (scalar) step; a wrapper never emits a collect step.
-     */
     @Override
-    public final Stream<ExpansionStep> bridge(final TypeMirror from, final TypeMirror to, final ResolveCtx ctx) {
-        final var steps = Stream.<ExpansionStep>builder();
+    public final Stream<OperationSpec> bridge(final TypeMirror from, final Demand demand, final ResolveCtx ctx) {
+        final var to = demand.targetType();
         if (matches(to, ctx)) {
-            final var elementType = element(to);
-            final EdgeCodegen wrap = (vars, inputs) -> wrap(inputs.single());
-            final var elementSlot = new Slot(ELEMENT_ROLE, elementType, Weights.CONTAINER, null);
-            steps.add(ExpansionStep.boundary(List.of(elementSlot), to, wrap, Weights.CONTAINER));
-        } else {
-            wrapped(to, ctx).ifPresent(wrapperType -> {
-                final var wrapperSlot = new Slot(ELEMENT_ROLE, wrapperType, Weights.CONTAINER, null);
-                steps.add(ExpansionStep.containerBoundary(
-                        wrapperSlot, to, this, ElementScope.ENTERING, Weights.CONTAINER));
-            });
+            return wrappingSpecs(from, to, ctx);
         }
-        return steps.build();
+        return wrapped(to, ctx)
+                .map(wrapperType -> {
+                    final var port = new Port(SOURCE_ROLE, wrapperType, Nullability.NON_NULL);
+                    return Stream.of(
+                            OperationSpec.of(this, Weights.CONTAINER, List.of(port), to, demand.targetNullness()));
+                })
+                .orElseGet(Stream::empty);
+    }
+
+    private Stream<OperationSpec> wrappingSpecs(final TypeMirror from, final TypeMirror to, final ResolveCtx ctx) {
+        final var specs = Stream.<OperationSpec>builder();
+        final var elementOut = element(to);
+        if (matches(from, ctx)) {
+            final var elementIn = element(from);
+            final var port = new Port(SOURCE_ROLE, from, Nullability.NON_NULL);
+            final var child =
+                    new ChildScopeSpec(elementIn, Nullability.NON_NULL, elementOut, Nullability.NON_NULL);
+            specs.add(OperationSpec.mapping(this, Weights.CONTAINER, List.of(port), to, Nullability.NON_NULL, child));
+        }
+        final OperationCodegen wrap = (vars, inputs) -> wrap(inputs.single());
+        final var wrapPort = new Port(ELEMENT_ROLE, elementOut, Nullability.NON_NULL);
+        specs.add(OperationSpec.of(wrap, Weights.CONTAINER, List.of(wrapPort), to, Nullability.NON_NULL));
+        return specs.build();
     }
 }
