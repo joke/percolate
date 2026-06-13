@@ -56,7 +56,7 @@
 - [x] 7.1 Emit `[requireNonNull]` Operations on `NULLABLE → NON_NULL` crossings (existing message format) at expansion time
 - [x] 7.2 Emit `[coalesce]` instead when the binding directive declares `defaultValue` (ternary / `orElse` forms, constant coercion reuse)
 - [x] 7.3 `ConstantValue` as zero-port Operation producing a `NON_NULL` Value
-- [ ] 7.4 Spock specs: crossing-with/without-default exclusivity, UNKNOWN pass-through, Optional `orElse` form, constant base-case SAT
+- [x] 7.4 Spock specs: crossing-with/without-default exclusivity, UNKNOWN pass-through, Optional `orElse` form, constant base-case SAT
 
 ## 8. Diagnostics and debug output (design D11)
 
