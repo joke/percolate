@@ -1,5 +1,6 @@
 package io.github.joke.percolate.processor.graph;
 
+import java.util.Optional;
 import javax.lang.model.element.ExecutableElement;
 import lombok.Value;
 
@@ -14,5 +15,10 @@ public class MethodScope implements Scope {
                 .map(p -> p.asType().toString())
                 .collect(java.util.stream.Collectors.joining(","));
         return name + "(" + paramTypes + ")";
+    }
+
+    @Override
+    public Optional<Scope> parent() {
+        return Optional.of(MapperScope.INSTANCE);
     }
 }

@@ -1,0 +1,64 @@
+package io.github.joke.percolate.processor.graph;
+
+import io.github.joke.percolate.spi.Codegen;
+import io.github.joke.percolate.spi.Port;
+import java.util.List;
+import java.util.Optional;
+import lombok.Getter;
+
+/**
+ * A single production (constructor call, accessor, conversion, container operation, constant): the AND-kind
+ * vertex of the bipartite graph — it is usable only when every port of its ordered {@link Port} signature is
+ * fed. The operation owns the consumer contract (the former edge-carried {@code Slot}), its codegen, its
+ * weight, and the producing strategy's FQN. A container element mapping additionally owns a {@link ChildScope}
+ * whose param/return roots are the only coupling between the child plan and this operation.
+ *
+ * <p>Equality is instance identity; the graph-assigned {@code seq} keeps {@link #id()} deterministic for
+ * ordering and rendering.
+ */
+@Getter
+public final class Operation implements GraphVertex {
+
+    private final int seq;
+    private final String label;
+    private final String strategyFqn;
+    private final Codegen codegen;
+    private final int weight;
+    private final List<Port> ports;
+    private final Scope scope;
+    private final Optional<ChildScope> childScope;
+
+    Operation(
+            final int seq,
+            final String label,
+            final String strategyFqn,
+            final Codegen codegen,
+            final int weight,
+            final List<Port> ports,
+            final Scope scope,
+            final boolean ownsChildScope) {
+        this.seq = seq;
+        this.label = label;
+        this.strategyFqn = strategyFqn;
+        this.codegen = codegen;
+        this.weight = weight;
+        this.ports = List.copyOf(ports);
+        this.scope = scope;
+        this.childScope = ownsChildScope ? Optional.of(new ChildScope(this, scope)) : Optional.empty();
+    }
+
+    @Override
+    public String id() {
+        return scope.encode() + "::op" + seq + "::" + label;
+    }
+
+    @Override
+    public boolean equals(final Object o) {
+        return this == o;
+    }
+
+    @Override
+    public int hashCode() {
+        return System.identityHashCode(this);
+    }
+}
