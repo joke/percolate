@@ -32,9 +32,9 @@
 - [x] 4.4 Implement the goal-spec gate in assembly matching (constructor candidate iff param-name set equals declared-children set)
 - [x] 4.5 Carry the binding directive in the demand context; delete `Node.inheritDirective` successor paths
 - [x] 4.6 Conversion chains as unary Operations over `valueFor`-deduped intermediates (type-keyed, bounded, stop-at-SAT)
-- [ ] 4.7 Rework `Applier` to `AddValue`/`AddOperation` with assertion-only cycle check (D10 gate); delete rollback
+- [x] 4.7 Rework `Applier` to `AddValue`/`AddOperation` with assertion-only cycle check (D10 gate); delete rollback
 - [x] 4.8 Delete `ExpansionGroup`, `GroupId`, `GroupOutcome`, group expanders/phases, group snapshots
-- [ ] 4.9 Harness: rework `ExpansionResult` to the bipartite surface and the three invariant checks (single chosen producer, scope boundary, port-signature completeness)
+- [x] 4.9 Harness: rework `ExpansionResult` to the bipartite surface and the three invariant checks (single chosen producer, scope boundary, port-signature completeness)
 - [x] 4.10 Spock specs: Horn propagation (all-ports rule, cycle non-self-satisfaction), no-silent-sourcing starvation, goal gate (subset/zero-arg constructor rejection), overload coexistence with shared `street` Value
 
 ## 5. Plan extraction (design D8)
@@ -67,7 +67,7 @@
 
 ## 9. Cleanup, verification, spec sync
 
-- [ ] 9.1 Resolve the D10 gate: dedicated test for zero-weight cycle well-foundedness; remove the assertion-only cycle check (or re-add rejection and update design + `graph-expansion` delta if the proof fails)
+- [x] 9.1 Resolve the D10 gate: dedicated test for zero-weight cycle well-foundedness; remove the assertion-only cycle check (or re-add rejection and update design + `graph-expansion` delta if the proof fails)
 - [x] 9.2 Delete all dead types and grep-verify: no `ExpansionGroup`, `GroupId`, `GroupOutcome`, `EdgeKind`, `ElementScope` (edge attribute), `ExpansionStep`, `Slot` (edge-carried), `PlanView` references remain
 - [x] 9.3 Confirm `BuildMethodBodies` references no group/label surface (grep) and diff generated mappers before/after for a representative integration mapper
 - [x] 9.4 Run `./gradlew check` — NEVER continue if there are violations

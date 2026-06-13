@@ -11,7 +11,6 @@ import io.github.joke.percolate.processor.graph.MapperGraph;
 import io.github.joke.percolate.processor.graph.Operation;
 import io.github.joke.percolate.processor.graph.PortBinding;
 import io.github.joke.percolate.processor.graph.Scope;
-import io.github.joke.percolate.processor.graph.SourceLocation;
 import io.github.joke.percolate.processor.graph.TargetLocation;
 import io.github.joke.percolate.processor.graph.TargetPath;
 import io.github.joke.percolate.processor.graph.Value;
@@ -94,17 +93,19 @@ public final class ExpandStage implements Stage {
     }
 
     /** One expansion run over a single graph: holds the work-list and the per-Value visited set. */
-    @SuppressWarnings("PMD.GodClass") // cohesive expansion engine; FrontierMatcher/Applier split is a tracked follow-up
     private final class Driver {
 
         private final MapperGraph graph;
         private final Map<Scope, GoalSpec> goalSpecs;
+        private final Applier applier = new Applier();
+        private final SourceDescent sourceDescent;
         private final Deque<DemandItem> workList = new ArrayDeque<>();
         private final Set<Value> visited = new HashSet<>();
 
         private Driver(final MapperGraph graph, final Map<Scope, GoalSpec> goalSpecs) {
             this.graph = graph;
             this.goalSpecs = goalSpecs;
+            this.sourceDescent = new SourceDescent(graph, applier, generalStrategies, resolveCtx, resolver);
         }
 
         private void expandAll() {
@@ -178,7 +179,7 @@ public final class ExpandStage implements Stage {
             final var candidates = new ArrayList<>(item.candidates);
             final Optional<Directive> directive = binding.map(BindingDirective::from);
             binding.filter(MappingDirective::hasSource).ifPresent(d -> {
-                final var deepest = materializeSource(value.getScope(), splitPath(d.getSource()));
+                final var deepest = sourceDescent.materialize(value.getScope(), splitPath(d.getSource()));
                 if (deepest != null) {
                     candidates.add(deepest);
                 }
@@ -251,65 +252,6 @@ public final class ExpandStage implements Stage {
                     "requireNonNull", "engine:requireNonNull", codegen, 0, List.of(input), output, Optional.empty()));
         }
 
-        // ---- source descent --------------------------------------------------------------------------------
-
-        /** Materializes the source access path into per-segment accessor Operations; returns the deepest Value. */
-        @Nullable
-        private Value materializeSource(final Scope scope, final List<String> segments) {
-            if (segments.isEmpty()) {
-                return null;
-            }
-            var prev = findValue(
-                    scope,
-                    loc -> loc instanceof SourceLocation
-                            && ((SourceLocation) loc).getPath().getSegments().equals(segments.subList(0, 1)));
-            if (prev == null) {
-                return null;
-            }
-            for (var depth = 1; depth < segments.size(); depth++) {
-                final var spec = resolveAccessor(type(prev), segments.get(depth));
-                if (spec == null) {
-                    return null;
-                }
-                final var loc = new SourceLocation(new io.github.joke.percolate.processor.graph.AccessPath(
-                        List.copyOf(segments.subList(0, depth + 1))));
-                final var output = new AddValue(scope, loc, spec.getOutputType(), spec.getOutputNullness());
-                final var port = new PortBinding(
-                        spec.getPorts().get(0), new AddValue(scope, prev.getLoc(), type(prev), nullness(prev)));
-                apply(new AddOperation(
-                        "accessor",
-                        spec.getCodegen().getClass().getName(),
-                        spec.getCodegen(),
-                        spec.getWeight(),
-                        List.of(port),
-                        output,
-                        Optional.empty()));
-                prev = graph.valueFor(scope, loc, spec.getOutputType(), spec.getOutputNullness());
-            }
-            return prev;
-        }
-
-        @Nullable
-        private OperationSpec resolveAccessor(final TypeMirror parentType, final String segment) {
-            final var demand = new DemandView(
-                    parentType,
-                    Nullability.NON_NULL,
-                    Optional.of(BindingDirective.segment(segment)),
-                    Set.of(),
-                    List.of(new Candidate(parentType)),
-                    resolver);
-            return generalStrategies.stream()
-                    .flatMap(strategy -> strategy.expand(demand, resolveCtx))
-                    .filter(spec -> spec.getPorts().size() == 1
-                            && spec.getChildScope().isEmpty()
-                            && resolveCtx
-                                    .types()
-                                    .isSameType(spec.getPorts().get(0).getType(), parentType)
-                            && !resolveCtx.types().isSameType(spec.getOutputType(), parentType))
-                    .findFirst()
-                    .orElse(null);
-        }
-
         // ---- shared --------------------------------------------------------------------------------------
 
         private Operation land(final OperationSpec spec, final AddValue output, final List<PortBinding> ports) {
@@ -329,7 +271,7 @@ public final class ExpandStage implements Stage {
         }
 
         private Operation apply(final AddOperation delta) {
-            return graph.apply(delta);
+            return applier.apply(graph, delta);
         }
 
         private AddValue outputOf(final Value value) {
@@ -368,14 +310,6 @@ public final class ExpandStage implements Stage {
 
         private List<Candidate> candidatesOf(final List<Value> candidates) {
             return candidates.stream().map(value -> new Candidate(type(value))).collect(toUnmodifiableList());
-        }
-
-        @Nullable
-        private Value findValue(final Scope scope, final java.util.function.Predicate<Location> locPredicate) {
-            return graph.valuesIn(scope)
-                    .filter(value -> locPredicate.test(value.getLoc()))
-                    .findFirst()
-                    .orElse(null);
         }
 
         private TypeMirror type(final Value value) {
