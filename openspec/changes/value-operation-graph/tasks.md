@@ -63,7 +63,7 @@
 - [x] 8.1 Rework `RealisationDiagnosticsStage`: walk unsatisfied demands; delete `UNSAT_DID_NOT_CONVERGE`
 - [x] 8.2 Implement closest-miss as the deepest unsatisfied port chain (fewest-unsatisfied-ports producer, named ports, no-producer leaf)
 - [x] 8.3 Rework `DotRenderer`/dump stages: Operation boxes, Value ellipses, port-labelled edges, child-scope clusters; plan dump from the extraction view
-- [ ] 8.4 Regenerate and freeze DOT goldens; update dump Spock specs
+- [x] 8.4 Regenerate and freeze DOT goldens; update dump Spock specs
 
 ## 9. Cleanup, verification, spec sync
 
