@@ -96,42 +96,6 @@ The strategy under test (`DirectAssign`, `IterableUnwrap`, `SetCollect`, etc.) S
 - **WHEN** any strategy spec invokes the strategy under test
 - **THEN** the invocation site reads `new <StrategyClass>().<method>(...)` or holds a reference produced by such a call — no `Spy()`, `Mock()`, or `Stub()` wrapping the strategy itself
 
-### Requirement: Assertion scope is metadata-only
-
-Strategy unit specs SHALL assert on the metadata of returned `ExpansionStep` values: the step's `intent` (`CONVERSION` / `BOUNDARY`), input slot types, output type, weight, element scope (presence and `ENTERING`/`EXITING` value), the presence or emptiness of the returned `Stream`, and any other plain-data accessor exposed by `ExpansionStep` and `Slot`.
-
-Strategy unit specs SHALL NOT invoke `io.github.joke.percolate.spi.EdgeCodegen.render(...)` or `io.github.joke.percolate.spi.GroupCodegen.render(...)`. They SHALL NOT assert on `com.palantir.javapoet.CodeBlock.toString()` output or otherwise pin the rendered Java source produced by a strategy's codegen. Codegen pinning is the scope of a separate future change and is explicitly excluded from this contract.
-
-#### Scenario: No codegen invocation in unit specs
-- **WHEN** the source of every strategy spec is inspected
-- **THEN** no method call to `EdgeCodegen.render`, `GroupCodegen.render`, or `CodeBlock.toString()` appears
-- **AND** no `import com.palantir.javapoet.CodeBlock` appears in the strategy specs (the test helpers are free to use CodeBlock internally if needed)
-
-### Requirement: Per-strategy scenario coverage
-
-For each of the twelve strategy specs, the spec SHALL include at minimum:
-
-- **Empty-return scenarios.** One Spock feature method per declared precondition demonstrating that the strategy returns an empty `Stream<ExpansionStep>` when that precondition is not met. Examples: a container strategy returns empty when the target is not its container type; `ConstructorCall` returns empty when the target type is not a `DECLARED` type with accessible constructors; `DirectAssign` returns empty when `isSameType` is false.
-
-- **Happy-path scenarios.** At least one feature method that exercises the strategy on inputs that satisfy all preconditions, asserting on the returned step's metadata (`intent`, input slot type(s), `output`, `weight`, and `elementScope` where applicable).
-
-- **Branch scenarios.** For strategies whose behaviour differs across multiple accepted input shapes or member-resolution paths, one feature method per distinguishable branch. Examples: `ConstructorCall` over-emits one `BOUNDARY` step per accessible constructor (cover a target with multiple constructors); a path resolver covers each member-resolution kind it supports.
-
-- **Element-scope scenarios.** For container strategies that emit a scope-crossing (`BOUNDARY`) step, at least one feature method asserting the step's `elementScope` value (`ENTERING` when entering the element scope, `EXITING` when collecting back out). Scalar steps carry empty `elementScope`.
-
-#### Scenario: Every strategy spec exercises at least one precondition failure
-- **WHEN** any strategy spec is inspected
-- **THEN** at least one feature method named to indicate a precondition asserts an empty `Stream<ExpansionStep>` result
-
-#### Scenario: ConstructorCall covers multi-constructor over-emit
-- **WHEN** `ConstructorCallSpec` is inspected
-- **THEN** there exists a feature method exercising a target type with more than one accessible constructor
-- **AND** it asserts one `BOUNDARY` `ExpansionStep` is emitted per accessible constructor
-
-#### Scenario: Scope-bearing container strategies assert their element scope
-- **WHEN** a container strategy spec that emits a scope-crossing step is inspected
-- **THEN** at least one feature method asserts the returned `ExpansionStep`'s `elementScope` equals the expected `ENTERING` / `EXITING` value
-
 ### Requirement: Shape fixtures for ConstructorCall and path resolvers
 
 Java fixture types SHALL exist under `strategies-builtin/src/test/java/io/github/joke/percolate/spi/builtins/fixtures/`. They SHALL be plain Java sources compiled by the project's standard `compileTestJava` task into the test classpath; specs SHALL resolve them through `TypeUniverse.element('io.github.joke.percolate.spi.builtins.fixtures.<SimpleName>')`.
@@ -215,3 +179,30 @@ Assertions SHALL be metadata-only per the existing *Assertion scope is metadata-
 - **AND** a feature method asserts a precision-losing IEEE leg is emitted (e.g. `long → double`)
 - **AND** a feature method asserts an empty `Stream` for a `boolean` target
 - **AND** a feature method asserts no step is emitted for a narrowing conversion (e.g. `long → int`)
+
+### Requirement: Assertion scope is OperationSpec metadata only
+
+Strategy unit specs SHALL assert on the metadata of returned `OperationSpec` values: weight, port
+signature (names, declared types, nullness), produced output type and nullness, child-scope
+declaration (presence and element types), and emptiness of the returned stream for unmet
+preconditions. Specs SHALL NOT invoke the spec's codegen `render(...)` or assert on rendered
+`CodeBlock` output — codegen pinning remains out of scope.
+
+#### Scenario: No codegen invocation in unit specs
+- **WHEN** a strategy unit spec is inspected
+- **THEN** it asserts on `OperationSpec` plain-data accessors and never calls `render`
+
+### Requirement: Container strategies assert their child-scope declaration
+
+For container strategies, at least one feature method SHALL assert the emitted spec's child-scope
+declaration: element mapping declares a child scope with the expected element-in/element-out types;
+wrap/unwrap emits a plain spec with no child scope.
+
+#### Scenario: Element mapping declares a child scope
+- **WHEN** the List strategy matches `List<A> → List<B>`
+- **THEN** the unit spec asserts the `OperationSpec` declares a child scope with element types `A`
+  and `B`
+
+#### Scenario: Wrap declares none
+- **WHEN** the Optional strategy emits a wrap for `T → Optional<T>`
+- **THEN** the unit spec asserts the spec has no child-scope declaration

@@ -20,45 +20,6 @@ Defines the `@Map defaultValue` member and the `DefaultValue` built-in strategy 
 - **THEN** the default is recognized as present with the empty-string value
 - **AND** it is NOT treated as `Map.UNSET`/absent
 
-### Requirement: Default coalesces target-side per source kind
-
-A default SHALL be applied as a coalesce on the produced value at the **target type**, reusing the same literal coercion as constants (see the `constant-values` capability). The "absent" trigger and emitted form depend on the source kind:
-
-- **nullable reference scalar** — absent means `null`; the produced value SHALL be `source != null ? source : D`, with the source bound to a local so it is not evaluated twice.
-- **`Optional<T>`** — absent means empty; the produced value SHALL be `opt.orElse(D)`.
-
-where `D` is the default string coerced to the target type. When `defaultValue` is present, the coalescing production SHALL be the one realised (it SHALL out-compete the plain assignment / unwrap). Collection sources are out of scope for this change.
-
-#### Scenario: Nullable scalar source coalesces with a ternary
-- **WHEN** a directive `@Map(target = "name", source = "in.name", defaultValue = "unknown")` resolves a `@Nullable String` source to a non-null `String` target
-- **THEN** the produced value is equivalent to `name != null ? name : "unknown"`
-- **AND** the source expression is evaluated once
-
-#### Scenario: Optional source coalesces with orElse
-- **WHEN** a directive `@Map(target = "name", source = "in.name", defaultValue = "unknown")` resolves an `Optional<String>` source to a `String` target
-- **THEN** the produced value is equivalent to `in.name().orElse("unknown")`
-
-#### Scenario: Default value reuses constant coercion to the target type
-- **WHEN** a directive `@Map(target = "age", source = "in.age", defaultValue = "0")` targets a nullable `Integer`
-- **THEN** the default `"0"` is coerced to an `Integer` by the shared coercion utility
-- **AND** the produced value falls back to that coerced literal when the source is `null`
-
-#### Scenario: Present source value is used unchanged
-- **WHEN** the source value is present (non-null / non-empty) at runtime
-- **THEN** the generated code yields the source value and never the default
-
-### Requirement: DefaultValue built-in strategy
-
-The `percolate-strategies-builtin` module SHALL ship a public final class `DefaultValue` implementing `ExpansionStrategy` (directly or via a mixin) and registered via `@AutoService(ExpansionStrategy.class)`. It SHALL be myopic: it fires only when the frontier's `Directive` declares a present `defaultValue`, reads that value via the directive, coerces it to the target type, and emits the coalescing step appropriate to the source kind. It SHALL emit nothing when no `defaultValue` is present, and nothing (leaving the demand for the late diagnostic) when the default cannot be coerced.
-
-#### Scenario: DefaultValue fires only with a present default
-- **WHEN** `DefaultValue` is offered a frontier whose directive declares no `defaultValue`
-- **THEN** it emits an empty `Stream`
-
-#### Scenario: DefaultValue registers via @AutoService
-- **WHEN** the source of `DefaultValue` is inspected
-- **THEN** it carries `@AutoService(ExpansionStrategy.class)`
-
 ### Requirement: A default on a non-absent source is a dead default
 
 A `defaultValue` can only fire when the source can be absent. After nullability inference, if the source resolves to a `NON_NULL` reference scalar or a primitive (which can never be absent), the default is dead code. The processor SHALL emit one error via `Diagnostics` identifying the dead default, carrying the directive's method `Element`, `AnnotationMirror`, and the `AnnotationValue` of `defaultValue` for IDE positioning. This check runs after nullability stamping; it cannot be decided earlier because the source's nullability is unknown until producer-commit.
@@ -76,11 +37,20 @@ A `defaultValue` can only fire when the source can be absent. After nullability 
 - **WHEN** a directive's source resolves to a `@Nullable` reference scalar or an `Optional<T>`
 - **THEN** no dead-default error is emitted
 
-### Requirement: Coalesced values are intrinsically non-null
+### Requirement: A default is the coalesce Operation on the nullness crossing
 
-A coalesced (source-or-default) value is non-null by construction: the coalesce can never yield null. It is carried by the directive's target node (see the `nullability` capability) rather than a separate producer node; that target's resolver-obtained typing is `NON_NULL` for a non-null target. A defaulted operand feeding a `NON_NULL` slot SHALL therefore emit no `requireNonNull` guard.
+The engine SHALL emit a `[coalesce]` Operation **instead of** `[requireNonNull]` when a binding's
+directive declares `defaultValue` and the binding crosses `NULLABLE → NON_NULL` (or an absent
+`Optional`): a unary Operation from the nullable/optional source Value to a
+`NON_NULL` target Value, rendering the ternary form for a nullable scalar and `orElse` for an
+`Optional`, reusing constant literal-coercion for the fallback. Exactly one crossing Operation
+exists per binding; a default never replaces a present source value.
 
-#### Scenario: A defaulted operand feeding a non-null slot needs no guard
-- **WHEN** a nullable source with a `defaultValue` feeds a `NON_NULL` assembly slot
-- **THEN** the coalesced operand's producer (the target node) is read as `NON_NULL`
-- **AND** no `Objects.requireNonNull` guard is emitted around it
+#### Scenario: Default replaces requireNonNull on the crossing
+- **WHEN** a NULLABLE source feeds a NON_NULL port and the binding declares `defaultValue = "N/A"`
+- **THEN** the plan contains a `[coalesce]` Operation rendering the ternary form, and no
+  `[requireNonNull]` Operation exists for that binding
+
+#### Scenario: Optional source coalesces with orElse
+- **WHEN** the source is `Optional<String>` and the binding declares a default
+- **THEN** the `[coalesce]` Operation renders `orElse` with the coerced literal

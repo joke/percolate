@@ -20,37 +20,6 @@ Defines the `@Map constant` member and the `ConstantValue` built-in strategy tha
 - **THEN** the directive is recognized as a constant directive whose literal value is the empty string
 - **AND** it is NOT treated as `Map.UNSET`/absent
 
-### Requirement: ConstantValue built-in strategy produces the typed literal
-
-The `percolate-strategies-builtin` module SHALL ship a public final class `ConstantValue` implementing `ExpansionStrategy` and registered via `@AutoService(ExpansionStrategy.class)`. It SHALL be authored **target-to-source** and myopic: on a frontier whose `Directive` declares a present `constant`, it SHALL coerce the raw string to the frontier's target type (see "Constant coercion scope") and, on success, emit exactly one `Intent.BOUNDARY` `ExpansionStep` with:
-
-- **zero** inputs (a terminal producer),
-- `output` equal to the frontier's target type,
-- `weight` equal to `Weights.STEP`,
-- a `Codegen` that renders the coerced literal expression.
-
-On a value that cannot be coerced to the target type it SHALL emit nothing (the demand goes UNSAT; the targeted message is owned by the late coercion-failure diagnostic). On a frontier whose directive declares no `constant`, it SHALL emit nothing.
-
-#### Scenario: ConstantValue emits a zero-input boundary rendering the coerced literal
-- **WHEN** `ConstantValue` is offered a frontier whose target type is `String` and whose directive declares `constant = "ACTIVE"`
-- **THEN** it emits exactly one `ExpansionStep` with `intent == BOUNDARY`
-- **AND** the step has zero inputs
-- **AND** the step's `output` is `String`
-- **AND** the step's `Codegen` renders the string literal `"ACTIVE"`
-
-#### Scenario: ConstantValue coerces to a primitive target
-- **WHEN** `ConstantValue` is offered a frontier whose target type is `long` and whose directive declares `constant = "42"`
-- **THEN** it emits one zero-input `BOUNDARY` step whose `output` is `long`
-- **AND** the step's `Codegen` renders the literal `42L`
-
-#### Scenario: ConstantValue emits nothing without a constant
-- **WHEN** `ConstantValue` is offered a frontier whose directive declares no `constant` (it is `Map.UNSET`)
-- **THEN** it emits an empty `Stream`
-
-#### Scenario: Uncoercible constant emits no step
-- **WHEN** `ConstantValue` is offered a frontier whose target type is `int` and whose directive declares `constant = "abc"`
-- **THEN** it emits an empty `Stream` (the demand is left UNSAT for the late diagnostic to report)
-
 ### Requirement: Constant coercion scope
 
 The shared literal-coercion utility SHALL coerce a raw string only to the JDK scalar types: the 8 primitives (`boolean`, `byte`, `short`, `int`, `long`, `char`, `float`, `double`), their 8 wrappers (`Boolean` … `Double`), and `String`. For every other target type (enums, `BigDecimal`, `java.time`, arrays, collections, arbitrary declared types) coercion SHALL fail. The coercion utility SHALL return a success-or-failure result so a strategy can take the success path and a diagnostic stage the failure path.
@@ -97,14 +66,6 @@ When a constant directive's value cannot be coerced to its resolved target type,
 - **THEN** the processor emits one error whose message names the value `'abc'` and the target type `int`
 - **AND** the `Diagnostics.error(...)` call receives the `AnnotationValue` of `constant`, not of `target`
 
-### Requirement: Constant value nodes are intrinsically non-null
-
-A constant literal is non-null by construction. The engine SHALL stamp a constant-value node `NON_NULL` (see the `nullability` capability) without invoking `NullabilityResolver`.
-
-#### Scenario: A constant feeding a non-null slot needs no guard
-- **WHEN** a constant produces the value for a `NON_NULL` assembly slot
-- **THEN** no `Objects.requireNonNull` guard is emitted around the constant expression
-
 ### Requirement: ConstantValue registers via ServiceLoader
 
 `ConstantValue` SHALL be annotated `@AutoService(ExpansionStrategy.class)` and SHALL be discoverable through the standard `ServiceLoader<ExpansionStrategy>` lookup alongside the other built-ins, with no kind-ordering.
@@ -112,3 +73,14 @@ A constant literal is non-null by construction. The engine SHALL stamp a constan
 #### Scenario: ConstantValue is service-loadable
 - **WHEN** `ServiceLoader.load(ExpansionStrategy.class)` is enumerated on the strategies-builtin classpath
 - **THEN** an instance of `ConstantValue` is present
+
+### Requirement: ConstantValue emits a zero-port Operation
+
+`ConstantValue` SHALL emit a zero-port `Operation` whose codegen renders the coerced literal and
+whose produced `Value` is minted `NON_NULL`. A zero-port Operation is base-case SAT — the one place
+vacuous satisfaction is correct, because the goal-spec gate (not SAT) protects declared bindings.
+Coercion scope, strictness, and failure diagnostics are unchanged.
+
+#### Scenario: Constant is base-case SAT
+- **WHEN** a binding declares `constant = "42"` for an `int` target
+- **THEN** a zero-port Operation producing a `NON_NULL` `int` Value is SAT with no further demands

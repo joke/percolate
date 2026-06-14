@@ -2,7 +2,7 @@
 
 ## Purpose
 
-This spec defines container expansion: the `Containers` type-shape helper and the one-class-per-container `ContainerMatch` strategies (`Optional` / `List` / `Set` / `Array`) that emit their iterate/collect/unwrap/wrap operations as `BOUNDARY` `ExpansionStep`s carrying the appropriate `ElementScope`, plus the strictly-linear (no-diamond) REALISED-chain invariant their expansion must satisfy.
+This spec defines container expansion: the `Containers` type-shape helper and the one-class-per-container strategies (`Optional` / `List` / `Set` / `Array`) that compose container conversions through an explicit `Stream<E>` intermediate. Each container emits plain kind-local `iterate` / `collect` / `wrap` / `unwrap` Operations for its own kind only; a generic, kind-free stream strategy emits the scope-owning `map` / `flatMap` over `Stream` Values (and wrappers a same-kind `mapPresence`). Cross-kind and flatten conversions emerge from OR-matching on shared `Stream` Values — no Operation knows two kinds — under the scope-ownership invariant (no dependency edge crosses a child-scope boundary).
 
 ## Requirements
 
@@ -73,40 +73,103 @@ the caller violates the precondition (e.g., calling
 - **WHEN** `Containers.arrayComponentType(<Dog[]>)` is invoked
 - **THEN** returns the `TypeMirror` for `Dog`
 
-### Requirement: Container strategies bind to ExpansionStrategy via ContainerMatch
+### Requirement: Containers iterate and collect through a Stream intermediate
 
-Container strategies (the `Optional` / `List` / `Set` / `Array` iterate/collect/unwrap/wrap families) SHALL be `ExpansionStrategy` implementations, written via the `ContainerMatch` mixin from author-supplied `matches` / `element` snippets. Each iterate/collect/unwrap/wrap operation SHALL be emitted as an `ExpansionStep` with `intent == BOUNDARY` carrying the appropriate `ElementScope` in `scope`:
+A container SHALL expose its element sequence as an explicit `Stream<E>` `Value`. Each container emits
+a plain `iterate` Operation `Cont<E> → Stream<E>` for **its own kind only** (a sequence via
+`Collection.stream()`/`Arrays.stream`; a presence wrapper via `Optional.stream()` — the 0-or-1 stream
+that realises drop-empties), and each **sequence** container emits a plain `collect` Operation
+`Stream<E> → Seq<E>` for its own kind. No container Operation SHALL reference a container kind other
+than its own.
 
-- An operation whose output lives at element scope (unwrap / iterate into elements) carries `ElementScope.ENTERING`.
-- An operation whose input lives at element scope (collect elements into a container) carries `ElementScope.EXITING`.
-- A single-element wrap (e.g. `List.of(x)`, `Optional.of(x)`) is a `BOUNDARY` step with no `scope`.
+#### Scenario: A list iterates and a set collects
+- **WHEN** a `Stream<E>` is demanded from a `List<E>` candidate, and a `Set<E>` from a `Stream<E>`
+  candidate
+- **THEN** the `List` container emits the `iterate` (`.stream()`) and the `Set` container emits the
+  `collect` (`Collectors.toSet()`), each unaware of the other kind
 
-The generated code (the stream/loop snippets each container emits) is unchanged; only the SPI binding and the step representation change.
+#### Scenario: A presence wrapper iterates to a 0-or-1 stream
+- **WHEN** a `Stream<E>` is demanded from an `Optional<E>` candidate
+- **THEN** the `Optional` container emits an `iterate` rendering `Optional.stream()`
 
-#### Scenario: a container iterate/collect carries ElementScope
-- **WHEN** a container strategy emits its collect operation
-- **THEN** the emitted `ExpansionStep` has `intent == BOUNDARY`
-- **AND** `scope()` returns `Optional.of(ElementScope.EXITING)`
+### Requirement: Element mapping is a scope-owning Operation over a Stream
 
-#### Scenario: a single-element wrap has no scope
-- **WHEN** a container strategy emits a single-element wrap step
-- **THEN** the emitted `ExpansionStep` has `intent == BOUNDARY`
-- **AND** `scope()` returns `Optional.empty()`
+The per-element transform SHALL be a single **generic**, kind-free stream strategy that emits
+scope-owning `map` (`Stream<A> → Stream<B>`, child `elem:A → elem:B`) and `flatMap`
+(`Stream<A> → Stream<B>`, child `elem:A → Stream<B>`) Operations. The child scope holds an element
+param-root `Value` (`elem:A`, base-case SAT) and an element return-root demand; the Operation is SAT
+iff its outer port `Stream` and the child return-root are SAT. The child demand expands on the same
+work-list with candidate search confined to the child scope.
 
-#### Scenario: container strategies register under the unified service type
-- **WHEN** the source of any container strategy is inspected
-- **THEN** it carries `@AutoService(ExpansionStrategy.class)`
-- **AND** it implements `ExpansionStrategy` through the `ContainerMatch` mixin
+#### Scenario: Child demand expands like a method body
+- **WHEN** a `map` over `Stream<A> → Stream<B>` is emitted
+- **THEN** the demand `elem:B` joins the work-list and resolves against the child scope's param-root,
+  exactly as a method return-root resolves against method parameters
 
-### Requirement: Linear container chain (no diamond)
+#### Scenario: The element strategy is kind-free
+- **WHEN** the stream `map`/`flatMap` strategy is inspected
+- **THEN** it matches on `Stream<…>` types only and references no specific container kind
 
-Any expansion involving the container built-ins SHALL produce a strictly linear REALISED chain — no diamonds, no parallel "outer" edges, no incoming-only `ElementLocation` leaves, no outgoing-only `ElementLocation` leaves except at the source-parameter-root boundary.
+#### Scenario: Nested containers nest scopes
+- **WHEN** the target is `List<List<B>>` from `List<List<A>>`
+- **THEN** the chosen `map` Operation's child plan contains another scope-owning `map` Operation
 
-Specifically, for the integration mapper `~/Projects/joke/percolate-integration/mappers/src/main/java/io/github/joke/testing/PersonMapper.java` with its `mapHuman` and `mapAddress` methods, the `*.transforms.dot` view of `mapHuman`'s expansion for `tgt[addresses]:Optional<Set<HA>>` SHALL trace a linear path through REALISED edges from `src[person]` through the element-entering iterate/unwrap steps, a `MethodCallBridge` element conversion, and the element-exiting Set-collect then Optional-collect/wrap steps to `tgt[addresses]`.
+### Requirement: Wrappers map presence in their own kind
 
-Every `elem(...)` node in the alive chain SHALL have at least one incoming and at least one outgoing REALISED edge. Parallel dead branches from other matching strategies MAY co-exist; their presence SHALL NOT block the alive chain from satisfying the slot.
+A presence wrapper SHALL emit a same-kind scope-owning `mapPresence` Operation
+(`Optional<A> → Optional<B>`, child `A → B`) that preserves presence, distinct from the stream path
+(a wrapper has no `collect` terminal). `Optional<A> → Optional<B>` SHALL render `opt.map(a -> …)`, not
+a stream round-trip.
 
-#### Scenario: No outer container-map shortcut edges
-- **WHEN** any container-bearing mapper is expanded
-- **THEN** for every `Set<T>` / `List<T>` / `T[]` / `Optional<T>` target reached via the chain pattern (Unwrap → ... → Collect), the only REALISED edge incoming to that container node from a container-typed source is the `*Collect` edge from the element-scope chain
-- **AND** no parallel REALISED edge connects the source container directly to the target container with a `*Map`-style label
+#### Scenario: Optional maps presence directly
+- **WHEN** `Optional<A> → Optional<B>` is produced
+- **THEN** the plan contains a scope-owning `mapPresence` Operation rendering `opt.map(a -> …)`, with
+  no `iterate`/`collect`
+
+### Requirement: Wrap and unwrap are plain Operations
+
+Wrapping (`Optional.of`, singleton collection) and unwrapping (element get) SHALL be plain unary
+Operations with no child scope. `unwrap` (`Optional.orElseThrow`) SHALL be marked **partial** (it may
+throw on an empty input; see `plan-extraction` totality dominance). The wrap-versus-element-mapping
+distinction is structural (plain Operation vs scope-owning Operation), not an SPI mode.
+
+#### Scenario: Wrap emits no child scope
+- **WHEN** `T → Optional<T>` is produced by wrapping
+- **THEN** the emitted Operation declares no child scope and is total
+
+#### Scenario: Unwrap is partial
+- **WHEN** `Optional<T> → T` is produced by unwrapping
+- **THEN** the emitted Operation is plain and flagged partial
+
+### Requirement: Cross-kind and flatten emerge from Stream OR-matching
+
+The engine SHALL produce cross-kind conversions (`List → Set`) and mismatched-nesting / flatten
+conversions (`List<Optional<A>> → Optional<Set<B>>`) with no dedicated Operation, by composing the
+kind-local `iterate`/`collect`/`wrap`/`unwrap` and the generic `map`/`flatMap` over shared `Stream`
+Values. To bootstrap the first `Stream` port from a non-stream candidate (target→source), the
+stream strategy SHALL read the candidate's stream-element type from a shared structural helper
+(`Containers.streamElement`: assignable-to-`Collection<E>` → E; array → component;
+`Optional<E>`/`Stream<E>` → E), and the existing port-synthesis turns it into the `iterate` demand. No
+container Operation and no engine component SHALL hold multi-kind composition logic.
+
+#### Scenario: Mismatched nesting composes from single-kind operations
+- **WHEN** `List<Optional<A>> → Optional<Set<B>>` is demanded with the source `List` as the only
+  candidate
+- **THEN** the plan is `wrap ⟵ collect ⟵ map[A→B] ⟵ flatMap[Optional→Stream] ⟵ iterate(List)`, every
+  Operation single-kind or kind-free
+
+#### Scenario: Flatten drops empties, never throws
+- **WHEN** a sequence element is itself a presence wrapper (`Stream<Optional<A>> → Stream<A>`)
+- **THEN** the chosen producer is the total `flatMap` (`Optional.stream`) drop, not a partial
+  `unwrap`/`orElseThrow` (see `plan-extraction` totality dominance)
+
+### Requirement: Scope-ownership invariant for containers
+
+No dependency edge SHALL cross a container child-scope boundary; the owning Operation is the only
+coupling (see `graph-model` "Scope tree and child-scope ownership"). This replaces the former
+strictly-linear REALISED-chain invariant.
+
+#### Scenario: Element values stay inside the child scope
+- **WHEN** the child plan for an element mapping is extracted
+- **THEN** every vertex it contains belongs to the child scope, and the parent plan references it
+  only through the owning Operation

@@ -6,63 +6,6 @@ This spec defines the debug-graph dump stages and the deterministic DOT renderer
 
 ## Requirements
 
-### Requirement: Transforms view filter on MapperGraph
-
-`MapperGraph` SHALL expose an accessor `transformsView()` that returns a `TransformsView` — a non-destructive `GraphSource` over the underlying graph, implemented as a JGraphT `MaskSubgraph` so the full graph is not copied or mutated. The view SHALL expose `Stream<Node> nodes()`, `Stream<Edge> edges()`, and `Stream<Node> nodesByScope(Scope)` with the same ordering guarantees as the other `MapperGraph` views.
-
-The view's edge mask SHALL retain only `EdgeKind.REALISED` edges; `SEED` and `MARKER` edges SHALL be hidden. The view's node set SHALL be exactly the nodes incident to a retained `REALISED` edge (the endpoints of the surviving edges); nodes touched by no `REALISED` edge SHALL NOT appear. The view SHALL NOT mutate the underlying `MapperGraph`.
-
-#### Scenario: transformsView retains only REALISED edges
-- **WHEN** a graph containing `SEED`, `REALISED`, and `MARKER` edges is exposed via `transformsView()`
-- **THEN** `edges()` contains every `REALISED` edge
-- **AND** `edges()` contains no `SEED` or `MARKER` edge
-
-#### Scenario: transformsView nodes are exactly the REALISED-incident nodes
-- **WHEN** a graph has a node touched only by a `SEED` edge and another node that is an endpoint of a `REALISED` edge, exposed via `transformsView()`
-- **THEN** `nodes()` contains the `REALISED`-incident node
-- **AND** `nodes()` does not contain the node touched only by the `SEED` edge
-
-#### Scenario: transformsView does not mutate the underlying graph
-- **WHEN** `MapperGraph.transformsView()` is invoked
-- **THEN** the underlying `MapperGraph` retains all its original nodes and edges, as observable via `MapperGraph.nodes()` and `MapperGraph.edges()`
-
-### Requirement: Node labels include the simple type segment
-
-The DOT renderer SHALL render every node `label` attribute as a two-line value: the location segment (`src[…]`, `tgt[…]`, or the element-role segment for `ElementLocation` nodes) on the first line, followed by a DOT line break (`\n`), followed by the short type name on the second line. The short type name SHALL be derived from the node's type segment as follows:
-
-- The prefix `java.lang.` SHALL be stripped from class names so that `java.lang.String` renders as `String` and `java.lang.Integer` renders as `Integer`. Rationale: `java.lang` is implicitly imported in Java source; unqualified rendering matches reading expectations.
-- Other package prefixes SHALL be preserved verbatim so that `io.github.joke.testing.Person.Address` renders as `io.github.joke.testing.Person.Address`. Rationale: same-simple-name types across user packages would otherwise render indistinguishably.
-- Generic type arguments SHALL be rewritten recursively under the same rule so that `java.util.List<java.util.Optional<java.lang.String>>` renders as `java.util.List<java.util.Optional<String>>`.
-- The untyped placeholder SHALL render as the literal `?`.
-
-Fully qualified types SHALL remain in `Node.id()` (carried into the DOT output as the quoted vertex identifier) for graph determinism and uniqueness — only the visible `label` attribute is simplified.
-
-The two-line label format SHALL apply uniformly across every rendered view (`seed`, `full`, `transforms`, `plan`).
-
-#### Scenario: Typed node label has location and type on two lines
-- **WHEN** the renderer writes a node whose location segment is `src[address.street]` and whose type segment is `java.lang.String`
-- **THEN** the `label` attribute of the node statement is the two-line string `src[address.street]\nString`
-
-#### Scenario: java.lang prefix is stripped
-- **WHEN** the renderer writes a node whose type segment is `java.lang.Integer`
-- **THEN** the rendered second label line is `Integer`
-
-#### Scenario: Non-java.lang package is preserved verbatim
-- **WHEN** the renderer writes a node whose type segment is `io.github.joke.testing.Person.Address`
-- **THEN** the rendered second label line is `io.github.joke.testing.Person.Address`
-
-#### Scenario: Generic type arguments are simplified recursively
-- **WHEN** the renderer writes a node whose type segment is `java.util.List<java.util.Optional<java.lang.String>>`
-- **THEN** the rendered second label line is `java.util.List<java.util.Optional<String>>`
-
-#### Scenario: Untyped placeholder renders as ?
-- **WHEN** the renderer writes a node whose type segment is the untyped placeholder
-- **THEN** the rendered second label line is `?`
-
-#### Scenario: Node ids remain fully qualified
-- **WHEN** the renderer writes a node whose type segment is `java.lang.String`
-- **THEN** the DOT statement's quoted vertex identifier contains `java.lang.String` verbatim — only the `label` attribute is simplified
-
 ### Requirement: Deterministic DOT renderer
 
 The processor SHALL define a `DotRenderer` in `io.github.joke.percolate.processor.graph` that produces a `String` DOT representation of a **single scope's** slice of a `GraphSource` by delegating to JGraphT `org.jgrapht.nio.dot.DOTExporter`. The renderer SHALL NOT hand-assemble DOT text, escape characters by hand, or emit `subgraph cluster_*` blocks; statement structure, identifier quoting, and special-character escaping SHALL be owned by `DOTExporter`.
@@ -100,70 +43,6 @@ Determinism: given the same scope slice with the view's documented node and edge
 #### Scenario: Special characters in labels are escaped by the exporter
 - **WHEN** a node's label contains `"` or `\` or a newline character
 - **THEN** the rendered DOT escapes those characters via `DOTExporter` so that the output is parseable by Graphviz
-
-### Requirement: Edge label includes EdgeKind marker
-
-Each rendered edge's `kind` SHALL be identifiable from the DOT output without consulting the source graph data. The required identifier varies by kind:
-
-- For `EdgeKind.SEED` edges, the edge `label` attribute SHALL include the literal token `SEED`.
-- For `EdgeKind.REALISED` edges, the kind is identified by the combination of the edge's style attributes and the strategy short name in its label (see the "Node and edge visual distinction" requirement); the explicit token `REALISED` is not required in the label.
-
-(`EdgeKind.MARKER` no longer exists; the renderer SHALL NOT special-case a MARKER token.)
-
-#### Scenario: SEED edge label includes the SEED token
-- **WHEN** the renderer writes an edge with `kind == EdgeKind.SEED`
-- **THEN** the edge's `label` attribute contains the literal `SEED`
-
-#### Scenario: REALISED edge kind is identified by style and strategy
-- **WHEN** the renderer writes an edge with `kind == EdgeKind.REALISED` and `strategyClassFqn == Optional.of("io.github.joke.percolate.spi.builtins.ListContainer")`
-- **THEN** the edge's `label` attribute contains the simple class name `ListContainer`
-- **AND** the edge's style attributes match the documented REALISED styling (distinct from SEED)
-- **AND** the edge's `label` attribute does NOT contain the literal token `REALISED`
-
-### Requirement: Node and edge visual distinction
-
-The DOT renderer SHALL render **every** node with `shape=box` and `style=filled`, distinguishing source-located, target-located, and container-element nodes by `fillcolor` rather than by shape. Source-located (`SourceLocation`) nodes, target-located (`TargetLocation`) nodes, and container-element (`ElementLocation`) nodes SHALL each receive a distinct, stable `fillcolor`. No node SHALL render as `oval`, `diamond`, or any non-`box` shape.
-
-The DOT renderer SHALL render edges with attributes keyed off `Edge.kind`:
-- `REALISED` edges SHALL render with the heaviest visible stroke — a solid black line with elevated `penwidth` — and SHALL dominate the visual hierarchy; they represent the load-bearing transformations.
-- `SEED` edges SHALL render so they recede to the background: the edge line `color` and the edge `fontcolor` SHALL both be a muted grey, so the line and its label read as secondary information without competing with `REALISED` edges.
-
-The exact colour values are implementation-defined but SHALL be stable across runs.
-
-Edge **label content** is unchanged from prior behaviour: for `REALISED` edges the `label` SHALL include the strategy simple class name and the edge `weight` (with `∞` (U+221E) for `Weights.SENTINEL_UNREALISED`); for `SEED` edges the `label` SHALL retain its kind token, weight, and directive marker. The renderer SHALL NOT render `Edge.codegen`.
-
-#### Scenario: All nodes render as filled boxes
-- **WHEN** rendering nodes whose `loc` is `SourceLocation`, `TargetLocation`, and `ElementLocation`
-- **THEN** every node statement carries `shape=box` and `style=filled`
-- **AND** no node statement carries `shape=oval` or `shape=diamond`
-
-#### Scenario: Node roles are distinguished by fillcolor
-- **WHEN** rendering a `SourceLocation` node, a `TargetLocation` node, and an `ElementLocation` node
-- **THEN** the three node statements carry three distinct `fillcolor` values
-
-#### Scenario: REALISED edge is the heaviest visible stroke
-- **WHEN** the renderer writes an edge with `kind == EdgeKind.REALISED`
-- **THEN** the edge's style attributes are a solid black line with elevated `penwidth`
-- **AND** that styling is visually heavier than the SEED styling
-
-#### Scenario: SEED edge recedes to grey
-- **WHEN** the renderer writes an edge with `kind == EdgeKind.SEED`
-- **THEN** the edge's `color` attribute is a muted grey
-- **AND** the edge's `fontcolor` attribute is the same muted grey, so the label recedes
-
-#### Scenario: REALISED edge label contains strategy short name and weight
-- **WHEN** rendering a REALISED edge with `strategyClassFqn == Optional.of("io.github.joke.percolate.spi.builtins.ListContainer")` and `weight == 2`
-- **THEN** the edge's `label` attribute contains both the literal `ListContainer` and the literal `2`
-- **AND** the `label` does NOT contain the package prefix `io.github.joke.percolate.spi.builtins`
-
-#### Scenario: Sentinel weight renders as infinity in REALISED labels
-- **WHEN** the renderer writes a REALISED edge with `weight == Weights.SENTINEL_UNREALISED`
-- **THEN** the edge's `label` attribute contains the literal `∞` (U+221E) instead of the numeric value
-
-#### Scenario: Codegen closures are not rendered
-- **WHEN** rendering an edge with non-empty `codegen`
-- **THEN** the DOT output contains no representation of the closure object itself (no `lambda$`, no hash, no toString of the closure)
-- **AND** the rest of the edge's attributes render normally
 
 ### Requirement: File naming
 
@@ -216,85 +95,28 @@ When partitioning a view's edges by scope, an edge SHALL be assigned to the scop
 - **WHEN** a view's edges are partitioned by scope for file output
 - **THEN** each edge is rendered in the file of its `from` node's scope
 
-### Requirement: DOT renderer renders all EdgeKind values
+### Requirement: Bipartite DOT rendering
 
-The DOT renderer SHALL emit DOT statements for `EdgeKind.SEED`, `EdgeKind.REALISED`, and `EdgeKind.MARKER` edges. Edge ordering SHALL remain ascending natural `Edge` order across all kinds (no kind-based grouping at the top level — the visual styling discriminates).
+The DOT renderer SHALL draw the bipartite graph Petri-style: `Operation` vertices as boxes labelled
+with their codegen's simple class name (and weight), `Value` vertices as ellipses labelled with
+location, simple type segment, and nullness, and `Dep` edges labelled with their port id (when
+feeding an Operation port). Scope-owning Operations render their child scope as a DOT cluster.
+Rendering remains deterministic (stable vertex and edge ordering).
 
-Per the "Node and edge visual distinction" requirement, REALISED edges SHALL include the strategy short name and weight in their label. SEED and MARKER edges retain their prior label content when rendered.
+#### Scenario: Vertex kinds are visually distinct
+- **WHEN** a graph containing Values and Operations is rendered
+- **THEN** Operations render as boxes and Values as ellipses, with port ids on port edges
 
-#### Scenario: All edge kinds are emitted when given to the renderer
-- **WHEN** rendering a graph containing one edge of each kind (`SEED`, `REALISED`, `MARKER`)
-- **THEN** the DOT output contains exactly one edge statement per input edge
-- **AND** each statement is keyed off its endpoints in the documented edge ordering
+#### Scenario: Child scope renders as a cluster
+- **WHEN** a scope-owning container Operation is rendered
+- **THEN** its child scope's vertices appear inside a DOT cluster attached to the Operation
 
-#### Scenario: Edge ordering is the natural edge order across all kinds
-- **WHEN** rendering a graph with mixed-kind edges
-- **THEN** edge statements appear in ascending natural `Edge` order regardless of `kind`
+### Requirement: Three dumps over the bipartite graph
 
-### Requirement: Container strategies render with their simple class name
+The three dump stages SHALL be retained with unchanged gating and file naming: the seed dump (roots
+and goal-spec annotations), the full dump (every vertex and edge, SAT-state annotated), and the
+transforms/plan dump (the extracted plan view only).
 
-The deterministic DOT renderer SHALL render REALISED edges emitted by the container built-ins (`OptionalContainer`, `ListContainer`, `SetContainer`, `ArrayContainer`) with `label` attributes containing the strategy's simple class name and weight, formatted by the same rule that applies to every REALISED edge (per the existing `Node and edge visual distinction` requirement).
-
-No REALISED edge in any rendered DOT file SHALL carry a `strategyClassFqn` ending in `.SetMap`, `.ListMap`, or `.OptionalMap` — those classes are deleted by `split-container-bridges`. Any DOT file produced by the processor for a mapper compiled against the post-change classpath SHALL be free of those tokens in every edge label.
-
-#### Scenario: A container strategy REALISED edge label contains its simple name and weight
-- **WHEN** the renderer writes a REALISED edge with `strategyClassFqn == Optional.of("io.github.joke.percolate.spi.builtins.ListContainer")` and `weight == Weights.CONTAINER`
-- **THEN** the edge's `label` attribute contains both the literal `ListContainer` and the literal value of `Weights.CONTAINER` (rendered as the configured integer, e.g. `2`)
-- **AND** the `label` does NOT contain the package prefix `io.github.joke.percolate.spi.builtins`
-
-#### Scenario: Set / List / Array / Optional container REALISED edge labels contain their simple names
-- **WHEN** the renderer writes a REALISED edge whose `strategyClassFqn` resolves to one of `SetContainer`, `ListContainer`, `ArrayContainer`, or `OptionalContainer` under `io.github.joke.percolate.spi.builtins`
-- **THEN** the edge's `label` attribute contains the simple class name verbatim
-- **AND** the `label` does NOT contain the package prefix
-
-#### Scenario: No DOT file contains the deleted container-map bridge names
-- **WHEN** any per-scope DOT file (any `seed`, `full`, `transforms`, or `plan` view) is produced for a mapper compiled with the post-change `strategies-builtin` module
-- **THEN** no edge `label` attribute and no edge attribute string contains the literal token `SetMap`, `ListMap`, or `OptionalMap`
-
-### Requirement: Linear container chains render without diamond shortcuts
-
-The DOT renderer's output for any container-bearing chain (a chain involving an `*Unwrap` and a matching `*Collect`) SHALL be a linear sequence of REALISED edges from the regular-scope source candidate through `ElementLocation` nodes back to the regular-scope target candidate. No additional "outer" REALISED edge SHALL connect the source container directly to the target container in parallel with the chain.
-
-This requirement formalises, at the rendering level, the structural invariant established by `graph-expansion`: chains are linear by construction; the renderer simply renders what the engine produces.
-
-#### Scenario: Integration mapper addresses chain renders linearly in transforms view
-- **WHEN** the integration mapper at `~/Projects/joke/percolate-integration/mappers` is rebuilt with `ProcessorOptions.debugGraphs == true` and the produced `transforms`-view file for the `mapHuman` scope is inspected
-- **THEN** for the subgraph rooted at `tgt[addresses]:Optional<Set<Human.Address>>`, the REALISED edges trace at least one linear path back to `src[person]:Person`, passing through `elem(element):Optional<Person.Address>`, `elem(element):Person.Address`, `elem(element):Human.Address`, and a `Set<Human.Address>` node
-- **AND** no `elem(element)` node in the alive chain has zero outgoing REALISED edges except where it represents the source-parameter-root boundary
-- **AND** no parallel REALISED edge connects `src[person.addresses]:List<Optional<Person.Address>>` directly to a `Set<Human.Address>` node with a `*Map`-style label (the old diamond's outer edge)
-
-#### Scenario: No outer container-map shortcut edges in the full view either
-- **WHEN** the `full`-view file for the same scope is inspected for the same mapper
-- **THEN** for every pair of container-typed nodes joined by the chain pattern (Unwrap → … → Collect), the REALISED edges between them traverse `ElementLocation` nodes
-- **AND** no REALISED edge connects two regular-scope container-typed nodes directly with a `*Map`-style strategy label
-
-### Requirement: Plan view filter on MapperGraph
-
-`MapperGraph` SHALL expose an accessor `planView()` that returns a `PlanView` — a non-destructive `GraphSource` exposing only the edges of the **chosen plan**. The view SHALL expose `Stream<Node> nodes()`, `Stream<Edge> edges()`, and `Stream<Node> nodesByScope(Scope)` with the same ordering guarantees as the other `MapperGraph` views, and SHALL NOT mutate the underlying graph.
-
-A `REALISED` edge SHALL be excluded from the plan iff it belongs to at least one `ExpansionGroup` and none of its owning groups has a recorded `GroupOutcome.kind` of `SAT` (i.e. it is owned solely by `UNSAT_NO_PLAN` / `UNSAT_DID_NOT_CONVERGE` groups — a dead multi-fire sibling). Group-less REALISED edges are retained.
-
-Among the retained edges, the plan SHALL select the **cheapest** producer at each OR choice point so that every node reachable in the plan from a return-root has exactly one producing group:
-
-- The selection SHALL use a cost oracle `d(n)` = the minimum total `Edge.weight` of a path from any source-side leaf node to `n` over the retained subgraph. The implementation SHALL compute `d` with JGraphT `DijkstraShortestPath` over the retained subgraph made weighted via `AsWeightedGraph` (edge weight = `Edge.weight`), run from each in-degree-0 source node and taking the per-node minimum.
-- Only **non-seed bridge groups** (strategy FQN not under `…stages.seed.`) co-rooted at a node count as competing OR-siblings; seed-registered scaffolding (path-segment / target-chain / directive-binding) co-roots with the real producer and is never pruned.
-- At an OR node rooted by more than one competing group, the plan SHALL retain the group `g` minimising `weight(slot_g → node) + d(slot_g)` (tiebreak deterministic by `Node.id()`) and drop the losers' slot→root edges. The plan is then reachability-filtered from each return-root so disconnected loser/dead subtrees drop out.
-
-The selection rule lives in the view consumer, not in the expansion engine: the engine records all siblings and outcomes; `planView()` chooses among them at view-construction time. This is the render-time sibling selection assigned to the consumer by the expansion model.
-
-#### Scenario: planView excludes dead-sibling edges
-
-- **WHEN** the underlying graph has a node with two producing groups, one `SAT` and one `UNSAT_NO_PLAN`, and `MapperGraph.planView()` is queried
-- **THEN** `edges()` contains the `SAT` group's edges
-- **AND** `edges()` contains no edge belonging only to the `UNSAT_NO_PLAN` group
-
-#### Scenario: planView keeps all slots of an AND node
-
-- **WHEN** a return-root node is the root of a single `ConstructorCall` group with slots `firstName` and `lastName`
-- **THEN** the plan view contains the slot→root edges for both `firstName` and `lastName`
-
-#### Scenario: planView picks the cheapest of two SAT siblings
-
-- **WHEN** a node is the root of two competing `SAT` bridge groups whose slots have cost-to-source `d` values such that branch A's `weight + d` is strictly less than branch B's
-- **THEN** the plan view contains branch A's edge into the node
-- **AND** the plan view does not contain branch B's edge into the node
+#### Scenario: Plan dump shows only chosen producers
+- **WHEN** the plan dump is written for a method with competing constructors
+- **THEN** only the chosen constructor Operation and its supply chains appear

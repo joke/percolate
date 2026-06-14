@@ -60,59 +60,6 @@ This is the sole strategy-author interface for expansion. Implementations SHALL 
 - **WHEN** an implementor does not override `priority()`
 - **THEN** `priority()` returns `0`
 
-### Requirement: ExpansionStep result type
-
-The `percolate-spi` module SHALL define an immutable value type `io.github.joke.percolate.spi.ExpansionStep` carrying: an ordered `List<Slot> inputs` of length `0..N`; a `TypeMirror output`; a `Codegen codegen` that assembles the inputs into the output; an `Intent intent`; an `Optional<ElementScope> scope`; and an `int weight`.
-
-A step with `intent == CONVERSION` SHALL have exactly one input and SHALL describe an in-place re-typing of the value at the frontier's position (same flow identity). The single input names a **type the driver reuses-or-synthesizes** in the current group's view: the input value need NOT already exist as an in-view candidate — when no node of the input type is present, the driver synthesizes one and resolves it as a frontier within the same view (see `graph-expansion`). A strategy author MAY therefore emit a `CONVERSION` step whose input names an intermediate type (e.g. a `long` between `int` and `Long`) that the engine will produce. A step with `intent == BOUNDARY` SHALL describe crossing into a new flow identity and its `inputs` SHALL be the slots of the subgroup it opens (`0` for a terminal producer, `1` for a getter or unary call, `N` for an assembly). `scope` SHALL be present only on container boundary steps.
-
-#### Scenario: CONVERSION step has exactly one input
-- **WHEN** an `ExpansionStep` is constructed with `intent == CONVERSION`
-- **THEN** `inputs().size()` equals `1`
-
-#### Scenario: CONVERSION input need not pre-exist in view
-- **WHEN** a strategy emits a `CONVERSION` step whose single input type has no matching node in the frontier's group view
-- **THEN** the step is still valid (the driver synthesizes the input node rather than discarding the step)
-
-#### Scenario: scope is absent on non-container steps
-- **WHEN** a non-container `ExpansionStep` is constructed
-- **THEN** `scope()` returns `Optional.empty()`
-
-#### Scenario: boundary step slot count is unconstrained
-- **WHEN** an `ExpansionStep` is constructed with `intent == BOUNDARY` and `N` inputs
-- **THEN** `inputs().size()` equals `N` for any `N >= 0`
-
-### Requirement: Intent enum
-
-The `percolate-spi` module SHALL define a Java enum `io.github.joke.percolate.spi.Intent` with exactly two constants: `CONVERSION` and `BOUNDARY`. The driver SHALL branch solely on this enum to decide whether a step folds into the current subgroup (`CONVERSION`) or opens a new subgroup rooted at the frontier (`BOUNDARY`).
-
-#### Scenario: Intent has exactly two constants
-- **WHEN** the source of `Intent` is inspected
-- **THEN** the enum declares exactly `CONVERSION` and `BOUNDARY`
-- **AND** no other constants exist
-
-### Requirement: ElementScope enum
-
-The `percolate-spi` module SHALL define a Java enum `io.github.joke.percolate.spi.ElementScope` with exactly two constants: `ENTERING` and `EXITING`. It SHALL appear only as the payload of `ExpansionStep.scope` and only on container boundary steps; `ENTERING` denotes the output lives at element scope, `EXITING` denotes the input lives at element scope.
-
-#### Scenario: ElementScope has exactly two constants
-- **WHEN** the source of `ElementScope` is inspected
-- **THEN** the enum declares exactly `ENTERING` and `EXITING`
-- **AND** there is no `PRESERVING` constant
-
-### Requirement: Frontier decision context
-
-The `percolate-spi` module SHALL define a Java interface `io.github.joke.percolate.spi.Frontier` exposing exactly three accessors: `TypeMirror targetType()`, `Optional<Directive> directive()`, and `List<Candidate> candidates()`. `Frontier` SHALL NOT expose the graph, any `ExpansionGroup`, or any handle from which a strategy could traverse the graph. `candidates()` SHALL be a flat snapshot of the in-scope source values drawn from the current group's view.
-
-#### Scenario: Frontier exposes no graph handle
-- **WHEN** the `Frontier` interface is inspected
-- **THEN** no accessor returns a type in `io.github.joke.percolate.processor.graph.*` or `io.github.joke.percolate.processor.stages.expand.*`
-
-#### Scenario: candidates are scoped to the current group's view
-- **WHEN** the driver builds a `Frontier` for a frontier node in group `G`
-- **THEN** `candidates()` contains exactly the typed, non-frontier vertices of `G`'s view as `Candidate` snapshots
-- **AND** contains no vertex outside `G`'s view
-
 ### Requirement: Directive type
 
 The `percolate-spi` module SHALL define a `io.github.joke.percolate.spi.Directive` type that exposes the relevant `@Map` configuration to strategies (source path / segment access, and the author-declared `constant` and `defaultValue` attributes) WITHOUT exposing raw compiler internals as the primary surface. A strategy SHALL read its per-binding configuration from `Directive`; it SHALL NOT need to inspect an `AnnotationMirror` directly for the common cases.
@@ -135,15 +82,6 @@ The `percolate-spi` module SHALL define a `io.github.joke.percolate.spi.Directiv
 #### Scenario: Directive reports an empty-string attribute as present
 - **WHEN** a strategy reads the `constant` of a `Directive` built from `@Map(target = "note", constant = "")`
 - **THEN** it observes the value present as the empty string, not absent
-
-### Requirement: Candidate snapshot type
-
-The `percolate-spi` module SHALL define an immutable `io.github.joke.percolate.spi.Candidate` carrying the candidate's `TypeMirror type`. A strategy reads only the type; the driver binds a step's input `Slot` back to a graph node by type. `Candidate` SHALL expose no handle from which a strategy could traverse the graph.
-
-#### Scenario: Candidate exposes type but not traversal
-- **WHEN** the `Candidate` type is inspected
-- **THEN** it exposes the candidate's `TypeMirror`
-- **AND** it exposes no method returning graph edges or neighbouring nodes
 
 ### Requirement: Strategy author mixins
 
@@ -213,28 +151,6 @@ The interface SHALL NOT expose any reference to `MapperGraph`, `Edge`, `Node`, `
 - **WHEN** `resolveCtx.callableMethods()` is invoked
 - **THEN** it returns the `CallableMethods` instance produced by `DiscoverCallableMethods` for the current mapper
 
-### Requirement: Slot result type
-
-The percolate-spi module SHALL define an immutable Lombok `@Value` type `io.github.joke.percolate.spi.Slot` with these fields, in this order:
-- `String name` — the slot's binding name (matches a directive target tail or a builder-method name).
-- `TypeMirror type` — the slot's required type. Used by the engine to drive target-to-source candidate search; SHALL NOT be assumed by callers to equal the realised producer's actual type post-commit.
-- `int weight` — the cost of filling the slot.
-- `AnnotatedConstruct producedFrom` — the underlying consumer-side `Element` (the constructor parameter, setter parameter, or field that the slot represents). The engine consults this at code-generation time to derive the consumer's nullability contract via `NullabilityResolver`.
-
-`producedFrom` enables consumer-contract derivation without leaking nullability into the strategy SPI: strategy authors simply pass the `VariableElement` they already have in hand when constructing slots; they do not reason about nullability themselves.
-
-#### Scenario: Slot exposes its four fields
-- **WHEN** a `Slot` is constructed with `name`, `type`, `weight`, and `producedFrom`
-- **THEN** `getName()`, `getType()`, `getWeight()`, and `getProducedFrom()` return those values
-
-#### Scenario: Slot.producedFrom is the consumer-side Element
-- **WHEN** `ConstructorCall` constructs a `Slot` for parameter index `i` of constructor `ctor`
-- **THEN** the slot's `producedFrom` is `ctor.getParameters().get(i)` (a `VariableElement`)
-
-#### Scenario: Slot is value-equal
-- **WHEN** two `Slot` instances are constructed with equal `name`, `type`, `weight`, and `producedFrom`
-- **THEN** they are `equal` and have equal `hashCode`s
-
 ### Requirement: Strategy registration via ServiceLoader and AutoService
 
 Strategies SHALL be discovered uniformly via a single `ServiceLoader<ExpansionStrategy>`. Built-in strategies — shipped from the `percolate-strategies-builtin` module — SHALL declare their service registration via Google `@AutoService(ExpansionStrategy.class)` so that the `auto-service`-generated `META-INF/services/io.github.joke.percolate.spi.ExpansionStrategy` file ships inside that module's JAR. User-supplied strategies in third-party JARs SHALL register the same way.
@@ -269,50 +185,6 @@ The single list SHALL be tried as one round each expansion pass; there SHALL be 
 - **THEN** it declares `runtimeOnly project(':strategies-builtin')`
 - **AND** no `compile` / `implementation` / `api` configuration mentions `:strategies-builtin`
 
-### Requirement: ConstructorCall built-in
-
-The `percolate-strategies-builtin` module SHALL ship `io.github.joke.percolate.spi.builtins.ConstructorCall` implementing `AssemblyStrategy` (the marker over `ExpansionStrategy` that restricts firing to assembly roots) and registered via `@AutoService(ExpansionStrategy.class)`.
-
-`ConstructorCall.expand(frontier, ctx)` SHALL resolve the frontier's target type; if it is a `DECLARED` type, `ConstructorCall` SHALL emit one `BOUNDARY` `ExpansionStep` per **accessible (non-`private`) constructor** of that type — it is myopic and over-emits, performing no match-filtering of its own. For each emitted step:
-
-- `inputs` SHALL contain one `Slot` per constructor parameter, in declaration order, with `name` = the parameter's simple name, `type` = the parameter's declared type, and `weight` = `Weights.STEP`;
-- `output` SHALL be the target type;
-- `weight` SHALL be `Weights.STEP`;
-- the `EdgeCodegen` SHALL render `new <TargetType>(<inputs by slot name, comma-joined>)`.
-
-Constructions whose slots cannot all be bound (or whose binding the driver prunes) go UNSAT and are dropped by the fixed-point loop and the cost oracle.
-
-#### Scenario: ConstructorCall over-emits one boundary per accessible constructor
-- **WHEN** `ConstructorCall.expand(frontier, ctx)` is invoked for a frontier whose target type is `Address` declaring `Address(int number, String street)` and `Address(long number, String street)`
-- **THEN** the result stream contains two `BOUNDARY` `ExpansionStep`s, one per constructor
-- **AND** each step's `inputs` are `[Slot("number", <int|long>, Weights.STEP), Slot("street", String, Weights.STEP)]` in declaration order
-- **AND** each step's `output` is `Address` and its codegen renders `new Address(numberVar, streetVar)`
-
-#### Scenario: ConstructorCall ignores private constructors
-- **WHEN** the target type declares only a `private` constructor
-- **THEN** `ConstructorCall.expand(...)` emits no step for it
-
-### Requirement: DirectAssign built-in
-
-The `percolate-strategies-builtin` module SHALL ship `io.github.joke.percolate.spi.builtins.DirectAssign` implementing the `CombinatorialMatch` author mixin (a convenience over `ExpansionStrategy` that offers each in-view candidate to `bridge(from, to, ctx)`) and registered via `@AutoService(ExpansionStrategy.class)`. When a candidate's type equals the target, `DirectAssign.bridge(from, to, ctx)` SHALL return `Stream.of(ExpansionStep.conversion(Slot("value", from, Weights.NOOP, null), to, identityCodegen, Weights.NOOP))`; otherwise it SHALL return `Stream.empty()`. The step's `Intent` is `CONVERSION`, so it folds an identity edge in place rather than opening a sub-group.
-
-The `identityCodegen` lambda SHALL render the single incoming value from `IncomingValues.single()` unchanged.
-
-#### Scenario: DirectAssign matches identical types
-- **WHEN** `DirectAssign.bridge(<String>, <String>, ctx)` is invoked
-- **THEN** the result is a stream containing one `ExpansionStep`
-- **AND** the step's `intent` is `CONVERSION`, its single input type and output type both equal the `String` `TypeMirror`
-- **AND** the step's `weight` is `Weights.NOOP`
-- **AND** the step's `codegen` renders the single incoming value unchanged
-
-#### Scenario: DirectAssign rejects different types
-- **WHEN** `DirectAssign.bridge(<String>, <Integer>, ctx)` is invoked
-- **THEN** the result is `Stream.empty()`
-
-#### Scenario: DirectAssign uses isSameType (not isAssignable)
-- **WHEN** `DirectAssign.bridge(<List<String>>, <Collection<String>>, ctx)` is invoked
-- **THEN** the result is `Stream.empty()` because `Types.isSameType` returns `false` for these types
-
 ### Requirement: Weights.METHOD constant
 
 The percolate-spi module SHALL extend the `Weights` constants in `io.github.joke.percolate.spi.Weights` with a constant `METHOD`. The constant SHALL be a positive `int` representing the base cost of a method-call hop.
@@ -323,39 +195,6 @@ For v1, `Weights.METHOD` SHALL equal `Weights.STEP`. The numerical value is docu
 - **WHEN** the source of `Weights` is inspected
 - **THEN** the class declares a public static final int `METHOD`
 - **AND** `Weights.METHOD > 0`
-
-### Requirement: MethodCallBridge built-in
-
-The `percolate-strategies-builtin` module SHALL ship `io.github.joke.percolate.spi.builtins.MethodCallBridge` implementing `ExpansionStrategy` and annotated `@AutoService(ExpansionStrategy.class)`.
-
-`MethodCallBridge.expand(frontier, ctx)` SHALL invoke `ctx.callableMethods().producing(frontier.targetType())` and emit one `BOUNDARY` `ExpansionStep` per returned `MethodCandidate` whose method has exactly one parameter and whose return type is assignable to the target type. For each emitted step:
-
-- `inputs` SHALL contain a single `Slot` named after the method's parameter, typed to the parameter's declared type;
-- `output` SHALL be the candidate's method's return type;
-- `weight` SHALL be `Weights.METHOD + returnSubtypeDistance`, where `returnSubtypeDistance` is the number of supertype steps between the method's return type and the target type (`0` if equal);
-- the `EdgeCodegen` SHALL render `<receiver>.<methodName>(<input>)` where `<receiver>` is `candidate.getReceiver().asExpression()` and `<input>` is `IncomingValues.single()`.
-
-`MethodCallBridge` SHALL NOT filter the currently-expanding method (`ctx.currentMethod()`); self-call edges may legitimately appear when a directive recurses on a structurally smaller value.
-
-#### Scenario: MethodCallBridge emits a direct-match candidate
-- **WHEN** `MethodCallBridge.expand(frontier, ctx)` is invoked for a frontier with target `Pet` and `callableMethods.producing(<Pet>)` returns one candidate `Pet adopt(Dog d)`
-- **THEN** the result stream contains one `BOUNDARY` `ExpansionStep`
-- **AND** its single slot is typed `Dog` and its `output` is `Pet`
-- **AND** its `weight` is `Weights.METHOD` (zero return distance)
-- **AND** its `codegen` renders `this.adopt(<inputVar>)`
-
-#### Scenario: MethodCallBridge emits self-call without filtering
-- **WHEN** `MethodCallBridge.expand(frontier, ctx)` is invoked while expanding `ctx.currentMethod() == adopt(Dog)` and `callableMethods.producing(<Pet>)` returns the candidate for `adopt(Dog)` itself
-- **THEN** the result stream contains one step for that candidate
-- **AND** its codegen renders `this.adopt(<inputVar>)`
-
-#### Scenario: MethodCallBridge returns empty when no candidate produces the target
-- **WHEN** `MethodCallBridge.expand(frontier, ctx)` is invoked and `callableMethods.producing(target)` returns no single-parameter candidate assignable to the target
-- **THEN** the result stream is empty
-
-#### Scenario: MethodCallBridge is registered via @AutoService
-- **WHEN** the source of `MethodCallBridge` is inspected
-- **THEN** the class carries `@AutoService(ExpansionStrategy.class)`
 
 ### Requirement: Weights.CONTAINER constant
 
@@ -392,3 +231,31 @@ The spec SHALL be tagged `@spock.lang.Tag('unit')` and SHALL NOT invoke `Expansi
 - **WHEN** the source of `BuiltinServiceRegistrationSpec` is inspected
 - **THEN** no import references `io.github.joke.percolate.processor.*`
 - **AND** no invocation of `ExpansionHarness`, `ExpandStage`, or `ProcessorModule` appears
+
+### Requirement: OperationSpec result type
+
+A strategy match SHALL produce an `OperationSpec`: the operation's codegen, its weight, its ordered
+port signature (per port: name, declared `TypeMirror`, declared `Nullability`), the produced output
+type and nullness, and optionally a child-scope declaration (container element mapping: element-in
+and element-out types). The spec is plain data; the driver turns it into one atomic `AddOperation`
+delta. Strategies receive no graph access and stay myopic.
+
+#### Scenario: Spec is plain data
+- **WHEN** a strategy returns an `OperationSpec`
+- **THEN** it contains codegen, weight, ports, output typing, and optional child-scope declaration,
+  and exposes no graph or engine surface
+
+#### Scenario: Codegen render contract survives
+- **WHEN** an Operation's codegen renders
+- **THEN** it implements `render(VarNames, IncomingValues)` with incoming values keyed by port name
+
+### Requirement: Demand decision context
+
+Strategies SHALL receive a demand context exposing: the demanded Value's type and nullness, the
+binding `Directive` in effect (carried by the work-list, see `graph-expansion`), the declared
+bindings at the current target level (for assembly strategies), and the candidate snapshot of
+in-scope Values. The context replaces the former frontier/`ExpansionGroup` surfaces.
+
+#### Scenario: Assembly reads the goal spec from the context
+- **WHEN** `ConstructorCall` matches a demand
+- **THEN** it reads the declared-children name set from the demand context, not from a group

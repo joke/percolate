@@ -2,38 +2,9 @@
 
 ## Purpose
 
-This spec defines source-path-segment resolution: the `ExpansionStrategy` implementations (the `Getter` / `Method` / `Field` path resolvers) that turn one segment of a `@Map` source path (like `person.address.street`) into a typed accessor, plus the parameter-root base case that grounds a single-segment source against its own method's parameters. Each resolver reads the segment to resolve from `frontier.directive()` and emits a `BOUNDARY` `ExpansionStep` describing the typed access; the engine reaches the produced source node through the ordinary cross-group fixed-point loop, with no dedicated path-resolution SPI or seed-time bridge round-trip.
+This spec defines source-path-segment resolution: the `ExpansionStrategy` implementations (the `Getter` / `Method` / `Field` path resolvers) that turn one segment of a `@Map` source path (like `person.address.street`) into a typed accessor, plus the parameter-root base case that grounds a single-segment source against its own scope's parameters. Each resolver reads the segment to resolve from the demand context and emits an accessor `Operation` describing the typed access; the engine reaches the produced source `Value` through the ordinary demand work-list, with no dedicated path-resolution SPI or seed-time bridge round-trip.
 
 ## Requirements
-
-### Requirement: Path resolution as a unified ExpansionStrategy
-
-Source-path-segment resolution SHALL be performed by `ExpansionStrategy` implementations (the `Getter` / `Method` / `Field` path resolvers) rather than a dedicated `PathSegmentResolver` SPI. Each resolver SHALL read the segment to resolve from `frontier.directive()` (and the frontier's position within the directive's source path) instead of receiving a `segment` parameter, and SHALL emit a `BOUNDARY` `ExpansionStep` describing the typed access for that segment. The seed-time typing outcome (a typed source node per resolvable segment) SHALL be preserved.
-
-Resolvers SHALL register via `@AutoService(ExpansionStrategy.class)` and SHALL be subject to the same single-list, `priority()`-then-FQN ordering as every other strategy.
-
-#### Scenario: a path resolver reads its segment from the directive
-- **WHEN** a path resolver's `expand(frontier, ctx)` is invoked for a frontier mid-way along a `@Map` source path
-- **THEN** the resolver obtains the segment to resolve from `frontier.directive()`
-- **AND** does not receive a `segment` method parameter
-
-#### Scenario: a resolved segment is a boundary step
-- **WHEN** a path resolver resolves a segment access
-- **THEN** it emits an `ExpansionStep` with `intent == BOUNDARY`
-- **AND** the step's slot describes the parent value the access reads from
-
-### Requirement: Parameter-root base case resolves against the node's own method scope
-
-A single-segment source node (a `src[param]` root) SHALL be recognised as satisfied-by-parameter using the method carried by **the node's own scope** (its `MethodScope`), never a process-global "current method". Because the driver expands every method's groups together in one cross-group fixed-point loop, a base case keyed on a single shared current method would satisfy only one method's parameter roots and strand the rest; resolving against the node's own scope keeps multi-method mappers correct regardless of expansion order. The same node-scope resolution SHALL be used wherever a parameter root must be recovered (producer-scope recovery and failing-slot diagnostics).
-
-#### Scenario: a parameter root is satisfied in a multi-method mapper
-- **WHEN** a mapper declares two methods and the driver expands their groups in one fixed-point loop
-- **THEN** each method's single-segment source roots are satisfied against that method's own parameters
-- **AND** the outcome does not depend on which method's seed edge the driver visited first
-
-#### Scenario: a single-segment source naming no parameter of its own method is not a root
-- **WHEN** a single-segment source node's segment matches no parameter of the method in its own scope
-- **THEN** it is not treated as a parameter-root base case
 
 ### Requirement: GetterPathResolver built-in
 
@@ -162,3 +133,24 @@ The numeric ordering encodes precedence: lower number means "preferred when mult
 #### Scenario: Pre-existing Weights.STEP remains for external compatibility
 - **WHEN** `Weights.STEP` is referenced from any non-built-in resolver
 - **THEN** the constant still resolves and retains its value `1`
+
+### Requirement: Path resolvers emit accessor Operations per segment
+
+Source-path descent SHALL be demand-driven: the demand context's directive supplies the source
+path, and each resolver (getter / method / field) emits one unary accessor `Operation` per resolved
+segment, producing the segment's `Value` from its parent's. Resolver matching rules, accessibility
+checks, and weights carry over unchanged.
+
+#### Scenario: Two-segment path yields two accessor Operations
+- **WHEN** the binding's source path is `address.street` from parameter `p`
+- **THEN** the supply chain is `p → [getAddress()] → (address) → [getStreet()] → (street)` with each
+  accessor an Operation carrying its resolver's weight
+
+### Requirement: Parameter-root base case resolves against the Value's own scope
+
+A single-segment source path SHALL bind directly to the typed parameter-root `Value` of the demand's
+own method scope (never a global current-method), preserving multi-method correctness.
+
+#### Scenario: Single-segment path binds the param root
+- **WHEN** a binding's source is just `p`
+- **THEN** the supply is the parameter-root Value of the method scope that owns the demand

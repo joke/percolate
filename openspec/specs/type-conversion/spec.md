@@ -58,20 +58,6 @@ The `percolate-strategies-builtin` module SHALL ship a public final class `Widen
 - **WHEN** `WidenPrimitive` is offered a frontier whose target type is `char`
 - **THEN** it emits an empty `Stream` (nothing widens to `char`)
 
-### Requirement: Lossless cross-products compose through the conversion type-DAG
-
-Given the engine's type-keyed `CONVERSION` synthesis and base-case reachability SAT (see `graph-expansion`), the two strategies SHALL compose target-to-source into the boxed-widening cross-products with no per-pair code: each cross-product resolves as a chain of `CONVERSION` edges through synthesized type-keyed intermediate nodes within a single group, satisfied only when a complete realised path to a source exists. No `type-conversion` strategy SHALL enumerate a cross-product directly.
-
-#### Scenario: int to Long composes widen then box
-- **WHEN** a mapping requires `int → Long`
-- **THEN** the engine resolves it as `Long` ← `long` ← `int` (box demands a synthesized `long`; widen folds the `int` source into it)
-- **AND** the realised path is two `CONVERSION` edges in one group
-
-#### Scenario: Integer to Long composes unbox, widen, box
-- **WHEN** a mapping requires `Integer → Long`
-- **THEN** the engine resolves it as `Long` ← `long` ← `int` ← `Integer` through synthesized `long` and `int` nodes
-- **AND** the realised path is three `CONVERSION` edges in one group
-
 ### Requirement: Lossless boundary — no narrowing conversions
 
 Neither `PrimitiveWrapperConversion` nor `WidenPrimitive` SHALL emit a step for a narrowing or otherwise lossy conversion (`long → int`, `double → int`, `Integer → Byte`, `float → int`, …). Narrowing remains user-helper territory discovered via `MethodCallBridge`.
@@ -91,3 +77,21 @@ Neither `PrimitiveWrapperConversion` nor `WidenPrimitive` SHALL emit a step for 
 #### Scenario: both conversion strategies are service-loadable
 - **WHEN** `ServiceLoader.load(ExpansionStrategy.class)` is enumerated on the strategies-builtin classpath
 - **THEN** instances of `PrimitiveWrapperConversion` and `WidenPrimitive` are present
+
+### Requirement: Conversions are unary Operations composing through deduped Values
+
+Each conversion strategy match (boxing, unboxing, widening) SHALL emit a unary `Operation`;
+multi-hop conversions compose as Operation chains through intermediate `Value`s deduped by
+identity (`scope`, `location`, `type`, `nullness`). The lossless cross-product composes through
+this chaining without per-pair strategies; the lossless boundary (no narrowing) is unchanged.
+
+#### Scenario: Cross-product composes structurally
+- **WHEN** `int → Long` is demanded and only `int → long` (widen) and `long → Long` (box) strategies
+  exist
+- **THEN** the chain composes through one deduped `long` intermediate Value, with no dedicated
+  `int → Long` strategy
+
+#### Scenario: Round-trip chains never self-satisfy
+- **WHEN** box and unbox Operations form a cycle between deduped Values
+- **THEN** SAT derives only through an acyclic path from a base case, and extraction never selects
+  the cycle

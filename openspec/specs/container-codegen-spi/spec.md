@@ -2,7 +2,7 @@
 
 ## Purpose
 
-The container-codegen SPI is the strategy-supplied seam through which a developer adds container support (`List`/`Set`/array/`Optional`, and developer `Flux`/`Mono`/custom) by writing **one class per container** — both a `ContainerMatch` candidacy and a codegen-handle provider (per-paradigm snippets). The composer owns only structure (the recursive `PlanView` walk + a one-bit `isStream` flag) and obtains every container `CodeBlock` from a handle, so adding a container needs no engine or composer change. Code generation is a pure function of the solved graph.
+The container-codegen SPI is the strategy-supplied seam through which a developer adds container support (`List`/`Set`/array/`Optional`, and developer `Flux`/`Mono`/custom) by writing **one class per container** — both a `ContainerMatch` candidacy and a codegen-handle provider (per-paradigm snippets). The composer owns only structure (the recursive extracted-plan walk) and obtains every container `CodeBlock` from a handle attached to the container `Operation` — a scope-owning Operation's handle weaves around the rendered child-plan lambda, a wrap/unwrap handle renders inline — so adding a container needs no engine or composer change. Code generation is a pure function of the solved graph.
 
 ## Requirements
 
@@ -103,35 +103,19 @@ The built-in List, Set, array, and Optional containers SHALL be implemented as `
 - **THEN** it extends `SequenceContainer`, implements `matches` (is-a `List`), `element` (type argument 0), and the `iterate`/`mapElements`/`flatMapElements`/`collect` snippets
 - **AND** it is indistinguishable in shape from a developer-authored `FluxContainer`
 
-### Requirement: Composer container weaving
+### Requirement: Container codegen handles attach to Operations
 
-`BuildMethodBodies` SHALL weave container hops as an extension of its recursive `PlanView` walk, threading a single boolean — whether the rendered child is already an element stream — **up** the recursion, alongside the `StreamOps` handle that owns the open stream (a `ContainerCodegen` or a `WrapperCodegen`). There SHALL be no intermediate representation, mutable plan graph, or lowering pass. Each container hop SHALL render per the child-stream state:
+Container codegen handles (per-paradigm snippet providers) SHALL attach to the container
+`Operation`: the scope-owning Operation's handle weaves the container operation around the rendered
+child-scope lambda; a wrap/unwrap Operation's handle renders inline like any scalar codegen. The
+composer obtains every container `CodeBlock` from a handle and owns only the recursive plan walk —
+adding a container still requires no engine or composer change.
 
-- An `ENTERING` sequence hop whose child is **not** a stream SHALL open a stream (`iterate`) and mark the result a stream.
-- An `ENTERING` wrapper hop whose child **is** a stream SHALL drop empties by `flatMapElements(child, v, iterate(v))` and stay a stream (the `FilterPresent` behaviour, emergent — not a distinct operation).
-- An `ENTERING` wrapper hop whose child is **not** a stream SHALL render a top-level `unwrap` under the target's nullability.
-- A `PRESERVING` element-map hop (scalar `EdgeCodegen`) whose child **is** a stream SHALL render `mapElements(child, v, edge(v))` via the threaded stream handle; otherwise it renders the scalar `EdgeCodegen` inline (unchanged). The single-element `wrap` is a `PRESERVING` scalar edge rendered the same way.
-- An `EXITING` hop SHALL close the stream (`collect`) and mark the result not a stream.
+#### Scenario: Handle weaves around the child lambda
+- **WHEN** the composer renders a scope-owning container Operation
+- **THEN** it obtains the iterate/collect (or map/orElse) snippets from the Operation's handle and
+  inserts the rendered child plan as the lambda body
 
-#### Scenario: Wrapper-in-sequence weaves to a flat-map
-- **WHEN** the plan threads a source `List<Optional<A>>` through iterate, an `Optional` element, an element map, and a `Set` collect
-- **THEN** the emitted body opens the list stream, `flatMap`s the optional element stream (dropping empties), maps the element, and collects into the set — all snippets from the respective container handles
-
-#### Scenario: The same wrapper hop renders differently by context
-- **WHEN** an `Optional` unwrap hop's child is a stream
-- **THEN** it renders as a flat-map of the optional's element stream
-- **WHEN** the same hop's child is not a stream (top-level)
-- **THEN** it renders as `unwrap` (collapse to scalar) under the target's nullability
-
-### Requirement: Three orthogonal axes
-
-Code generation SHALL treat reference-nullability, wrapper-presence, and sequence iteration as independent, composable concerns and SHALL NOT merge them. Reference-nullability SHALL be resolved by the existing nullability machinery, applied **per reference level** (the container reference and each element reference independently), and SHALL only be **read** at container boundaries. Wrapper-presence SHALL NOT be modelled as nullability.
-
-#### Scenario: Null reference, empty wrapper, and present value are distinct
-- **WHEN** a source is typed `@Nullable Optional<@Nullable Long>`
-- **THEN** the emitted code distinguishes the null-reference case (reference-nullability), the empty case (presence), and the inner null (reference-nullability of the element)
-- **AND** the presence handling comes from the wrapper handle, not from the nullability machinery
-
-#### Scenario: Per-level nullability around a sequence
-- **WHEN** a source is typed `@Nullable List<@Nullable Long>`
-- **THEN** the container reference is null-guarded before iteration and each element is null-handled within the element map, independently of the sequence iterate/collect
+#### Scenario: One class per container still suffices
+- **WHEN** a developer adds support for a new container type
+- **THEN** one class provides both candidacy and the codegen handle, with no composer modification

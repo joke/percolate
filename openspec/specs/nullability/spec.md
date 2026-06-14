@@ -146,33 +146,31 @@ The processor SHALL ship a default instance pre-seeded with the JSpecify FQNs:
 - **AND** the caller subsequently mutates that input set
 - **THEN** the configuration's stored set is unchanged
 
-### Requirement: Engine stamps Nullability paired with Node typing
+### Requirement: Nullness is part of Value identity
 
-Whenever the expansion engine calls `Node.setTyping(TypeMirror, Nullability)` (see the `graph-model` capability for the paired one-shot accessor), the `Nullability` value SHALL be obtained from `NullabilityResolver.resolve(typeMirror, scopeElement)` where:
+A `Value`'s nullness SHALL be part of its identity key (`scope`, `location`, `type`, `nullness`):
+every Value has exactly one definite nullness, set with its type, never resolved per chosen
+producer. `NullabilityResolver` is consulted at expansion commit sites when Operations declare their
+output and port nullness; code generation never consults it.
 
-- `typeMirror` is the type being assigned to the Node.
-- `scopeElement` is the `Element` whose lexical context anchors the JSpecify scope walk — typically the underlying `ExecutableElement` (for callable-method matches), `VariableElement` (for parameters, fields, slot consumer Elements), or the enclosing `TypeElement`.
+#### Scenario: Divergent nullness yields distinct Values
+- **WHEN** one producer yields `street:String` NULLABLE and a port demands `street:String` NON_NULL
+- **THEN** two distinct Values exist, connected only through an explicit crossing Operation
 
-**Exception — the constant-value node.** A constant-value node (see `constant-values`) has no underlying `AnnotatedConstruct` to resolve: a literal is non-null by construction. For it the engine SHALL stamp `Nullability.NON_NULL` **directly**, without invoking `NullabilityResolver`. This is the only typing site where the stamped value is not resolver-obtained.
+### Requirement: The NULLABLE to NON_NULL crossing is an explicit Operation
 
-A default-coalesced value (see `default-values`) is likewise non-null by construction, but it introduces **no separate producer node**: the coalesce is rendered onto the directive's **target node**, whose nullability is that target's own resolver-obtained typing (`NON_NULL` for a non-null target). Because the coalesce can never yield null, a defaulted operand feeding a `NON_NULL` slot is `NON_NULL → NON_NULL` and needs no guard; the engine performs no extra stamp for it.
+The only bridged nullness crossing SHALL be `NULLABLE → NON_NULL`, represented as a unary plan
+Operation: `[requireNonNull]` rendering
+`java.util.Objects.requireNonNull(expr, "source for slot '<name>' is null but target is non-null")`
+by default, or `[coalesce <literal>]` when the binding's directive declares a `defaultValue` (see
+`default-values`). Exactly one of the two is emitted per crossing. All other combinations
+(including `UNKNOWN` in either position) SHALL pass through without an Operation, preserving the
+shipped lenient acceptance.
 
-Strategy code SHALL NOT pre-compute, look up, or otherwise reason about nullability. Strategies surface the `AnnotatedConstruct` they matched on their result types (see the `source-path-resolution` and `expansion-strategy-spi` capabilities); the engine performs the resolver invocation (or, for the intrinsic producers above, stamps `NON_NULL`).
+#### Scenario: Crossing without default emits requireNonNull
+- **WHEN** a NULLABLE source Value feeds a NON_NULL port and no default is declared
+- **THEN** the plan contains a `[requireNonNull]` Operation between the two Values
 
-#### Scenario: Engine pairs setTyping with a resolver call at annotated typing sites
-- **WHEN** the source of every class in `processor/src/main/java/io/github/joke/percolate/processor/stages/expand/` is inspected
-- **THEN** every call to `Node.setTyping(...)` for a node backed by an `AnnotatedConstruct` passes a `Nullability` argument obtained from `NullabilityResolver.resolve(...)`
-
-#### Scenario: Constant-value node is stamped NON_NULL without a resolver call
-- **WHEN** the engine types a constant-value node from its demanded target type
-- **THEN** it stamps `Nullability.NON_NULL`
-- **AND** it does not invoke `NullabilityResolver.resolve(...)` for that node
-
-#### Scenario: A default-coalesced operand feeding a non-null target needs no guard
-- **WHEN** the engine renders a default-coalesced value into a `NON_NULL` target slot
-- **THEN** the operand is the coalesce expression with no `Objects.requireNonNull` guard
-- **AND** the coalesce introduces no separate producer node, so the engine performs no extra `NON_NULL` stamp beyond the target node's own resolver-obtained typing
-
-#### Scenario: No strategy class calls NullabilityResolver
-- **WHEN** the source of every class under `spi/src/main/java/` and `strategies-builtin/src/main/java/` is inspected
-- **THEN** no source line invokes `NullabilityResolver.resolve(...)`
+#### Scenario: UNKNOWN passes through
+- **WHEN** a producer's nullness is UNKNOWN and the port demands NON_NULL
+- **THEN** no crossing Operation is emitted and the value passes through unchanged
