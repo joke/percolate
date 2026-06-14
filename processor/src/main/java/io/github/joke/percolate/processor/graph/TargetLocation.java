@@ -7,6 +7,11 @@ public class TargetLocation implements Location {
     TargetPath path;
 
     @Override
+    public Role role() {
+        return Role.DEMAND;
+    }
+
+    @Override
     public String segment() {
         return "tgt[" + path + "]";
     }

@@ -10,9 +10,10 @@ import io.github.joke.percolate.processor.graph.Operation;
  * {@code Value}s and lands the Operation atomically with its port edges.
  *
  * <p>Graph cycles (e.g. a box∘unbox pair between {@code x:int} and {@code x:Integer}) are permitted and harmless:
- * Horn propagation is well-founded — a {@code Value} never becomes SAT through a cycle containing itself (proven
- * by {@code HornSatSpec}) — and cost extraction guards against cyclic derivations. There is therefore no rollback
- * and no rejection (the design D10 assertion-only cycle check is unnecessary once well-foundedness holds).
+ * the cost extraction fold is well-founded — its cycle guard gives a not-yet-resolved Value infinite cost, so a
+ * Value is never reachable through a cycle containing itself (proven by {@code ExtractedPlanSpec}). There is
+ * therefore no rollback and no rejection (the design D10 assertion-only cycle check is unnecessary once
+ * well-foundedness holds).
  */
 final class Applier {
 

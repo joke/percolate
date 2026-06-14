@@ -2,6 +2,7 @@ package io.github.joke.percolate.processor.stages.validate;
 
 import io.github.joke.percolate.processor.Diagnostics;
 import io.github.joke.percolate.processor.MapperContext;
+import io.github.joke.percolate.processor.graph.ExtractedPlan;
 import io.github.joke.percolate.processor.graph.MapperGraph;
 import io.github.joke.percolate.processor.graph.MethodScope;
 import io.github.joke.percolate.processor.graph.Operation;
@@ -17,9 +18,9 @@ import lombok.RequiredArgsConstructor;
 
 /**
  * Walks unsatisfied demands and reports the closest miss (design D11): for each return-root {@code Value} left
- * UNSAT after Horn propagation, it descends the deepest unsatisfied port chain to the demand with no producer and
- * emits a "no plan" error naming it. A targeted earlier diagnostic (constant coercion failure, dead default)
- * already explains an UNSAT binding, so once the mapper is scarred the generic message is suppressed.
+ * unreachable (infinite extraction cost), it descends the deepest unreachable port chain to the demand with no
+ * producer and emits a "no plan" error naming it. A targeted earlier diagnostic (constant coercion failure, dead
+ * default) already explains an unreachable binding, so once the mapper is scarred the generic message is suppressed.
  */
 @RequiredArgsConstructor(onConstructor_ = @Inject)
 public final class RealisationDiagnosticsStage implements Stage {
@@ -32,15 +33,16 @@ public final class RealisationDiagnosticsStage implements Stage {
         if (graph == null || diagnostics.hasErrorsFor(ctx.getMapperType())) {
             return;
         }
+        final var plan = ExtractedPlan.extract(graph);
         graph.values()
                 .filter(value -> value.getScope() instanceof MethodScope)
                 .filter(value -> value.getLoc().isReturnRoot())
-                .filter(value -> !graph.isSat(value))
-                .forEach(root -> emit(graph, root, ctx));
+                .filter(value -> !plan.reachable(value))
+                .forEach(root -> emit(graph, plan, root, ctx));
     }
 
-    private void emit(final MapperGraph graph, final Value root, final MapperContext ctx) {
-        final var miss = deepestMiss(graph, root);
+    private void emit(final MapperGraph graph, final ExtractedPlan plan, final Value root, final MapperContext ctx) {
+        final var miss = deepestMiss(graph, plan, root);
         diagnostics.error(
                 ctx.getMapperType(),
                 String.format(
@@ -48,17 +50,17 @@ public final class RealisationDiagnosticsStage implements Stage {
                         label(root), label(miss), typeName(miss)));
     }
 
-    /** Descends the first unsatisfied port chain from {@code value} to the demand with no satisfiable producer. */
-    private static Value deepestMiss(final MapperGraph graph, final Value value) {
+    /** Descends the first unreachable port chain from {@code value} to the demand with no reachable producer. */
+    private static Value deepestMiss(final MapperGraph graph, final ExtractedPlan plan, final Value value) {
         final Set<Value> visited = new HashSet<>();
         var current = value;
         while (visited.add(current)) {
             final var producer =
-                    graph.producersOf(current).filter(op -> !graph.isSat(op)).findFirst();
+                    graph.producersOf(current).filter(op -> !plan.reachable(op)).findFirst();
             if (producer.isEmpty()) {
                 return current;
             }
-            final var unsatPort = firstUnsatisfiedPort(graph, producer.get());
+            final var unsatPort = firstUnsatisfiedPort(graph, plan, producer.get());
             if (unsatPort.isEmpty()) {
                 return current;
             }
@@ -67,9 +69,10 @@ public final class RealisationDiagnosticsStage implements Stage {
         return current;
     }
 
-    private static Optional<Value> firstUnsatisfiedPort(final MapperGraph graph, final Operation operation) {
+    private static Optional<Value> firstUnsatisfiedPort(
+            final MapperGraph graph, final ExtractedPlan plan, final Operation operation) {
         return graph.portSourcesOf(operation)
-                .filter(source -> !graph.isSat(source))
+                .filter(source -> !plan.reachable(source))
                 .findFirst();
     }
 

@@ -7,6 +7,11 @@ public class SourceLocation implements Location {
     AccessPath path;
 
     @Override
+    public Role role() {
+        return Role.SUPPLY;
+    }
+
+    @Override
     public String segment() {
         return "src[" + path + "]";
     }

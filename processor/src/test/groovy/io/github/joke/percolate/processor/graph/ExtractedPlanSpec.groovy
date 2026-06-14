@@ -1,6 +1,5 @@
 package io.github.joke.percolate.processor.graph
 
-import io.github.joke.percolate.processor.stages.expand.HornSat
 import io.github.joke.percolate.processor.test.HarnessScope
 import io.github.joke.percolate.spi.Codegen
 import io.github.joke.percolate.spi.Nullability
@@ -131,10 +130,55 @@ class ExtractedPlanSpec extends Specification {
         plan.chosenProducer(root).get().is(allTotal)
     }
 
+    def 'reachability is derived from cost: a value reachable from a supply root is reachable, an orphan is not'() {
+        given:
+        final var param = source('p', TypeUniverse.STRING)
+        produce(root, 1, [param])
+        final var orphan = graph.valueFor(scope, new TargetLocation(TargetPath.of('orphan')), TypeUniverse.STRING, Nullability.NON_NULL)
+
+        when:
+        final var plan = extract()
+
+        then:
+        plan.reachable(param)
+        plan.reachable(root)
+        !plan.reachable(orphan)
+    }
+
+    def 'a zero-weight cycle is unreachable (well-foundedness: no value is reachable through its own cycle)'() {
+        given: 'a and b each produced only from the other, with weight 0 and no supply root feeding the cycle'
+        final var a = graph.valueFor(scope, new TargetLocation(TargetPath.of('a')), TypeUniverse.STRING, Nullability.NON_NULL)
+        final var b = graph.valueFor(scope, new TargetLocation(TargetPath.of('b')), TypeUniverse.STRING, Nullability.NON_NULL)
+        operation(a, 0, false, [b])
+        operation(b, 0, false, [a])
+
+        when:
+        final var plan = extract()
+
+        then:
+        !plan.reachable(a)
+        !plan.reachable(b)
+    }
+
+    def 'a scope-owning operation is unreachable when its child return-root has no producer'() {
+        given: 'a scope-owning producer of root whose outer port is reachable but whose child return-root is never produced'
+        final var param = source('p', TypeUniverse.STRING)
+        graph.apply(new AddOperation('map', 'test', Stub(Codegen), 0, false,
+                [new PortBinding(new Port('p0', param.type.get(), param.nullness.get()), av(param))],
+                av(root),
+                Optional.of(new ChildScopeDecl(TypeUniverse.STRING, Nullability.NON_NULL, TypeUniverse.STRING, Nullability.NON_NULL))))
+
+        when:
+        final var plan = extract()
+
+        then:
+        plan.reachable(param)
+        !plan.reachable(root)
+    }
+
     // ---- helpers --------------------------------------------------------------------------------
 
     private ExtractedPlan extract() {
-        HornSat.propagate(graph)
         ExtractedPlan.extract(graph)
     }
 

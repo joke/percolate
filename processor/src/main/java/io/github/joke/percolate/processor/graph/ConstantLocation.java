@@ -15,6 +15,11 @@ public class ConstantLocation implements Location {
     String raw;
 
     @Override
+    public Role role() {
+        return Role.CONSTANT;
+    }
+
+    @Override
     public String segment() {
         return "const[" + raw + "]";
     }

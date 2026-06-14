@@ -60,7 +60,8 @@ import org.jspecify.annotations.Nullable;
  *       the element param-root as its candidate.</li>
  * </ul>
  *
- * After the work-list drains, {@link HornSat} recomputes the SAT predicate over the whole graph.
+ * After the work-list drains the graph is fully over-emitted; satisfaction is not computed here — a vertex is
+ * reachable iff its extraction cost is finite ({@code ExtractedPlan}), so there is no separate SAT pass.
  */
 @RequiredArgsConstructor
 public final class ExpandStage implements Stage {
@@ -89,7 +90,6 @@ public final class ExpandStage implements Stage {
         }
         final var goalSpecs = ctx.getGoalSpecs();
         new Driver(graph, goalSpecs).expandAll();
-        HornSat.propagate(graph);
     }
 
     /** One expansion run over a single graph: holds the work-list and the per-Value visited set. */
@@ -127,7 +127,7 @@ public final class ExpandStage implements Stage {
 
         private void expand(final DemandItem item) {
             final var value = item.value;
-            if (!(value.getLoc() instanceof TargetLocation)) {
+            if (value.getLoc().role() != Location.Role.DEMAND) {
                 return;
             }
             final var path = ((TargetLocation) value.getLoc()).getPath().toString();

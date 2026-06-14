@@ -1,13 +1,10 @@
 package io.github.joke.percolate.processor.graph;
 
 import io.github.joke.percolate.spi.Nullability;
-import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
-import java.util.IdentityHashMap;
 import java.util.Map;
 import java.util.Optional;
-import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import javax.lang.model.type.TypeMirror;
@@ -33,9 +30,6 @@ public final class MapperGraph {
     /** The {@code (scope, location, type, nullness)} dedup index behind {@link #valueFor}. */
     @SuppressWarnings("PMD.UseConcurrentHashMap") // single-threaded per-mapper graph
     private final Map<String, Value> valueIndex = new HashMap<>();
-
-    /** Memoized SAT verdicts: a vertex is present iff Horn propagation derived it from a base case. */
-    private final Set<GraphVertex> satVertices = Collections.newSetFromMap(new IdentityHashMap<>());
 
     private int operationSeq;
 
@@ -108,21 +102,6 @@ public final class MapperGraph {
                     "Dep edge must not cross a scope boundary: " + from.id() + " -> " + to.id());
         }
         bipartite.addEdge(from, to, dep);
-    }
-
-    // ---- SAT predicate store ----------------------------------------------------------------------------------
-
-    /** Marks a vertex SAT (Horn propagation result). Engine-only. */
-    public void markSat(final GraphVertex vertex) {
-        satVertices.add(vertex);
-    }
-
-    public boolean isSat(final GraphVertex vertex) {
-        return satVertices.contains(vertex);
-    }
-
-    public void clearSat() {
-        satVertices.clear();
     }
 
     // ---- Queries (read-only) ----------------------------------------------------------------------------------
