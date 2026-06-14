@@ -35,6 +35,12 @@ public final class MethodCallBridge implements ExpansionStrategy {
 
     @Override
     public Stream<OperationSpec> expand(final Demand demand, final ResolveCtx ctx) {
+        if (!demand.declaredChildren().isEmpty()) {
+            // A target the user declared field-by-field is assembled, not produced by a method call: a method-call
+            // bridge applies only to leaf demands. This also keeps a mapper's own method from satisfying its own
+            // return root (a degenerate self-call) at an assembly demand.
+            return Stream.empty();
+        }
         final var callableMethods = ctx.callableMethods();
         if (callableMethods == null) {
             return Stream.empty();

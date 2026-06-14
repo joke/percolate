@@ -128,8 +128,26 @@ public final class ValidateConstantDefaultLegalityStage implements Stage {
 
     @Nullable
     private static TypeMirror targetType(final MapperGraph graph, final MethodScope scope, final String target) {
-        final var value = findTypedValue(graph, scope, new TargetLocation(new TargetPath(splitPath(target))));
-        return value == null ? null : value.getType().orElse(null);
+        // Walk assembly ports from the return root so the declared field type is read, not a conversion intermediate
+        // minted at the same target location (the engine over-emits convertible intermediates there).
+        var current = findTypedValue(graph, scope, new TargetLocation(new TargetPath(List.of())));
+        if (current == null) {
+            return null;
+        }
+        for (final var segment : splitPath(target)) {
+            final var declared = current;
+            final var next = graph.producersOf(declared)
+                    .map(op -> graph.portSource(op, segment))
+                    .flatMap(java.util.Optional::stream)
+                    .filter(value -> value.getType().isPresent())
+                    .findFirst()
+                    .orElse(null);
+            if (next == null) {
+                return null;
+            }
+            current = next;
+        }
+        return current.getType().orElse(null);
     }
 
     @Nullable

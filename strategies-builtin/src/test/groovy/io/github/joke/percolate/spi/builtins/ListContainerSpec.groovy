@@ -46,7 +46,7 @@ class ListContainerSpec extends Specification {
         iterate.weight == Weights.CONTAINER
         ctx.types().isSameType(iterate.ports[0].type, listOfString)
         ctx.types().isSameType(iterate.outputType, streamOfString)
-        new ListContainer().iterate(CodeBlock.of('$N', 'xs')).toString().contains('.stream()')
+        new ListContainer().iterate().get().render(CodeBlock.of('$N', 'xs')).toString().contains('.stream()')
     }
 
     def 'collects a Stream into a List and offers a plain single-element List.of wrap'() {
@@ -59,7 +59,7 @@ class ListContainerSpec extends Specification {
         collect.childScope.empty
         collect.codegen instanceof OperationCodegen
         ctx.types().isSameType(collect.outputType, listOfString)
-        new ListContainer().collect(CodeBlock.of('$N', 's')).toString().contains('toList()')
+        new ListContainer().collect().get().render(CodeBlock.of('$N', 's')).toString().contains('toList()')
 
         and: 'a plain single-element wrap String -> List<String>, no child scope'
         def wrap = specs.find { ctx.types().isSameType(it.ports[0].type, TypeUniverse.STRING) }

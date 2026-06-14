@@ -46,7 +46,7 @@ class OptionalContainerSpec extends Specification {
         ctx.types().isSameType(wrap.ports[0].type, TypeUniverse.STRING)
         ctx.types().isSameType(wrap.outputType, optionalOfString)
         wrap.outputNullness == Nullability.NON_NULL
-        new OptionalContainer().wrap(CodeBlock.of('$N', 'x')).toString().contains('ofNullable')
+        new OptionalContainer().wrap().get().render(CodeBlock.of('$N', 'x')).toString().contains('ofNullable')
     }
 
     def 'Optional<A> to Optional<B> emits the plain wrap plus a same-kind scope-owning mapPresence'() {
@@ -63,7 +63,7 @@ class OptionalContainerSpec extends Specification {
         ctx.types().isSameType(mapping.ports[0].type, optionalOfInteger)
         ctx.types().isSameType(mapping.outputType, optionalOfString)
         !mapping.partial
-        new OptionalContainer().mapPresence(CodeBlock.of('$N', 'o'), 'v', CodeBlock.of('$N', 'b'))
+        new OptionalContainer().mapPresence().get().weave(CodeBlock.of('$N', 'o'), 'v', CodeBlock.of('$N', 'b'))
                 .toString().contains('.map(')
 
         and: 'the plain wrap is offered too (no collect — a wrapper has no sequence terminal)'
@@ -81,7 +81,7 @@ class OptionalContainerSpec extends Specification {
         iterate.codegen instanceof OperationCodegen
         ctx.types().isSameType(iterate.ports[0].type, optionalOfString)
         ctx.types().isSameType(iterate.outputType, streamOfString)
-        new OptionalContainer().iterate(CodeBlock.of('$N', 'o')).toString().contains('.stream()')
+        new OptionalContainer().iterate().get().render(CodeBlock.of('$N', 'o')).toString().contains('.stream()')
     }
 
     def 'a scalar demand from an Optional source emits a plain partial unwrap under the demanded nullness'() {
@@ -98,7 +98,7 @@ class OptionalContainerSpec extends Specification {
         ctx.types().isSameType(unwrap.ports[0].type, optionalOfString)
         ctx.types().isSameType(unwrap.outputType, TypeUniverse.STRING)
         unwrap.outputNullness == Nullability.NULLABLE
-        new OptionalContainer().unwrap(CodeBlock.of('$N', 'o'), Nullability.NULLABLE).toString().contains('orElse(null)')
-        new OptionalContainer().unwrap(CodeBlock.of('$N', 'o'), Nullability.NON_NULL).toString().contains('orElseThrow')
+        new OptionalContainer().unwrap().get().render(CodeBlock.of('$N', 'o'), Nullability.NULLABLE).toString().contains('orElse(null)')
+        new OptionalContainer().unwrap().get().render(CodeBlock.of('$N', 'o'), Nullability.NON_NULL).toString().contains('orElseThrow')
     }
 }

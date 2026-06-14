@@ -15,8 +15,8 @@ import lombok.RequiredArgsConstructor;
 /**
  * The myopic {@link Demand} the driver hands a strategy for one unsatisfied {@code Value} (design D9). It exposes
  * only local decision context — the demanded type and nullness, the in-effect {@code @Map} {@link Directive}, the
- * declared-children goal set, a flat candidate snapshot of in-scope source values, and the nullness oracle — and
- * no graph or engine handle.
+ * declared-children goal set, the binding/slot name the demand serves, a flat candidate snapshot of the in-scope
+ * source values, and the nullness oracle — and no graph or engine handle.
  */
 @RequiredArgsConstructor
 // each field backs the Demand accessor of the same name; this is a deliberate myopic data-carrier adapter
@@ -27,6 +27,7 @@ final class DemandView implements Demand {
     private final Nullability targetNullness;
     private final Optional<Directive> directive;
     private final Set<String> declaredChildren;
+    private final String bindingName;
     private final List<Candidate> candidates;
     private final NullabilityResolver resolver;
 
@@ -48,6 +49,11 @@ final class DemandView implements Demand {
     @Override
     public Set<String> declaredChildren() {
         return declaredChildren;
+    }
+
+    @Override
+    public String bindingName() {
+        return bindingName;
     }
 
     @Override

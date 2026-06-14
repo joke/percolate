@@ -11,7 +11,7 @@ import java.util.Optional;
  *
  * <p>{@link #constant()} and {@link #defaultValue()} are reported <strong>present</strong> only when the member is
  * not the {@code Map.UNSET} sentinel; an empty string is a present value, never absent. {@code ConstantValue} reads
- * {@link #constant()} and {@code DefaultValue} reads {@link #defaultValue()} through this surface.
+ * {@link #constant()} and {@code NullnessCrossing} reads {@link #defaultValue()} through this surface.
  */
 public interface Directive {
 

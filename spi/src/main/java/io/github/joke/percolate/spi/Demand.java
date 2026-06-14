@@ -34,6 +34,13 @@ public interface Demand {
      */
     Set<String> declaredChildren();
 
+    /**
+     * The binding/slot name this demand serves — the target field or port name the produced value is bound under.
+     * A crossing strategy reads it to name the slot in its message (e.g. {@code requireNonNull}); empty when the
+     * demand serves no named slot.
+     */
+    String bindingName();
+
     /** A flat snapshot of the in-scope source values, scope-confined to the current (method or child) scope. */
     List<Candidate> candidates();
 

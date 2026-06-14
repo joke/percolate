@@ -38,7 +38,7 @@ class ArrayContainerSpec extends Specification {
         iterate.weight == Weights.CONTAINER
         ctx.types().isSameType(iterate.ports[0].type, stringArray)
         ctx.types().isSameType(iterate.outputType, streamOfString)
-        new ArrayContainer().iterate(CodeBlock.of('$N', 'a')).toString().contains('Arrays.stream')
+        new ArrayContainer().iterate().get().render(CodeBlock.of('$N', 'a')).toString().contains('Arrays.stream')
     }
 
     def 'collects a Stream into an array and offers no single-element wrap (arrays have no factory)'() {
@@ -52,7 +52,7 @@ class ArrayContainerSpec extends Specification {
         collect.codegen instanceof OperationCodegen
         ctx.types().isSameType(collect.ports[0].type, streamOfString)
         ctx.types().isSameType(collect.outputType, stringArray)
-        new ArrayContainer().collect(CodeBlock.of('$N', 's')).toString().contains('toArray()')
+        new ArrayContainer().collect().get().render(CodeBlock.of('$N', 's')).toString().contains('toArray()')
     }
 
     def 'declines when neither side is an array'() {

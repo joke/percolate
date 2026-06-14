@@ -42,7 +42,7 @@ class SetContainerSpec extends Specification {
         iterate.codegen instanceof OperationCodegen
         ctx.types().isSameType(iterate.ports[0].type, setOfString)
         ctx.types().isSameType(iterate.outputType, streamOfString)
-        new SetContainer().iterate(CodeBlock.of('$N', 'xs')).toString().contains('.stream()')
+        new SetContainer().iterate().get().render(CodeBlock.of('$N', 'xs')).toString().contains('.stream()')
     }
 
     def 'collects a Stream into a Set (Collectors.toSet) and offers a plain single-element Set.of wrap'() {
@@ -56,7 +56,7 @@ class SetContainerSpec extends Specification {
         collect.codegen instanceof OperationCodegen
         collect.weight == Weights.CONTAINER
         ctx.types().isSameType(collect.outputType, setOfString)
-        new SetContainer().collect(CodeBlock.of('$N', 's')).toString().contains('toSet()')
+        new SetContainer().collect().get().render(CodeBlock.of('$N', 's')).toString().contains('toSet()')
 
         and: 'a plain single-element wrap String -> Set<String>'
         def wrap = specs.find { ctx.types().isSameType(it.ports[0].type, TypeUniverse.STRING) }

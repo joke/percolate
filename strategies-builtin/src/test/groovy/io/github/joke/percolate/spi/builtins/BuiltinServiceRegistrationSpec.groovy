@@ -22,9 +22,9 @@ class BuiltinServiceRegistrationSpec extends Specification {
         discovered.contains('io.github.joke.percolate.spi.builtins.WidenPrimitive')
         discovered.contains('io.github.joke.percolate.spi.builtins.PrimitiveWrapperConversion')
 
-        // Constants and defaults
+        // Constants and the nullness crossing (requireNonNull / coalesce)
         discovered.contains('io.github.joke.percolate.spi.builtins.ConstantValue')
-        discovered.contains('io.github.joke.percolate.spi.builtins.DefaultValue')
+        discovered.contains('io.github.joke.percolate.spi.builtins.NullnessCrossing')
 
         // Containers (the nine per-operation bridges were consolidated into these four)
         discovered.contains('io.github.joke.percolate.spi.builtins.ListContainer')
@@ -51,6 +51,7 @@ class BuiltinServiceRegistrationSpec extends Specification {
         !discovered.contains('io.github.joke.percolate.spi.builtins.ListWrap')
         !discovered.contains('io.github.joke.percolate.spi.builtins.GetterRead')
         !discovered.contains('io.github.joke.percolate.spi.builtins.RecordPathResolver')
+        !discovered.contains('io.github.joke.percolate.spi.builtins.DefaultValue')
     }
 
     def 'spec does not import from processor package'() {

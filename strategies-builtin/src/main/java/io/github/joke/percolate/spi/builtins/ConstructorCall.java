@@ -6,7 +6,6 @@ import static java.util.stream.Collectors.toUnmodifiableSet;
 import com.google.auto.service.AutoService;
 import com.palantir.javapoet.ClassName;
 import com.palantir.javapoet.CodeBlock;
-import io.github.joke.percolate.spi.AssemblyStrategy;
 import io.github.joke.percolate.spi.Demand;
 import io.github.joke.percolate.spi.ExpansionStrategy;
 import io.github.joke.percolate.spi.Nullability;
@@ -32,11 +31,13 @@ import org.jspecify.annotations.Nullable;
  * are the constructor parameters, named after them. It is gated by the demand's declared-children goal spec — a
  * constructor is a candidate only when its parameter-name set equals {@link Demand#declaredChildren()} — so a
  * zero-parameter constructor is never chosen over the user's declared mapping, and assembly never recurses
- * unboundedly. Each port's nullness is resolved through the demand's nullness oracle.
+ * unboundedly. Each port's nullness is resolved through the demand's nullness oracle. It is a plain
+ * {@link ExpansionStrategy} in the one unified loader list; "assembly" is an emission-time gating concern, not a
+ * separate result type or a driver routing branch.
  */
 @AutoService(ExpansionStrategy.class)
 @NoArgsConstructor
-public final class ConstructorCall implements AssemblyStrategy {
+public final class ConstructorCall implements ExpansionStrategy {
 
     @Override
     public Stream<OperationSpec> expand(final Demand demand, final ResolveCtx ctx) {
@@ -46,6 +47,11 @@ public final class ConstructorCall implements AssemblyStrategy {
             return Stream.empty();
         }
         final var declared = demand.declaredChildren();
+        if (declared.isEmpty()) {
+            // A leaf demand (no declared children) is never assembled: a zero-arg constructor must not vacuously
+            // satisfy it (no silent sourcing). Assembly fires only for a target level with declared children.
+            return Stream.empty();
+        }
         return typeElement.getEnclosedElements().stream()
                 .filter(e -> e.getKind() == ElementKind.CONSTRUCTOR)
                 .map(ExecutableElement.class::cast)
