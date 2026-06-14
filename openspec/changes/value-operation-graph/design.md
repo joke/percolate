@@ -164,6 +164,10 @@ In the new model the crossing is a unary Operation `(T?) → (T!)`:
   (the directive travels in the demand context, D9). Constants remain zero-port Operations
   (legitimately vacuously SAT). Dead-default rejection (`default-values` spec) is unchanged.
 
+The "**instead**" is no longer a bespoke either/or: both Operations may be emitted, and selection is
+the D8 **totality** rule — `[coalesce]` is total, `[requireNonNull]` is partial, so the default wins
+whenever it is declared and `[requireNonNull]` is chosen only as the sole producer.
+
 `BuildMethodBodies.applyNullabilityContract` and the edge-`Slot` consumer-contract resolution are
 deleted; safe directions are port-acceptance rules, not Operations.
 
@@ -189,40 +193,65 @@ Two goal-related rules:
   validation (the vacuous constructor outprices the correct one, then errors); infinite cost on
   dropping (absence of consumption has no edge to price).
 
-### D7 — Containers are scope-owning Operations; a sub-plan is a child scope
+### D7 — Containers compose through an explicit `Stream`; the per-element transform stays a child scope
 
-The per-element transform of `List<A> → List<B>` is a function `(elem:A) → (elem:B)` — the same
-shape as a method body. The model reuses the existing mechanism (scopes) one level down:
+A container conversion is two things at once: a **reshaping** across container kinds
+(`List → Set`, `List → Optional`, drop-empties) and a **per-element transform** (`A → B`). The
+per-element transform is a function `(elem:A) → (elem:B)` — the same shape as a method body — and
+stays a child `Scope` owned by its Operation (the reused method mechanism, one level down). The
+reshaping is *not* an element transform and has no same-kind decomposition: encoding the whole thing
+as one fused same-kind Operation (`List<A> → List<B>` in one box) forces that Operation to know every
+kind it bridges (`List` **and** `Set` **and** `Optional` at once for `List<Optional<A>> →
+Optional<Set<B>>`) — the centralized multi-kind composer this change exists to delete, and the gap
+that left the `mapHuman` integration mapper unplannable. So the reshaping is made explicit as a chain
+of first-order Operations over an intermediate `Stream<T>` `Value`:
+
+| Operation | Type | Shape | Emitted by |
+|---|---|---|---|
+| `iterate` | `Cont<E> → Stream<E>` | plain | each container, **its own kind** (incl. `Optional.stream()`) |
+| `collect` | `Stream<E> → Seq<E>` | plain | each **sequence** container, its own kind |
+| `wrap` / `unwrap` | `E → Wrap<E>` / `Wrap<E> → E` | plain (`unwrap` is **partial**, D8) | each container, its own kind |
+| `mapPresence` | `Optional<A> → Optional<B>` | scope-owning | wrapper, **same-kind only** (a wrapper has no `collect`) |
+| `map` / `flatMap` | `Stream<A> → Stream<B>` | scope-owning (child `A→B` / `A→Stream<B>`) | one **generic**, kind-free stream strategy |
 
 ```mermaid
-graph BT
-  subgraph child scope — owned by the map Operation
-    ea(["elem : A ● param root"])
-    plan["…child plan…"]
-    eb(["elem′ : B — return-root demand"])
-    ea --> plan --> eb
-  end
-  src(["src : List#lt;A#gt;"])
-  mapop["map · owns child scope"]
-  ret(["ret : List#lt;B#gt;"])
-  src -->|port| mapop --> ret
+flowchart LR
+  src(["src : List#lt;Optional#lt;A#gt;#gt;"]) --> it["iterate"] --> s1(["Stream#lt;Optional#lt;A#gt;#gt;"])
+  s1 --> fm["flatMap · child{Opt#lt;A#gt;→Stream#lt;A#gt;}"] --> s2(["Stream#lt;A#gt;"])
+  s2 --> mp["map · child{A→B}"] --> s3(["Stream#lt;B#gt;"])
+  s3 --> col["collect"] --> set(["Set#lt;B#gt;"]) --> wr["wrap"] --> ret(["Optional#lt;Set#lt;B#gt;#gt;"])
 ```
 
-- Physically the graph stays flat: one `MapperGraph`, scopes form a tree, Values already carry
-  `Scope`. **Invariant: no `Dep` edge crosses a scope boundary; the only parent↔child coupling is
-  the owning Operation** (checkable in one assertion).
-- SAT: a scope-owning Operation is SAT ⟺ its outer ports are SAT ∧ the child return-root is SAT;
-  child param roots are base-case SAT — the method rule, reused.
-- Expansion: the child demand joins the same work-list; candidate search is already scope-confined.
-- Extraction and codegen recurse through the Operation; the child plan renders as the lambda body.
-  Nested containers are scope-tree depth.
-- Wrap/unwrap (`Optional.of`, element get) are **plain** Operations — the Wrap-vs-Collect asymmetry
-  becomes structural instead of one SPI doing two jobs. The `ElementScope` `ENTERING`/`EXITING` edge
-  attribute and the strictly-linear REALISED-chain invariant are removed.
+- **No Operation knows two kinds.** Cross-kind and flatten emerge from OR-matching on `Stream`
+  Values: the chain above is `wrap ⟵ collect ⟵ map[A→B] ⟵ flatMap[Optional→Stream] ⟵ iterate(List)`,
+  every step single-kind or kind-free. Same-kind `List → List` routes through the same
+  `iterate → map → collect` and renders identically; only `Optional → Optional` keeps `mapPresence`.
+- **`Stream<T>` Values are parent-scoped — this is *not* the rejected scope-crossing alternative.**
+  The stream stages are ordinary Operations in the parent scope; the only `Scope` boundary is still
+  the per-element transform inside `map`/`flatMap`. **Invariant: no `Dep` edge crosses a scope
+  boundary** holds unchanged — in fact more strictly, because `[stream]`/`[collect]` never straddle a
+  boundary. Nested same-kind containers (`List<List<A>>`) are still scope-tree depth (a `map` whose
+  child plan contains another `map`).
+- SAT, expansion, extraction, codegen are the unchanged recursions over more vertices: a scope-owning
+  Operation is SAT ⟺ outer ports SAT ∧ child return-root SAT (child param roots base-case SAT — the
+  method rule); the child demand joins the same scope-confined work-list; codegen threads each stage's
+  `StreamOps` snippet onto its operand, reproducing a fused pipeline string.
+- **Bootstrapping** (target→source): the generic stream strategy names its `Stream<X>` port from a
+  *non-stream* candidate via a shared structural helper `Containers.streamElement`
+  (assignable-to-`Collection<E>` → E; array → component; `Optional<E>`/`Stream<E>` → E), and the
+  existing port-synthesis turns that into the `iterate` demand. The helper is SPI-resident and
+  structural, so any `Collection`-shaped container is covered for free; a non-`Collection` reactive
+  container would declare its stream-element through an SPI hook when one lands (out of scope here).
+- Wrap/unwrap stay **plain** Operations — the Wrap-vs-Collect asymmetry is now structural (plain wrap
+  vs scope-owning element map). The `ElementScope` `ENTERING`/`EXITING` edge attribute and the
+  strictly-linear REALISED-chain invariant are removed.
 
-*Alternatives rejected:* flat scope-crossing `[stream]`/`[collect]` Operations (pollutes first-order
-candidate search, scope-crossing SAT subtleties); lambda-as-attribute (hides a whole plan from the
-graph, dumps, and diagnostics).
+*Alternatives rejected:* one fused same-kind element-map Operation (cannot phrase cross-kind/flatten
+without a multi-kind composer — the `mapHuman` regression); flat scope-crossing `[stream]`/`[collect]`
+Operations with the stream living in an *element* scope (pollutes first-order candidate search,
+scope-crossing SAT subtleties — `Stream`-in-parent-scope avoids both); eager/supply-driven `iterate`
+(emits `Stream` candidates before demand — a forward sweep, against the target→source discipline);
+lambda-as-attribute (hides a whole plan from the graph, dumps, and diagnostics).
 
 ### D8 — Plan selection is bottom-up cost extraction
 
@@ -235,6 +264,18 @@ deterministic ordering (as today). The extracted plan is a read-only view: each 
 exactly one `chosenProducer()`; the generator's "all inbound edges share one producer" invariant
 becomes true by construction. Shared Values render inline per use (today's behaviour; accessor
 idempotency is a documented assumption); hoisting is a recorded non-goal.
+
+**Totality dominates cost.** An Operation is **total** or **partial** (partial = may throw on a
+structurally-valid input: `unwrap`/`orElseThrow`, `[requireNonNull]`). Among a `Value`'s SAT
+producers, **a total producer is always preferred over a partial one, independent of weight**; a
+partial producer is selected only when the Value has no total producer. This is a correctness rule,
+not a heuristic — it stops extraction from choosing a runtime-throwing plan
+(`map(o -> f(o.orElseThrow()))`) over an equivalent total one (`flatMap(o -> o.stream())`, drop-empties)
+merely because the throwing plan costs less. It **subsumes** the D5 nullness either/or: `[coalesce]`
+(default) is total and `[requireNonNull]` is partial, so "default wins when declared, `requireNonNull`
+only when it is the sole producer" falls out of the same dominance rather than a bespoke rule.
+Dominance is applied before cost; cost and the deterministic tie-break decide only among producers of
+equal totality.
 
 ### D9 — Directives and demand context
 

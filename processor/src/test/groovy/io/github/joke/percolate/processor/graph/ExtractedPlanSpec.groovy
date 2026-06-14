@@ -90,6 +90,47 @@ class ExtractedPlanSpec extends Specification {
         !plan.chosenProducer(root).get().is(loser)
     }
 
+    def 'a total producer is preferred over a cheaper partial one (totality dominates cost)'() {
+        given:
+        final var param = source('p', TypeUniverse.STRING)
+        producePartial(root, 1, [param]) // cheaper, but may throw on a valid input
+        final var total = produce(root, 9, [param]) // pricier, but never throws
+
+        when:
+        final var plan = extract()
+
+        then:
+        plan.chosenProducer(root).get().is(total)
+    }
+
+    def 'a partial producer is chosen only as the sole producer'() {
+        given:
+        final var param = source('p', TypeUniverse.STRING)
+        final var only = producePartial(root, 1, [param])
+
+        when:
+        final var plan = extract()
+
+        then:
+        plan.chosenProducer(root).get().is(only)
+    }
+
+    def 'totality dominance counts partials transitively through ports, before cost'() {
+        given: 'two total heads for root: one fed through a partial intermediate (cheap), one all-total (pricier)'
+        final var pa = source('a', TypeUniverse.STRING)
+        final var pb = source('b', TypeUniverse.STRING)
+        final var viaPartial = intermediatePartial('ip', TypeUniverse.STRING, 0, [pa])
+        final var viaTotal = intermediate('it', TypeUniverse.STRING, 8, [pb])
+        produce(root, 0, [viaPartial]) // total head, but one partial in its subtree
+        final var allTotal = produce(root, 0, [viaTotal]) // zero partials, but costs more
+
+        when:
+        final var plan = extract()
+
+        then: 'the all-total plan wins despite the higher cost'
+        plan.chosenProducer(root).get().is(allTotal)
+    }
+
     // ---- helpers --------------------------------------------------------------------------------
 
     private ExtractedPlan extract() {
@@ -105,18 +146,34 @@ class ExtractedPlanSpec extends Specification {
         new AddValue(value.scope, value.loc, value.type.get(), value.nullness.get())
     }
 
-    /** A producer of {@code out} with {@code weight}, fed by the given existing port-source Values. */
+    /** A total producer of {@code out} with {@code weight}, fed by the given existing port-source Values. */
     private Operation produce(final Value out, final int weight, final List<Value> portSources) {
+        operation(out, weight, false, portSources)
+    }
+
+    /** A partial producer (may throw on a structurally-valid input) — the totality rule deprioritises it. */
+    private Operation producePartial(final Value out, final int weight, final List<Value> portSources) {
+        operation(out, weight, true, portSources)
+    }
+
+    private Operation operation(final Value out, final int weight, final boolean partial, final List<Value> portSources) {
         final var ports = (0..<portSources.size()).collect { i ->
             new PortBinding(new Port('p' + i, portSources[i].type.get(), portSources[i].nullness.get()), av(portSources[i]))
         }
-        graph.apply(new AddOperation('op', 'test', Stub(Codegen), weight, ports, av(out), Optional.empty()))
+        graph.apply(new AddOperation('op', 'test', Stub(Codegen), weight, partial, ports, av(out), Optional.empty()))
     }
 
     /** Mints an intermediate target Value of {@code type} produced with {@code weight} from {@code portSources}. */
     private Value intermediate(final String slot, final TypeMirror type, final int weight, final List<Value> portSources) {
         final var value = graph.valueFor(scope, new TargetLocation(TargetPath.of(slot)), type, Nullability.NON_NULL)
         produce(value, weight, portSources)
+        value
+    }
+
+    /** Like {@link #intermediate} but produced by a partial operation. */
+    private Value intermediatePartial(final String slot, final TypeMirror type, final int weight, final List<Value> portSources) {
+        final var value = graph.valueFor(scope, new TargetLocation(TargetPath.of(slot)), type, Nullability.NON_NULL)
+        producePartial(value, weight, portSources)
         value
     }
 }

@@ -34,16 +34,6 @@ public final class ArrayContainer extends SequenceContainer {
     }
 
     @Override
-    public CodeBlock mapElements(final CodeBlock stream, final String var, final CodeBlock body) {
-        return CodeBlock.of("$L.map($N -> $L)", stream, var, body);
-    }
-
-    @Override
-    public CodeBlock flatMapElements(final CodeBlock stream, final String var, final CodeBlock inner) {
-        return CodeBlock.of("$L.flatMap($N -> $L)", stream, var, inner);
-    }
-
-    @Override
     public CodeBlock collect(final CodeBlock stream) {
         return CodeBlock.of("$L.toArray()", stream);
     }

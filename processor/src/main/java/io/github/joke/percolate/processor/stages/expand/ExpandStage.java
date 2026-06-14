@@ -249,7 +249,14 @@ public final class ExpandStage implements Stage {
                     new Port("value", type(source), Nullability.NULLABLE),
                     new AddValue(source.getScope(), source.getLoc(), type(source), Nullability.NULLABLE));
             apply(new AddOperation(
-                    "requireNonNull", "engine:requireNonNull", codegen, 0, List.of(input), output, Optional.empty()));
+                    "requireNonNull",
+                    "engine:requireNonNull",
+                    codegen,
+                    0,
+                    true,
+                    List.of(input),
+                    output,
+                    Optional.empty()));
         }
 
         // ---- shared --------------------------------------------------------------------------------------
@@ -260,6 +267,7 @@ public final class ExpandStage implements Stage {
                     spec.getCodegen().getClass().getName(),
                     spec.getCodegen(),
                     spec.getWeight(),
+                    spec.isPartial(),
                     ports,
                     output,
                     spec.getChildScope()

@@ -68,6 +68,7 @@ final class SourceDescent {
                             spec.getCodegen().getClass().getName(),
                             spec.getCodegen(),
                             spec.getWeight(),
+                            spec.isPartial(),
                             List.of(port),
                             output,
                             Optional.empty()));

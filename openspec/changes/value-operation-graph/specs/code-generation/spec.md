@@ -24,12 +24,26 @@ group/`ExpansionGroup` surface, and SHALL NOT read `Nullability` to decide wirin
 A scope-owning `Operation` in the plan SHALL render its child scope's extracted plan as the
 per-element lambda body: the child param-root renders as the lambda parameter, the child return-root
 expression is the lambda result, and the owning Operation's codegen weaves the container operation
-around it.
+(`map`/`flatMap`/`mapPresence`) around it.
 
-#### Scenario: List element mapping renders a lambda
-- **WHEN** the plan contains a `map` Operation for `List<A> → List<B>` owning a child scope
-- **THEN** the generated body contains the container operation applied with a lambda whose body is
+#### Scenario: Stream element mapping renders a lambda
+- **WHEN** the plan contains a `map` Operation for `Stream<A> → Stream<B>` owning a child scope
+- **THEN** the generated body contains the stream operation applied with a lambda whose body is
   the rendered child plan
+
+### Requirement: Stream stages render as a threaded pipeline
+
+Each plain container Operation in the plan (`iterate`, `collect`, `wrap`, `unwrap`) SHALL render by
+threading its single `StreamOps`/container snippet onto the rendered expression of its operand, so a
+chain of such Operations composes into one fluent pipeline expression. The generator SHALL NOT fuse
+`iterate`/`map`/`collect` into a single Operation's codegen.
+
+#### Scenario: Cross-kind pipeline threads stage by stage
+- **WHEN** the plan for `List<Optional<A>> → Optional<Set<B>>` is
+  `wrap ⟵ collect ⟵ map ⟵ flatMap ⟵ iterate`
+- **THEN** the rendered expression is a single chain
+  `Optional.ofNullable(src.stream().flatMap(…).map(…).collect(…))`, each stage's snippet threaded onto
+  its operand
 
 ### Requirement: Nullness handling renders as ordinary Operations
 

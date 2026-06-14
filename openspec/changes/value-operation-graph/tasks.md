@@ -49,7 +49,7 @@
 - [x] 6.1 Rewrite `BuildMethodBodies` as the plan walk (chosen producer, port-keyed `IncomingValues`, recursive operand rendering)
 - [x] 6.2 Render scope-owning Operations as container weave around the child-plan lambda (handles attach to Operations)
 - [x] 6.3 Delete `applyNullabilityContract`, consumer-contract resolution, `NullabilityResolver` injection from generation
-- [x] 6.4 Verify generated output unchanged across the integration test suite (the behavioural contract)
+- [x] 6.4 Verify generated output across the integration suite is **compiles + semantically equivalent** (the behavioural contract); reopened — the `mapHuman` cross-kind container case regressed (see §10)
 
 ## 7. Nullness and defaults as Operations (design D5)
 
@@ -71,4 +71,17 @@
 - [x] 9.2 Delete all dead types and grep-verify: no `ExpansionGroup`, `GroupId`, `GroupOutcome`, `EdgeKind`, `ElementScope` (edge attribute), `ExpansionStep`, `Slot` (edge-carried), `PlanView` references remain
 - [x] 9.3 Confirm `BuildMethodBodies` references no group/label surface (grep) and diff generated mappers before/after for a representative integration mapper
 - [x] 9.4 Run `./gradlew check` — NEVER continue if there are violations
-- [ ] 9.5 Commit the completed change with /commit-commands:commit
+- [x] 9.5 Commit the completed change with /commit-commands:commit
+
+## 10. Container stream-pipeline composition (design D7 refinement, D8 totality)
+
+- [x] 10.1 Add `Containers.streamElement(type, ctx)`: assignable-to-`Collection<E>` → E; array → component; `Optional<E>`/`Stream<E>` → E (structural, SPI-resident)
+- [x] 10.2 Rework `SequenceContainer`: emit plain kind-local `iterate` (`Stream<E>` from its own kind) and `collect` (its own `Seq<E>` from `Stream<E>`); drop the fused same-kind element mapping; keep the singleton `wrap`
+- [x] 10.3 Rework `WrapperContainer`: emit plain `iterate` (`Optional.stream`), `wrap`, partial `unwrap`, and same-kind scope-owning `mapPresence`; drop the fused element mapping
+- [x] 10.4 Add the generic kind-free stream strategy: scope-owning `map` (`Stream<A>→Stream<B>`, child `A→B`) and `flatMap` (child `A→Stream<B>`); bootstrap the `Stream<X>` port from a non-stream candidate via `streamElement`
+- [x] 10.5 Add a `partial` flag to `Operation`/`OperationSpec`; mark `unwrap` and `[requireNonNull]` partial, everything else total
+- [x] 10.6 Implement totality dominance in extraction (total SAT producers strictly precede partial, before cost); re-express the D5 coalesce-vs-`requireNonNull` either/or as an instance of it
+- [x] 10.7 Rework `BuildMethodBodies`: render plain stream stages (`iterate`/`collect`/`wrap`/`unwrap`) by threading each snippet onto its operand; scope-owning `map`/`flatMap`/`mapPresence` weave the lambda
+- [x] 10.8 Rewrite container unit specs (`List`/`Set`/`Optional`/`Array`) to the kind-local iterate/collect/wrap/(mapPresence) contract; add a generic stream-strategy spec; add an extraction totality-dominance spec
+- [x] 10.9 Add an in-repo end-to-end spec for the `mapHuman` shape (`List<Optional<A>> → Optional<Set<B>>`): compiles + semantically equivalent (`.stream()` → drop-empties `flatMap` → `map` → `collect(toSet)` → `Optional.ofNullable` present)
+- [x] 10.10 Verify `./gradlew check` green AND `percolate-integration` `:mappers:classes` compiles (mapHuman restored); then close 6.4 / 9.4 / 9.5

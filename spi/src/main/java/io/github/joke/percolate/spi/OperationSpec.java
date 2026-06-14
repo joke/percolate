@@ -13,7 +13,9 @@ import lombok.Value;
  * atomic {@code AddOperation} delta, fanning a demand out per port. A spec exposes no graph or engine surface;
  * strategies stay myopic.
  *
- * <p>Construct via {@link #of} (a plain operation) or {@link #mapping} (a scope-owning element mapping).
+ * <p>Construct via {@link #of} (a plain total operation), {@link #ofPartial} (a plain operation that may throw on
+ * a structurally-valid input, e.g. {@code Optional.orElseThrow} — a {@code partial} producer the plan-extraction
+ * totality rule deprioritises), or {@link #mapping} (a scope-owning element mapping).
  */
 @Value
 public class OperationSpec {
@@ -24,18 +26,31 @@ public class OperationSpec {
     TypeMirror outputType;
     Nullability outputNullness;
     Optional<ChildScopeSpec> childScope;
+    boolean partial;
 
-    /** A plain operation (constructor, accessor, conversion, constant, wrap/unwrap): no child scope. */
+    /** A plain total operation (constructor, accessor, conversion, constant, wrap, iterate, collect): no child scope. */
     public static OperationSpec of(
             final Codegen codegen,
             final int weight,
             final List<Port> ports,
             final TypeMirror outputType,
             final Nullability outputNullness) {
-        return new OperationSpec(codegen, weight, List.copyOf(ports), outputType, outputNullness, Optional.empty());
+        return new OperationSpec(
+                codegen, weight, List.copyOf(ports), outputType, outputNullness, Optional.empty(), false);
     }
 
-    /** A scope-owning element mapping (container map): its child scope carries the per-element transform. */
+    /** A plain partial operation (may throw on a structurally-valid input, e.g. {@code Optional.orElseThrow}). */
+    public static OperationSpec ofPartial(
+            final Codegen codegen,
+            final int weight,
+            final List<Port> ports,
+            final TypeMirror outputType,
+            final Nullability outputNullness) {
+        return new OperationSpec(
+                codegen, weight, List.copyOf(ports), outputType, outputNullness, Optional.empty(), true);
+    }
+
+    /** A scope-owning element mapping (stream map/flatMap, Optional.map): its child scope carries the transform. */
     public static OperationSpec mapping(
             final Codegen codegen,
             final int weight,
@@ -44,6 +59,6 @@ public class OperationSpec {
             final Nullability outputNullness,
             final ChildScopeSpec childScope) {
         return new OperationSpec(
-                codegen, weight, List.copyOf(ports), outputType, outputNullness, Optional.of(childScope));
+                codegen, weight, List.copyOf(ports), outputType, outputNullness, Optional.of(childScope), false);
     }
 }

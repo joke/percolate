@@ -16,6 +16,8 @@ class ContainersSpec extends Specification {
     @Shared TypeMirror setOfString = TypeUniverse.types().getDeclaredType(
             TypeUniverse.elements().getTypeElement('java.util.Set'), TypeUniverse.STRING)
     @Shared TypeMirror stringArray = TypeUniverse.types().getArrayType(TypeUniverse.STRING)
+    @Shared TypeMirror streamOfString = TypeUniverse.types().getDeclaredType(
+            TypeUniverse.elements().getTypeElement('java.util.stream.Stream'), TypeUniverse.STRING)
 
     def 'isOptional recognises Optional<X> and rejects others'() {
         expect:
@@ -91,6 +93,45 @@ class ContainersSpec extends Specification {
         Containers.arrayComponentType(TypeUniverse.STRING)
         then:
         thrown(IllegalArgumentException)
+    }
+
+    def 'isStream recognises Stream<X> and rejects others'() {
+        expect:
+        Containers.isStream(streamOfString, ctx)
+        !Containers.isStream(TypeUniverse.LIST_OF_STRING, ctx)
+        !Containers.isStream(TypeUniverse.STRING, ctx)
+        !Containers.isStream(TypeUniverse.INT, ctx)
+    }
+
+    def 'streamElement yields the element type for every stream-shaped container'() {
+        expect:
+        ctx.types().isSameType(Containers.streamElement(stringArray, ctx).get(), TypeUniverse.STRING)
+        ctx.types().isSameType(Containers.streamElement(TypeUniverse.LIST_OF_STRING, ctx).get(), TypeUniverse.STRING)
+        ctx.types().isSameType(Containers.streamElement(setOfString, ctx).get(), TypeUniverse.STRING)
+        ctx.types().isSameType(Containers.streamElement(optionalOfString, ctx).get(), TypeUniverse.STRING)
+        ctx.types().isSameType(Containers.streamElement(streamOfString, ctx).get(), TypeUniverse.STRING)
+    }
+
+    def 'streamElement is empty for a non-stream-shaped type'() {
+        expect:
+        Containers.streamElement(TypeUniverse.STRING, ctx).empty
+        Containers.streamElement(TypeUniverse.INT, ctx).empty
+    }
+
+    def 'streamOf forms Stream<element> for a reference element and is empty for a primitive'() {
+        when:
+        def streamOfString = Containers.streamOf(TypeUniverse.STRING, ctx)
+
+        then:
+        streamOfString.present
+        Containers.isStream(streamOfString.get(), ctx)
+        ctx.types().isSameType(Containers.typeArgument(streamOfString.get(), 0), TypeUniverse.STRING)
+
+        and: 'an array element is a reference type too'
+        Containers.streamOf(stringArray, ctx).present
+
+        and: 'a primitive element forms no Stream'
+        Containers.streamOf(TypeUniverse.INT, ctx).empty
     }
 
     private static final class SimpleResolveCtx implements ResolveCtx {

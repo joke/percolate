@@ -30,16 +30,6 @@ abstract class CollectionContainer extends SequenceContainer {
     }
 
     @Override
-    public final CodeBlock mapElements(final CodeBlock stream, final String var, final CodeBlock body) {
-        return CodeBlock.of("$L.map($N -> $L)", stream, var, body);
-    }
-
-    @Override
-    public final CodeBlock flatMapElements(final CodeBlock stream, final String var, final CodeBlock inner) {
-        return CodeBlock.of("$L.flatMap($N -> $L)", stream, var, inner);
-    }
-
-    @Override
     public final CodeBlock collect(final CodeBlock stream) {
         return CodeBlock.of("$L.collect($L)", stream, collector());
     }

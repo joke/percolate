@@ -114,7 +114,7 @@ class BipartiteGraphSpec extends Specification {
     def 'one Value feeding two ports yields two distinct port-labelled edges'() {
         given:
         final var x = leaf('x', TypeUniverse.INT)
-        final var op = graph.apply(new AddOperation('new Range', 'test.Strategy', Stub(Codegen), 1,
+        final var op = graph.apply(new AddOperation('new Range', 'test.Strategy', Stub(Codegen), 1, false,
                 [new PortBinding(new Port('low', TypeUniverse.INT, Nullability.NON_NULL), x),
                  new PortBinding(new Port('high', TypeUniverse.INT, Nullability.NON_NULL), x)],
                 target('range', TypeUniverse.STRING), Optional.empty()))
@@ -133,10 +133,10 @@ class BipartiteGraphSpec extends Specification {
 
     def 'overloaded constructors share a type-identical street Value but split on a divergent number'() {
         given:
-        final var c1 = graph.apply(new AddOperation('C1', 'test.Strategy', Stub(Codegen), 1,
+        final var c1 = graph.apply(new AddOperation('C1', 'test.Strategy', Stub(Codegen), 1, false,
                 [port('number', TypeUniverse.INT), port('street', TypeUniverse.STRING)],
                 target('addr', TypeUniverse.STRING), Optional.empty()))
-        final var c2 = graph.apply(new AddOperation('C2', 'test.Strategy', Stub(Codegen), 2,
+        final var c2 = graph.apply(new AddOperation('C2', 'test.Strategy', Stub(Codegen), 2, false,
                 [port('number', TypeUniverse.LONG), port('street', TypeUniverse.STRING)],
                 target('addr', TypeUniverse.STRING), Optional.empty()))
         final var view = graph.bipartiteView()
@@ -154,7 +154,7 @@ class BipartiteGraphSpec extends Specification {
     def 'a Dep that would cross a scope boundary is rejected'() {
         given:
         final var other = new HarnessScope('other()')
-        final var crossing = new AddOperation('cross', 'test.Strategy', Stub(Codegen), 1,
+        final var crossing = new AddOperation('cross', 'test.Strategy', Stub(Codegen), 1, false,
                 [new PortBinding(new Port('p', TypeUniverse.STRING, Nullability.NON_NULL),
                         new AddValue(other, new SourceLocation(AccessPath.of('p')), TypeUniverse.STRING, Nullability.NON_NULL))],
                 target('out', TypeUniverse.STRING), Optional.empty())
@@ -170,7 +170,7 @@ class BipartiteGraphSpec extends Specification {
         given:
         final var decl = new ChildScopeDecl(
                 TypeUniverse.INTEGER, Nullability.NON_NULL, TypeUniverse.STRING, Nullability.NON_NULL)
-        final var op = graph.apply(new AddOperation('map', 'test.Strategy', Stub(Codegen), 1,
+        final var op = graph.apply(new AddOperation('map', 'test.Strategy', Stub(Codegen), 1, false,
                 [port('src', TypeUniverse.LIST_OF_INT)],
                 target('out', TypeUniverse.LIST_OF_STRING), Optional.of(decl)))
         final var child = op.childScope.get()
@@ -206,7 +206,7 @@ class BipartiteGraphSpec extends Specification {
     }
 
     private AddOperation constructor(final String outputSlot, final List<PortBinding> ports) {
-        new AddOperation('new ' + outputSlot, 'test.Strategy', Stub(Codegen), 1, ports,
+        new AddOperation('new ' + outputSlot, 'test.Strategy', Stub(Codegen), 1, false, ports,
                 target(outputSlot, TypeUniverse.STRING), Optional.empty())
     }
 }

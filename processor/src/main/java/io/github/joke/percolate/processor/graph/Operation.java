@@ -10,8 +10,10 @@ import lombok.Getter;
  * A single production (constructor call, accessor, conversion, container operation, constant): the AND-kind
  * vertex of the bipartite graph — it is usable only when every port of its ordered {@link Port} signature is
  * fed. The operation owns the consumer contract (the former edge-carried {@code Slot}), its codegen, its
- * weight, and the producing strategy's FQN. A container element mapping additionally owns a {@link ChildScope}
- * whose param/return roots are the only coupling between the child plan and this operation.
+ * weight, a {@code partial} flag (true when the production may throw on a structurally-valid input — e.g.
+ * {@code Optional.orElseThrow}, {@code requireNonNull} — which the plan-extraction totality rule deprioritises),
+ * and the producing strategy's FQN. A container element mapping additionally owns a {@link ChildScope} whose
+ * param/return roots are the only coupling between the child plan and this operation.
  *
  * <p>Equality is instance identity; the graph-assigned {@code seq} keeps {@link #id()} deterministic for
  * ordering and rendering.
@@ -24,6 +26,7 @@ public final class Operation implements GraphVertex {
     private final String strategyFqn;
     private final Codegen codegen;
     private final int weight;
+    private final boolean partial;
     private final List<Port> ports;
     private final Scope scope;
     private final Optional<ChildScope> childScope;
@@ -34,6 +37,7 @@ public final class Operation implements GraphVertex {
             final String strategyFqn,
             final Codegen codegen,
             final int weight,
+            final boolean partial,
             final List<Port> ports,
             final Scope scope,
             final boolean ownsChildScope) {
@@ -42,6 +46,7 @@ public final class Operation implements GraphVertex {
         this.strategyFqn = strategyFqn;
         this.codegen = codegen;
         this.weight = weight;
+        this.partial = partial;
         this.ports = List.copyOf(ports);
         this.scope = scope;
         this.childScope = ownsChildScope ? Optional.of(new ChildScope(this, scope)) : Optional.empty();

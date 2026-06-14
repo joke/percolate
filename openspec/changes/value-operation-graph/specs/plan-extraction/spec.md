@@ -20,6 +20,28 @@ port `Value`s. Extraction SHALL NOT use a shortest-path oracle: the cost through
 - **WHEN** a `Value` has one SAT and one UNSAT producer
 - **THEN** the UNSAT producer is excluded from cost comparison regardless of weight
 
+### Requirement: Total producers dominate partial producers
+
+Among a `Value`'s SAT producers, extraction SHALL prefer a **total** `Operation` over a **partial**
+one — partial meaning the production may throw on a structurally-valid input (`unwrap`/`orElseThrow`,
+`[requireNonNull]`) — **independent of weight**. A partial producer SHALL be selected only when the
+`Value` has no total SAT producer. Dominance is applied before cost; cost and the deterministic
+tie-break decide only among producers of equal totality.
+
+#### Scenario: Drop-empties beats throwing unwrap
+- **WHEN** a stream element `Stream<Optional<A>> → Stream<B>` has both a total `flatMap` (drop empties)
+  producer and a partial `map`+`orElseThrow` producer
+- **THEN** extraction selects the `flatMap` producer regardless of which costs less
+
+#### Scenario: Partial chosen only as the sole producer
+- **WHEN** a non-null target field is fed from a nullable source with no declared default
+- **THEN** the partial `[requireNonNull]` producer is selected because the Value has no total producer
+
+#### Scenario: Default coalesce dominates requireNonNull
+- **WHEN** a crossing has both a total `[coalesce]` (declared default) and a partial `[requireNonNull]`
+  producer
+- **THEN** extraction selects `[coalesce]` by totality dominance, not by weight
+
 ### Requirement: Deterministic tie-breaking
 
 When two producers of a `Value` have equal cost, extraction SHALL break the tie by a stable,

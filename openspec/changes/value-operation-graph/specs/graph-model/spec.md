@@ -33,13 +33,20 @@ group labels, directives, codegen, or weight. A `Value` is an OR over its inboun
 
 `Operation` SHALL represent a single production (constructor call, accessor, conversion, container
 operation, constant), carrying its codegen, its weight, an ordered **port signature** (per
-port: name, declared type, declared nullness — the former consumer `Slot` contract), the producing
-strategy's FQN, and optionally an owned child `Scope` (container element mapping). An `Operation` is
-an AND over its ports: it is usable only when every port is fed.
+port: name, declared type, declared nullness — the former consumer `Slot` contract), a **totality**
+flag (`total`/`partial`, where partial means the production may throw on a structurally-valid input,
+e.g. `unwrap`/`orElseThrow` and `[requireNonNull]`), the producing strategy's FQN, and optionally an
+owned child `Scope` (container element mapping). An `Operation` is an AND over its ports: it is usable
+only when every port is fed.
 
 #### Scenario: Operation owns the consumer contract
 - **WHEN** code generation needs a port's declared type and nullness
 - **THEN** it reads the Operation's port signature, never an edge label or an `ExpansionGroup`
+
+#### Scenario: Partial production is flagged
+- **WHEN** an `unwrap` (`Optional.orElseThrow`) or `[requireNonNull]` Operation is added
+- **THEN** it is flagged `partial`; a total production (e.g. `flatMap`, `[coalesce]`, a constructor)
+  is flagged `total` (consumed by `plan-extraction` totality dominance)
 
 #### Scenario: Zero-port Operations are valid
 - **WHEN** a constant production is added

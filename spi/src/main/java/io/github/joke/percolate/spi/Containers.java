@@ -1,5 +1,6 @@
 package io.github.joke.percolate.spi;
 
+import java.util.Optional;
 import javax.lang.model.type.ArrayType;
 import javax.lang.model.type.DeclaredType;
 import javax.lang.model.type.TypeKind;
@@ -11,6 +12,44 @@ public class Containers {
 
     public boolean isOptional(final TypeMirror t, final ResolveCtx ctx) {
         return isDeclaredTypeErasureMatch(t, "java.util.Optional", ctx);
+    }
+
+    public boolean isStream(final TypeMirror t, final ResolveCtx ctx) {
+        return isDeclaredTypeErasureMatch(t, "java.util.stream.Stream", ctx);
+    }
+
+    /**
+     * The element a {@code .stream()} over {@code t} yields — the structural bridge that lets the generic stream
+     * strategy name its port from a non-stream candidate without knowing any container kind: a {@code Collection},
+     * array, {@code Optional}, or {@code Stream} element type, else empty. A non-{@code Collection} reactive
+     * container would extend this (or declare its element through an SPI hook) when one lands.
+     */
+    public Optional<TypeMirror> streamElement(final TypeMirror t, final ResolveCtx ctx) {
+        if (isArray(t)) {
+            return Optional.of(arrayComponentType(t));
+        }
+        if (t.getKind() != TypeKind.DECLARED) {
+            return Optional.empty();
+        }
+        if (isStream(t, ctx) || isOptional(t, ctx) || isCollection(t, ctx)) {
+            final var args = ((DeclaredType) t).getTypeArguments();
+            return args.isEmpty() ? Optional.empty() : Optional.of(args.get(0));
+        }
+        return Optional.empty();
+    }
+
+    /** {@code Stream<element>} for a reference {@code element}, or empty when no such type can be formed. */
+    public Optional<TypeMirror> streamOf(final TypeMirror element, final ResolveCtx ctx) {
+        final var stream = ctx.elements().getTypeElement("java.util.stream.Stream");
+        if (stream == null || !isReferenceType(element)) {
+            return Optional.empty();
+        }
+        return Optional.of(ctx.types().getDeclaredType(stream, element));
+    }
+
+    private boolean isReferenceType(final TypeMirror element) {
+        final var kind = element.getKind();
+        return kind == TypeKind.DECLARED || kind == TypeKind.ARRAY || kind == TypeKind.TYPEVAR;
     }
 
     public boolean isList(final TypeMirror t, final ResolveCtx ctx) {

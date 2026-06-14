@@ -118,11 +118,21 @@ public final class GraphDumpWriter {
         if (scope instanceof MethodScope) {
             return ((MethodScope) scope).getMethod().getSimpleName().toString();
         }
-        return sanitize(scope.encode());
+        // A child (element) scope's encode() nests its owning operation's id, which compounds to an
+        // unwritable file name for deep container nesting. Group child scopes under their enclosing method;
+        // infix disambiguation appends -0, -1, … so each scope still gets a distinct, short file name.
+        return enclosingMethodInfix(scope) + "-elem";
     }
 
-    private static String sanitize(final String raw) {
-        final var cleaned = raw.replaceAll("[^A-Za-z0-9_]", "");
-        return cleaned.isEmpty() ? "scope" : cleaned;
+    private static String enclosingMethodInfix(final Scope scope) {
+        var current = scope;
+        while (!(current instanceof MethodScope)) {
+            final var parent = current.parent();
+            if (parent.isEmpty()) {
+                return "scope";
+            }
+            current = parent.get();
+        }
+        return ((MethodScope) current).getMethod().getSimpleName().toString();
     }
 }

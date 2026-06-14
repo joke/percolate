@@ -18,6 +18,7 @@ public class AddOperation implements GraphDelta {
     String strategyFqn;
     Codegen codegen;
     int weight;
+    boolean partial;
     List<PortBinding> ports;
     AddValue output;
     Optional<ChildScopeDecl> childScope;

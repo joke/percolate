@@ -19,7 +19,7 @@ class DotRendererSpec extends Specification {
 
     def 'renders Operations as boxes, Values as ellipses, and labels edges by port'() {
         given:
-        graph.apply(new AddOperation('new Address', 'test.Strategy', Stub(Codegen), 1,
+        graph.apply(new AddOperation('new Address', 'test.Strategy', Stub(Codegen), 1, false,
                 [port('number', TypeUniverse.INT), port('street', TypeUniverse.STRING)],
                 target('addr', TypeUniverse.STRING), Optional.empty()))
 

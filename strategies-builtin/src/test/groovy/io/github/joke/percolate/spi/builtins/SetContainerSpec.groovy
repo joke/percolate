@@ -1,6 +1,6 @@
 package io.github.joke.percolate.spi.builtins
 
-import io.github.joke.percolate.spi.ContainerCodegen
+import com.palantir.javapoet.CodeBlock
 import io.github.joke.percolate.spi.Containers
 import io.github.joke.percolate.spi.OperationCodegen
 import io.github.joke.percolate.spi.ResolveCtx
@@ -19,46 +19,54 @@ class SetContainerSpec extends Specification {
 
     @Shared ResolveCtx ctx = new ResolveCtxBuilder().build()
     @Shared TypeMirror setOfString
-    @Shared TypeMirror setOfInteger
+    @Shared TypeMirror streamOfString
 
     def setupSpec() {
         ['java.lang.Iterable', 'java.util.Collection', 'java.util.SequencedCollection',
          'java.util.List', 'java.util.Set'].each { TypeUniverse.elements().getTypeElement(it) }
         setOfString = TypeUniverse.types().getDeclaredType(
                 TypeUniverse.elements().getTypeElement('java.util.Set'), TypeUniverse.STRING)
-        setOfInteger = TypeUniverse.types().getDeclaredType(
-                TypeUniverse.elements().getTypeElement('java.util.Set'), TypeUniverse.INTEGER)
+        streamOfString = TypeUniverse.types().getDeclaredType(
+                TypeUniverse.elements().getTypeElement('java.util.stream.Stream'), TypeUniverse.STRING)
         Containers.isSet(setOfString, ctx)
     }
 
-    def 'Set<A> to Set<B> emits a scope-owning element mapping declaring element types A and B'() {
+    def 'iterates a Set into a Stream via .stream(), a plain operation with no child scope'() {
         when:
-        def specs = new SetContainer().bridge(setOfInteger, Demands.forTarget(setOfString), ctx).toList()
-
-        then:
-        def mapping = specs.find { it.childScope.present }
-        mapping != null
-        def child = mapping.childScope.get()
-        ctx.types().isSameType(child.elementIn, TypeUniverse.INTEGER)
-        ctx.types().isSameType(child.elementOut, TypeUniverse.STRING)
-        mapping.weight == Weights.CONTAINER
-        mapping.codegen instanceof ContainerCodegen
-    }
-
-    def 'Set<E> target with a scalar source emits a plain single-element wrap with no child scope'() {
-        when:
-        def specs = new SetContainer().bridge(TypeUniverse.STRING, Demands.forTarget(setOfString), ctx).toList()
+        def specs = new SetContainer().bridge(setOfString, Demands.forTarget(streamOfString), ctx).toList()
 
         then:
         specs.size() == 1
-        def wrap = specs[0]
+        def iterate = specs[0]
+        iterate.childScope.empty
+        iterate.codegen instanceof OperationCodegen
+        ctx.types().isSameType(iterate.ports[0].type, setOfString)
+        ctx.types().isSameType(iterate.outputType, streamOfString)
+        new SetContainer().iterate(CodeBlock.of('$N', 'xs')).toString().contains('.stream()')
+    }
+
+    def 'collects a Stream into a Set (Collectors.toSet) and offers a plain single-element Set.of wrap'() {
+        when:
+        def specs = new SetContainer().bridge(streamOfString, Demands.forTarget(setOfString), ctx).toList()
+
+        then: 'a plain collect Stream<String> -> Set<String>'
+        def collect = specs.find { ctx.types().isSameType(it.ports[0].type, streamOfString) }
+        collect != null
+        collect.childScope.empty
+        collect.codegen instanceof OperationCodegen
+        collect.weight == Weights.CONTAINER
+        ctx.types().isSameType(collect.outputType, setOfString)
+        new SetContainer().collect(CodeBlock.of('$N', 's')).toString().contains('toSet()')
+
+        and: 'a plain single-element wrap String -> Set<String>'
+        def wrap = specs.find { ctx.types().isSameType(it.ports[0].type, TypeUniverse.STRING) }
+        wrap != null
         wrap.childScope.empty
         wrap.codegen instanceof OperationCodegen
-        ctx.types().isSameType(wrap.ports[0].type, TypeUniverse.STRING)
         ctx.types().isSameType(wrap.outputType, setOfString)
     }
 
-    def 'declines when the target is not a Set'() {
+    def 'declines when neither side is a Set'() {
         expect:
         new SetContainer().bridge(TypeUniverse.STRING, Demands.forTarget(TypeUniverse.LIST_OF_STRING), ctx).toList().empty
     }

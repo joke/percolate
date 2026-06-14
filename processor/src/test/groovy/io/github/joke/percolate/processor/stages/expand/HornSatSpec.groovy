@@ -82,9 +82,9 @@ class HornSatSpec extends Specification {
         final var intVal = new AddValue(scope, new TargetLocation(TargetPath.of('n')), TypeUniverse.INT, Nullability.NON_NULL)
         final var integerVal = new AddValue(scope, new TargetLocation(TargetPath.of('n')), TypeUniverse.INTEGER, Nullability.NON_NULL)
         // box: Integer <- int ; unbox: int <- Integer
-        graph.apply(new AddOperation('box', 'test', Stub(Codegen), 1,
+        graph.apply(new AddOperation('box', 'test', Stub(Codegen), 1, false,
                 [new PortBinding(new Port('v', TypeUniverse.INT, Nullability.NON_NULL), intVal)], integerVal, Optional.empty()))
-        graph.apply(new AddOperation('unbox', 'test', Stub(Codegen), 1,
+        graph.apply(new AddOperation('unbox', 'test', Stub(Codegen), 1, false,
                 [new PortBinding(new Port('v', TypeUniverse.INTEGER, Nullability.NON_NULL), integerVal)], intVal, Optional.empty()))
 
         when:
@@ -98,7 +98,7 @@ class HornSatSpec extends Specification {
         given: 'the outer source port is SAT, but the child return-root has no producer'
         final var src = source('xs', TypeUniverse.LIST_OF_INT)
         final var decl = new ChildScopeDecl(TypeUniverse.INTEGER, Nullability.NON_NULL, TypeUniverse.STRING, Nullability.NON_NULL)
-        final var map = graph.apply(new AddOperation('map', 'test', Stub(Codegen), 2,
+        final var map = graph.apply(new AddOperation('map', 'test', Stub(Codegen), 2, false,
                 [new PortBinding(new Port('source', TypeUniverse.LIST_OF_INT, Nullability.NON_NULL), av(src))],
                 new AddValue(scope, new TargetLocation(TargetPath.of('out')), TypeUniverse.LIST_OF_STRING, Nullability.NON_NULL),
                 Optional.of(decl)))
@@ -127,7 +127,7 @@ class HornSatSpec extends Specification {
         final var ports = (0..<portTypes.size()).collect { i ->
             new PortBinding(new Port('p' + i, portTypes[i], Nullability.NON_NULL), av(source('p' + i, portTypes[i])))
         }
-        graph.apply(new AddOperation('op', 'test', Stub(Codegen), 1, ports,
+        graph.apply(new AddOperation('op', 'test', Stub(Codegen), 1, false, ports,
                 new AddValue(scope, new TargetLocation(TargetPath.of(outputSlot)), outputType, Nullability.NON_NULL),
                 Optional.empty()))
     }
@@ -137,7 +137,7 @@ class HornSatSpec extends Specification {
         final var ports = (0..<portSources.size()).collect { i ->
             new PortBinding(new Port('p' + i, portSources[i].type.get(), portSources[i].nullness.get()), av(portSources[i]))
         }
-        graph.apply(new AddOperation('op', 'test', Stub(Codegen), 1, ports,
+        graph.apply(new AddOperation('op', 'test', Stub(Codegen), 1, false, ports,
                 new AddValue(scope, new TargetLocation(TargetPath.of(outputSlot)), outputType, Nullability.NON_NULL),
                 Optional.empty()))
     }

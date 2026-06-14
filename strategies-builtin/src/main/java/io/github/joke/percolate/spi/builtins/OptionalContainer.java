@@ -8,14 +8,14 @@ import io.github.joke.percolate.spi.Nullability;
 import io.github.joke.percolate.spi.ResolveCtx;
 import io.github.joke.percolate.spi.WrapperContainer;
 import java.util.Optional;
-import javax.lang.model.type.TypeKind;
 import javax.lang.model.type.TypeMirror;
 import lombok.NoArgsConstructor;
 
 /**
- * The {@code java.util.Optional} presence container. Its {@link #iterate} yields a 0-or-1 element stream
- * ({@code Optional.stream()}), which is how the composer drops empties via a flat-map; {@link #wrap} lifts a
- * scalar via {@code ofNullable}; {@link #unwrap} collapses under the target's nullability.
+ * The {@code java.util.Optional} presence container. {@link #iterate} yields a 0-or-1 element stream
+ * ({@code Optional.stream()}), which is how a flat-map drops empties; {@link #mapPresence} maps the wrapped value
+ * ({@code opt.map}); {@link #wrap} lifts a scalar via {@code ofNullable}; {@link #unwrap} collapses under the
+ * target's nullability.
  */
 @AutoService(ExpansionStrategy.class)
 @NoArgsConstructor
@@ -32,37 +32,8 @@ public final class OptionalContainer extends WrapperContainer {
     }
 
     @Override
-    protected Optional<TypeMirror> wrapped(final TypeMirror element, final ResolveCtx ctx) {
-        if (!isReferenceType(element)) {
-            // Optional cannot wrap a primitive/void element, and getDeclaredType rejects a non-reference type
-            // argument; there is no wrapper to synthesise here.
-            return Optional.empty();
-        }
-        final var optional = ctx.elements().getTypeElement("java.util.Optional");
-        if (optional == null) {
-            return Optional.empty();
-        }
-        return Optional.of(ctx.types().getDeclaredType(optional, element));
-    }
-
-    private static boolean isReferenceType(final TypeMirror element) {
-        final var kind = element.getKind();
-        return kind == TypeKind.DECLARED || kind == TypeKind.ARRAY || kind == TypeKind.TYPEVAR;
-    }
-
-    @Override
     public CodeBlock iterate(final CodeBlock container) {
         return CodeBlock.of("$L.stream()", container);
-    }
-
-    @Override
-    public CodeBlock mapElements(final CodeBlock stream, final String var, final CodeBlock body) {
-        return CodeBlock.of("$L.map($N -> $L)", stream, var, body);
-    }
-
-    @Override
-    public CodeBlock flatMapElements(final CodeBlock stream, final String var, final CodeBlock inner) {
-        return CodeBlock.of("$L.flatMap($N -> $L)", stream, var, inner);
     }
 
     @Override

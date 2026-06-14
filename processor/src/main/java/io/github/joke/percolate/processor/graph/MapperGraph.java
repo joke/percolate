@@ -79,6 +79,7 @@ public final class MapperGraph {
                 delta.getStrategyFqn(),
                 delta.getCodegen(),
                 delta.getWeight(),
+                delta.isPartial(),
                 ports,
                 output.getScope(),
                 delta.getChildScope().isPresent());

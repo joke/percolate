@@ -3,6 +3,7 @@ package io.github.joke.percolate.processor.stages.validate;
 import io.github.joke.percolate.processor.Diagnostics;
 import io.github.joke.percolate.processor.MapperContext;
 import io.github.joke.percolate.processor.graph.MapperGraph;
+import io.github.joke.percolate.processor.graph.MethodScope;
 import io.github.joke.percolate.processor.graph.Operation;
 import io.github.joke.percolate.processor.graph.TargetLocation;
 import io.github.joke.percolate.processor.graph.Value;
@@ -32,6 +33,7 @@ public final class RealisationDiagnosticsStage implements Stage {
             return;
         }
         graph.values()
+                .filter(value -> value.getScope() instanceof MethodScope)
                 .filter(value -> value.getLoc().isReturnRoot())
                 .filter(value -> !graph.isSat(value))
                 .forEach(root -> emit(graph, root, ctx));

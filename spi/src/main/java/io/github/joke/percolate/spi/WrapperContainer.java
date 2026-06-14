@@ -1,25 +1,27 @@
 package io.github.joke.percolate.spi;
 
 import java.util.List;
-import java.util.Optional;
 import java.util.stream.Stream;
 import javax.lang.model.type.TypeMirror;
 
 /**
  * Base for a presence container (Optional, Mono). Like {@link SequenceContainer} the developer supplies only
  * {@link #matches}, {@link #element}, and the snippet methods ({@link WrapperCodegen}); the base derives candidacy
- * and emits:
+ * and emits only <b>kind-local</b> operations (design D7):
  *
  * <ul>
- *   <li>an <b>element mapping</b> {@link OperationSpec} (scope-owning, {@code Optional.map}) when both source and
- *       target are this wrapper kind ({@code Optional<A> → Optional<B>}), with this container as the codegen
- *       handle;</li>
- *   <li>a <b>wrap</b> {@link OperationSpec} (plain) lifting a scalar into the wrapper ({@link #wrap});</li>
- *   <li>an <b>unwrap</b> {@link OperationSpec} (plain) collapsing a synthesised wrapper into a scalar target
- *       ({@link #wrapped}), with this container as the codegen handle (it collapses under the target nullability).</li>
+ *   <li><b>wrap</b> ({@code E → Optional<E>}, plain) lifting a scalar in ({@link #wrap});</li>
+ *   <li><b>mapPresence</b> ({@code Optional<A> → Optional<B>}, scope-owning) when {@code from} is this wrapper —
+ *       the presence-preserving same-kind element map ({@code opt.map(a -> …)}); a wrapper has <b>no collect</b>,
+ *       so it never routes through the sequence stream-collect path;</li>
+ *   <li><b>iterate</b> ({@code Optional<E> → Stream<E>}, plain, {@code Optional.stream()}) — the 0-or-1 stream that
+ *       realises drop-empties when a sequence flat-maps over it;</li>
+ *   <li><b>unwrap</b> ({@code Optional<E> → E}, plain, <b>partial</b>) collapsing to a scalar under the target
+ *       nullability ({@link #unwrap}) — partial because it may throw on empty, so the plan-extraction totality rule
+ *       prefers any total alternative (e.g. drop-empties) over it.</li>
  * </ul>
  *
- * <p>A presence wrapper has <b>no collect step</b>: closing a stream into a 0-or-1 container is a sequence concern.
+ * No container knows another kind; cross-kind composition emerges from shared {@code Stream} Values.
  */
 public abstract class WrapperContainer implements ContainerMatch, WrapperCodegen {
 
@@ -30,39 +32,57 @@ public abstract class WrapperContainer implements ContainerMatch, WrapperCodegen
 
     protected abstract TypeMirror element(TypeMirror type);
 
-    /**
-     * The wrapper type over {@code element} (e.g. {@code Optional<element>}). Used to synthesise the unwrap input
-     * from a scalar target, or empty when the wrapper cannot wrap that element here.
-     */
-    protected abstract Optional<TypeMirror> wrapped(TypeMirror element, ResolveCtx ctx);
-
     @Override
     public final Stream<OperationSpec> bridge(final TypeMirror from, final Demand demand, final ResolveCtx ctx) {
         final var to = demand.targetType();
-        if (matches(to, ctx)) {
-            return wrappingSpecs(from, to, ctx);
-        }
-        return wrapped(to, ctx)
-                .map(wrapperType -> {
-                    final var port = new Port(SOURCE_ROLE, wrapperType, Nullability.NON_NULL);
-                    return Stream.of(
-                            OperationSpec.of(this, Weights.CONTAINER, List.of(port), to, demand.targetNullness()));
-                })
-                .orElseGet(Stream::empty);
-    }
-
-    private Stream<OperationSpec> wrappingSpecs(final TypeMirror from, final TypeMirror to, final ResolveCtx ctx) {
         final var specs = Stream.<OperationSpec>builder();
-        final var elementOut = element(to);
+        if (matches(to, ctx)) {
+            final var elementOut = element(to);
+            specs.add(OperationSpec.of(
+                    wrapCodegen(),
+                    Weights.CONTAINER,
+                    List.of(new Port(ELEMENT_ROLE, elementOut, Nullability.NON_NULL)),
+                    to,
+                    Nullability.NON_NULL));
+            if (matches(from, ctx)) {
+                final var child =
+                        new ChildScopeSpec(element(from), Nullability.NON_NULL, elementOut, Nullability.NON_NULL);
+                specs.add(OperationSpec.mapping(
+                        (ScopeCodegen) this::mapPresence,
+                        Weights.CONTAINER,
+                        List.of(new Port(SOURCE_ROLE, from, Nullability.NON_NULL)),
+                        to,
+                        Nullability.NON_NULL,
+                        child));
+            }
+        }
         if (matches(from, ctx)) {
             final var elementIn = element(from);
-            final var port = new Port(SOURCE_ROLE, from, Nullability.NON_NULL);
-            final var child = new ChildScopeSpec(elementIn, Nullability.NON_NULL, elementOut, Nullability.NON_NULL);
-            specs.add(OperationSpec.mapping(this, Weights.CONTAINER, List.of(port), to, Nullability.NON_NULL, child));
+            final var sourcePort = List.of(new Port(SOURCE_ROLE, from, Nullability.NON_NULL));
+            if (Containers.isStream(to, ctx) && ctx.types().isSameType(Containers.typeArgument(to, 0), elementIn)) {
+                specs.add(OperationSpec.of(iterateCodegen(), Weights.CONTAINER, sourcePort, to, Nullability.NON_NULL));
+            }
+            if (ctx.types().isSameType(to, elementIn)) {
+                specs.add(OperationSpec.ofPartial(
+                        unwrapCodegen(demand.targetNullness()),
+                        Weights.CONTAINER,
+                        sourcePort,
+                        to,
+                        demand.targetNullness()));
+            }
         }
-        final OperationCodegen wrap = (vars, inputs) -> wrap(inputs.single());
-        final var wrapPort = new Port(ELEMENT_ROLE, elementOut, Nullability.NON_NULL);
-        specs.add(OperationSpec.of(wrap, Weights.CONTAINER, List.of(wrapPort), to, Nullability.NON_NULL));
         return specs.build();
+    }
+
+    private OperationCodegen wrapCodegen() {
+        return (vars, inputs) -> wrap(inputs.single());
+    }
+
+    private OperationCodegen iterateCodegen() {
+        return (vars, inputs) -> iterate(inputs.single());
+    }
+
+    private OperationCodegen unwrapCodegen(final Nullability targetNullness) {
+        return (vars, inputs) -> unwrap(inputs.single(), targetNullness);
     }
 }

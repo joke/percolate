@@ -11,9 +11,8 @@ import io.github.joke.percolate.processor.graph.Operation;
 import io.github.joke.percolate.processor.graph.Scope;
 import io.github.joke.percolate.processor.graph.SourceLocation;
 import io.github.joke.percolate.processor.graph.Value;
-import io.github.joke.percolate.spi.ContainerCodegen;
 import io.github.joke.percolate.spi.OperationCodegen;
-import io.github.joke.percolate.spi.WrapperCodegen;
+import io.github.joke.percolate.spi.ScopeCodegen;
 import jakarta.inject.Inject;
 import java.util.IdentityHashMap;
 import java.util.LinkedHashMap;
@@ -115,17 +114,7 @@ public final class BuildMethodBodies {
             final var var = freshVar();
             lambdaVars.put(child.getParamRoot(), CodeBlock.of("$N", var));
             final var childBody = render(child.getReturnRoot());
-            final var codegen = operation.getCodegen();
-            if (codegen instanceof ContainerCodegen) {
-                final var sequence = (ContainerCodegen) codegen;
-                final var stream = sequence.iterate(sourceExpr);
-                final var mapped = sequence.mapElements(stream, var, childBody);
-                return sequence.collect(mapped);
-            }
-            if (codegen instanceof WrapperCodegen) {
-                return ((WrapperCodegen) codegen).mapPresence(sourceExpr, var, childBody);
-            }
-            throw new IllegalStateException("scope-owning operation carries no container codegen: " + operation.id());
+            return ((ScopeCodegen) operation.getCodegen()).weave(sourceExpr, var, childBody);
         }
 
         private CodeBlock renderLeaf(final Value value) {

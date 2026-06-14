@@ -1,6 +1,6 @@
 package io.github.joke.percolate.spi.builtins
 
-import io.github.joke.percolate.spi.ContainerCodegen
+import com.palantir.javapoet.CodeBlock
 import io.github.joke.percolate.spi.Containers
 import io.github.joke.percolate.spi.Nullability
 import io.github.joke.percolate.spi.OperationCodegen
@@ -20,55 +20,60 @@ class ListContainerSpec extends Specification {
 
     @Shared ResolveCtx ctx = new ResolveCtxBuilder().build()
     @Shared TypeMirror listOfString
-    @Shared TypeMirror listOfInteger
     @Shared TypeMirror setOfString
+    @Shared TypeMirror streamOfString
 
     def setupSpec() {
         ['java.lang.Iterable', 'java.util.Collection', 'java.util.SequencedCollection',
          'java.util.List', 'java.util.Set'].each { TypeUniverse.elements().getTypeElement(it) }
         listOfString = TypeUniverse.LIST_OF_STRING
-        listOfInteger = TypeUniverse.LIST_OF_INT
         setOfString = TypeUniverse.types().getDeclaredType(
                 TypeUniverse.elements().getTypeElement('java.util.Set'), TypeUniverse.STRING)
+        streamOfString = TypeUniverse.types().getDeclaredType(
+                TypeUniverse.elements().getTypeElement('java.util.stream.Stream'), TypeUniverse.STRING)
         Containers.isList(listOfString, ctx)
     }
 
-    def 'List<A> to List<B> emits a scope-owning element mapping declaring element types A and B'() {
+    def 'iterates a List into a Stream via .stream(), a plain operation with no child scope'() {
         when:
-        def specs = new ListContainer().bridge(listOfInteger, Demands.forTarget(listOfString), ctx).toList()
-
-        then:
-        def mapping = specs.find { it.childScope.present }
-        mapping != null
-        def child = mapping.childScope.get()
-        ctx.types().isSameType(child.elementIn, TypeUniverse.INTEGER)
-        child.elementInNullness == Nullability.NON_NULL
-        ctx.types().isSameType(child.elementOut, TypeUniverse.STRING)
-        child.elementOutNullness == Nullability.NON_NULL
-        mapping.ports.size() == 1
-        ctx.types().isSameType(mapping.ports[0].type, listOfInteger)
-        ctx.types().isSameType(mapping.outputType, listOfString)
-        mapping.outputNullness == Nullability.NON_NULL
-        mapping.weight == Weights.CONTAINER
-        mapping.codegen instanceof ContainerCodegen
-    }
-
-    def 'List<E> target with a scalar source emits a plain single-element wrap with no child scope'() {
-        when:
-        def specs = new ListContainer().bridge(TypeUniverse.STRING, Demands.forTarget(listOfString), ctx).toList()
+        def specs = new ListContainer().bridge(listOfString, Demands.forTarget(streamOfString), ctx).toList()
 
         then:
         specs.size() == 1
-        def wrap = specs[0]
-        wrap.childScope.empty
-        wrap.codegen instanceof OperationCodegen
-        wrap.weight == Weights.CONTAINER
-        wrap.ports.size() == 1
-        ctx.types().isSameType(wrap.ports[0].type, TypeUniverse.STRING)
-        ctx.types().isSameType(wrap.outputType, listOfString)
+        def iterate = specs[0]
+        iterate.childScope.empty
+        iterate.codegen instanceof OperationCodegen
+        iterate.weight == Weights.CONTAINER
+        ctx.types().isSameType(iterate.ports[0].type, listOfString)
+        ctx.types().isSameType(iterate.outputType, streamOfString)
+        new ListContainer().iterate(CodeBlock.of('$N', 'xs')).toString().contains('.stream()')
     }
 
-    def 'declines when the target is not a List'() {
+    def 'collects a Stream into a List and offers a plain single-element List.of wrap'() {
+        when:
+        def specs = new ListContainer().bridge(streamOfString, Demands.forTarget(listOfString), ctx).toList()
+
+        then: 'a plain collect Stream<String> -> List<String>'
+        def collect = specs.find { ctx.types().isSameType(it.ports[0].type, streamOfString) }
+        collect != null
+        collect.childScope.empty
+        collect.codegen instanceof OperationCodegen
+        ctx.types().isSameType(collect.outputType, listOfString)
+        new ListContainer().collect(CodeBlock.of('$N', 's')).toString().contains('toList()')
+
+        and: 'a plain single-element wrap String -> List<String>, no child scope'
+        def wrap = specs.find { ctx.types().isSameType(it.ports[0].type, TypeUniverse.STRING) }
+        wrap != null
+        wrap.childScope.empty
+        wrap.codegen instanceof OperationCodegen
+        ctx.types().isSameType(wrap.outputType, listOfString)
+        wrap.outputNullness == Nullability.NON_NULL
+
+        and: 'no operation carries a child scope (no fused element mapping)'
+        specs.every { it.childScope.empty }
+    }
+
+    def 'declines when neither side is a List'() {
         expect:
         new ListContainer().bridge(TypeUniverse.STRING, Demands.forTarget(setOfString), ctx).toList().empty
     }
