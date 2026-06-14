@@ -2,9 +2,9 @@
 
 ## Purpose
 
-This spec defines the post-expansion validation stage that emits diagnostics for demands that did not satisfy. `RealisationDiagnosticsStage` walks unsatisfied demands — a `Value` with no SAT producer, or an `Operation` naming its unsatisfied ports — and produces user-facing error messages with closest-miss information.
+This spec defines the post-expansion validation stage that emits diagnostics for demands that did not satisfy. `RealisationDiagnosticsStage` walks unsatisfied demands — a `Value` with no reachable (finite-cost) producer, or an `Operation` naming its unsatisfied ports — and produces user-facing error messages with closest-miss information.
 
-The validation model is **demand-driven, not topology-driven**: the engine has already decided, via Horn propagation, which Values and Operations are SAT during expansion. The validation stage's job is to translate the unsatisfied demands into actionable diagnostics — closest-miss is the deepest unsatisfied port chain — not to re-derive realisability from edge inspection.
+The validation model is **demand-driven, not topology-driven**: the engine derives, via the plan-extraction minimum-cost fold, which Values and Operations are reachable (finite cost). The validation stage's job is to translate the unsatisfied demands into actionable diagnostics — closest-miss is the deepest unsatisfied port chain — not to re-derive realisability from edge inspection.
 
 ## Requirements
 
@@ -21,11 +21,13 @@ Anchoring at the mapper-type level is intentional: with the per-group greedy mod
 ### Requirement: Diagnostics walk unsatisfied demands
 
 `RealisationDiagnosticsStage` SHALL walk the unsatisfied demands after expansion: a method whose
-return-root `Value` is UNSAT produces a diagnostic naming the unresolved target. The walk uses the
-vertex SAT predicate; no group outcome records exist.
+return-root `Value` is **unreachable** produces a diagnostic naming the unresolved target. "Unsatisfied"
+SHALL mean **infinite extraction cost** — a `Value` with no finite-cost producer — queried through the
+extracted plan (`reachable(value) == false`); there is no stored SAT predicate and no group outcome
+records.
 
 #### Scenario: Unsatisfiable method is diagnosed
-- **WHEN** expansion ends with a method's return-root UNSAT
+- **WHEN** expansion ends with a method's return-root unreachable (infinite extraction cost)
 - **THEN** one error diagnostic is emitted naming the method and the unresolved target, and code
   generation skips the mapper without throwing
 

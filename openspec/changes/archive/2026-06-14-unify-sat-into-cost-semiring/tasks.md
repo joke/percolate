@@ -28,4 +28,4 @@
 
 - [x] 5.1 `./gradlew check` green — passes (unit + integration + spotless + PMD + CodeNarc).
 - [x] 5.2 Integration suite green confirms compiles + semantically-equivalent output; byte-identity holds by construction (the new `min` over `Cost=(partials,weight)` then `id` is the same lexicographic key as the old `(partialOf, costOf, id)`, and `filter(reachable)` selects the same set as `filter(isSat)`).
-- [ ] 5.3 Commit with /commit-commands:commit.
+- [x] 5.3 Committed (654797d) with /commit-commands:commit.

@@ -4,9 +4,9 @@
 
 This spec defines the expansion engine that resolves a seeded `MapperGraph` (parameter/return-root `Value`s plus per-level goal specs) into a fully realised bipartite graph of `Value` and `Operation` vertices. Expansion is a **demand work-list** over unsatisfied Values, proceeding target-to-source: each demand asks `ExpansionStrategy` matches for the Operations that could produce it, and each emitted Operation fans out a fresh demand per port.
 
-SAT is **Horn unit propagation**: a `Value` is SAT iff any producer is SAT; an `Operation` is SAT iff all its ports (and any child return-root) are SAT; the base cases are parameter roots and zero-port Operations (constants). There are no groups, no `GroupOutcome` records, and no cross-group layer — the fixed point is the Horn propagation itself.
+Satisfaction is **not** computed during expansion — expansion over-emits candidate Operations and drains the work-list. Whether a demand is producible is derived later by the plan-extraction minimum-cost fold: a vertex is reachable iff its cost is finite, with base cases at parameter roots and zero-port Operations (constants). There are no groups, no `GroupOutcome` records, and no cross-group layer.
 
-All expansion-time mutation flows through a single `Applier` interpreting `AddValue`/`AddOperation` deltas emitted by pure expanders, batch-applied at each pass boundary. Candidate search is scope-confined (a method scope, or an Operation's child scope), so sibling-derived Values cannot leak as candidates; graph cycles are well-founded under Horn propagation (a Value never SATs through its own cycle) and are harmless-but-never-chosen during extraction.
+All expansion-time mutation flows through a single `Applier` interpreting `AddValue`/`AddOperation` deltas emitted by pure expanders, batch-applied at each pass boundary. Candidate search is scope-confined (a method scope, or an Operation's child scope), so sibling-derived Values cannot leak as candidates; graph cycles are well-founded under the extraction cost fold's cycle guard (a Value is never reachable through its own cycle) and are harmless-but-never-chosen during extraction.
 
 ## Requirements
 
@@ -33,11 +33,13 @@ pass are batch-applied at the pass boundary, so all matches in one pass observe 
 
 ### Requirement: Demand work-list over Values
 
-Expansion SHALL be driven by a work-list of unsatisfied `Value` demands, processed target-to-source:
-a demanded `Value` asks "what produces this?", and each strategy match emits an `Operation` whose
-ports become new demands. Expansion NEVER walks forward from sources. The work-list iterates to a
-fixed point; because the clause system is monotone, the fixed point always exists and is reached in
-a bounded number of passes.
+Expansion SHALL be driven by a work-list of `Value` demands, processed target-to-source: a demanded
+`Value` asks "what produces this?", and each strategy match emits an `Operation` whose ports become
+new demands. Expansion NEVER walks forward from sources. The work-list SHALL terminate because Values
+are deduplicated by `(scope, location, type, nullness)` identity and each is expanded at most once
+over a finite location/type space — expansion **over-emits** candidate producers and computes no
+satisfaction predicate. Whether a demand is ultimately producible is decided later, by the
+plan-extraction cost fold (`reachable ⟺ finite cost`).
 
 #### Scenario: Demands expand target-to-source
 - **WHEN** the demand `ret : Human.Address` is processed
@@ -45,26 +47,9 @@ a bounded number of passes.
   work-list as new demands
 
 #### Scenario: Expansion terminates without a convergence failure mode
-- **WHEN** no strategy can produce any remaining unsatisfied demand
-- **THEN** expansion ends with those demands UNSAT; there is no "did not converge" outcome
-
-### Requirement: Horn SAT propagation
-
-Satisfaction SHALL be computed by unit propagation over definite Horn clauses: a `Value` is SAT iff
-at least one producer `Operation` is SAT; an `Operation` is SAT iff all of its port `Value`s are SAT
-(and, for a scope-owning Operation, its child return-root is SAT); base cases are parameter-root
-`Value`s and zero-port `Operation`s. SAT is memoized engine-side as a vertex predicate; no group
-outcome records exist. Derivations are well-founded: a `Value` never becomes SAT through a cycle
-containing itself.
-
-#### Scenario: Operation SAT requires all ports
-- **WHEN** an Operation has ports fed by one SAT and one UNSAT Value
-- **THEN** the Operation is UNSAT
-
-#### Scenario: Cyclic producers cannot self-satisfy
-- **WHEN** box and unbox Operations form a cycle between `x:int` and `x:Integer` with no acyclic
-  derivation from a parameter root
-- **THEN** both Values remain UNSAT
+- **WHEN** no strategy can produce some remaining demand
+- **THEN** expansion ends with that demand having no producer; there is no "did not converge" outcome,
+  and the demand is reported unreachable only at extraction (infinite cost)
 
 ### Requirement: Frontier matching fans out per port and dedups Operation specs
 
