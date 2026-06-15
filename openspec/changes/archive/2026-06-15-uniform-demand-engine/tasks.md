@@ -27,4 +27,4 @@
 
 - [x] 5.1 `./gradlew check` green — NEVER continue with violations.
 - [x] 5.2 `percolate-integration` green incl. the `mapHuman` end-to-end shape; diff a representative generated mapper before/after to confirm semantically-equivalent output.
-- [ ] 5.3 Commit with /commit-commands:commit.
+- [x] 5.3 Commit with /commit-commands:commit.
