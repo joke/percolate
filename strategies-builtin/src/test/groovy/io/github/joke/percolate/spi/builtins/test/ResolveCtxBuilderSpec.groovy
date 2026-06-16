@@ -14,8 +14,6 @@ class ResolveCtxBuilderSpec extends Specification {
         expect:
         ctx.types() == TypeUniverse.types()
         ctx.elements() == TypeUniverse.elements()
-        ctx.mapperType() == null
-        ctx.currentMethod() == null
         ctx.callableMethods().producing(TypeUniverse.STRING).toList().empty
     }
 

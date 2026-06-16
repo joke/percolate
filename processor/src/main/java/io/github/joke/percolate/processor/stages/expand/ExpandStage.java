@@ -9,6 +9,7 @@ import io.github.joke.percolate.processor.graph.AddValue;
 import io.github.joke.percolate.processor.graph.ChildScopeDecl;
 import io.github.joke.percolate.processor.graph.Location;
 import io.github.joke.percolate.processor.graph.MapperGraph;
+import io.github.joke.percolate.processor.graph.MethodScope;
 import io.github.joke.percolate.processor.graph.Operation;
 import io.github.joke.percolate.processor.graph.PortBinding;
 import io.github.joke.percolate.processor.graph.Scope;
@@ -17,10 +18,10 @@ import io.github.joke.percolate.processor.graph.TargetLocation;
 import io.github.joke.percolate.processor.graph.TargetPath;
 import io.github.joke.percolate.processor.graph.Value;
 import io.github.joke.percolate.processor.model.GoalSpec;
+import io.github.joke.percolate.processor.model.MapperShape;
 import io.github.joke.percolate.processor.model.MappingDirective;
 import io.github.joke.percolate.processor.nullability.NullabilityResolver;
 import io.github.joke.percolate.processor.stages.Stage;
-import io.github.joke.percolate.spi.Candidate;
 import io.github.joke.percolate.spi.Directive;
 import io.github.joke.percolate.spi.ExpansionStrategy;
 import io.github.joke.percolate.spi.Nullability;
@@ -29,7 +30,6 @@ import io.github.joke.percolate.spi.Port;
 import io.github.joke.percolate.spi.ResolveCtx;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
-import java.util.Comparator;
 import java.util.Deque;
 import java.util.HashSet;
 import java.util.LinkedHashSet;
@@ -38,8 +38,10 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
+import javax.lang.model.element.ExecutableElement;
 import javax.lang.model.type.TypeMirror;
+import javax.lang.model.util.Elements;
+import javax.lang.model.util.Types;
 import lombok.RequiredArgsConstructor;
 import org.jspecify.annotations.Nullable;
 
@@ -56,8 +58,10 @@ import org.jspecify.annotations.Nullable;
  * deeper child-target demand; any other port reuses an in-scope source Value of the port's type and (assignment-
  * compatible) nullness — preferring the directive-pinned source so a same-typed sibling can never shadow it — or, when
  * none exists, a fresh intermediate at the output location that is itself re-demanded (a multi-hop conversion) and
- * left unreachable if nothing produces it. The directive's source path is materialized on demand by a leaf-first
- * recursive accessor descent that pins the source by {@link SourceLocation}.
+ * left unreachable if nothing produces it. A directive's source path is itself a backward chain of {@code ACCESS}
+ * demands ({@link AccessorResolver}): the FREE target's pinned leaf source Value enters the work-list, and each
+ * {@code ACCESS} demand resolves its last segment's accessor and re-demands the parent path down to the parameter
+ * {@code LEAF} — there is no eager, forward descent.
  *
  * <p>After the work-list drains the graph is fully over-emitted; satisfaction is not computed here — a vertex is
  * reachable iff its extraction cost is finite ({@code ExtractedPlan}), so there is no separate SAT pass.
@@ -65,41 +69,46 @@ import org.jspecify.annotations.Nullable;
 @RequiredArgsConstructor
 public final class ExpandStage implements Stage {
 
-    private static final int SINGLE_SEGMENT = 1;
-
     private final List<ExpansionStrategy> strategies;
-    private final ResolveCtx resolveCtx;
+    private final Types types;
+    private final Elements elements;
     private final NullabilityResolver resolver;
 
     @Override
     public void run(final MapperContext ctx) {
-        final var graph = ctx.getGraph();
-        if (graph == null) {
+        final var shape = ctx.getShape();
+        if (shape == null) {
             return;
         }
-        new Driver(graph, ctx.getGoalSpecs()).expandAll();
+        final var graph = new MapperGraph();
+        ctx.setGraph(graph);
+        final var resolveCtx = new CompileResolveCtx(elements, types, ctx.getCallableMethods());
+        new Driver(graph, ctx.getGoalSpecs(), resolveCtx).seedAndExpand(shape);
     }
 
-    /** One expansion run over a single graph: holds the work-list, the per-Value visited set, and the descent memo. */
+    /** One expansion run over a single graph: holds the work-list and the per-Value visited set. */
     private final class Driver {
 
         private final MapperGraph graph;
         private final Map<Scope, GoalSpec> goalSpecs;
+        private final ResolveCtx resolveCtx;
+        private final AccessorResolver accessorResolver;
+        private final SourceCandidates sourceCandidates;
         private final Applier applier = new Applier();
         private final Deque<Value> workList = new ArrayDeque<>();
         private final Set<Value> visited = new HashSet<>();
-        private final Set<String> descended = new HashSet<>();
 
-        private Driver(final MapperGraph graph, final Map<Scope, GoalSpec> goalSpecs) {
+        private Driver(final MapperGraph graph, final Map<Scope, GoalSpec> goalSpecs, final ResolveCtx resolveCtx) {
             this.graph = graph;
             this.goalSpecs = goalSpecs;
+            this.resolveCtx = resolveCtx;
+            this.accessorResolver = new AccessorResolver(strategies, resolveCtx, resolver);
+            this.sourceCandidates = new SourceCandidates(graph, applier, resolver, resolveCtx);
         }
 
-        private void expandAll() {
-            graph.values()
-                    .filter(value -> value.getLoc().isReturnRoot())
-                    .collect(toUnmodifiableList())
-                    .forEach(this::enqueue);
+        /** Self-seeds one return-type demand per abstract method into the empty graph, then drains the work-list. */
+        private void seedAndExpand(final MapperShape shape) {
+            shape.getAbstractMethods().forEach(this::seedReturnRoot);
             while (!workList.isEmpty()) {
                 final var value = workList.poll();
                 if (visited.add(value)) {
@@ -108,14 +117,35 @@ public final class ExpandStage implements Stage {
             }
         }
 
+        /** The only seed: a return-type demand per abstract method, landed through the {@link Applier}. */
+        private void seedReturnRoot(final ExecutableElement method) {
+            final var scope = new MethodScope(method);
+            final var returnType = method.getReturnType();
+            final var nullness = resolver.resolve(returnType, method);
+            final var root = applier.apply(
+                    graph, new AddValue(scope, new TargetLocation(TargetPath.of("")), returnType, nullness));
+            enqueue(root);
+        }
+
         private void enqueue(final Value value) {
             workList.add(value);
         }
 
         private void expand(final Value value) {
-            if (value.getLoc().role() != Location.Role.DEMAND) {
-                return;
+            final var role = value.getLoc().role();
+            if (role == Location.Role.FREE) {
+                expandFree(value);
+            } else if (role == Location.Role.ACCESS) {
+                expandAccess(value);
             }
+            // LEAF (parameter / element roots) and CONSTANT are base cases: nothing to expand.
+        }
+
+        /**
+         * A FREE target demand: the full strategy set produces it. A directive-pinned source path contributes one
+         * typed leaf source {@code Value} as the preferred candidate (the work-list builds its accessor chain).
+         */
+        private void expandFree(final Value value) {
             final var scope = value.getScope();
             final var path = ((TargetLocation) value.getLoc()).getPath().toString();
             final var goalSpec = goalSpecs.getOrDefault(scope, GoalSpec.from(List.of()));
@@ -123,7 +153,7 @@ public final class ExpandStage implements Stage {
             final var binding = goalSpec.bindingFor(path);
             final Optional<Directive> directive = binding.map(BindingDirective::from);
             final var pinnedSource = binding.filter(MappingDirective::hasSource)
-                    .map(d -> descend(scope, splitPath(d.getSource())))
+                    .map(d -> pinnedSource(scope, splitPath(d.getSource())))
                     .orElse(null);
             final var demand = new DemandView(
                     type(value),
@@ -131,11 +161,46 @@ public final class ExpandStage implements Stage {
                     directive,
                     children,
                     value.getLoc().slotName(),
-                    candidates(scope),
+                    sourceCandidates.candidates(scope),
                     resolver);
             for (final var spec : dedup(run(demand))) {
                 land(value, spec, children, pinnedSource);
             }
+        }
+
+        /**
+         * An ACCESS (multi-segment source-path) demand: only an accessor strategy may produce it. Resolve the last
+         * segment's accessor on the parent type, land it through the {@link Applier} producing this Value from the
+         * parent {@link SourceLocation}, and enqueue the parent demand so the chain builds target-to-source.
+         */
+        private void expandAccess(final Value value) {
+            final var scope = value.getScope();
+            final var segments = ((SourceLocation) value.getLoc()).getPath().getSegments();
+            final var parentSegments = segments.subList(0, segments.size() - 1);
+            final var parentTyping = accessorResolver.typing(scope, parentSegments);
+            if (parentTyping == null) {
+                return;
+            }
+            final var spec =
+                    accessorResolver.resolveAccessor(parentTyping.getType(), segments.get(segments.size() - 1));
+            if (spec == null) {
+                return;
+            }
+            final var parentSource = new AddValue(
+                    scope,
+                    new SourceLocation(new AccessPath(List.copyOf(parentSegments))),
+                    parentTyping.getType(),
+                    parentTyping.getNullness());
+            final var operation = apply(new AddOperation(
+                    "accessor",
+                    spec.getCodegen().getClass().getName(),
+                    spec.getCodegen(),
+                    spec.getWeight(),
+                    spec.isPartial(),
+                    List.of(new PortBinding(spec.getPorts().get(0), parentSource)),
+                    outputOf(value),
+                    Optional.empty()));
+            graph.portSourcesOf(operation).forEach(this::enqueue);
         }
 
         // ---- landing an operation -------------------------------------------------------------------------
@@ -185,10 +250,10 @@ public final class ExpandStage implements Stage {
                         port.getType(),
                         port.getNullness());
             }
-            if (pinnedSource != null && matchesPort(pinnedSource, port)) {
+            if (pinnedSource != null && sourceCandidates.matchesPort(pinnedSource, port)) {
                 return reuse(pinnedSource);
             }
-            final var candidate = matchingSource(output.getScope(), port);
+            final var candidate = sourceCandidates.matchingSource(output.getScope(), port);
             if (candidate != null) {
                 return reuse(candidate);
             }
@@ -207,74 +272,23 @@ public final class ExpandStage implements Stage {
             return new TargetLocation(new TargetPath(List.copyOf(segments)));
         }
 
-        // ---- source-path descent (leaf-first recursion; the location pins the source) ----------------------
+        // ---- source-path typing + leaf creation (target-to-source; the location pins the source) -----------
 
-        /** Materializes {@code segments} from the param root, returning the deepest source Value, or {@code null}. */
-        private @Nullable Value descend(final Scope scope, final List<String> segments) {
+        /**
+         * The typed leaf source {@code Value} for {@code segments}, created once via the dedup index so a FREE
+         * target's producer can bind it as the preferred candidate; the work-list (ACCESS) then builds its accessor
+         * chain. {@code null} when the path is empty or untypable.
+         */
+        private @Nullable Value pinnedSource(final Scope scope, final List<String> segments) {
             if (segments.isEmpty()) {
                 return null;
             }
-            if (segments.size() == SINGLE_SEGMENT) {
-                return paramRoot(scope, segments.get(0));
-            }
-            final var parent = descend(scope, segments.subList(0, segments.size() - 1));
-            if (parent == null) {
-                return null;
-            }
-            final var segment = segments.get(segments.size() - 1);
-            final var spec = resolveAccessor(type(parent), segment);
-            if (spec == null) {
+            final var typing = accessorResolver.typing(scope, segments);
+            if (typing == null) {
                 return null;
             }
             final var loc = new SourceLocation(new AccessPath(List.copyOf(segments)));
-            final var key = scope.encode() + "::" + loc.segment();
-            if (descended.add(key)) {
-                final var portBinding = new PortBinding(
-                        spec.getPorts().get(0), new AddValue(scope, parent.getLoc(), type(parent), nullness(parent)));
-                apply(new AddOperation(
-                        "accessor",
-                        spec.getCodegen().getClass().getName(),
-                        spec.getCodegen(),
-                        spec.getWeight(),
-                        spec.isPartial(),
-                        List.of(portBinding),
-                        new AddValue(scope, loc, spec.getOutputType(), spec.getOutputNullness()),
-                        Optional.empty()));
-            }
-            return graph.valueFor(scope, loc, spec.getOutputType(), spec.getOutputNullness());
-        }
-
-        private @Nullable Value paramRoot(final Scope scope, final String segment) {
-            return graph.valuesIn(scope)
-                    .filter(value -> value.getLoc() instanceof SourceLocation
-                            && ((SourceLocation) value.getLoc())
-                                    .getPath()
-                                    .getSegments()
-                                    .equals(List.of(segment)))
-                    .findFirst()
-                    .orElse(null);
-        }
-
-        /** The single one-port accessor a strategy produces for {@code segment} on {@code parentType}, else null. */
-        private @Nullable OperationSpec resolveAccessor(final TypeMirror parentType, final String segment) {
-            final var demand = new DemandView(
-                    parentType,
-                    Nullability.NON_NULL,
-                    Optional.of(BindingDirective.segment(segment)),
-                    Set.of(),
-                    segment,
-                    List.of(new Candidate(parentType, Nullability.NON_NULL)),
-                    resolver);
-            return strategies.stream()
-                    .flatMap(strategy -> strategy.expand(demand, resolveCtx))
-                    .filter(spec -> spec.getPorts().size() == 1
-                            && spec.getChildScope().isEmpty()
-                            && resolveCtx
-                                    .types()
-                                    .isSameType(spec.getPorts().get(0).getType(), parentType)
-                            && !resolveCtx.types().isSameType(spec.getOutputType(), parentType))
-                    .findFirst()
-                    .orElse(null);
+            return applier.apply(graph, new AddValue(scope, loc, typing.getType(), typing.getNullness()));
         }
 
         // ---- shared ----------------------------------------------------------------------------------------
@@ -289,33 +303,6 @@ public final class ExpandStage implements Stage {
 
         private AddValue reuse(final Value value) {
             return new AddValue(value.getScope(), value.getLoc(), type(value), nullness(value));
-        }
-
-        /** Whether {@code value} can feed {@code port}: same type and a non-null source satisfies any nullness. */
-        private boolean matchesPort(final Value value, final Port port) {
-            final var nullnessClash =
-                    port.getNullness() == Nullability.NON_NULL && nullness(value) == Nullability.NULLABLE;
-            return !nullnessClash && resolveCtx.types().isSameType(type(value), port.getType());
-        }
-
-        private @Nullable Value matchingSource(final Scope scope, final Port port) {
-            return sourceValues(scope)
-                    .filter(value -> matchesPort(value, port))
-                    .min(Comparator.comparing(Value::id))
-                    .orElse(null);
-        }
-
-        private Stream<Value> sourceValues(final Scope scope) {
-            return graph.valuesIn(scope).filter(value -> {
-                final var role = value.getLoc().role();
-                return role == Location.Role.SUPPLY || role == Location.Role.ELEMENT;
-            });
-        }
-
-        private List<Candidate> candidates(final Scope scope) {
-            return sourceValues(scope)
-                    .map(value -> new Candidate(type(value), nullness(value)))
-                    .collect(toUnmodifiableList());
         }
 
         private List<OperationSpec> run(final DemandView demand) {

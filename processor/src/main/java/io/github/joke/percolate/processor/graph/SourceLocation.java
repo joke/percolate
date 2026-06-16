@@ -4,11 +4,14 @@ import lombok.Value;
 
 @Value
 public class SourceLocation implements Location {
+
+    private static final int SINGLE_SEGMENT = 1;
+
     AccessPath path;
 
     @Override
     public Role role() {
-        return Role.SUPPLY;
+        return path.getSegments().size() > SINGLE_SEGMENT ? Role.ACCESS : Role.LEAF;
     }
 
     @Override

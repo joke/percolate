@@ -74,11 +74,24 @@ The accessor **Operations** are emitted by the existing `Getter`/`Method`/`Field
 strategies through the normal `run(demand)` — `resolveAccessor` and `descend` are deleted.
 
 The one genuine subtlety: a source value's **type flows forward** (from the parameter), but demands
-flow **backward**. We keep Values typed-at-creation (preserving the VOG dedup key
-`(scope, location, type, nullness)` — no resurrection of untyped Values) by resolving the path's
-segment types with a **pure, non-mutating helper** (`ResolveCtx` type queries from the parameter
-type) when the demand is *created*. The helper performs no graph mutation and no strategy dispatch, so
-it is **directive/type resolution, not expansion** — the graph still grows strictly target→source.
+flow **backward**. An accessor's output type is **strategy-determined** (`getStreet()`→`String` is
+decided by the getter/method/field accessor strategies, not by a direct type query), so a graph-free
+"pure `ResolveCtx`" resolver cannot type a source path without re-implementing accessor matching
+(which would duplicate strategy logic and break user accessor strategies). The resolution (decision A):
+keep **one accessor-resolution helper** — `(parentType, segment) → OperationSpec`, via the accessor
+strategies (today's `resolveAccessor`, **repurposed, not deleted**) — and use it two ways:
+
+1. a **memoized, non-mutating forward type-walk** `typing(scope, segments)` that types a source-path
+   demand at creation (base case: the parameter's declared `(type, nullness)` read from the method
+   signature; step: `resolveAccessor(parentType, segment).output{Type,Nullness}`). It performs **no
+   graph mutation** — pure type resolution, not expansion.
+2. the **work-list `ACCESS` handler**, which on a demand `SourceLocation[a..k]` resolves the last
+   segment's accessor on `parentType = typing(scope,[a..k-1]).type`, lands the accessor `Operation`
+   through the `Applier`, and enqueues the parent `SourceLocation[a..k-1]` demand.
+
+Values stay typed-at-creation (the VOG dedup key `(scope, location, type, nullness)` is preserved; no
+untyped-Value resurrection), and the graph still grows strictly target→source — only the (pure,
+memoized) type-walk reads forward.
 
 ```mermaid
 flowchart RL
@@ -90,12 +103,15 @@ flowchart RL
     note["types known forward via pure resolver\nat demand creation"] -.-> street
 ```
 
-*Alternatives considered.* (a) **Untyped source demands** dedup'd by `(scope, location)` only, typed
-lazily via `setTyping` when the accessor resolves — rejected: it special-cases `SourceLocation` dedup
-(target/conversion Values still need type in the key for overload splitting), reintroducing the
-asymmetry VOG removed. (b) **Per-strategy re-walk** of the parent type inside each accessor strategy —
-rejected as O(depth²) and pushing type logic into every resolver. The pure helper computes each
-segment type once.
+*Alternatives considered (and rejected, decision A confirmed during apply).* (a) **A graph-free pure
+`ResolveCtx` type resolver** — infeasible: accessor output types are strategy-determined; a pure
+resolver would duplicate accessor matching and break user accessor strategies. (b) **Untyped source
+demands** dedup'd by `(scope, location)` only, typed lazily via `setTyping` — rejected: it
+special-cases `SourceLocation` dedup (target/conversion Values still need type in the key for overload
+splitting) and revives the untyped-Value lifecycle VOG removed. (c) **Slim descent pre-pass** (don't
+fold into the work-list) — rejected: leaves two mechanisms, only partially closing Seam A. The chosen
+helper is shared by the type-walk and the `ACCESS` emission; the type-walk is memoized so each segment
+type is computed once.
 
 ### D3 — The directive contributes a preferred source demand (collapses `pinnedSource`)
 
@@ -126,6 +142,13 @@ flowchart LR
 *Alternative considered.* Compute `GoalSpec` at expansion entry instead of discovery — workable, but
 discovery is the natural owner of "the goal" (it already owns the directives); expansion stays a pure
 consumer.
+
+*Seed dump (decided during apply).* With no separate seed stage, `ExpandStage` creates the empty
+`MapperGraph` and self-seeds the return-root demands at entry, so there is no pre-expansion snapshot:
+the `DumpGraphStage` `seed` view is **dropped** (it ran before expansion). The `full`/`transforms`/
+`plan` dumps remain, all after expansion. This adds a `graph-debug-output` delta to the change.
+(Alternative — keep a minimal init+return-root stage so the seed dump survives — rejected to honor
+"no separate seed stage; graph starts empty.")
 
 ### D5 — Tighten the cost base case to `LEAF`
 

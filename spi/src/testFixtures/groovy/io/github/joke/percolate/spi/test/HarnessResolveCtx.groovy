@@ -4,8 +4,6 @@ import io.github.joke.percolate.spi.CallableMethods
 import io.github.joke.percolate.spi.MethodCandidate
 import io.github.joke.percolate.spi.ResolveCtx
 
-import javax.lang.model.element.ExecutableElement
-import javax.lang.model.element.TypeElement
 import javax.lang.model.type.TypeMirror
 import javax.lang.model.util.Elements
 import javax.lang.model.util.Types
@@ -35,16 +33,6 @@ final class HarnessResolveCtx implements ResolveCtx {
     @Override
     Elements elements() {
         TypeUniverse.elements()
-    }
-
-    @Override
-    TypeElement mapperType() {
-        null
-    }
-
-    @Override
-    ExecutableElement currentMethod() {
-        null
     }
 
     @Override

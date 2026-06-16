@@ -16,7 +16,7 @@ public class ElementLocation implements Location {
 
     @Override
     public Role role() {
-        return Role.ELEMENT;
+        return Role.LEAF;
     }
 
     @Override

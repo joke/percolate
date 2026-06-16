@@ -6,6 +6,8 @@ import static java.util.stream.Collectors.toUnmodifiableList;
 import io.github.joke.percolate.Map;
 import io.github.joke.percolate.MapList;
 import io.github.joke.percolate.processor.MapperContext;
+import io.github.joke.percolate.processor.graph.MethodScope;
+import io.github.joke.percolate.processor.model.GoalSpec;
 import io.github.joke.percolate.processor.model.MapperMappings;
 import io.github.joke.percolate.processor.model.MapperShape;
 import io.github.joke.percolate.processor.model.MappingDirective;
@@ -46,6 +48,8 @@ public final class DiscoverMappingsStage implements Stage {
         }
         final var mappings = apply(shape);
         ctx.setMappings(mappings);
+        mappings.getMethods().forEach(method -> ctx.getGoalSpecs()
+                .put(new MethodScope(method.getMethod()), GoalSpec.from(method.getDirectives())));
     }
 
     MapperMappings apply(final MapperShape shape) {

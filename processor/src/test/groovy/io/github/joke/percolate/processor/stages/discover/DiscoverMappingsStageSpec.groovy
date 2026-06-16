@@ -2,6 +2,8 @@ package io.github.joke.percolate.processor.stages.discover
 
 import com.google.testing.compile.Compiler
 import com.google.testing.compile.JavaFileObjects
+import io.github.joke.percolate.processor.MapperContext
+import io.github.joke.percolate.processor.graph.MethodScope
 import io.github.joke.percolate.processor.model.MappingDirective
 import spock.lang.Specification
 import spock.lang.Tag
@@ -66,6 +68,39 @@ class DiscoverMappingsStageSpec extends Specification {
         !d.hasSource()
     }
 
+    def 'discovery attaches a goal spec to each method scope carrying every directive'() {
+        when: 'the discovery phase runs over a mapper with two directives (no seed stage)'
+        def ctx = discoverContext()
+
+        then: 'the goal spec is reachable by the method scope and carries every declared binding'
+        def scope = new MethodScope(ctx.shape.abstractMethods[0])
+        def goal = ctx.goalSpecs[scope]
+        goal != null
+        goal.declaredChildren('') == ['first', 'second'] as Set
+        goal.bindingFor('first').present
+        goal.bindingFor('second').present
+    }
+
+    private static MapperContext discoverContext() {
+        def processor = new CapturingContextProcessor()
+        def mapper = JavaFileObjects.forSourceLines(
+                'test.M',
+                'package test;',
+                'import io.github.joke.percolate.Mapper;',
+                'import io.github.joke.percolate.Map;',
+                '@Mapper',
+                'public interface M {',
+                '    @Map(target = "first", source = "in.first")',
+                '    @Map(target = "second", source = "in.second")',
+                '    Object map(Object in);',
+                '}')
+        def compilation = Compiler.javac()
+                .withProcessors(processor)
+                .compile(mapper)
+        assert compilation.errors().empty
+        Objects.requireNonNull(processor.captured)
+    }
+
     private static List<MappingDirective> discover(final String mapAnnotation) {
         def processor = new CapturingDiscoveryProcessor()
         def mapper = JavaFileObjects.forSourceLines(
@@ -103,6 +138,30 @@ class CapturingDiscoveryProcessor extends AbstractProcessor {
                         .each { method ->
                             captured.addAll(stage.extractDirectives((method as ExecutableElement).annotationMirrors))
                         }
+            }
+        }
+        false
+    }
+}
+
+/** A throwaway processor that runs the discovery stages and captures the resulting per-mapper context. */
+@SupportedAnnotationTypes('io.github.joke.percolate.Mapper')
+@SupportedSourceVersion(SourceVersion.RELEASE_11)
+class CapturingContextProcessor extends AbstractProcessor {
+
+    MapperContext captured
+
+    @Override
+    boolean process(final Set<? extends TypeElement> annotations, final RoundEnvironment roundEnv) {
+        def elements = processingEnv.elementUtils
+        def discoverAbstract = new DiscoverAbstractMethodsStage(elements, processingEnv.typeUtils)
+        def discoverMappings = new DiscoverMappingsStage(elements)
+        annotations.each { annotation ->
+            roundEnv.getElementsAnnotatedWith(annotation).each { mapperType ->
+                def ctx = new MapperContext(mapperType as TypeElement)
+                discoverAbstract.run(ctx)
+                discoverMappings.run(ctx)
+                captured = ctx
             }
         }
         false

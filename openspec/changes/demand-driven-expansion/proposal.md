@@ -60,6 +60,9 @@ unification; unifying method vs child-scope seeding; nested `@Map` into containe
   `mapperType()`/`currentMethod()` are removed and the backing `ThreadLocal` is gone.
 - `mapping-discovery`: the per-level declared-bindings goal spec is derived during discovery from the
   discovered `@Map` directives.
+- `graph-debug-output`: the pre-expansion `seed` dump is removed (with no seed stage the graph starts
+  empty, so there is no pre-expansion snapshot); the remaining `full`/`transforms`/`plan` dumps all run
+  after expansion.
 
 ## Impact
 

@@ -145,6 +145,20 @@ class ExtractedPlanSpec extends Specification {
         !plan.reachable(orphan)
     }
 
+    def 'a producerless multi-segment ACCESS source value is unreachable, not a vacuous base case'() {
+        given: 'a single-segment param (LEAF) and an orphan multi-segment source value (ACCESS) with no accessor producer'
+        final var param = source('p', TypeUniverse.STRING)
+        final var orphanAccess = graph.valueFor(
+                scope, new SourceLocation(new AccessPath(['p', 'addr'])), TypeUniverse.STRING, Nullability.NON_NULL)
+
+        when:
+        final var plan = extract()
+
+        then: 'the LEAF param is a base case (reachable); the producerless ACCESS demand is unreachable'
+        plan.reachable(param)
+        !plan.reachable(orphanAccess)
+    }
+
     def 'a zero-weight cycle is unreachable (well-foundedness: no value is reachable through its own cycle)'() {
         given: 'a and b each produced only from the other, with weight 0 and no supply root feeding the cycle'
         final var a = graph.valueFor(scope, new TargetLocation(TargetPath.of('a')), TypeUniverse.STRING, Nullability.NON_NULL)

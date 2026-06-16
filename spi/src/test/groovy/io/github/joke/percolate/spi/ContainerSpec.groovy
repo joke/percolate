@@ -180,8 +180,6 @@ class ContainerSpec extends Specification {
         [
                 elements       : { TypeUniverse.elements() },
                 types          : { TypeUniverse.types() },
-                mapperType     : { null },
-                currentMethod  : { null },
                 callableMethods: { null },
         ] as ResolveCtx
     }

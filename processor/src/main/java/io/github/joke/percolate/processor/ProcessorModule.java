@@ -13,20 +13,16 @@ import io.github.joke.percolate.processor.stages.discover.DiscoverAbstractMethod
 import io.github.joke.percolate.processor.stages.discover.DiscoverCallableMethodsStage;
 import io.github.joke.percolate.processor.stages.discover.DiscoverMappingsStage;
 import io.github.joke.percolate.processor.stages.dump.DumpFullGraphStage;
-import io.github.joke.percolate.processor.stages.dump.DumpGraphStage;
 import io.github.joke.percolate.processor.stages.dump.DumpPlanStage;
 import io.github.joke.percolate.processor.stages.dump.DumpTransformsStage;
 import io.github.joke.percolate.processor.stages.expand.ExpandStage;
 import io.github.joke.percolate.processor.stages.generate.GenerateStage;
-import io.github.joke.percolate.processor.stages.seed.SeedStage;
 import io.github.joke.percolate.processor.stages.validate.RealisationDiagnosticsStage;
 import io.github.joke.percolate.processor.stages.validate.ValidateConstantDefaultLegalityStage;
 import io.github.joke.percolate.processor.stages.validate.ValidateMappingShapeStage;
 import io.github.joke.percolate.processor.stages.validate.ValidateNoDuplicateTargetsStage;
 import io.github.joke.percolate.processor.stages.validate.ValidateSourceParametersStage;
-import io.github.joke.percolate.spi.CallableMethods;
 import io.github.joke.percolate.spi.ExpansionStrategy;
-import io.github.joke.percolate.spi.ResolveCtx;
 import jakarta.inject.Inject;
 import jakarta.inject.Named;
 import jakarta.inject.Singleton;
@@ -38,30 +34,17 @@ import java.util.stream.StreamSupport;
 import javax.annotation.processing.Filer;
 import javax.annotation.processing.Messager;
 import javax.annotation.processing.ProcessingEnvironment;
-import javax.lang.model.element.ExecutableElement;
-import javax.lang.model.element.TypeElement;
 import javax.lang.model.util.Elements;
 import javax.lang.model.util.Types;
 import lombok.EqualsAndHashCode;
 import lombok.RequiredArgsConstructor;
-import org.jspecify.annotations.Nullable;
 
 @Module
 @RequiredArgsConstructor(onConstructor_ = @Inject)
 @EqualsAndHashCode(onlyExplicitlyIncluded = true)
 public final class ProcessorModule {
 
-    private static final ThreadLocal<MapperContext> CURRENT_CONTEXT = new ThreadLocal<>();
-
     private final ProcessingEnvironment processingEnvironment;
-
-    static void setCurrentContext(final MapperContext ctx) {
-        CURRENT_CONTEXT.set(ctx);
-    }
-
-    static void clearCurrentContext() {
-        CURRENT_CONTEXT.remove();
-    }
 
     @Provides
     Elements elements() {
@@ -109,17 +92,19 @@ public final class ProcessorModule {
 
     public static ExpandStage assembleExpansionPipeline(
             final List<ExpansionStrategy> strategies,
-            final ResolveCtx resolveCtx,
+            final Types types,
+            final Elements elements,
             final NullabilityResolver nullabilityResolver) {
-        return new ExpandStage(strategies, resolveCtx, nullabilityResolver);
+        return new ExpandStage(strategies, types, elements, nullabilityResolver);
     }
 
     @Provides
     ExpandStage expandStage(
             final List<ExpansionStrategy> strategies,
-            final ResolveCtx resolveCtx,
+            final Types types,
+            final Elements elements,
             final NullabilityResolver nullabilityResolver) {
-        return assembleExpansionPipeline(strategies, resolveCtx, nullabilityResolver);
+        return assembleExpansionPipeline(strategies, types, elements, nullabilityResolver);
     }
 
     @Provides
@@ -138,8 +123,6 @@ public final class ProcessorModule {
             final ValidateNoDuplicateTargetsStage validateNoDuplicateTargets,
             final ValidateMappingShapeStage validateMappingShape,
             final ValidateSourceParametersStage validateSourceParameters,
-            final SeedStage seedStage,
-            final DumpGraphStage dumpGraph,
             final ExpandStage expandStage,
             final DumpFullGraphStage dumpFullGraph,
             final DumpTransformsStage dumpTransforms,
@@ -153,8 +136,6 @@ public final class ProcessorModule {
                                 validateNoDuplicateTargets,
                                 validateMappingShape,
                                 validateSourceParameters,
-                                seedStage,
-                                dumpGraph,
                                 expandStage,
                                 dumpFullGraph,
                                 dumpTransforms,
@@ -179,44 +160,5 @@ public final class ProcessorModule {
                 .sorted(Comparator.comparingInt(ExpansionStrategy::priority)
                         .thenComparing(strategy -> strategy.getClass().getName()))
                 .collect(toUnmodifiableList());
-    }
-
-    @Provides
-    static ResolveCtx resolveCtx(final Types types, final Elements elements) {
-        return new CompileResolveCtx(elements, types);
-    }
-
-    @RequiredArgsConstructor
-    private static final class CompileResolveCtx implements ResolveCtx {
-        private final Elements elemElements;
-        private final Types elemTypes;
-
-        @Override
-        public Types types() {
-            return elemTypes;
-        }
-
-        @Override
-        public Elements elements() {
-            return elemElements;
-        }
-
-        @Override
-        public @Nullable TypeElement mapperType() {
-            final var ctx = CURRENT_CONTEXT.get();
-            return ctx != null ? ctx.getMapperType() : null;
-        }
-
-        @Override
-        public @Nullable ExecutableElement currentMethod() {
-            final var ctx = CURRENT_CONTEXT.get();
-            return ctx != null ? ctx.getCurrentMethod() : null;
-        }
-
-        @Override
-        public @Nullable CallableMethods callableMethods() {
-            final var ctx = CURRENT_CONTEXT.get();
-            return ctx != null ? ctx.getCallableMethods() : null;
-        }
     }
 }

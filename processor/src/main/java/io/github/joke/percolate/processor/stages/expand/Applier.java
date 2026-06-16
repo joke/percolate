@@ -1,8 +1,10 @@
 package io.github.joke.percolate.processor.stages.expand;
 
 import io.github.joke.percolate.processor.graph.AddOperation;
+import io.github.joke.percolate.processor.graph.AddValue;
 import io.github.joke.percolate.processor.graph.MapperGraph;
 import io.github.joke.percolate.processor.graph.Operation;
+import io.github.joke.percolate.processor.graph.Value;
 
 /**
  * The single graph-mutation site during expansion (design D10). Every {@link AddOperation} an expander decides on
@@ -18,6 +20,11 @@ import io.github.joke.percolate.processor.graph.Operation;
 final class Applier {
 
     Operation apply(final MapperGraph graph, final AddOperation delta) {
+        return graph.apply(delta);
+    }
+
+    /** Lands a bare {@link AddValue} (a root demand, or a lazily-materialised parameter leaf). */
+    Value apply(final MapperGraph graph, final AddValue delta) {
         return graph.apply(delta);
     }
 }

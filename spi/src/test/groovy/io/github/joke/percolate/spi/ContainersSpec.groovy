@@ -146,16 +146,6 @@ class ContainersSpec extends Specification {
         }
 
         @Override
-        javax.lang.model.element.TypeElement mapperType() {
-            null
-        }
-
-        @Override
-        javax.lang.model.element.ExecutableElement currentMethod() {
-            null
-        }
-
-        @Override
         CallableMethods callableMethods() {
             null
         }

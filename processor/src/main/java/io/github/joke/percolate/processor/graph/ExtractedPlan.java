@@ -109,9 +109,12 @@ public final class ExtractedPlan {
         return cost;
     }
 
-    /** A producerless Value is a base case (cost {@link Cost#ZERO}) when it is a supply root or element root. */
+    /**
+     * A producerless Value is a base case (cost {@link Cost#ZERO}) only when it is a {@code LEAF} — a parameter
+     * root or a container element root. Every other producerless Value is unreachable ({@link Cost#INFINITE}),
+     * including a multi-segment {@code ACCESS} source demand whose accessor never matched.
+     */
     private boolean isBaseCase(final Value value) {
-        final var role = value.getLoc().role();
-        return role == Location.Role.SUPPLY || role == Location.Role.ELEMENT;
+        return value.getLoc().role() == Location.Role.LEAF;
     }
 }

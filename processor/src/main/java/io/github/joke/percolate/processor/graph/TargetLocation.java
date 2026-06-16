@@ -8,7 +8,7 @@ public class TargetLocation implements Location {
 
     @Override
     public Role role() {
-        return Role.DEMAND;
+        return Role.FREE;
     }
 
     @Override

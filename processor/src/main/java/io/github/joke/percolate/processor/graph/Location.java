@@ -3,18 +3,21 @@ package io.github.joke.percolate.processor.graph;
 public interface Location {
 
     /**
-     * The planning role of the Value at this location (design D5): {@code SUPPLY} for parameter / source-path
-     * values, {@code DEMAND} for target values, {@code ELEMENT} for container child-scope element roots, and
-     * {@code CONSTANT} for literal origins. Replaces {@code instanceof} dispatch on the concrete Location types.
+     * The resolution mode of the Value at this location (demand-driven-expansion D1): {@code FREE} for target
+     * values and conversion intermediates (the full strategy set may produce them), {@code ACCESS} for
+     * multi-segment source-path values (only accessor strategies may, re-demanding the parent path), {@code LEAF}
+     * for single-segment source-path parameter roots and container element roots (base cases — no expansion),
+     * and {@code CONSTANT} for literal origins. The work-list dispatch and the cost base-case rule key off this
+     * mode, not {@code instanceof} on the concrete Location types.
      */
     enum Role {
-        SUPPLY,
-        DEMAND,
-        ELEMENT,
+        FREE,
+        ACCESS,
+        LEAF,
         CONSTANT
     }
 
-    /** This location's planning role. */
+    /** This location's resolution mode. */
     Role role();
 
     /**
