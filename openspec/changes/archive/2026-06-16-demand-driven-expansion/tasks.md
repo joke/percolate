@@ -52,4 +52,4 @@
 - [x] 7.1 Grep for dangling references to `SeedStage`, `descend`, `resolveAccessor`, `descended`, `currentMethod`, `mapperType`, and the `ThreadLocal` across main + tests; remove leftovers
 - [x] 7.2 Run `openspec validate demand-driven-expansion --strict` and confirm the change still validates
 - [x] 7.3 Run `./gradlew check` (do not pipe to tail) and confirm zero violations — NEVER continue if there are violations
-- [ ] 7.4 Commit the completed work with `/commit-commands:commit`
+- [x] 7.4 Commit the completed work with `/commit-commands:commit`

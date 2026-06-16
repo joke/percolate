@@ -46,27 +46,41 @@ Determinism: given the same scope slice with the view's documented node and edge
 
 ### Requirement: File naming
 
-The processor SHALL write one DOT file per `(scope, view)` pair. Each file SHALL be named `<MapperFQN>.<methodSimpleName>.<view>.dot`, where `<view>` is one of `seed`, `full`, `transforms`, `plan`, and `<methodSimpleName>` is the simple name of the scope's method. When two scopes of the same mapper share a method simple name (overloads), the colliding files SHALL be disambiguated as `<MapperFQN>.<methodSimpleName>-<n>.<view>.dot`, where `<n>` is a deterministic index assigned in a stable order over the colliding scopes.
+The processor SHALL write one DOT file per `(scope, view)` pair. Each file SHALL be named
+`<MapperFQN>.<methodSimpleName>.<view>.dot`, where `<view>` is one of `full`, `transforms`, `plan`,
+and `<methodSimpleName>` is the simple name of the scope's method. When two scopes of the same mapper
+share a method simple name (overloads), the colliding files SHALL be disambiguated as
+`<MapperFQN>.<methodSimpleName>-<n>.<view>.dot`, where `<n>` is a deterministic index assigned in a
+stable order over the colliding scopes. There is no `seed` view: the graph starts empty and is grown
+by expansion, so there is no pre-expansion snapshot to dump.
 
-A single mapper with multiple scopes SHALL therefore produce one file per scope per view; the scopes do not share a file.
+A single mapper with multiple scopes SHALL therefore produce one file per scope per view; the scopes
+do not share a file.
 
 #### Scenario: File name encodes mapper, method, and view
-- **WHEN** the `seed` view is written for `com.example.PersonMapper`, scope `mapHuman(...)`
-- **THEN** the file name passed to `Filer.createResource(...)` is `com.example.PersonMapper.mapHuman.seed.dot`
+
+- **WHEN** the `full` view is written for `com.example.PersonMapper`, scope `mapHuman(...)`
+- **THEN** the file name passed to `Filer.createResource(...)` is `com.example.PersonMapper.mapHuman.full.dot`
 
 #### Scenario: Each scope of a mapper gets its own file
-- **WHEN** the `seed` view is written for `com.example.PersonMapper` which has scopes `mapHuman(...)` and `mapAddress(...)`
-- **THEN** two files are written: `com.example.PersonMapper.mapHuman.seed.dot` and `com.example.PersonMapper.mapAddress.seed.dot`
+
+- **WHEN** the `full` view is written for `com.example.PersonMapper` which has scopes `mapHuman(...)` and `mapAddress(...)`
+- **THEN** two files are written: `com.example.PersonMapper.mapHuman.full.dot` and `com.example.PersonMapper.mapAddress.full.dot`
 
 #### Scenario: Overloaded methods are disambiguated by index
+
 - **WHEN** a mapper has two scopes whose method simple name is both `map`
-- **THEN** the two `seed` files are named with distinct `map-<n>` infixes (e.g. `...map-0.seed.dot` and `...map-1.seed.dot`), assigned in a stable order
+- **THEN** the two `full` files are named with distinct `map-<n>` infixes (e.g. `...map-0.full.dot` and `...map-1.full.dot`), assigned in a stable order
 
 ### Requirement: Shared dump IO via GraphDumpWriter
 
 The processor SHALL define a single collaborator `GraphDumpWriter` in package `io.github.joke.percolate.processor.stages.dump` that owns the entire dump IO mechanism: the `ProcessorOptions.isDebugGraphs()` gate, the empty-graph skip, the per-scope partition, the `DOTExporter` rendering pass, the `Filer.createResource(StandardLocation.SOURCE_OUTPUT, …)` write per scope, and the `IOException`→warning handling. `GraphDumpWriter` SHALL be `@Inject`-constructed and SHALL depend on `Filer`, `Diagnostics`, `ProcessorOptions`, and the `DotRenderer`.
 
-Each dump stage (`DumpGraph`, `DumpFullGraph`, `DumpTransforms`, `DumpPlan`) SHALL delegate to `GraphDumpWriter`, supplying only its view selector (`g -> g`, `g -> g.transformsView()`, `g -> g.planView()`) and its `<view>` infix. The stages SHALL retain their existing pipeline positions; in particular `DumpGraph` (the `seed` view) SHALL run before the expansion stage and the others after it. A `Filer`/`IOException` failure SHALL be reported as a `Diagnostics` warning referencing the originating `TypeElement`, SHALL NOT be an error, and SHALL NOT abort the compile.
+Each dump stage (`DumpFullGraph`, `DumpTransforms`, `DumpPlan`) SHALL delegate to `GraphDumpWriter`,
+supplying only its view selector (`g -> g`, `g -> g.transformsView()`, `g -> g.planView()`) and its
+`<view>` infix. All dump stages SHALL run **after** the expansion stage (there is no pre-expansion
+seed dump). A `Filer`/`IOException` failure SHALL be reported as a `Diagnostics` warning referencing
+the originating `TypeElement`, SHALL NOT be an error, and SHALL NOT abort the compile.
 
 When partitioning a view's edges by scope, an edge SHALL be assigned to the scope of its `from` node, so that no edge is dropped even though, by construction, edges do not span scopes.
 
@@ -81,8 +95,8 @@ When partitioning a view's edges by scope, an edge SHALL be assigned to the scop
 - **AND** no diagnostic is emitted
 
 #### Scenario: One write per scope when option on
-- **WHEN** `DumpGraph` runs with `ProcessorOptions.isDebugGraphs() == true` for a non-empty `MapperGraph` with two scopes
-- **THEN** `GraphDumpWriter` invokes `Filer.createResource(...)` once per scope, each with the scope's `<MapperFQN>.<method>.seed.dot` name
+- **WHEN** `DumpFullGraph` runs with `ProcessorOptions.isDebugGraphs() == true` for a non-empty `MapperGraph` with two scopes
+- **THEN** `GraphDumpWriter` invokes `Filer.createResource(...)` once per scope, each with the scope's `<MapperFQN>.<method>.full.dot` name
 - **AND** each resource's contents are the `DOTExporter` rendering of that scope's slice
 
 #### Scenario: Filer failure is a warning, not an error
@@ -113,11 +127,11 @@ Rendering remains deterministic (stable vertex and edge ordering).
 
 ### Requirement: Three dumps over the bipartite graph
 
-The three dump stages SHALL be retained with unchanged gating and file naming: the seed dump (roots
-and goal-spec annotations), the full dump (every vertex and edge, **reachability-annotated** — i.e.
-finite vs infinite extraction cost), and the transforms/plan dump (the extracted plan view only). The
-full dump SHALL obtain reachability from the extracted plan's derived `reachable`/`cost` query, not
-from a stored SAT predicate.
+The three dump stages SHALL be retained with unchanged gating and file naming, all running **after**
+expansion: the full dump (every vertex and edge, **reachability-annotated** — i.e. finite vs infinite
+extraction cost), the transforms dump, and the plan dump (the extracted plan view only). There is no
+seed dump (no separate seed stage exists). The full dump SHALL obtain reachability from the extracted
+plan's derived `reachable`/`cost` query, not from a stored SAT predicate.
 
 #### Scenario: Plan dump shows only chosen producers
 - **WHEN** the plan dump is written for a method with competing constructors
