@@ -23,7 +23,7 @@ Errors emitted via `Diagnostics` SHALL be reported with the offending `Element`,
 
 ### Requirement: Diagnostics SHALL track which elements have prior errors
 
-`Diagnostics` SHALL provide a `hasErrorsFor(Element)` predicate that returns `true` for any `Element` that has had an error emitted against it (or against an element it transitively contains) within the current round.
+`Diagnostics` SHALL provide a `hasErrorsFor(Element)` predicate that returns `true` for any `Element` that has had an error emitted against it (or that is the **direct enclosing element** of a scarred element — one level, via `Element.getEnclosingElement()`) within the current round.
 
 #### Scenario: Querying after an error returns true
 

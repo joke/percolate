@@ -25,7 +25,9 @@ The class SHALL expose at least these methods:
 - `boolean isSet(TypeMirror t, ResolveCtx ctx)` — true iff `t` is a
   declared type whose erasure is `java.util.Set`.
 - `boolean isCollection(TypeMirror t, ResolveCtx ctx)` — true iff
-  `t` is a declared type whose erasure is `java.util.Collection`.
+  `t` is a declared type assignable to `java.util.Collection`, i.e.
+  a `Collection` or a subtype thereof (the structural test
+  `Containers.streamElement` relies on, line 154).
 - `boolean isIterable(TypeMirror t, ResolveCtx ctx)` — true iff `t`
   is a declared type whose erasure is `java.lang.Iterable`, or a
   subtype thereof.

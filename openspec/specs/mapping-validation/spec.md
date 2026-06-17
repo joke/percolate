@@ -2,7 +2,7 @@
 
 ## Purpose
 
-The mapping-validation stages run after discovery and reject mapper inputs that violate locally-checkable invariants before the graph pipeline starts. `ValidateNoDuplicateTargetsStage` rejects two `@Map` directives that bind the same `target` on a single method; `ValidateSourceParametersStage` rejects directives whose `source` first segment does not name a method parameter. Both emit through `Diagnostics` (never `Messager` directly) and continue processing other methods and mappers so a single bad directive does not silence the rest of the round.
+The mapping-validation stages run after discovery and reject mapper inputs that violate locally-checkable invariants before the graph pipeline starts. `ValidateNoDuplicateTargetsStage` rejects two `@Map` directives that bind the same `target` on a single method; `ValidateMappingShapeStage` enforces the directive shape (exactly one of `source`/`constant`, and `defaultValue` only on a source-bearing directive), dropping malformed directives; `ValidateSourceParametersStage` rejects directives whose `source` first segment does not name a method parameter. All emit through `Diagnostics` (never `Messager` directly) and continue processing other methods and mappers so a single bad directive does not silence the rest of the round.
 
 ## Requirements
 

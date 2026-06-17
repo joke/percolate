@@ -96,7 +96,7 @@ The `percolate-strategies-builtin` module SHALL ship `io.github.joke.percolate.s
 1. Produce no spec when the parent type's `getKind() != TypeKind.DECLARED` or its element is not a `TypeElement`.
 2. Probe for a `VariableElement` on the parent type whose `simpleName` equals the segment, whose `ElementKind` is `FIELD`, and whose modifiers contain neither `PRIVATE` nor `STATIC`.
 3. If not matched, produce no spec.
-4. On match, emit a single one-port `OperationSpec` (`OperationSpec.of(...)`): label `<segment>`, one `Port` named `"value"` typed to the parent type (non-null), weight `Weights.STEP_FIELD`, output type the field's type (`field.asType()`) with nullness from the demand oracle, and codegen rendering `<parent>.<segment>` (a field read with no parentheses).
+4. On match, emit a single one-port `OperationSpec` (`OperationSpec.of(...)`): label `.<segment>` (a leading-dot field-read label, e.g. `.value`), one `Port` named `"value"` typed to the parent type (non-null), weight `Weights.STEP_FIELD`, output type the field's type (`field.asType()`) with nullness from the demand oracle, and codegen rendering `<parent>.<segment>` (a field read with no parentheses).
 
 #### Scenario: FieldPathResolver matches a public field
 - **WHEN** `FieldPathResolver` resolves the segment `value` against a `Box` candidate that has `public String value`

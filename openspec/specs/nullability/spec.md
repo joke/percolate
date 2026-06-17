@@ -116,7 +116,7 @@ The resolver SHALL handle type-use annotations on TypeMirrors uniformly. This in
 
 ### Requirement: NullabilityAnnotations configuration
 
-The processor SHALL define a Lombok `@Value` configuration class `io.github.joke.percolate.processor.nullability.NullabilityAnnotations` holding three FQN sets:
+The processor SHALL define an immutable configuration class `io.github.joke.percolate.processor.nullability.NullabilityAnnotations` (Lombok `@Getter`, a `final` class with `final` fields and an explicit constructor that defensively copies its inputs) holding three FQN sets:
 
 - `Set<String> nullableFqns` — annotation FQNs treated as `@Nullable`.
 - `Set<String> markedFqns` — annotation FQNs treated as `@NullMarked`.

@@ -31,7 +31,7 @@ The processor framework defines the entry point and wiring contract for the anno
 - **THEN** the returned `Set<String>` contains the value `"percolate.debug.graphs"`
 
 ### Requirement: ProcessorComponent
-`ProcessorComponent` SHALL be a Dagger `@Component` with `modules = ProcessorModule.class`. It SHALL expose `MapperStep mapperStep()`. The factory SHALL accept a `ProcessingEnvironment` (via `@Component.Factory` or `@BindsInstance`).
+`ProcessorComponent` SHALL be a Dagger `@Component` with `modules = ProcessorModule.class`. It SHALL expose `MapperStep mapperStep()`. Its `@Component.Factory` SHALL accept a `ProcessorModule` instance (itself constructed with the `ProcessingEnvironment`), which is how the `ProcessingEnvironment` enters the graph.
 
 #### Scenario: Component exposes MapperStep
 - **WHEN** the source of `ProcessorComponent` is inspected
@@ -48,7 +48,9 @@ The processor framework defines the entry point and wiring contract for the anno
 
 `ProcessorModule` SHALL additionally expose:
 - a `@Named("discover")` `@Provides` method returning the discover-stage group, and a `@Provides` method returning the full ordered `List<Stage>` consumed by `Pipeline` (the discover group followed by the validation, expansion, dump, and generate stages) in declared order;
-- a `@Provides` method returning a `ResolveCtx` derived from the injected `Types` and `Elements` instances.
+- a `@Singleton` `@Provides` method returning the `List<ExpansionStrategy>` (loaded once via `ServiceLoader`, sorted by `priority()` then FQN).
+
+`ResolveCtx` SHALL **not** be Dagger-provided: `ExpandStage` constructs a per-mapper `CompileResolveCtx(elements, types, callableMethods)` at expansion time (binding that mapper's callable-method index), so no `@Provides ResolveCtx` method exists and no `ThreadLocal` backs it.
 
 The `ProcessorModule` class SHALL use `@RequiredArgsConstructor` to replace its manual constructor. The `processingEnvironment` field SHALL be `private final` with no explicit constructor.
 
@@ -56,9 +58,10 @@ The `ProcessorModule` class SHALL use `@RequiredArgsConstructor` to replace its 
 - **WHEN** the Dagger graph requests a `List<Stage>`
 - **THEN** the `@Provides` method on `ProcessorModule` returns a list whose elements are, in order, instances of `DiscoverAbstractMethodsStage`, `DiscoverMappingsStage`, `DiscoverCallableMethodsStage`, `ValidateNoDuplicateTargetsStage`, `ValidateMappingShapeStage`, `ValidateSourceParametersStage`, `ExpandStage`, `DumpFullGraphStage`, `DumpTransformsStage`, `DumpPlanStage`, `ValidateConstantDefaultLegalityStage`, `RealisationDiagnosticsStage`, `GenerateStage` (in that sequence, with the discover stages appearing first as a group)
 
-#### Scenario: ProcessorModule provides a ResolveCtx
-- **WHEN** the Dagger graph requests a `ResolveCtx`
-- **THEN** the `@Provides` method on `ProcessorModule` returns a `ResolveCtx` whose `types()` and `elements()` return the same instances Dagger provides for the corresponding direct injections
+#### Scenario: ResolveCtx is constructed per mapper, not Dagger-provided
+- **WHEN** the source of `ProcessorModule` is inspected
+- **THEN** it declares no `@Provides ResolveCtx` method
+- **AND** `ExpandStage.run(...)` constructs a `CompileResolveCtx(elements, types, ctx.getCallableMethods())` per mapper invocation
 
 #### Scenario: ProcessorModule provides ProcessorOptions
 - **WHEN** the Dagger graph requests a `ProcessorOptions`

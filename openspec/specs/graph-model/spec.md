@@ -102,17 +102,18 @@ interface Location {
 
 ### Requirement: AccessPath and TargetPath value types
 The processor SHALL define `AccessPath` and `TargetPath` Lombok `@Value` classes wrapping `List<String>` of segments. Each SHALL expose:
-- a `segments()` accessor returning an immutable list,
-- an `append(String segment)` factory returning a new path with the additional segment,
+- a `getSegments()` accessor returning the segment list,
+- a static `of(String segment)` factory building a single-segment path (`TargetPath.of` maps a `null`/empty segment to the empty path),
+- a `lastSegment()` accessor returning the final segment, or the empty string when the path is empty,
 - equality and `hashCode` by segment-list content,
-- a deterministic `toString()` encoding (e.g. dot-joined).
+- a deterministic `toString()` encoding (dot-joined segments).
 
-`AccessPath` and `TargetPath` SHALL be distinct types so that source and target paths cannot be assigned to each other by accident.
+`AccessPath` and `TargetPath` SHALL be distinct types so that source and target paths cannot be assigned to each other by accident. Multi-segment paths are built from a segment list via the constructor (e.g. `new AccessPath(List.copyOf(segments))`), not by an in-place append.
 
-#### Scenario: Append produces a new path
-- **WHEN** an `AccessPath` of `["person"]` has `append("address")` invoked
-- **THEN** a new `AccessPath` of `["person", "address"]` is returned
-- **AND** the original `AccessPath` is unchanged
+#### Scenario: A single-segment path is built from its segment
+- **WHEN** `AccessPath.of("person")` is invoked
+- **THEN** a new `AccessPath` whose `getSegments()` is `["person"]` is returned
+- **AND** `lastSegment()` returns `"person"`
 
 #### Scenario: AccessPath and TargetPath are not interchangeable
 - **WHEN** an `AccessPath` value is supplied where a `TargetPath` is required
@@ -128,7 +129,7 @@ The processor SHALL define a `Scope` interface — declaring `String encode()` a
 
 #### Scenario: Method scope encodes the method signature
 - **WHEN** a `MethodScope` is constructed for an `ExecutableElement` representing `Human map(Person person)`
-- **THEN** its text-encoding is a stable string derived from the method name and erased parameter types (e.g., `map(Person)`) and is identical for repeated invocations
+- **THEN** its text-encoding is a stable string derived from the method name and its parameter type strings (each parameter's `TypeMirror.toString()`, comma-joined — e.g., `map(Person)`) and is identical for repeated invocations
 
 #### Scenario: Child scope nests its owning Operation
 - **WHEN** a scope-owning Operation lands and owns a `ChildScope`

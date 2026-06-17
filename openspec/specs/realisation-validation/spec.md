@@ -28,18 +28,25 @@ records.
 
 #### Scenario: Unsatisfiable method is diagnosed
 - **WHEN** expansion ends with a method's return-root unreachable (infinite extraction cost)
-- **THEN** one error diagnostic is emitted naming the method and the unresolved target, and code
-  generation skips the mapper without throwing
+- **THEN** one error diagnostic is emitted naming the unresolved return-root target (its location
+  label) and the closest-miss demand, and code generation skips the mapper without throwing
+
+#### Scenario: An earlier targeted diagnostic suppresses the generic message
+- **WHEN** the mapper already has an error (e.g. a constant coercion failure or dead default)
+- **THEN** `RealisationDiagnosticsStage` emits no "no plan" message (it returns early on
+  `diagnostics.hasErrorsFor(mapperType)`)
 
 ### Requirement: Closest-miss is the deepest unsatisfied port chain
 
 The UNSAT diagnostic SHALL include a closest-miss walk over the bipartite graph: from the
-unsatisfied demand, follow the producer `Operation` that is closest to satisfaction (fewest
-unsatisfied ports), naming each unsatisfied port (name, declared type, nullness) down to the
-deepest Value that has no producer at all. The parameter-root base case is reported as the
-satisfied anchor.
+unsatisfied return-root demand, follow an **unreachable** producer `Operation` (the first in
+deterministic `Operation.id()` order) and descend its **first unreachable port** `Value` at each
+step, down to the deepest demand that has no reachable producer at all. The emitted message SHALL
+name the unresolved root target (its return-root location label), the deepest-miss demand (its
+location label), and that demand's type — with a hint that a `@Map`-annotated method producing that
+type is likely missing.
 
-#### Scenario: Missing source names the starving port
+#### Scenario: Missing source names the starving demand
 - **WHEN** `new Address(int number, String street)` is UNSAT because no binding feeds `street`
-- **THEN** the diagnostic names the constructor, the unsatisfied port `street : String`, and reports
-  the port Value as having no producer
+- **THEN** the diagnostic names the unresolved root target and the deepest-miss demand for `street`
+  (its location label and `String` type), reporting it as having no producer in the graph
