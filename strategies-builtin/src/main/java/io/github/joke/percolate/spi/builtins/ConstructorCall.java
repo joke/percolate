@@ -1,5 +1,6 @@
 package io.github.joke.percolate.spi.builtins;
 
+import static java.util.stream.Collectors.joining;
 import static java.util.stream.Collectors.toUnmodifiableList;
 import static java.util.stream.Collectors.toUnmodifiableSet;
 
@@ -86,11 +87,22 @@ public final class ConstructorCall implements ExpansionStrategy {
                 .collect(toUnmodifiableList());
         final List<String> portNames = ports.stream().map(Port::getName).collect(toUnmodifiableList());
         return OperationSpec.of(
-                buildCodegen(typeElement, portNames), Weights.STEP, ports, targetType, Nullability.NON_NULL);
+                constructorLabel(typeElement, ports),
+                buildCodegen(typeElement, portNames),
+                Weights.STEP,
+                ports,
+                targetType,
+                Nullability.NON_NULL);
+    }
+
+    private static String constructorLabel(final TypeElement typeElement, final List<Port> ports) {
+        final var params =
+                ports.stream().map(port -> Labels.simple(port.getType())).collect(joining(", "));
+        return "new " + typeElement.getSimpleName() + "(" + params + ")";
     }
 
     private OperationCodegen buildCodegen(final TypeElement typeElement, final List<String> portNames) {
-        return (vars, inputs) -> {
+        return inputs -> {
             final var builder = CodeBlock.builder().add("new $T(", ClassName.get(typeElement));
             for (var i = 0; i < portNames.size(); i++) {
                 if (i > 0) {

@@ -64,8 +64,7 @@ public final class PrimitiveWrapperConversion implements ExpansionStrategy {
     }
 
     private static Stream<OperationSpec> box(final TypeMirror wrapperTarget, final TypeMirror primitive) {
-        final OperationCodegen codegen =
-                (vars, inputs) -> CodeBlock.of("$T.valueOf($L)", wrapperTarget, inputs.single());
+        final OperationCodegen codegen = inputs -> CodeBlock.of("$T.valueOf($L)", wrapperTarget, inputs.single());
         return Stream.of(conversionSpec(primitive, wrapperTarget, codegen));
     }
 
@@ -73,14 +72,20 @@ public final class PrimitiveWrapperConversion implements ExpansionStrategy {
         final TypeMirror wrapper =
                 ctx.types().boxedClass((PrimitiveType) primitiveTarget).asType();
         final var accessor = Objects.requireNonNull(UNBOX_ACCESSOR.get(primitiveTarget.getKind()));
-        final OperationCodegen codegen = (vars, inputs) -> CodeBlock.of("$L.$N()", inputs.single(), accessor);
+        final OperationCodegen codegen = inputs -> CodeBlock.of("$L.$N()", inputs.single(), accessor);
         return Stream.of(conversionSpec(wrapper, primitiveTarget, codegen));
     }
 
     private static OperationSpec conversionSpec(
             final TypeMirror inputType, final TypeMirror output, final OperationCodegen codegen) {
         final var port = new Port("value", inputType, Nullability.NON_NULL);
-        return OperationSpec.of(codegen, Weights.STEP, List.of(port), output, Nullability.NON_NULL);
+        return OperationSpec.of(
+                Labels.conversion(inputType, output),
+                codegen,
+                Weights.STEP,
+                List.of(port),
+                output,
+                Nullability.NON_NULL);
     }
 
     /** The primitive a declared wrapper target unboxes to, or {@code null} when the target is not a wrapper. */

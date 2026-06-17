@@ -101,8 +101,7 @@ public final class BuildMethodBodies {
                 positional.add(operand);
                 byName.put(port.getName(), operand);
             }
-            return ((OperationCodegen) operation.getCodegen())
-                    .render(new VarNamesImpl(), new IncomingValuesImpl(positional, byName));
+            return ((OperationCodegen) operation.getCodegen()).render(new IncomingValuesImpl(positional, byName));
         }
 
         private CodeBlock renderContainerMapping(final Operation operation) {

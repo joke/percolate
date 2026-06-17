@@ -51,8 +51,14 @@ public final class WidenPrimitive implements ExpansionStrategy {
 
     private static OperationSpec wideningSpec(final TypeKind from, final TypeMirror target, final ResolveCtx ctx) {
         final TypeMirror inputType = ctx.types().getPrimitiveType(from);
-        final OperationCodegen codegen = (vars, inputs) -> CodeBlock.of("($T) $L", target, inputs.single());
+        final OperationCodegen codegen = inputs -> CodeBlock.of("($T) $L", target, inputs.single());
         final var port = new Port("value", inputType, Nullability.NON_NULL);
-        return OperationSpec.of(codegen, Weights.STEP, List.of(port), target, Nullability.NON_NULL);
+        return OperationSpec.of(
+                Labels.conversion(inputType, target),
+                codegen,
+                Weights.STEP,
+                List.of(port),
+                target,
+                Nullability.NON_NULL);
     }
 }

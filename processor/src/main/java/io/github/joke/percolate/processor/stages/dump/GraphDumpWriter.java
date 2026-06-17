@@ -9,6 +9,7 @@ import io.github.joke.percolate.processor.MapperContext;
 import io.github.joke.percolate.processor.ProcessorOptions;
 import io.github.joke.percolate.processor.graph.Dep;
 import io.github.joke.percolate.processor.graph.DotRenderer;
+import io.github.joke.percolate.processor.graph.ExtractedPlan;
 import io.github.joke.percolate.processor.graph.GraphVertex;
 import io.github.joke.percolate.processor.graph.MapperGraph;
 import io.github.joke.percolate.processor.graph.MethodScope;
@@ -44,25 +45,45 @@ public final class GraphDumpWriter {
     private final DotRenderer dotRenderer;
 
     public void dump(final MapperContext ctx, final String view, final Predicate<GraphVertex> include) {
+        dump(ctx, view, include, false);
+    }
+
+    /**
+     * As {@link #dump(MapperContext, String, Predicate)}, but when {@code dimUnreachable} is set the rendered
+     * vertices that are unreachable (infinite extraction cost) are greyed/dashed rather than dropped — the full
+     * dump's view of the surviving plan against the pruned over-emission.
+     */
+    public void dump(
+            final MapperContext ctx,
+            final String view,
+            final Predicate<GraphVertex> include,
+            final boolean dimUnreachable) {
         final var graph = ctx.getGraph();
         if (graph == null || !processorOptions.isDebugGraphs() || graph.vertexCount() == 0) {
             return;
         }
+        final Predicate<GraphVertex> dimmed = dimUnreachable ? dimmedByCost(graph) : vertex -> false;
         final var mapperType = ctx.getMapperType();
         final var fqn = mapperType.getQualifiedName().toString();
         final var infixes = infixes(orderedScopes(graph, include));
-        infixes.forEach((scope, infix) -> writeScope(graph, include, scope, infix, fqn, view, mapperType));
+        infixes.forEach((scope, infix) -> writeScope(graph, include, dimmed, scope, infix, fqn, view, mapperType));
+    }
+
+    private static Predicate<GraphVertex> dimmedByCost(final MapperGraph graph) {
+        final var plan = ExtractedPlan.extract(graph);
+        return vertex -> !plan.reachable(vertex);
     }
 
     private void writeScope(
             final MapperGraph graph,
             final Predicate<GraphVertex> include,
+            final Predicate<GraphVertex> dimmed,
             final Scope scope,
             final String infix,
             final String fqn,
             final String view,
             final TypeElement mapperType) {
-        final var dot = dotRenderer.render(slice(graph, scope, include), scope.encode());
+        final var dot = dotRenderer.render(slice(graph, scope, include), scope.encode(), dimmed);
         final var fileName = fqn + "." + infix + "." + view + ".dot";
         try {
             final var resource = filer.createResource(StandardLocation.SOURCE_OUTPUT, "", fileName, mapperType);

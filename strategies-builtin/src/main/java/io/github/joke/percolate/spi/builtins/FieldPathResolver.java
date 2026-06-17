@@ -68,10 +68,10 @@ public final class FieldPathResolver implements ExpansionStrategy {
 
     private OperationSpec buildSpec(
             final VariableElement field, final String segment, final TypeMirror parentType, final Demand demand) {
-        final OperationCodegen codegen = (vars, inputs) -> CodeBlock.of("$L.$N", inputs.single(), segment);
+        final OperationCodegen codegen = inputs -> CodeBlock.of("$L.$N", inputs.single(), segment);
         final var port = new Port("value", parentType, Nullability.NON_NULL);
         final var fieldType = field.asType();
         final var outputNullness = demand.nullnessOf(fieldType, field);
-        return OperationSpec.of(codegen, Weights.STEP_FIELD, List.of(port), fieldType, outputNullness);
+        return OperationSpec.of("." + segment, codegen, Weights.STEP_FIELD, List.of(port), fieldType, outputNullness);
     }
 }

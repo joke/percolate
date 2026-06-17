@@ -100,11 +100,12 @@ public final class GetterPathResolver implements ExpansionStrategy {
 
     private OperationSpec buildSpec(final ExecutableElement method, final TypeMirror parentType, final Demand demand) {
         final var methodName = method.getSimpleName().toString();
-        final OperationCodegen codegen = (vars, inputs) -> CodeBlock.of("$L.$N()", inputs.single(), methodName);
+        final OperationCodegen codegen = inputs -> CodeBlock.of("$L.$N()", inputs.single(), methodName);
         final var port = new Port("value", parentType, Nullability.NON_NULL);
         final var returnType = method.getReturnType();
         final var outputNullness = demand.nullnessOf(returnType, method);
-        return OperationSpec.of(codegen, Weights.STEP_GETTER, List.of(port), returnType, outputNullness);
+        return OperationSpec.of(
+                methodName + "()", codegen, Weights.STEP_GETTER, List.of(port), returnType, outputNullness);
     }
 
     private static String capitalize(final String segment) {

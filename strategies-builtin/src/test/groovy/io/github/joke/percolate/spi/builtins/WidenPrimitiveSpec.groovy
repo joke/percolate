@@ -32,6 +32,14 @@ class WidenPrimitiveSpec extends Specification {
                 ([TypeKind.BYTE, TypeKind.SHORT, TypeKind.CHAR, TypeKind.INT] as Set)
     }
 
+    def 'each widening carries a typed label using the glyph arrow'() {
+        when:
+        def specs = new WidenPrimitive().expand(Demands.forTarget(TypeUniverse.LONG), ctx).toList()
+
+        then:
+        (specs*.label as Set) == ['byte→long', 'short→long', 'char→long', 'int→long'] as Set
+    }
+
     def 'includes the precision-losing long-to-double IEEE leg'() {
         when:
         def specs = new WidenPrimitive().expand(Demands.forTarget(doubleType), ctx).toList()

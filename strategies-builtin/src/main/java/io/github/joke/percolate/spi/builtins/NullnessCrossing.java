@@ -91,9 +91,10 @@ public final class NullnessCrossing implements ExpansionStrategy {
     private static OperationSpec requireNonNull(final TypeMirror from, final TypeMirror target, final String slotName) {
         final var message = "source for slot '" + slotName + "' is null but target is non-null";
         final OperationCodegen codegen =
-                (vars, inputs) -> CodeBlock.of("$T.requireNonNull($L, $S)", Objects.class, inputs.single(), message);
+                inputs -> CodeBlock.of("$T.requireNonNull($L, $S)", Objects.class, inputs.single(), message);
         final var port = new Port("value", from, Nullability.NULLABLE);
-        return OperationSpec.ofPartial(codegen, Weights.NOOP, List.of(port), target, Nullability.NON_NULL);
+        return OperationSpec.ofPartial(
+                "requireNonNull", codegen, Weights.NOOP, List.of(port), target, Nullability.NON_NULL);
     }
 
     private static Optional<OperationSpec> coalesce(
@@ -104,15 +105,14 @@ public final class NullnessCrossing implements ExpansionStrategy {
                     from,
                     Nullability.NON_NULL,
                     target,
-                    (vars, inputs) -> CodeBlock.of("$L.orElse($L)", inputs.single(), literal)));
+                    inputs -> CodeBlock.of("$L.orElse($L)", inputs.single(), literal)));
         }
         if (from.getKind() == TypeKind.DECLARED && ctx.types().isSameType(from, target)) {
             return Optional.of(coalesceSpec(
                     from,
                     Nullability.NULLABLE,
                     target,
-                    (vars, inputs) ->
-                            CodeBlock.of("$T.requireNonNullElse($L, $L)", Objects.class, inputs.single(), literal)));
+                    inputs -> CodeBlock.of("$T.requireNonNullElse($L, $L)", Objects.class, inputs.single(), literal)));
         }
         return Optional.empty();
     }
@@ -123,7 +123,7 @@ public final class NullnessCrossing implements ExpansionStrategy {
             final TypeMirror target,
             final OperationCodegen codegen) {
         final var port = new Port("value", from, fromNullness);
-        return OperationSpec.of(codegen, Weights.NOOP, List.of(port), target, Nullability.NON_NULL);
+        return OperationSpec.of("coalesce", codegen, Weights.NOOP, List.of(port), target, Nullability.NON_NULL);
     }
 
     private static Optional<TypeMirror> optionalElement(final TypeMirror from, final ResolveCtx ctx) {

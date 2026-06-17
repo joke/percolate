@@ -64,10 +64,11 @@ public final class MethodPathResolver implements ExpansionStrategy {
 
     private OperationSpec buildSpec(
             final ExecutableElement method, final String segment, final TypeMirror parentType, final Demand demand) {
-        final OperationCodegen codegen = (vars, inputs) -> CodeBlock.of("$L.$N()", inputs.single(), segment);
+        final OperationCodegen codegen = inputs -> CodeBlock.of("$L.$N()", inputs.single(), segment);
         final var port = new Port("value", parentType, Nullability.NON_NULL);
         final var returnType = method.getReturnType();
         final var outputNullness = demand.nullnessOf(returnType, method);
-        return OperationSpec.of(codegen, Weights.STEP_METHOD, List.of(port), returnType, outputNullness);
+        return OperationSpec.of(
+                segment + "()", codegen, Weights.STEP_METHOD, List.of(port), returnType, outputNullness);
     }
 }

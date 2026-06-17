@@ -70,7 +70,8 @@ public final class StreamMap implements CombinatorialMatch {
         final var flatMapChild =
                 new ChildScopeSpec(elementIn, Nullability.NON_NULL, elementStream, Nullability.NON_NULL);
         return Stream.of(
-                OperationSpec.mapping(MAP, Weights.CONTAINER, ports, to, Nullability.NON_NULL, mapChild),
-                OperationSpec.mapping(FLAT_MAP, Weights.CONTAINER, ports, to, Nullability.NON_NULL, flatMapChild));
+                OperationSpec.mapping("map", MAP, Weights.CONTAINER, ports, to, Nullability.NON_NULL, mapChild),
+                OperationSpec.mapping(
+                        "flatMap", FLAT_MAP, Weights.CONTAINER, ports, to, Nullability.NON_NULL, flatMapChild));
     }
 }

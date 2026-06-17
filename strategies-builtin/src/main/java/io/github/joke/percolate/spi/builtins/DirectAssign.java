@@ -31,8 +31,8 @@ public final class DirectAssign implements CombinatorialMatch {
         if (!ctx.types().isSameType(from, to)) {
             return Stream.empty();
         }
-        final OperationCodegen codegen = (vars, inputs) -> CodeBlock.of("$L", inputs.single());
+        final OperationCodegen codegen = inputs -> CodeBlock.of("$L", inputs.single());
         final var port = new Port("value", from, demand.targetNullness());
-        return Stream.of(OperationSpec.of(codegen, Weights.NOOP, List.of(port), to, demand.targetNullness()));
+        return Stream.of(OperationSpec.of("assign", codegen, Weights.NOOP, List.of(port), to, demand.targetNullness()));
     }
 }

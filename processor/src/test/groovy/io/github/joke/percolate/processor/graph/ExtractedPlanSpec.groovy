@@ -177,7 +177,7 @@ class ExtractedPlanSpec extends Specification {
     def 'a scope-owning operation is unreachable when its child return-root has no producer'() {
         given: 'a scope-owning producer of root whose outer port is reachable but whose child return-root is never produced'
         final var param = source('p', TypeUniverse.STRING)
-        graph.apply(new AddOperation('map', 'test', Stub(Codegen), 0, false,
+        graph.apply(new AddOperation('map', Stub(Codegen), 0, false,
                 [new PortBinding(new Port('p0', param.type.get(), param.nullness.get()), av(param))],
                 av(root),
                 Optional.of(new ChildScopeDecl(TypeUniverse.STRING, Nullability.NON_NULL, TypeUniverse.STRING, Nullability.NON_NULL))))
@@ -218,7 +218,7 @@ class ExtractedPlanSpec extends Specification {
         final var ports = (0..<portSources.size()).collect { i ->
             new PortBinding(new Port('p' + i, portSources[i].type.get(), portSources[i].nullness.get()), av(portSources[i]))
         }
-        graph.apply(new AddOperation('op', 'test', Stub(Codegen), weight, partial, ports, av(out), Optional.empty()))
+        graph.apply(new AddOperation('op', Stub(Codegen), weight, partial, ports, av(out), Optional.empty()))
     }
 
     /** Mints an intermediate target Value of {@code type} produced with {@code weight} from {@code portSources}. */

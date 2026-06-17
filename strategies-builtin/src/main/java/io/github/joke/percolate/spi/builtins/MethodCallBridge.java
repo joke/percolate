@@ -65,14 +65,19 @@ public final class MethodCallBridge implements ExpansionStrategy {
         final var port =
                 new Port(param.getSimpleName().toString(), param.asType(), demand.nullnessOf(param.asType(), param));
         return OperationSpec.of(
-                renderCodegen(candidate), weight, List.of(port), returnType, demand.nullnessOf(returnType, method));
+                method.getSimpleName() + "(…)",
+                renderCodegen(candidate),
+                weight,
+                List.of(port),
+                returnType,
+                demand.nullnessOf(returnType, method));
     }
 
     private OperationCodegen renderCodegen(final MethodCandidate candidate) {
         final var receiver = candidate.getReceiver().asExpression();
         final var method = candidate.getMethod();
         final var methodName = method.getSimpleName().toString();
-        return (vars, inputs) -> CodeBlock.of("$L.$N($L)", receiver, methodName, inputs.single());
+        return inputs -> CodeBlock.of("$L.$N($L)", receiver, methodName, inputs.single());
     }
 
     private int subtypeDistance(final TypeMirror from, final TypeMirror to, final ResolveCtx ctx) {

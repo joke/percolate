@@ -94,12 +94,14 @@ public abstract class Container implements ContainerMatch {
         final var elementOut = element(to);
         collect().ifPresent(close -> Containers.streamOf(elementOut, ctx)
                 .ifPresent(streamType -> specs.add(OperationSpec.of(
+                        "collect",
                         unary(close),
                         Weights.CONTAINER,
                         List.of(new Port(STREAM_ROLE, streamType, Nullability.NON_NULL)),
                         to,
                         Nullability.NON_NULL))));
         wrap().ifPresent(lift -> specs.add(OperationSpec.of(
+                "wrap",
                 unary(lift),
                 Weights.CONTAINER,
                 List.of(new Port(ELEMENT_ROLE, elementOut, Nullability.NON_NULL)),
@@ -110,6 +112,7 @@ public abstract class Container implements ContainerMatch {
                 final var child =
                         new ChildScopeSpec(element(from), Nullability.NON_NULL, elementOut, Nullability.NON_NULL);
                 specs.add(OperationSpec.mapping(
+                        "map",
                         map,
                         Weights.CONTAINER,
                         List.of(new Port(SOURCE_ROLE, from, Nullability.NON_NULL)),
@@ -130,13 +133,15 @@ public abstract class Container implements ContainerMatch {
         final var sourcePort = List.of(new Port(SOURCE_ROLE, from, Nullability.NON_NULL));
         iterate().ifPresent(open -> {
             if (Containers.isStream(to, ctx) && ctx.types().isSameType(Containers.typeArgument(to, 0), elementIn)) {
-                specs.add(OperationSpec.of(unary(open), Weights.CONTAINER, sourcePort, to, Nullability.NON_NULL));
+                specs.add(OperationSpec.of(
+                        "iterate", unary(open), Weights.CONTAINER, sourcePort, to, Nullability.NON_NULL));
             }
         });
         unwrap().ifPresent(collapse -> {
             if (ctx.types().isSameType(to, elementIn)) {
                 specs.add(OperationSpec.ofPartial(
-                        (OperationCodegen) (vars, inputs) -> collapse.render(inputs.single(), demand.targetNullness()),
+                        "unwrap",
+                        (OperationCodegen) inputs -> collapse.render(inputs.single(), demand.targetNullness()),
                         Weights.CONTAINER,
                         sourcePort,
                         to,
@@ -146,6 +151,6 @@ public abstract class Container implements ContainerMatch {
     }
 
     private static OperationCodegen unary(final UnarySnippet snippet) {
-        return (vars, inputs) -> snippet.render(inputs.single());
+        return inputs -> snippet.render(inputs.single());
     }
 }

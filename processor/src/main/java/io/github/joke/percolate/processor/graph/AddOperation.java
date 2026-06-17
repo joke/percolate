@@ -15,7 +15,6 @@ import lombok.Value;
 @Value
 public class AddOperation implements GraphDelta {
     String label;
-    String strategyFqn;
     Codegen codegen;
     int weight;
     boolean partial;

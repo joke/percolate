@@ -70,7 +70,6 @@ public final class MapperGraph {
         final var operation = new Operation(
                 seq,
                 delta.getLabel(),
-                delta.getStrategyFqn(),
                 delta.getCodegen(),
                 delta.getWeight(),
                 delta.isPartial(),

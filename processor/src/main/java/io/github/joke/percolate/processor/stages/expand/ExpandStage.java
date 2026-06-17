@@ -192,8 +192,7 @@ public final class ExpandStage implements Stage {
                     parentTyping.getType(),
                     parentTyping.getNullness());
             final var operation = apply(new AddOperation(
-                    "accessor",
-                    spec.getCodegen().getClass().getName(),
+                    spec.getLabel(),
                     spec.getCodegen(),
                     spec.getWeight(),
                     spec.isPartial(),
@@ -215,8 +214,7 @@ public final class ExpandStage implements Stage {
                     .map(port -> new PortBinding(port, sourceForPort(output, parentPath, port, children, pinnedSource)))
                     .collect(toUnmodifiableList());
             final var operation = apply(new AddOperation(
-                    spec.getCodegen().getClass().getSimpleName(),
-                    spec.getCodegen().getClass().getName(),
+                    spec.getLabel(),
                     spec.getCodegen(),
                     spec.getWeight(),
                     spec.isPartial(),
@@ -326,7 +324,7 @@ public final class ExpandStage implements Stage {
             final var ports = spec.getPorts().stream()
                     .map(port -> port.getName() + ':' + port.getType() + ':' + port.getNullness())
                     .collect(Collectors.joining(","));
-            return spec.getCodegen().getClass().getName() + '|' + spec.getOutputType() + '|' + ports;
+            return spec.getLabel() + '|' + spec.getOutputType() + '|' + ports;
         }
 
         private TypeMirror type(final Value value) {
