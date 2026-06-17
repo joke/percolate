@@ -47,4 +47,4 @@
 - [x] 8.2 Regenerate the integration project's `.dot` files and eyeball `mapAddress.full.dot` / `mapHuman.full.dot`: typed operation labels, `?`/`!` value types, dimmed pruned candidates
 - [x] 8.3 Run `openspec validate readable-graph-dumps --strict` and confirm it still validates
 - [x] 8.4 Run `./gradlew check` (do not pipe to tail) and confirm zero violations — NEVER continue if there are violations
-- [ ] 8.5 Commit the completed work with `/commit-commands:commit`
+- [x] 8.5 Commit the completed work with `/commit-commands:commit`
