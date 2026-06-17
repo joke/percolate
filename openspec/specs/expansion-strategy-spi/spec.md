@@ -63,7 +63,7 @@ This is the sole strategy-author interface for expansion. Implementations SHALL 
 
 The `percolate-spi` module SHALL define a `io.github.joke.percolate.spi.Directive` type that exposes the relevant `@Map` configuration to strategies (source path / segment access, and the author-declared `constant` and `defaultValue` attributes) WITHOUT exposing raw compiler internals as the primary surface. A strategy SHALL read its per-binding configuration from `Directive`; it SHALL NOT need to inspect an `AnnotationMirror` directly for the common cases.
 
-`Directive` SHALL expose the directive's `constant` and `defaultValue` values to strategies. Each SHALL be reported **present** only when it is not equal to `Map.UNSET`; an empty string SHALL be reported as a present value, never as absent. `ConstantValue` reads `constant` and `DefaultValue` reads `defaultValue` through this surface.
+`Directive` SHALL expose the directive's `constant` and `defaultValue` values to strategies. Each SHALL be reported **present** only when it is not equal to `Map.UNSET`; an empty string SHALL be reported as a present value, never as absent. `ConstantValue` reads `constant` and `NullnessCrossing` reads `defaultValue` (the `[coalesce]` crossing) through this surface.
 
 #### Scenario: Directive hides compiler internals
 - **WHEN** the `Directive` type is inspected

@@ -57,9 +57,10 @@ presence wrapper. There SHALL be no `SequenceContainer`/`WrapperContainer` type 
 
 The built-in List, Set, array, and Optional containers SHALL be implemented as `ListContainer`,
 `SetContainer`, `ArrayContainer`, and `OptionalContainer` on the **single** `Container` base a
-developer uses, with no privileged internal path: sequences supply `iterate`/`collect` (and a
-singleton `wrap`); `OptionalContainer` supplies `iterate`/`wrap`/`unwrap`/`mapPresence` and no
-`collect`.
+developer uses, with no privileged internal path: sequences supply `iterate`/`collect` (the JDK
+collection sequences `ListContainer`/`SetContainer` additionally supply a singleton `wrap` via
+`List.of`/`Set.of`, while `ArrayContainer` supplies none — arrays have no synchronous singleton wrap);
+`OptionalContainer` supplies `iterate`/`wrap`/`unwrap`/`mapPresence` and no `collect`.
 
 #### Scenario: List and Optional are expressed on the same base
 - **WHEN** `ListContainer` and `OptionalContainer` are inspected

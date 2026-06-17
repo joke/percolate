@@ -20,14 +20,24 @@ The class SHALL expose at least these methods:
 
 - `boolean isOptional(TypeMirror t, ResolveCtx ctx)` — true iff `t`
   is a declared type whose erasure is `java.util.Optional`.
+- `boolean isStream(TypeMirror t, ResolveCtx ctx)` — true iff `t` is
+  a declared type whose erasure is `java.util.stream.Stream`.
+- `Optional<TypeMirror> streamElement(TypeMirror t, ResolveCtx ctx)`
+  — the element a `.stream()` over `t` yields (array → component;
+  `Stream<E>` / `Optional<E>` / `Collection<E>` → `E`), else empty —
+  the structural bridge that lets the generic stream strategy name
+  its port from a non-stream candidate without knowing any kind.
+- `Optional<TypeMirror> streamOf(TypeMirror element, ResolveCtx ctx)`
+  — `Stream<element>` for a reference `element`, else empty.
 - `boolean isList(TypeMirror t, ResolveCtx ctx)` — true iff `t` is a
   declared type whose erasure is `java.util.List`.
 - `boolean isSet(TypeMirror t, ResolveCtx ctx)` — true iff `t` is a
   declared type whose erasure is `java.util.Set`.
 - `boolean isCollection(TypeMirror t, ResolveCtx ctx)` — true iff
   `t` is a declared type assignable to `java.util.Collection`, i.e.
-  a `Collection` or a subtype thereof (the structural test
-  `Containers.streamElement` relies on, line 154).
+  a `Collection` or a subtype thereof (the assignability test
+  `Containers.streamElement` relies on to name a stream port from a
+  non-stream candidate).
 - `boolean isIterable(TypeMirror t, ResolveCtx ctx)` — true iff `t`
   is a declared type whose erasure is `java.lang.Iterable`, or a
   subtype thereof.
@@ -53,7 +63,7 @@ the caller violates the precondition (e.g., calling
 - **WHEN** `Containers.isOptional(<String>, ctx)` is invoked
 - **THEN** returns `false`
 
-#### Scenario: isList matches List subtypes
+#### Scenario: isList matches only the List erasure
 - **WHEN** `Containers.isList(<List<String>>, ctx)` is invoked
 - **THEN** returns `true`
 - **WHEN** `Containers.isList(<ArrayList<String>>, ctx)` is invoked

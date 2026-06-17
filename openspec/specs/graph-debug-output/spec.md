@@ -8,7 +8,7 @@ This spec defines the debug-graph dump stages and the deterministic DOT renderer
 
 ### Requirement: Deterministic DOT renderer
 
-The processor SHALL define a `DotRenderer` in `io.github.joke.percolate.processor.graph` that produces a `String` DOT representation of a **single scope's** slice of the bipartite `MapperGraph` by delegating to JGraphT `org.jgrapht.nio.dot.DOTExporter`. The renderer SHALL NOT hand-assemble DOT text, escape characters by hand, or emit `subgraph cluster_*` blocks; statement structure, identifier quoting, and special-character escaping SHALL be owned by `DOTExporter`.
+The processor SHALL define a `DotRenderer` in `io.github.joke.percolate.processor.graph` that produces a `String` DOT representation of a **single scope's** slice of the bipartite `MapperGraph` by delegating to JGraphT `org.jgrapht.nio.dot.DOTExporter`. The renderer SHALL NOT hand-assemble DOT statement text or emit `subgraph cluster_*` blocks; the overall statement structure and label/attribute-value escaping SHALL be owned by `DOTExporter`. The renderer MAY pre-quote the vertex-id and graph-caption strings it hands to the exporter's id/attribute providers (escaping `"` and `\`), since those identifiers derive from `GraphVertex.id()` and `Scope.encode()`.
 
 The renderer SHALL be handed an `org.jgrapht.Graph<GraphVertex, Dep>` restricted to one `Scope` — the per-scope slice built by `GraphDumpWriter`, filtered to the vertices of that scope and the `Dep` edges among them.
 
@@ -56,6 +56,19 @@ by expansion, so there is no pre-expansion snapshot to dump.
 
 A single mapper with multiple scopes SHALL therefore produce one file per scope per view; the scopes
 do not share a file.
+
+A **child (element) scope** owned by a scope-owning container Operation has no method of its own; its
+file SHALL be named under its enclosing method with an `-elem` infix
+(`<MapperFQN>.<enclosingMethod>-elem.<view>.dot`), rather than encoding the owning Operation's id into
+the file name (which would compound for deep container nesting). Multiple element scopes under one
+method SHALL be disambiguated by the same `-<n>` indexing as overloads.
+
+#### Scenario: Child scope file uses the -elem infix under its enclosing method
+
+- **WHEN** the `full` view is written for a mapper whose method `mapPeople` owns a container element
+  scope
+- **THEN** the element scope's file is named `<MapperFQN>.mapPeople-elem.full.dot` (or `mapPeople-elem-<n>`
+  when several element scopes share the method)
 
 #### Scenario: File name encodes mapper, method, and view
 

@@ -62,12 +62,12 @@ On a single abstract method, the first segment of every source-bearing `@Map` di
 #### Scenario: Single-segment source not matching any parameter produces an error
 
 - **WHEN** a method `Human map(Person person)` has `@Map(target = "firstName", source = "first")`
-- **THEN** `ValidateSourceParametersStage` emits one error via `Diagnostics.error(...)` with message `"unknown source parameter 'first' in @Map on mapHuman(Person)"`
+- **THEN** `ValidateSourceParametersStage` emits one error via `Diagnostics.error(...)` with message `"unknown source parameter 'first' in @Map on map(Person)"`
 
 #### Scenario: Multi-segment source with non-matching first segment produces an error
 
 - **WHEN** a method `Human map(Person person)` has `@Map(target = "lastName", source = "lastName.value")`
-- **THEN** `ValidateSourceParametersStage` emits one error via `Diagnostics.error(...)` with message `"unknown source parameter 'lastName' in @Map on mapHuman(Person)"`
+- **THEN** `ValidateSourceParametersStage` emits one error via `Diagnostics.error(...)` with message `"unknown source parameter 'lastName' in @Map on map(Person)"`
 
 #### Scenario: Multiple directives with unknown source parameters produce one error each
 

@@ -163,7 +163,9 @@ The only bridged nullness crossing SHALL be `NULLABLE → NON_NULL`, represented
 Operation: `[requireNonNull]` rendering
 `java.util.Objects.requireNonNull(expr, "source for slot '<name>' is null but target is non-null")`
 by default, or `[coalesce <literal>]` when the binding's directive declares a `defaultValue` (see
-`default-values`). Exactly one of the two is emitted per crossing. All other combinations
+`default-values`). When a `defaultValue` is declared on a nullable-scalar crossing the strategy
+**over-emits both**, and plan-extraction totality dominance then selects the total `[coalesce]` over the
+partial `[requireNonNull]`, so exactly one survives into the plan. All other combinations
 (including `UNKNOWN` in either position) SHALL pass through without an Operation, preserving the
 shipped lenient acceptance.
 
