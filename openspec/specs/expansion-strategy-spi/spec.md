@@ -8,9 +8,9 @@ This spec defines the strategy author surface for the expansion engine: immutabl
 
 ### Requirement: SPI package isolation
 
-The percolate-spi Gradle module SHALL ship a package `io.github.joke.percolate.spi` containing exactly the strategy-author surface: one strategy interface (`ExpansionStrategy`) plus its optional mixin interfaces (`CombinatorialMatch`, `ContainerMatch`), the immutable result/context types (`ExpansionStep`, `Slot`, `Frontier`, `Candidate`, `Directive`), the `Intent` and `ElementScope` enums, the `ResolveCtx` interface, the codegen interfaces (`EdgeCodegen`, `GroupCodegen`, `IncomingValues`, `VarNames`), the `Receiver` / `ThisReceiver` / `CallableMethods` / `MethodCandidate` types, and the `Containers` and `Weights` utilities. The module SHALL depend only on JDK types plus `com.palantir.javapoet` (because `CodeBlock` is part of the codegen interface surface). It SHALL NOT depend on `percolate-annotations` or `percolate-processor`.
+The percolate-spi Gradle module SHALL ship a package `io.github.joke.percolate.spi` containing exactly the strategy-author surface: one strategy interface (`ExpansionStrategy`) plus its optional mixin interfaces (`CombinatorialMatch`, `ContainerMatch`) and the `Container` base; the immutable result/context types (`OperationSpec`, `Port`, `Demand`, `Candidate`, `Directive`, `ChildScopeSpec`, `Nullability`); the `ResolveCtx` interface; the codegen interfaces (`Codegen`, `OperationCodegen`, `ScopeCodegen`, `IncomingValues`); the `Receiver` / `ThisReceiver` / `CallableMethods` / `MethodCandidate` types; the `LiteralCoercion` helper; and the `Containers` and `Weights` utilities. The module SHALL depend only on JDK types plus `com.palantir.javapoet` (because `CodeBlock` is part of the codegen interface surface). It SHALL NOT depend on `percolate-annotations` or `percolate-processor`.
 
-The package SHALL NOT contain `Bridge`, `GroupTarget`, `PathSegmentResolver`, `BridgeStep`, `GroupBuild`, `ResolvedSegment`, `ScopeTransition`, `SourceStep`, `Step`, or `ElementSeed` — these are removed or replaced by the unified surface.
+The package SHALL NOT contain `ExpansionStep`, `Slot`, `Frontier`, `EdgeCodegen`, `GroupCodegen`, `VarNames`, `Intent`, `ElementScope`, `Bridge`, `GroupTarget`, `PathSegmentResolver`, `BridgeStep`, `GroupBuild`, `ResolvedSegment`, `ScopeTransition`, `SourceStep`, `Step`, or `ElementSeed` — these are removed or replaced by the unified `OperationSpec` / `Port` / `Demand` / `OperationCodegen` surface.
 
 The package SHALL declare `@NullMarked` via `package-info.java`.
 
@@ -22,12 +22,11 @@ Built-in strategies SHALL ship from a separate Gradle module `percolate-strategi
 
 #### Scenario: retired SPI types do not exist
 - **WHEN** the `io.github.joke.percolate.spi` package source tree is inspected
-- **THEN** no class or enum named `Bridge`, `GroupTarget`, `PathSegmentResolver`, `BridgeStep`, `GroupBuild`, `ResolvedSegment`, or `ScopeTransition` exists
+- **THEN** no class or enum named `ExpansionStep`, `Slot`, `Frontier`, `EdgeCodegen`, `GroupCodegen`, `VarNames`, `Intent`, `ElementScope`, `Bridge`, `GroupTarget`, `PathSegmentResolver`, `BridgeStep`, `GroupBuild`, `ResolvedSegment`, or `ScopeTransition` exists
 
-#### Scenario: Intent and ElementScope enums exist in spi package
+#### Scenario: result and context types are present
 - **WHEN** the `io.github.joke.percolate.spi` package is inspected
-- **THEN** a public enum `Intent` exists with constants `CONVERSION`, `BOUNDARY`
-- **AND** a public enum `ElementScope` exists with constants `ENTERING`, `EXITING`
+- **THEN** the result type `OperationSpec`, the port type `Port`, the demand context `Demand`, and the codegen interfaces `Codegen` / `OperationCodegen` / `ScopeCodegen` are present
 
 #### Scenario: Built-in strategies have no forbidden imports
 - **WHEN** the import statements of the built-in strategies are inspected
@@ -44,15 +43,15 @@ The `percolate-spi` module SHALL define a single Java interface `io.github.joke.
 
 ```java
 public interface ExpansionStrategy {
-    Stream<ExpansionStep> expand(Frontier frontier, ResolveCtx ctx);
+    Stream<OperationSpec> expand(Demand demand, ResolveCtx ctx);
     default int priority() { return 0; }
 }
 ```
 
-This is the sole strategy-author interface for expansion. Implementations SHALL return zero or more `ExpansionStep`s describing how the value at the frontier can be produced. An empty stream signals "this strategy does not apply"; implementations MUST NOT throw on a non-applicable frontier. Implementations SHALL make a purely local decision from the `Frontier` (its target type, its `@Map` directive, and its candidate snapshot) and SHALL NOT receive or traverse the graph.
+This is the sole strategy-author interface for expansion. Implementations SHALL return zero or more `OperationSpec`s describing how the demanded value can be produced. An empty stream signals "this strategy does not apply"; implementations MUST NOT throw on a non-applicable demand. Implementations SHALL make a purely local decision from the `Demand` (its target type and nullness, its `@Map` directive, its declared-children set, and its candidate snapshot) and SHALL NOT receive or traverse the graph.
 
 #### Scenario: ExpansionStrategy with no match returns empty
-- **WHEN** an implementor decides nothing applies to the frontier
+- **WHEN** an implementor decides nothing applies to the demand
 - **THEN** `expand(...)` returns `Stream.empty()`
 - **AND** does not throw
 
@@ -87,13 +86,13 @@ The `percolate-spi` module SHALL define a `io.github.joke.percolate.spi.Directiv
 
 The `percolate-spi` module SHALL provide optional mixin interfaces with `default expand(...)` implementations to absorb common boilerplate without reintroducing kind-ordering at the loader:
 
-- `CombinatorialMatch` — its default `expand` SHALL iterate `frontier.candidates()` and delegate to an author-supplied per-pair method, emitting one `ExpansionStep` per applicable `(candidateType, targetType)` pair.
-- `ContainerMatch` — its default `expand` SHALL emit the iterate/collect/unwrap/wrap `BOUNDARY` steps carrying the appropriate `ElementScope`, from author-supplied `matches` / `element` snippets.
+- `CombinatorialMatch` — its default `expand` SHALL iterate `demand.candidates()` and delegate to an author-supplied `bridge(TypeMirror from, Demand, ResolveCtx)` method, emitting the `OperationSpec`s applicable to each `(candidateType, targetType)` pair.
+- `ContainerMatch` — extends `CombinatorialMatch`; the `Container` abstract base supplies its `bridge`, emitting kind-local `iterate`/`collect`/`wrap`/`unwrap`/`map` (`mapPresence`) `OperationSpec`s over an explicit `Stream<E>` intermediate, from the author-supplied `matches` / `element` predicates and operation snippets.
 
 Both mixins SHALL extend `ExpansionStrategy` so that an implementor remains a single `ExpansionStrategy` to the loader. Segment-directed strategies (path resolvers) SHALL implement `expand(...)` directly rather than via a mixin.
 
 #### Scenario: a combinatorial author writes no candidate loop
-- **WHEN** a strategy implements `CombinatorialMatch` and its per-pair method
+- **WHEN** a strategy implements `CombinatorialMatch` and its `bridge` per-pair method
 - **THEN** it inherits the candidate iteration from the default `expand`
 - **AND** it is discoverable as a single `ExpansionStrategy`
 
@@ -101,17 +100,17 @@ Both mixins SHALL extend `ExpansionStrategy` so that an implementor remains a si
 
 Every built-in strategy (`ConstructorCall`, `DirectAssign`, `MethodCallBridge`, the container strategies, and the `Getter` / `Method` / `Field` path resolvers) SHALL implement `ExpansionStrategy` (directly or via a mixin) and SHALL register via `@AutoService(ExpansionStrategy.class)`. Their generated code (the codegen each emits) is unchanged; only the SPI binding and result type change.
 
-`DirectAssign` SHALL emit a single `CONVERSION` step (a cost-zero identity assignment). Because a `CONVERSION` step folds in place and identical-type reuse may collapse the synthesized node, the driver SHALL treat a same-type identity assignment as a zero-cost realised edge that survives folding rather than being silently dropped as a duplicate.
+`DirectAssign` SHALL implement `CombinatorialMatch` and emit a single same-type identity `OperationSpec` (label `assign`, weight `Weights.NOOP`, one port nullness-transparent to the demand) when a candidate's type equals the demanded type. The zero-cost identity Operation chains over the candidate Value; a round-trip that reuses a downstream Value closes a cycle the cost-extraction fold never chooses.
 
 #### Scenario: built-ins register under the unified service type
 - **WHEN** the source of any built-in strategy in `strategies-builtin/` is inspected
 - **THEN** it carries `@AutoService(ExpansionStrategy.class)`
 - **AND** it implements `ExpansionStrategy` directly or through a mixin
 
-#### Scenario: DirectAssign identity assignment survives folding
-- **WHEN** `DirectAssign` emits its `CONVERSION` step for a frontier whose source value already has the target type in view
-- **THEN** the resulting realised edge is retained as a zero-cost identity assignment
-- **AND** the assignment is not dropped as a duplicate-type no-op
+#### Scenario: DirectAssign emits a zero-cost identity for a same-type candidate
+- **WHEN** `DirectAssign.bridge` sees a candidate whose type equals the demanded type
+- **THEN** it emits one `OperationSpec` of weight `Weights.NOOP` with a single port carrying the demanded nullness
+- **AND** for a non-matching candidate type it emits nothing
 
 ### Requirement: ResolveCtx exposes Types, Elements, callableMethods
 
@@ -122,7 +121,7 @@ exactly these methods:
 public interface ResolveCtx {
     Types types();
     Elements elements();
-    CallableMethods callableMethods();
+    @Nullable CallableMethods callableMethods();
 }
 ```
 
@@ -134,7 +133,7 @@ from `processor.graph` or `processor.stages.*`. A strategy author SHALL be able 
 strategy by importing only `io.github.joke.percolate.spi.*`, `javax.lang.model.*`,
 `com.palantir.javapoet.*`, and JDK types.
 
-`callableMethods()` SHALL return the per-mapper index produced by `DiscoverCallableMethods`. The
+`callableMethods()` SHALL return the per-mapper index produced by `DiscoverCallableMethodsStage`. The
 `ResolveCtx` SHALL be constructed **per mapper**, binding its `callableMethods` at construction time;
 the processor SHALL NOT use a `ThreadLocal` to back any `ResolveCtx` accessor.
 
@@ -148,7 +147,7 @@ the processor SHALL NOT use a `ThreadLocal` to back any `ResolveCtx` accessor.
 
 #### Scenario: ResolveCtx provides the callable-method index
 - **WHEN** `resolveCtx.callableMethods()` is invoked
-- **THEN** it returns the `CallableMethods` instance produced by `DiscoverCallableMethods` for the
+- **THEN** it returns the `CallableMethods` instance produced by `DiscoverCallableMethodsStage` for the
   current mapper
 
 #### Scenario: Retired ResolveCtx accessors do not exist
@@ -185,9 +184,9 @@ The single list SHALL be tried as one round each expansion pass; there SHALL be 
 - **WHEN** a JAR on the annotation-processor classpath contains `META-INF/services/io.github.joke.percolate.spi.ExpansionStrategy` referencing a user class
 - **THEN** the user class is included in the `List<ExpansionStrategy>` provided by Dagger
 
-#### Scenario: ServiceLoader is invoked once per round
-- **WHEN** `ExpandStage.apply(graph)` is invoked twice in a round
-- **THEN** `ServiceLoader.load(ExpansionStrategy.class, ...)` is invoked exactly once across the round
+#### Scenario: ServiceLoader is invoked once via the singleton provider
+- **WHEN** the Dagger `@Singleton List<ExpansionStrategy>` provider is consulted (regardless of how many mappers or `ExpandStage` runs follow)
+- **THEN** `ServiceLoader.load(ExpansionStrategy.class, ...)` is invoked exactly once and its result is shared
 
 #### Scenario: Processor declares strategies-builtin as runtimeOnly
 - **WHEN** `processor/build.gradle` is inspected
@@ -207,7 +206,7 @@ For v1, `Weights.METHOD` SHALL equal `Weights.STEP`. The numerical value is docu
 
 ### Requirement: Weights.CONTAINER constant
 
-The percolate-spi module SHALL expose a constant `CONTAINER` (a positive `int`) on `io.github.joke.percolate.spi.Weights` representing the base cost of a container-shaped hop. For v1, `Weights.CONTAINER` SHALL equal `2`, heavier than `Weights.STEP` and `Weights.METHOD` (both `1`) and cheaper than `Weights.EXPENSIVE` (`3`). The container built-in strategies (`OptionalContainer`, `ListContainer`, `SetContainer`, `ArrayContainer`, sharing the `WrapperContainer` / `SequenceContainer` / `CollectionContainer` bases) SHALL use this constant as the base `weight` of the container `ExpansionStep`s they emit.
+The percolate-spi module SHALL expose a constant `CONTAINER` (a positive `int`) on `io.github.joke.percolate.spi.Weights` representing the base cost of a container-shaped hop. For v1, `Weights.CONTAINER` SHALL equal `2`, heavier than `Weights.STEP` and `Weights.METHOD` (both `1`) and cheaper than `Weights.EXPENSIVE` (`3`). The container built-in strategies (`OptionalContainer`, `ListContainer`, `SetContainer`, `ArrayContainer` — extending the single `Container` base, with `CollectionContainer` as a shared collection base) SHALL use this constant as the base `weight` of the container `OperationSpec`s they emit.
 
 #### Scenario: Weights.CONTAINER exists and is positive
 - **WHEN** the source of `Weights` is inspected
@@ -222,19 +221,19 @@ The percolate-spi module SHALL expose a constant `CONTAINER` (a positive `int`) 
 
 The `percolate-strategies-builtin` module SHALL contain a Spock specification at `strategies-builtin/src/test/groovy/io/github/joke/percolate/spi/builtins/BuiltinServiceRegistrationSpec.groovy` that asserts the cross-module contract: when `percolate-strategies-builtin` is on the classpath, `ServiceLoader.load(ExpansionStrategy.class)` discovers exactly the expected built-in classes. There is a **single** strategy SPI interface (`ExpansionStrategy`); there is no separate `Bridge` / `GroupTarget` / `PathSegmentResolver` registration.
 
-The spec SHALL assert that `ServiceLoader.load(ExpansionStrategy.class)` discovers, at minimum, the shipped built-ins: `DirectAssign`, `MethodCallBridge`, `ConstructorCall`, `WidenPrimitive`, `PrimitiveWrapperConversion`, `ConstantValue`, `DefaultValue`, `OptionalContainer`, `ListContainer`, `SetContainer`, `ArrayContainer`, `GetterPathResolver`, `FieldPathResolver`, and `MethodPathResolver`.
+The spec SHALL assert that `ServiceLoader.load(ExpansionStrategy.class)` discovers, at minimum, the shipped built-ins: `DirectAssign`, `MethodCallBridge`, `ConstructorCall`, `WidenPrimitive`, `PrimitiveWrapperConversion`, `ConstantValue`, `NullnessCrossing`, `OptionalContainer`, `ListContainer`, `SetContainer`, `ArrayContainer`, `GetterPathResolver`, `FieldPathResolver`, and `MethodPathResolver`.
 
-The spec SHALL additionally assert that the superseded per-operation container classes (`OptionalWrap`, `OptionalUnwrap`, `OptionalCollect`, `ListWrap`, `ListCollect`, `SetWrap`, `SetCollect`, `ArrayCollect`, `IterableUnwrap`, `SetMap`, `ListMap`, `OptionalMap`) are NOT discovered — they were folded into the one-class-per-container-type strategies.
+The spec SHALL additionally assert that superseded classes (the per-operation container bridges such as `OptionalUnwrap`, `SetCollect`, `ListCollect`, `ListWrap`, `IterableUnwrap`; the former `GetterRead` and `RecordPathResolver`; and the separate `DefaultValue` strategy folded into `NullnessCrossing`) are NOT discovered.
 
 The spec SHALL be tagged `@spock.lang.Tag('unit')` and SHALL NOT invoke `ExpansionHarness` or any expansion-pipeline code. Its sole concern is verifying that the `META-INF/services/...` files generated by `auto-service` correctly register the strategy classes under `ExpansionStrategy`.
 
 #### Scenario: ServiceLoader discovers all expected ExpansionStrategy builtins
 - **WHEN** `ServiceLoader.load(ExpansionStrategy.class)` is invoked from `BuiltinServiceRegistrationSpec`
-- **THEN** the returned classes contain, as a subset, `DirectAssign`, `MethodCallBridge`, `ConstructorCall`, `WidenPrimitive`, `PrimitiveWrapperConversion`, `ConstantValue`, `DefaultValue`, `OptionalContainer`, `ListContainer`, `SetContainer`, `ArrayContainer`, `GetterPathResolver`, `FieldPathResolver`, and `MethodPathResolver`
+- **THEN** the returned classes contain, as a subset, `DirectAssign`, `MethodCallBridge`, `ConstructorCall`, `WidenPrimitive`, `PrimitiveWrapperConversion`, `ConstantValue`, `NullnessCrossing`, `OptionalContainer`, `ListContainer`, `SetContainer`, `ArrayContainer`, `GetterPathResolver`, `FieldPathResolver`, and `MethodPathResolver`
 
-#### Scenario: Superseded per-operation container classes are absent
+#### Scenario: Superseded builtins are absent
 - **WHEN** the discovered `ExpansionStrategy` set is inspected
-- **THEN** it contains no class named `OptionalWrap`, `OptionalUnwrap`, `OptionalCollect`, `ListWrap`, `ListCollect`, `SetWrap`, `SetCollect`, `ArrayCollect`, `IterableUnwrap`, `SetMap`, `ListMap`, or `OptionalMap`
+- **THEN** it contains no class named `IterableUnwrap`, `OptionalUnwrap`, `SetCollect`, `ListCollect`, `ListWrap`, `GetterRead`, `RecordPathResolver`, or `DefaultValue`
 
 #### Scenario: Spec does not depend on the expansion pipeline
 - **WHEN** the source of `BuiltinServiceRegistrationSpec` is inspected

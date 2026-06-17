@@ -2,11 +2,11 @@
 
 ## Purpose
 
-This spec defines the expansion engine that resolves a seeded `MapperGraph` (parameter/return-root `Value`s plus per-level goal specs) into a fully realised bipartite graph of `Value` and `Operation` vertices. Expansion is a **demand work-list** over unsatisfied Values, proceeding target-to-source: each demand asks `ExpansionStrategy` matches for the Operations that could produce it, and each emitted Operation fans out a fresh demand per port.
+This spec defines the expansion engine that resolves a mapper's abstract methods into a fully realised bipartite graph of `Value` and `Operation` vertices. Expansion **self-seeds** one return-root demand per abstract method into an **empty** graph (parameter `Value`s are materialised lazily on first reference, goal specs are read per scope) and runs a **demand work-list** over unsatisfied Values, proceeding target-to-source: each demand asks `ExpansionStrategy` matches for the Operations that could produce it, and each emitted Operation fans out a fresh demand per port.
 
 Satisfaction is **not** computed during expansion — expansion over-emits candidate Operations and drains the work-list. Whether a demand is producible is derived later by the plan-extraction minimum-cost fold: a vertex is reachable iff its cost is finite, with base cases at parameter roots and zero-port Operations (constants). There are no groups, no `GroupOutcome` records, and no cross-group layer.
 
-All expansion-time mutation flows through a single `Applier` interpreting `AddValue`/`AddOperation` deltas emitted by pure expanders, batch-applied at each pass boundary. Candidate search is scope-confined (a method scope, or an Operation's child scope), so sibling-derived Values cannot leak as candidates; graph cycles are well-founded under the extraction cost fold's cycle guard (a Value is never reachable through its own cycle) and are harmless-but-never-chosen during extraction.
+All expansion-time mutation flows through a single `Applier` interpreting `AddValue`/`AddOperation` deltas; each delta is applied immediately and each demanded Value is expanded at most once (a visited set). Candidate search is scope-confined (a method scope, or an Operation's child scope), so sibling-derived Values cannot leak as candidates; graph cycles are well-founded under the extraction cost fold's cycle guard (a Value is never reachable through its own cycle) and are harmless-but-never-chosen during extraction.
 
 ## Requirements
 
@@ -79,15 +79,17 @@ mutate the graph directly via `MapperGraph.valueFor(...)` or any other bypass; t
 - **THEN** no stage calls `MapperGraph.valueFor(...)` (or another mutation) directly to pre-populate
   the graph; root demands are landed as `AddValue` deltas through the `Applier`
 
-### Requirement: Per-pass snapshot semantics
+### Requirement: Each demanded Value is expanded at most once
 
-Expanders SHALL read a per-pass immutable snapshot of demand and SAT state; deltas produced within a
-pass are batch-applied at the pass boundary, so all matches in one pass observe the same state.
+The work-list SHALL be a FIFO queue of `Value` demands drained one at a time; each delta SHALL be
+applied immediately through the `Applier` and each Value SHALL be expanded at most once, guarded by a
+visited set keyed on Value identity. There is no per-pass batched snapshot and no convergence loop —
+the queue drains once and expansion ends when it empties.
 
-#### Scenario: In-pass reads are stable
-- **WHEN** two demands are processed in the same pass
-- **THEN** both observe the snapshot taken at the start of the pass, regardless of deltas emitted in
-  between
+#### Scenario: A re-demanded Value is not expanded twice
+- **WHEN** two Operations both demand a Value of the same `(scope, location, type, nullness)` identity
+- **THEN** that Value is dequeued and expanded exactly once; the second reference reuses the existing
+  Value without re-running strategies
 
 ### Requirement: Demand work-list over Values
 
@@ -109,23 +111,24 @@ plan-extraction cost fold (`reachable ⟺ finite cost`).
 - **THEN** expansion ends with that demand having no producer; there is no "did not converge" outcome,
   and the demand is reported unreachable only at extraction (infinite cost)
 
-### Requirement: Frontier matching fans out per port and dedups Operation specs
+### Requirement: The driver fans out per port and dedups Operation specs
 
-`FrontierMatcher` SHALL convert each accepted strategy match into one atomic `AddOperation` delta,
-fanning out one demand per port, and SHALL deduplicate structurally identical Operation specs by
-signature (codegen class, port types, produced Value) per frontier.
+The driver SHALL convert each accepted strategy match into one atomic `AddOperation` delta, fanning
+out one demand per port, and SHALL deduplicate structurally identical Operation specs by signature
+(`label`, produced output type, and port `name:type:nullness` tuples) per demand before landing them.
 
 #### Scenario: Identical specs collapse
-- **WHEN** two strategies (or two passes) emit structurally identical Operation specs at one frontier
+- **WHEN** two strategies emit structurally identical Operation specs for one demand
 - **THEN** only one Operation is added to the graph
 
 ### Requirement: Conversion chains are unary Operation chains over deduped Values
 
 A type conversion SHALL be a unary `Operation`; multi-hop conversions compose as chains through
-intermediate `Value`s deduped by `(scope, location, type, nullness)`. Reuse-or-synthesize follows
-from the identity rule (an existing intermediate is fed, a missing one is minted); chain search is
-type-keyed, bounded, and stops at SAT. Reachability needs no dedicated rule: a chain satisfies iff
-Horn propagation derives its head from a base case.
+intermediate `Value`s deduped by `(scope, location, type, nullness)`. When a port finds no in-scope
+candidate of its type, the driver mints a fresh intermediate `Value` at the output location and
+re-demands it (reuse-or-synthesize follows from the identity rule: an existing intermediate is fed, a
+missing one is minted). Reachability needs no dedicated rule: a chain is reachable iff the
+plan-extraction cost fold derives a finite cost for its head from a base case.
 
 #### Scenario: Two-hop conversion synthesizes one intermediate
 - **WHEN** `int → Long` requires `int → long → Long`
@@ -136,12 +139,12 @@ Horn propagation derives its head from a base case.
 
 Producer chains SHALL originate only from directive-rooted supply: source-path descent driven by a
 binding's source path, constants, and conversions over existing supply. There SHALL be no rule that
-invents source descent for a port no directive feeds; such a port's Value remains UNSAT by
-exhaustion, making its Operation UNSAT.
+invents source descent for a port no directive feeds; such a port's Value remains unreachable by
+exhaustion (infinite extraction cost), making its Operation unreachable.
 
 #### Scenario: Undeclared constructor parameter starves
 - **WHEN** a constructor declares a port `country` and no directive declares a `country` binding
-- **THEN** the port Value acquires no producers and the constructor Operation is UNSAT
+- **THEN** the port Value acquires no producers and the constructor Operation is unreachable
 
 ### Requirement: Assembly is gated by the declared-bindings goal spec
 

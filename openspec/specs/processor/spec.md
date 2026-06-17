@@ -47,14 +47,14 @@ The processor framework defines the entry point and wiring contract for the anno
 - `ProcessorOptions` parsed from `processingEnv.getOptions()`.
 
 `ProcessorModule` SHALL additionally expose:
-- a `@Provides` method returning the ordered `List<Stage>` consumed by `Pipeline`, threading the ten stage classes in declared order;
+- a `@Named("discover")` `@Provides` method returning the discover-stage group, and a `@Provides` method returning the full ordered `List<Stage>` consumed by `Pipeline` (the discover group followed by the validation, expansion, dump, and generate stages) in declared order;
 - a `@Provides` method returning a `ResolveCtx` derived from the injected `Types` and `Elements` instances.
 
 The `ProcessorModule` class SHALL use `@RequiredArgsConstructor` to replace its manual constructor. The `processingEnvironment` field SHALL be `private final` with no explicit constructor.
 
 #### Scenario: ProcessorModule provides the ordered Stage list
 - **WHEN** the Dagger graph requests a `List<Stage>`
-- **THEN** the `@Provides` method on `ProcessorModule` returns a list whose elements are, in order, instances of stages from `DiscoverAbstractMethods`, `DiscoverMappings`, `ValidateNoDuplicateTargets`, `ValidateSourceParameters`, `SeedGraph`, `DumpGraph`, `ExpandStage`, `DumpFullGraph`, `DumpTransforms`, `RealisationDiagnosticsStage`, `GenerateStage` (in that sequence, with discover stages appearing first as a group)
+- **THEN** the `@Provides` method on `ProcessorModule` returns a list whose elements are, in order, instances of `DiscoverAbstractMethodsStage`, `DiscoverMappingsStage`, `DiscoverCallableMethodsStage`, `ValidateNoDuplicateTargetsStage`, `ValidateMappingShapeStage`, `ValidateSourceParametersStage`, `ExpandStage`, `DumpFullGraphStage`, `DumpTransformsStage`, `DumpPlanStage`, `ValidateConstantDefaultLegalityStage`, `RealisationDiagnosticsStage`, `GenerateStage` (in that sequence, with the discover stages appearing first as a group)
 
 #### Scenario: ProcessorModule provides a ResolveCtx
 - **WHEN** the Dagger graph requests a `ResolveCtx`
@@ -76,41 +76,42 @@ The `Stage` interface and its context carrier SHALL be internal to the processor
 - **THEN** an interface or abstract base type `Stage` exists in `io.github.joke.percolate.processor.stages`
 
 #### Scenario: All pipeline stages implement Stage
-- **WHEN** the source of `DiscoverAbstractMethods`, `DiscoverMappings`, `ValidateNoDuplicateTargets`, `ValidateSourceParameters`, `SeedGraph`, `DumpGraph`, `ExpandStage`, `DumpFullGraph`, `DumpTransforms`, `RealisationDiagnosticsStage`, and `GenerateStage` is inspected
+- **WHEN** the source of `DiscoverAbstractMethodsStage`, `DiscoverMappingsStage`, `DiscoverCallableMethodsStage`, `ValidateNoDuplicateTargetsStage`, `ValidateMappingShapeStage`, `ValidateSourceParametersStage`, `ExpandStage`, `DumpFullGraphStage`, `DumpTransformsStage`, `DumpPlanStage`, `ValidateConstantDefaultLegalityStage`, `RealisationDiagnosticsStage`, and `GenerateStage` is inspected
 - **THEN** each declared type implements `Stage` (directly or transitively)
 
 ### Requirement: Pipeline
-`Pipeline` SHALL be constructor-injected by Dagger with a single ordered `List<Stage>` dependency provided by `ProcessorModule`. The list, in declared order, SHALL contain instances of stages from: `DiscoverAbstractMethods`, `DiscoverMappings`, `ValidateNoDuplicateTargets`, `ValidateSourceParameters`, `SeedGraph`, `DumpGraph`, `ExpandStage`, `DumpFullGraph`, `DumpTransforms`, `RealisationDiagnosticsStage`, `GenerateStage` (with discover stages appearing first as a group).
+`Pipeline` SHALL be constructor-injected by Dagger with a single ordered `List<Stage>` dependency provided by `ProcessorModule`. The list, in declared order, SHALL contain instances of: `DiscoverAbstractMethodsStage`, `DiscoverMappingsStage`, `DiscoverCallableMethodsStage`, `ValidateNoDuplicateTargetsStage`, `ValidateMappingShapeStage`, `ValidateSourceParametersStage`, `ExpandStage`, `DumpFullGraphStage`, `DumpTransformsStage`, `DumpPlanStage`, `ValidateConstantDefaultLegalityStage`, `RealisationDiagnosticsStage`, `GenerateStage` (with the discover stages appearing first as a group).
 
 Its `process(TypeElement)` method SHALL construct a fresh per-mapper context carrier, invoke each stage in list order against that context, and return `null`. The `Pipeline` class SHALL use `@RequiredArgsConstructor(onConstructor_ = @Inject)`.
 
-Pipeline ordering invariant: any graph-mutating stage SHALL appear strictly before every graph-dumping stage (`DumpGraph`, `DumpFullGraph`, `DumpTransforms`, plus any future `Dump*` stage). `GenerateStage` is a read-only consumer and SHALL appear last. If a future change introduces a new graph-mutating stage (e.g., a graph-optimisation pass), it MUST be inserted before the dumping stages so the `.dot` outputs remain a faithful snapshot of what `GenerateStage` consumed.
+Pipeline ordering invariant: the single graph-building stage (`ExpandStage`) SHALL appear strictly before every graph-dumping stage (`DumpFullGraphStage`, `DumpTransformsStage`, `DumpPlanStage`, plus any future `Dump*Stage`). `GenerateStage` is a read-only consumer and SHALL appear last. If a future change introduces a new graph-mutating stage (e.g., a graph-optimisation pass), it MUST be inserted before the dumping stages so the `.dot` outputs remain a faithful snapshot of what `GenerateStage` consumed.
 
 #### Scenario: Pipeline declares an ordered List<Stage> dependency
 - **WHEN** the source of `Pipeline` is inspected
 - **THEN** its constructor (generated by Lombok via `@RequiredArgsConstructor(onConstructor_ = @Inject)`) accepts a single `List<Stage>` parameter
 - **AND** the constructor is `@Inject`-annotated by Lombok
 
-#### Scenario: process() invokes the ten stages in declared order
-- **WHEN** `Pipeline.process(typeElement)` is invoked with the v1 stage list
-- **THEN** discover stages (`DiscoverAbstractMethods`, `DiscoverMappings`) run first (as a group)
-- **AND** `ValidateNoDuplicateTargets` runs next
-- **AND** `ValidateSourceParameters` runs next
-- **AND** `SeedGraph` runs next
-- **AND** `DumpGraph` runs next
+#### Scenario: process() invokes the stages in declared order
+- **WHEN** `Pipeline.process(typeElement)` is invoked with the stage list
+- **THEN** discover stages (`DiscoverAbstractMethodsStage`, `DiscoverMappingsStage`, `DiscoverCallableMethodsStage`) run first (as a group)
+- **AND** `ValidateNoDuplicateTargetsStage` runs next
+- **AND** `ValidateMappingShapeStage` runs next
+- **AND** `ValidateSourceParametersStage` runs next
 - **AND** `ExpandStage` runs next
-- **AND** `DumpFullGraph` runs next
-- **AND** `DumpTransforms` runs next
+- **AND** `DumpFullGraphStage` runs next
+- **AND** `DumpTransformsStage` runs next
+- **AND** `DumpPlanStage` runs next
+- **AND** `ValidateConstantDefaultLegalityStage` runs next
 - **AND** `RealisationDiagnosticsStage` runs next
 - **AND** `GenerateStage` runs last
 - **AND** `process` returns `null`
 
-#### Scenario: Every dump stage precedes every graph-modifying stage's last write
+#### Scenario: Every dump stage follows the graph-building stage
 - **WHEN** the declared stage order is inspected
-- **THEN** `DumpGraph` appears after `SeedGraph` (whose writes it dumps)
-- **AND** `DumpFullGraph` appears after `ExpandStage` (whose writes it dumps)
-- **AND** `DumpTransforms` appears after `ExpandStage` (whose transforms it dumps)
-- **AND** `GenerateStage` appears strictly after `DumpExpandedGraph` and all dump stages
+- **THEN** `DumpFullGraphStage` appears after `ExpandStage` (whose graph it dumps)
+- **AND** `DumpTransformsStage` appears after `ExpandStage` (whose transforms it dumps)
+- **AND** `DumpPlanStage` appears after `ExpandStage` (whose extracted plan it dumps)
+- **AND** `GenerateStage` appears strictly after all dump stages
 
 #### Scenario: A fresh MapperGraph is constructed per process invocation
 - **WHEN** `Pipeline.process(typeElement)` is invoked twice with two different `TypeElement`s

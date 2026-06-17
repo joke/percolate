@@ -2,13 +2,13 @@
 
 ## Purpose
 
-`DiscoverMappings` is the second pipeline stage. It reads each abstract method's `@Map` (and `@MapList`) annotations into a typed `MapperMappings` structure. Each `MappingDirective` retains the underlying `AnnotationMirror` and the `AnnotationValue`s for `target` and `source`, so later validation and diagnostic stages can point at the exact source token rather than the enclosing method.
+`DiscoverMappingsStage` is the second pipeline stage. It reads each abstract method's `@Map` (and `@MapList`) annotations into a typed `MapperMappings` structure. Each `MappingDirective` retains the underlying `AnnotationMirror` and the `AnnotationValue`s for `target` and `source`, so later validation and diagnostic stages can point at the exact source token rather than the enclosing method.
 
 ## Requirements
 
 ### Requirement: @Map directives SHALL be discovered for every abstract method
 
-`DiscoverMappings` SHALL accept a `MapperShape` and produce a `MapperMappings` containing one `MethodMappings` for each abstract method, in the same order. Each `MethodMappings` carries the `ExecutableElement` and the list of `MappingDirective`s declared on that method.
+`DiscoverMappingsStage` SHALL accept a `MapperShape` and produce a `MapperMappings` containing one `MethodMappings` for each abstract method, in the same order. Each `MethodMappings` carries the `ExecutableElement` and the list of `MappingDirective`s declared on that method.
 
 #### Scenario: A method with one @Map produces one directive
 
@@ -43,7 +43,7 @@ Every `MappingDirective` SHALL carry the `AnnotationMirror` for the `@Map` annot
 
 ### Requirement: @MapList container SHALL be unwrapped transparently
 
-When the compiler wraps multiple `@Map` annotations into the `@MapList` container, `DiscoverMappings` SHALL unwrap the container and expose each contained `@Map` as an individual `MappingDirective`. The `@MapList` annotation itself SHALL NOT appear as a directive.
+When the compiler wraps multiple `@Map` annotations into the `@MapList` container, `DiscoverMappingsStage` SHALL unwrap the container and expose each contained `@Map` as an individual `MappingDirective`. The `@MapList` annotation itself SHALL NOT appear as a directive.
 
 #### Scenario: Two @Maps result in two directives, not one MapList directive
 
@@ -66,12 +66,12 @@ Implementation SHALL walk `Element.getAnnotationMirrors()` (optionally via `auto
 
 #### Scenario: Source code does not invoke proxy annotation APIs
 
-- **WHEN** the source of `DiscoverMappings` is reviewed
+- **WHEN** the source of `DiscoverMappingsStage` is reviewed
 - **THEN** it contains no calls to `getAnnotation(Map.class)` or `getAnnotationsByType(Map.class)`
 
 ### Requirement: @Map constant and defaultValue members SHALL be discovered against the UNSET sentinel
 
-`DiscoverMappings` SHALL read the `@Map` members `source`, `constant`, and `defaultValue`, each treated as **present** when its value is not equal to `Map.UNSET` and **absent** otherwise. `source` is now optional (it defaults to `Map.UNSET`). Discovery SHALL NOT use `String.isEmpty()` to decide presence, because an empty string is a legitimate value for `constant` and `defaultValue`.
+`DiscoverMappingsStage` SHALL read the `@Map` members `source`, `constant`, and `defaultValue`, each treated as **present** when its value is not equal to `Map.UNSET` and **absent** otherwise. `source` is now optional (it defaults to `Map.UNSET`). Discovery SHALL NOT use `String.isEmpty()` to decide presence, because an empty string is a legitimate value for `constant` and `defaultValue`.
 
 #### Scenario: A constant directive is discovered with no source
 

@@ -1,49 +1,45 @@
 # expansion-test-harness Specification
 
 ## Purpose
-TBD - created by archiving change add-graph-expansion-tests. Update Purpose after archive.
+This spec defines the test infrastructure for the expansion engine: the `assembleExpansionPipeline` factory that wires an `ExpandStage`, the shared `TypeUniverse` / `HarnessResolveCtx` SPI test fixtures used for isolated strategy tests, and the module-location invariant that keeps engine-bound test helpers in the processor module and type-system fixtures in `percolate-spi`'s `testFixtures`. Engine tests drive the stage directly through the factory (compiling fixtures with `com.google.testing.compile`) and assert over the bipartite `MapperGraph` / extracted plan; there is no standalone `ExpansionHarness`/`ExpansionResult`/`ExpansionAssertions` façade.
+
 ## Requirements
 
 ### Requirement: assembleExpansionPipeline factory
 
-The class `io.github.joke.percolate.processor.ProcessorModule` SHALL expose a `public static` method `assembleExpansionPipeline(List<ExpansionStrategy> strategies, ResolveCtx resolveCtx, NullabilityResolver nullabilityResolver)` that returns a wired `ExpandStage` instance. The returned stage SHALL run a single `ExpansionPhase` — `ExpandGroupsPhase`, constructed via `ExpandGroupsPhase.create(strategies, resolveCtx, nullabilityResolver)`. There is no `ResolveSourceChainsPhase`, `ResolveTargetChainsPhase`, or `BridgeSourceToTargetPhase`, and no separate `Bridge`/`SourceStep`/`GroupTarget` strategy lists — the expansion surface is the single unified `List<ExpansionStrategy>`.
+The class `io.github.joke.percolate.processor.ProcessorModule` SHALL expose a `public static` method `assembleExpansionPipeline(List<ExpansionStrategy> strategies, Types types, Elements elements, NullabilityResolver nullabilityResolver)` that returns a wired `ExpandStage` instance (constructed directly — `ExpandStage` is a single uniform demand work-list with no internal phases). There is no `ExpandGroupsPhase`, `ResolveSourceChainsPhase`, `ResolveTargetChainsPhase`, or `BridgeSourceToTargetPhase`, and no separate `Bridge`/`SourceStep`/`GroupTarget` strategy lists — the expansion surface is the single unified `List<ExpansionStrategy>`.
 
-The production `@Provides ExpandStage expandStage(List<ExpansionStrategy> strategies, ResolveCtx resolveCtx, NullabilityResolver nullabilityResolver)` provider SHALL delegate to `assembleExpansionPipeline(...)`, so production Dagger wiring and test wiring compose the stage through the one factory. `assembleExpansionPipeline` SHALL be the single source of truth for `ExpandStage` composition: adding a constructor parameter to `ExpandStage` or to `ExpandGroupsPhase` SHALL force callers to update through this one method.
+The production `@Provides ExpandStage expandStage(...)` provider SHALL delegate to `assembleExpansionPipeline(...)`, so production Dagger wiring and test wiring compose the stage through the one factory. `assembleExpansionPipeline` SHALL be the single source of truth for `ExpandStage` composition: adding a constructor parameter to `ExpandStage` SHALL force callers to update through this one method.
 
 #### Scenario: Factory returns a wired ExpandStage
-- **WHEN** `ProcessorModule.assembleExpansionPipeline(strategies, resolveCtx, nullabilityResolver)` is invoked with non-null arguments
-- **THEN** a non-null `ExpandStage` is returned whose phase list is `[ExpandGroupsPhase]`
+- **WHEN** `ProcessorModule.assembleExpansionPipeline(strategies, types, elements, nullabilityResolver)` is invoked with non-null arguments
+- **THEN** a non-null `ExpandStage` is returned
 - **AND** invoking `run(ctx)` on it produces the same expanded graph that production Dagger wiring would produce given the same unified strategy list
 
 #### Scenario: Dagger wiring delegates to the factory
 - **WHEN** the source of `ProcessorModule` is inspected
-- **THEN** the `@Provides ExpandStage` provider calls `assembleExpansionPipeline(...)` with the SPI-loaded `List<ExpansionStrategy>`, `ResolveCtx`, and `NullabilityResolver`
+- **THEN** the `@Provides ExpandStage` provider calls `assembleExpansionPipeline(...)` with the SPI-loaded `List<ExpansionStrategy>`, the injected `Types` and `Elements`, and the `NullabilityResolver`
 - **AND** there is no separate construction of `ExpandStage` outside `assembleExpansionPipeline`
 
-### Requirement: ExpansionHarness two-mode entry points
+### Requirement: Engine tests drive ExpandStage through the factory
 
-The class `io.github.joke.percolate.processor.test.ExpansionHarness` in `processor/src/test/groovy/` (Groovy source) SHALL expose exactly one `public static` entry point:
+Engine tests SHALL exercise expansion by obtaining a wired `ExpandStage` from
+`ProcessorModule.assembleExpansionPipeline(strategies, types, elements, nullabilityResolver)` with an
+explicit unified `List<ExpansionStrategy>`, and running it (with the discover stages) over a
+`MapperContext` built from sources compiled by `com.google.testing.compile`. There is no standalone
+`ExpansionHarness`/`ExpansionResult` façade, no `ServiceLoader`-loading test overload, and no path that
+takes separate `Bridge` / `SourceStep` / `GroupTarget` lists. Production-parity wiring smoke is asserted
+directly against `ServiceLoader` in `percolate-strategies-builtin`'s `BuiltinServiceRegistrationSpec`
+(see "Built-in service registration smoke spec").
 
-- `ExpansionResult expand(MapperGraph seed, List<ExpansionStrategy> strategies)` — bypasses `ServiceLoader` and runs the expansion pipeline directly with the supplied **unified** strategy list. Used by property tests and isolation scenarios that need explicit strategy injection.
+#### Scenario: Explicit strategy list is used, not ServiceLoader
+- **WHEN** an engine test assembles `ExpandStage` via `assembleExpansionPipeline(strategies, …)`
+- **THEN** exactly the supplied unified `List<ExpansionStrategy>` is used, with no `ServiceLoader` call
 
-There is no `expand(MapperGraph seed)` `ServiceLoader`-loading overload, and no overload taking separate `Bridge` / `SourceStep` / `GroupTarget` lists. Production-parity wiring smoke is asserted directly against `ServiceLoader` in `percolate-strategies-builtin`'s `BuiltinServiceRegistrationSpec` (see "Built-in service registration smoke spec").
-
-The entry point SHALL obtain the wired stage via `ProcessorModule.assembleExpansionPipeline(...)` and expose the captured diagnostics on the returned `ExpansionResult`. It SHALL NOT assert auto-invariants; invariant checks are exposed on `ExpansionResult` for tests to opt into explicitly.
-
-#### Scenario: Explicit mode bypasses ServiceLoader for engine tests
-- **WHEN** `ExpansionHarness.expand(seed, strategies)` is called from a property/isolation test
-- **THEN** no call to `ServiceLoader` is made
-- **AND** exactly the supplied unified `List<ExpansionStrategy>` is used
-
-#### Scenario: Harness goes through pipeline assembly
-- **WHEN** the explicit-list entry point is invoked
-- **THEN** the wired `ExpandStage` is obtained via `ProcessorModule.assembleExpansionPipeline(strategies, resolveCtx, nullabilityResolver)`
+#### Scenario: Tests go through the single factory
+- **WHEN** an engine test constructs the expansion stage
+- **THEN** it obtains it via `ProcessorModule.assembleExpansionPipeline(...)`
 - **AND** no other path constructs `ExpandStage` in test code
-
-#### Scenario: Only the unified-list overload exists
-- **WHEN** the public surface of `ExpansionHarness` is inspected
-- **THEN** the only `expand` entry point takes `(MapperGraph, List<ExpansionStrategy>)`
-- **AND** no overload takes separate `Bridge` / `SourceStep` / `GroupTarget` lists, and no `expand(MapperGraph)` overload exists
 
 ### Requirement: TypeUniverse fixture
 
@@ -89,26 +85,11 @@ Consumers SHALL access `HarnessResolveCtx` by declaring `testImplementation test
 - **WHEN** any Gradle module declares `testImplementation testFixtures(project(':spi'))`
 - **THEN** `io.github.joke.percolate.spi.test.HarnessResolveCtx` resolves from its tests' compile classpath
 
-### Requirement: DOT rendering inlined in `ExpansionAssertions` failure messages
-
-Every failure message produced by `ExpansionAssertions` (in `processor/src/test/groovy/io/github/joke/percolate/processor/test/`), including `reachable(...)`, `reportedError(...)`, and `Chain.forSeedEdge(...)`, SHALL include the DOT rendering of the expanded graph (produced by `io.github.joke.percolate.processor.graph.DotRenderer`) inlined in the message. No sibling file SHALL be written. If the result has no mapper type captured, a placeholder string SHALL be substituted for the DOT block.
-
-If `ExpandStage` aborts before producing a complete graph (cycle detected, budget exhausted), the partial graph that the harness captured SHALL still be DOT-rendered and attached.
-
-#### Scenario: Assertion failure carries DOT
-- **WHEN** an `ExpansionAssertions.reachable(from, to)` assertion fails
-- **THEN** the thrown `AssertionError`'s message contains the DOT rendering of the expanded graph
-
-#### Scenario: Result without mapper type yields a placeholder block
-- **WHEN** an `ExpansionResult` was constructed without a `TypeElement` (legacy `of(...)` overloads, or harness paths that supply `null`)
-- **THEN** `result.dotRender()` returns a placeholder string instead of throwing
-- **AND** assertion failure messages still produce a usable error
-
 ### Requirement: Engine tests live in `processor/src/test/`; type-system fixtures live in `spi` testFixtures
 
-Every test that exercises `ExpandStage`, its phases, the harness, or the assertions SHALL live in the `processor` module's test sources (`processor/src/test/groovy/`). No published Gradle module SHALL exist whose sole purpose is to host engine-test infrastructure.
+Every test that exercises `ExpandStage` or the discover stages SHALL live in the `processor` module's test sources (`processor/src/test/groovy/`). No published Gradle module SHALL exist whose sole purpose is to host engine-test infrastructure.
 
-Engine-specific helpers — `ExpansionAssertions`, `ExpansionHarness`, `GraphFixtures`, plus any internal stubs the harness needs — SHALL be co-located with the tests at `processor/src/test/groovy/io/github/joke/percolate/processor/test/` (Groovy sources). These helpers depend on engine internals (`MapperContext`, `Diagnostics`, `ProcessorModule`, `MapperGraph`, `ExpandGroupsPhase`) and therefore cannot move out of the processor module.
+Engine-specific helpers — `HarnessScope`, `TestFiler`, and the Java `fixtures` (`Human`, `Person`, `PersonMapper`) — SHALL be co-located with the tests under `processor/src/test/` (Groovy or Java sources). These helpers depend on engine internals (`MapperContext`, `Diagnostics`, `ProcessorModule`, `MapperGraph`, `Scope`) and therefore cannot move out of the processor module.
 
 Type-system fixtures — `TypeUniverse`, `HarnessResolveCtx` — SHALL live in `spi/src/testFixtures/groovy/io/github/joke/percolate/spi/test/` and be published via `percolate-spi`'s `testFixtures` configuration. These fixtures depend only on JDK + SPI types, so any SPI consumer (the `processor` module, the `strategies-builtin` module, third-party strategy modules) can consume them by declaring `testImplementation testFixtures(project(':spi'))`.
 
@@ -118,7 +99,7 @@ Type-system fixtures — `TypeUniverse`, `HarnessResolveCtx` — SHALL live in `
 
 #### Scenario: Engine-bound helpers live next to engine tests
 - **WHEN** the source tree is inspected
-- **THEN** `processor/src/test/groovy/io/github/joke/percolate/processor/test/` contains `ExpansionAssertions`, `ExpansionHarness`, `GraphFixtures`, and any engine-internal stubs they require (all Groovy sources)
+- **THEN** `processor/src/test/` contains `HarnessScope`, `TestFiler`, and the Java `fixtures` package the engine tests require
 - **AND** these classes are not exported by any other module
 
 #### Scenario: Type-system fixtures live in spi testFixtures
@@ -128,21 +109,21 @@ Type-system fixtures — `TypeUniverse`, `HarnessResolveCtx` — SHALL live in `
 - **AND** `processor`'s `build.gradle` declares `testImplementation testFixtures(project(':spi'))`
 - **AND** `strategies-builtin`'s `build.gradle` declares `testImplementation testFixtures(project(':spi'))`
 
-### Requirement: Harness results expose the bipartite surface
+### Requirement: Tests assert over the bipartite surface directly
 
-`ExpansionResult` SHALL expose the bipartite state for assertions: the Values and Operations per
-scope, **reachability and cost** (the derived extraction queries — replacing the former SAT
-predicate), the unreachable demands, and the extracted plan view. Group- and outcome-based accessors
-are removed. Invariant checks SHALL cover: every in-plan Value has exactly one chosen producer, no
-`Dep` edge crosses a scope boundary, and every Operation's inbound edges match its port signature
-exactly.
+Engine tests SHALL assert against the post-expansion `MapperGraph` and the `ExtractedPlan` directly:
+the Values and Operations per scope, **reachability and cost** (the derived extraction queries —
+replacing the former SAT predicate), and the chosen-producer plan view. There is no group- or
+outcome-based accessor. The invariants a test may check include: every in-plan Value has exactly one
+chosen producer, no `Dep` edge crosses a scope boundary, and every Operation's inbound edges match its
+port signature exactly.
 
-#### Scenario: Invariants run on every harness expansion
-- **WHEN** a harness test expands a fixture graph
-- **THEN** the result's invariant checks verify single-chosen-producer, scope-boundary, and
-  port-signature completeness, failing the test with a rendered DOT excerpt on violation
+#### Scenario: Plan assertions read the chosen producer
+- **WHEN** a test inspects the extracted plan for a fixture expansion
+- **THEN** each in-plan Value exposes exactly one `chosenProducer`, and no `Dep` edge crosses a scope
+  boundary
 
 #### Scenario: Reachability assertions read from cost
-- **WHEN** a harness test asserts a demand is satisfied
-- **THEN** it queries the result's reachability (finite extraction cost) rather than a stored SAT
-  predicate
+- **WHEN** a test asserts a demand is satisfied
+- **THEN** it queries the `ExtractedPlan`'s `reachable` (finite extraction cost) rather than a stored
+  SAT predicate

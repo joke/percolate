@@ -7,53 +7,50 @@ This spec defines the bipartite graph model: two `GraphVertex` kinds — `Value`
 ## Requirements
 
 ### Requirement: Weights constants
-The processor SHALL define a final class `Weights` in `io.github.joke.percolate.processor.graph` exposing the documented edge-weight scale as `public static final int` constants:
-- `Weights.NOOP = 0` — reference / view / no-op (markers, container extract, identity).
-- `Weights.STEP = 1` — single Java operation (getter, setter, method call, optional wrap, conversion).
-- `Weights.COPY = 2` — full structural copy / O(n) op (collect, materialise stream).
-- `Weights.EXPENSIVE = 3` — reserved for unusually costly operations.
-- `Weights.SENTINEL_UNREALISED = Integer.MAX_VALUE / 2` — sentinel weight for `SEED` edges.
+The processor SHALL define a non-instantiable utility class `Weights` in `io.github.joke.percolate.processor.graph` exposing only the unreachable sentinel used by cost extraction:
+- `Weights.SENTINEL_UNREALISED = Integer.MAX_VALUE / 2` — the cost a producerless / unreachable Value carries.
+- `Weights.isSentinel(int)` — true when a weight is at or above the sentinel.
 
-The class SHALL NOT be instantiable.
+The strategy-facing realised-cost scale (`NOOP`, `STEP`, `METHOD`, `STEP_GETTER`/`STEP_METHOD`/`STEP_FIELD`, `COPY`, `CONTAINER`, `EXPENSIVE`) lives on the **SPI** `io.github.joke.percolate.spi.Weights` utility, where the built-in strategies read it; the processor `Weights` does not duplicate that scale.
 
 #### Scenario: Sentinel value is Integer.MAX_VALUE / 2
 - **WHEN** `Weights.SENTINEL_UNREALISED` is evaluated
 - **THEN** its value is exactly `Integer.MAX_VALUE / 2`
 
-#### Scenario: Realised-scale constants are 0..3
-- **WHEN** the constants `Weights.NOOP`, `Weights.STEP`, `Weights.COPY`, `Weights.EXPENSIVE` are read
-- **THEN** their values are `0`, `1`, `2`, `3` respectively
+#### Scenario: isSentinel detects the unreachable cost
+- **WHEN** `Weights.isSentinel(weight)` is evaluated for a `weight` at or above `SENTINEL_UNREALISED`
+- **THEN** it returns `true`; for a finite realised weight it returns `false`
 
 ### Requirement: ElementLocation case
 
-The processor SHALL define a `Location` implementation `ElementLocation` for phantom container element nodes. `ElementLocation` SHALL carry a single `String role` field that discriminates between scopes within multi-role containers; the default value for single-element-scope containers is the literal string `"element"`.
+The processor SHALL define a `Location` implementation `ElementLocation` for phantom container element nodes. `ElementLocation` SHALL carry a single `String name` field that discriminates between scopes within multi-role containers; the default value for single-element-scope containers is the literal string `"element"`. Its `role()` SHALL be `LEAF`.
 
-`ElementLocation` SHALL be a Lombok `@Value` (or equivalent immutable) type. Its `segment()` SHALL return the string `"elem(" + role + ")"` — e.g. `"elem(element)"` for the default role, `"elem(key)"` / `"elem(value)"` for future `Map<K,V>` element scopes.
+`ElementLocation` SHALL be a Lombok `@Value` (or equivalent immutable) type. Its `segment()` SHALL return the string `"elem(" + name + ")"` — e.g. `"elem(element)"` for the default name, `"elem(key)"` / `"elem(value)"` for future `Map<K,V>` element scopes.
 
-A no-argument public constructor SHALL be preserved (whether via a static factory or a secondary constructor) that produces an `ElementLocation` with `role = "element"`. This preserves call-site compatibility with existing test fixtures and node-construction code that does not yet thread a role.
+A no-argument public constructor SHALL be preserved (whether via a static factory or a secondary constructor) that produces an `ElementLocation` with `name = "element"`. This preserves call-site compatibility with existing test fixtures and vertex-construction code that does not yet thread a name.
 
-Two `ElementLocation` instances SHALL compare equal iff their `role` fields are equal.
+Two `ElementLocation` instances SHALL compare equal iff their `name` fields are equal.
 
-#### Scenario: ElementLocation carries role
-- **WHEN** an `ElementLocation` is constructed with `role = "key"`
-- **THEN** `getRole()` returns `"key"`
+#### Scenario: ElementLocation carries name
+- **WHEN** an `ElementLocation` is constructed with `name = "key"`
+- **THEN** `getName()` returns `"key"`
 - **AND** `segment()` returns `"elem(key)"`
 
-#### Scenario: ElementLocation default role is "element"
+#### Scenario: ElementLocation default name is "element"
 - **WHEN** an `ElementLocation` is constructed via the no-argument factory / constructor
-- **THEN** `getRole()` returns `"element"`
+- **THEN** `getName()` returns `"element"`
 - **AND** `segment()` returns `"elem(element)"`
 
-#### Scenario: ElementLocation equality by role
-- **WHEN** two `ElementLocation` instances are constructed with the same `role`
+#### Scenario: ElementLocation equality by name
+- **WHEN** two `ElementLocation` instances are constructed with the same `name`
 - **THEN** they are `equal` and have equal `hashCode`s
 
-#### Scenario: ElementLocation inequality by role
-- **WHEN** two `ElementLocation` instances are constructed with different `role` strings (e.g. `"key"` vs `"value"`)
+#### Scenario: ElementLocation inequality by name
+- **WHEN** two `ElementLocation` instances are constructed with different `name` strings (e.g. `"key"` vs `"value"`)
 - **THEN** they are NOT `equal`
 
 ### Requirement: IncomingValues interface
-The processor SHALL define an interface `IncomingValues` in `io.github.joke.percolate.processor.graph` exposing the upstream-rendered inputs to an `EdgeCodegen` closure. The interface SHALL declare:
+The `IncomingValues` interface SHALL be defined in the SPI package `io.github.joke.percolate.spi` (it is part of the codegen author surface, consumed by `OperationCodegen.render`), exposing the upstream-rendered inputs to an operation's codegen. The interface SHALL declare:
 
 ```java
 interface IncomingValues {
@@ -63,26 +60,30 @@ interface IncomingValues {
 }
 ```
 
-No implementation is shipped in this change.
+The processor SHALL supply a concrete `IncomingValuesImpl` in its generate stage that keys the rendered port values by name.
 
 #### Scenario: IncomingValues exposes three accessors
 - **WHEN** the `IncomingValues` interface is inspected
 - **THEN** it declares exactly the methods `single()`, `byGroupPosition(int)`, `byName(String)`, all returning `CodeBlock`
 
 ### Requirement: Location interface and cases
-The processor SHALL define a `Location` interface (package-private in the `graph` sub-package) with three implementations:
+The processor SHALL define a public `Location` interface in the `graph` sub-package with four implementations:
 - `SourceLocation(AccessPath path)` — rooted at a method parameter; the first segment of `path` is the parameter name.
 - `TargetLocation(TargetPath path)` — rooted at the method return type; an empty path denotes the return-type root itself.
-- `ElementLocation(String role)` — marker for phantom container element nodes; the `role` field discriminates between element scopes within multi-role containers. The default role for single-element-scope containers is `"element"`. The parent reference lives on `Node.parent`.
+- `ElementLocation(String name)` — marker for phantom container element nodes; the `name` field discriminates between element scopes within multi-role containers. The default name for single-element-scope containers is `"element"`.
+- `ConstantLocation(String raw)` — a literal origin carrying the raw `@Map(constant = "...")` string, deliberately neither source nor target.
 
 All cases SHALL be Lombok `@Value`. The interface SHALL declare:
 ```java
 interface Location {
-    String segment();   // this location's contribution to Node.id()
+    Role role();        // resolution mode: FREE | ACCESS | LEAF | CONSTANT
+    String segment();   // this location's contribution to GraphVertex.id()
+    String slotName();  // the binding/slot name this location binds under
+    default boolean isReturnRoot() { return false; }
 }
 ```
 
-`SourceLocation.segment()` SHALL return a stable encoding of the access path's segments. `TargetLocation.segment()` SHALL return a stable encoding of the target path's segments (with empty path encoded as `"[]"` or equivalent). `ElementLocation.segment()` SHALL return the string `"elem(" + role + ")"`. The renderer is permitted to use `segment()` as a label fallback for DOT output.
+`SourceLocation.segment()` SHALL return a stable encoding of the access path's segments. `TargetLocation.segment()` SHALL return a stable encoding of the target path's segments. `ElementLocation.segment()` SHALL return the string `"elem(" + name + ")"`. `ConstantLocation.segment()` SHALL return `"const[" + raw + "]"`. The renderer is permitted to use `segment()` as a label fallback for DOT output.
 
 #### Scenario: Empty target path denotes the return-type root
 - **WHEN** a `TargetLocation` is constructed with an empty `TargetPath`
@@ -118,27 +119,32 @@ The processor SHALL define `AccessPath` and `TargetPath` Lombok `@Value` classes
 - **THEN** the code SHALL not compile (different types)
 
 ### Requirement: Scope interface and cases
-The processor SHALL define a `Scope` interface with two implementations:
-- `MethodScope(ExecutableElement method)` — the scope produced by the seed stage for every node and edge.
-- `MapperScope` — reserved for future mapper-shared elements (e.g., routable methods); not produced by the seed stage in this change.
+The processor SHALL define a `Scope` interface — declaring `String encode()` and a `default Optional<Scope> parent()` — with three implementations forming a tree:
+- `MapperScope` — the tree root, reserved for mapper-shared elements (e.g. routable methods).
+- `MethodScope(ExecutableElement method)` — one per abstract mapper method; the scope of that method's Values and Operations.
+- `ChildScope` — an element scope owned by a scope-owning `Operation` (a container element mapping); its `parent()` is the owning Operation's scope and its `encode()` nests the owning Operation's id.
 
-`Scope` SHALL produce a stable text-encoding suitable for embedding into `Node.id()` and DOT cluster names.
+`Scope` SHALL produce a stable text-encoding (`encode()`) suitable for embedding into `GraphVertex.id()` and DOT cluster names.
 
 #### Scenario: Method scope encodes the method signature
 - **WHEN** a `MethodScope` is constructed for an `ExecutableElement` representing `Human map(Person person)`
 - **THEN** its text-encoding is a stable string derived from the method name and erased parameter types (e.g., `map(Person)`) and is identical for repeated invocations
 
+#### Scenario: Child scope nests its owning Operation
+- **WHEN** a scope-owning Operation lands and owns a `ChildScope`
+- **THEN** the child scope's `encode()` includes the owning Operation's id and its `parent()` is the Operation's scope
+
 ### Requirement: MapperGraph is append-only after construction
 
-After the discover, seed, and expand stages have populated a `MapperGraph`, no stage SHALL remove nodes, edges, registered `ExpansionGroup`s, or `GroupOutcome`s from it. `MapperGraph` exposes no removal methods; the invariant is structural rather than enforced at runtime.
+After the discover and expand stages have populated a `MapperGraph`, no stage SHALL remove vertices or edges from it. `MapperGraph` exposes no removal methods; the invariant is structural rather than enforced at runtime.
 
-Filtering for any downstream consumer (validation, dumping, future codegen) SHALL be expressed as a view (`RealisedSubgraph`, `transformsView`, `ExpansionGroup.getView()`, or another `MaskSubgraph`) rather than as a destructive mutation.
+Filtering for any downstream consumer (validation, dumping, codegen) SHALL be expressed as a view (`bipartiteView` via `AsUnmodifiableGraph`, a scope-confined `scopeView` via `MaskSubgraph`, or the extracted plan's reachability query) rather than as a destructive mutation.
 
-`SEED` edges and other expansion artifacts SHALL remain in the underlying graph after expansion. The decision whether to render them is made at the view / renderer layer.
+Over-emitted candidate Operations and unreachable Values SHALL remain in the underlying graph after expansion. The decision whether to render or select them is made at the view / extraction layer.
 
-#### Scenario: MapperGraph exposes no node, edge, or group removal
+#### Scenario: MapperGraph exposes no vertex or edge removal
 - **WHEN** the public surface of `MapperGraph` is inspected
-- **THEN** no method removes a node, edge, `ExpansionGroup`, or `GroupOutcome`
+- **THEN** no method removes a vertex (`Value`/`Operation`) or `Dep` edge
 
 ### Requirement: GraphVertex closed hierarchy
 
@@ -182,7 +188,7 @@ owned child `Scope` (container element mapping). It SHALL NOT carry a producing-
 
 #### Scenario: Operation owns the consumer contract
 - **WHEN** code generation needs a port's declared type and nullness
-- **THEN** it reads the Operation's port signature, never an edge label or an `ExpansionGroup`
+- **THEN** it reads the Operation's port signature, never an edge label or a grouping label
 
 #### Scenario: Operation label is the typed production, not a codegen class
 - **WHEN** an Operation's `label` is read
@@ -255,7 +261,8 @@ per port (each naming the feeding `Value`, existing or created by an accompanyin
 ### Requirement: MapperGraph wrapper over the bipartite graph
 
 `MapperGraph` SHALL wrap the underlying `DirectedMultigraph<GraphVertex, Dep>`, exposing `valueFor`,
-delta application (Applier-only), scope-tree access, and read-only views (`MaskSubgraph`-based). It
+delta application (Applier-only), scope-confined queries, and read-only views (`bipartiteView` via
+`AsUnmodifiableGraph`, `scopeView` via `MaskSubgraph`). It
 SHALL NOT store a satisfaction predicate (no `markSat`/`isSat`/`clearSat`): reachability is a derived
 query over extraction cost (see `plan-extraction`). It remains append-only after construction:
 vertices and edges are never removed; plan selection is a view, not a mutation.

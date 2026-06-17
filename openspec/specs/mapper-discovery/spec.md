@@ -2,13 +2,13 @@
 
 ## Purpose
 
-`DiscoverAbstractMethods` is the first pipeline stage. It walks a `@Mapper`-annotated `TypeElement` (and its supertypes) and produces a `MapperShape` carrying the type plus the list of abstract methods that need to be realised. It ignores default, concrete, static, private, and `Object`-inherited methods, and substitutes generic type arguments so inherited methods are reported with concrete parameter and return types.
+`DiscoverAbstractMethodsStage` is the first pipeline stage. It walks a `@Mapper`-annotated `TypeElement` (and its supertypes) and produces a `MapperShape` carrying the type plus the list of abstract methods that need to be realised. It ignores default, concrete, static, private, and `Object`-inherited methods, and substitutes generic type arguments so inherited methods are reported with concrete parameter and return types.
 
 ## Requirements
 
 ### Requirement: Abstract methods on a @Mapper type SHALL be discovered
 
-`DiscoverAbstractMethods` SHALL accept a `@Mapper`-annotated `TypeElement` and produce a `MapperShape` carrying the type and the list of abstract methods that the type declares or inherits.
+`DiscoverAbstractMethodsStage` SHALL accept a `@Mapper`-annotated `TypeElement` and produce a `MapperShape` carrying the type and the list of abstract methods that the type declares or inherits.
 
 #### Scenario: Locally declared abstract method is discovered
 

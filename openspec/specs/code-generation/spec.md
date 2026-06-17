@@ -10,10 +10,10 @@
 
 The processor SHALL ship a `GenerateStage` class in package `io.github.joke.percolate.processor.stages.generate` implementing `Stage`. It SHALL be `@Inject`-constructed by Dagger via `@RequiredArgsConstructor(onConstructor_ = @Inject)` and provided through `ProcessorModule`'s ordered `List<Stage>` provision such that it runs as the *last* stage in `Pipeline.process(typeElement)`.
 
-`GenerateStage.run(MapperContext)` SHALL be a read-only consumer of the `MapperGraph` and `RealisedSubgraph` produced by earlier stages. It SHALL NOT mutate the graph or any field on `MapperContext` other than (optionally) generate-stage-local state.
+`GenerateStage.run(MapperContext)` SHALL be a read-only consumer of the `MapperGraph` and the extracted plan (`plan-extraction`) produced by earlier stages. It SHALL NOT mutate the graph or any field on `MapperContext` other than (optionally) generate-stage-local state.
 
 Internally `GenerateStage` SHALL orchestrate two phases:
-1. `BuildMethodBodies` — walks the realised subgraph per abstract method and produces a `List<MethodImpl>`.
+1. `BuildMethodBodies` — walks the extracted plan per abstract method and produces a `List<MethodImpl>`.
 2. `AssembleMapperType` — assembles the `List<MethodImpl>` into a `JavaFile` and writes it via the injected `Filer`.
 
 The split between the two phases SHALL be internal to `GenerateStage`. The intermediate `List<MethodImpl>` SHALL NOT be added to `MapperContext`'s public surface; it lives in stage-local scope.
@@ -26,8 +26,8 @@ The split between the two phases SHALL be internal to `GenerateStage`. The inter
 #### Scenario: GenerateStage does not mutate the graph
 
 - **WHEN** `GenerateStage.run(ctx)` returns
-- **THEN** the `MapperGraph` referenced by `ctx.getGraph()` has the same node set, edge set, and group set as it had on entry
-- **AND** no `addNode`, `addEdge`, `addGroup`, or analogous mutator method has been invoked on the graph during the stage
+- **THEN** the `MapperGraph` referenced by `ctx.getGraph()` has the same vertex set and edge set as it had on entry
+- **AND** no graph-append method (`apply(AddValue)`, `apply(AddOperation)`, `valueFor`) has been invoked during the stage
 
 #### Scenario: GenerateStage composes the two phases internally
 
@@ -113,31 +113,29 @@ Per-mapper isolation SHALL hold: a skipped mapper SHALL NOT cause other mappers 
 
 ### Requirement: Read-only graph invariant
 
-`GenerateStage` (and any phase it invokes) SHALL NOT call any mutating method on `MapperGraph`, including but not limited to `addNode`, `addEdge`, `addGroup`, `recordGroupOutcome`, or any method that adds, removes, or mutates nodes, edges, groups, or outcomes. The stage's view of the graph SHALL be obtained through read-only accessors (`graph.nodes()`, `graph.edges()`, `RealisedSubgraph`).
+`GenerateStage` (and any phase it invokes) SHALL NOT call any append method on `MapperGraph` (`apply(AddValue)`, `apply(AddOperation)`, `valueFor`) or any other method that adds vertices or edges. The stage's view of the graph SHALL be obtained through read-only accessors (`graph.values()`, `graph.operations()`, `graph.deps()`, `graph.bipartiteView()`) and the extracted plan.
 
-This invariant exists so that the `.dot` debug outputs produced by `DumpGraph` / `DumpFullGraph` / `DumpTransforms` faithfully reflect the graph that `GenerateStage` consumed. Future graph-modifying stages (e.g., an optimisation pass) SHALL be ordered before `dump` in the pipeline so the same invariant holds.
+This invariant exists so that the `.dot` debug outputs produced by `DumpFullGraphStage` / `DumpTransformsStage` / `DumpPlanStage` faithfully reflect the graph that `GenerateStage` consumed. Future graph-modifying stages (e.g., an optimisation pass) SHALL be ordered before the dump stages in the pipeline so the same invariant holds.
 
 #### Scenario: No mutating call sites in generate
 
 - **WHEN** the source of every class under `processor/src/main/java/io/github/joke/percolate/processor/stages/generate/` is inspected
-- **THEN** no source line contains a call to `MapperGraph#addNode`, `MapperGraph#addEdge`, `MapperGraph#addGroup`, `MapperGraph#recordGroupOutcome`, or any other graph mutator
+- **THEN** no source line invokes `MapperGraph#apply`, `MapperGraph#valueFor`, or any other graph-append method
 
 #### Scenario: Dump precedes generate in the pipeline
 
 - **WHEN** the ordered `List<Stage>` provided by `ProcessorModule` is inspected
-- **THEN** every graph-dumping stage (`DumpGraph`, `DumpFullGraph`, `DumpTransforms`, plus any future `Dump*` stage) appears strictly before `GenerateStage`
+- **THEN** every graph-dumping stage (`DumpFullGraphStage`, `DumpTransformsStage`, `DumpPlanStage`, plus any future `Dump*Stage`) appears strictly before `GenerateStage`
 
-### Requirement: IncomingValues and VarNames runtime implementations
+### Requirement: IncomingValues runtime implementation
 
-The processor module SHALL ship one package-private `IncomingValues` implementation and one package-private `VarNames` implementation, both under `io.github.joke.percolate.processor.stages.generate`.
+The processor module SHALL ship one package-private `IncomingValuesImpl` under `io.github.joke.percolate.processor.stages.generate`, implementing the SPI `IncomingValues` interface. There SHALL be no `VarNames` implementation (the `VarNames` type has been removed from the codegen surface).
 
-The `IncomingValues` implementation SHALL be constructed with an indexed `List<CodeBlock>` (for `byGroupPosition(int)`) and a `Map<String, CodeBlock>` (for `byName(String)` and `single()`). `single()` SHALL return the sole positional entry when the list has size 1; it MAY throw `IllegalStateException` if invoked when there is more than one positional entry.
-
-The `VarNames` implementation in slice 1 SHALL be a placeholder with no public methods beyond what the `VarNames` SPI interface declares (the interface is currently empty). It exists so that codegen call sites can pass a non-null `VarNames` reference without slice-1 strategies needing a stateful fresh-name supplier.
+`IncomingValuesImpl` SHALL be constructed with an indexed `List<CodeBlock>` (for `byGroupPosition(int)`) and a `Map<String, CodeBlock>` (for `byName(String)` and `single()`). `single()` SHALL return the sole positional entry when the list has size 1; it MAY throw `IllegalStateException` if invoked when there is more than one positional entry.
 
 #### Scenario: IncomingValues delegates by name and position
 
-- **WHEN** an `IncomingValues` instance is constructed with `byName = {"firstName" → CB1, "lastName" → CB2}` and positional list `[CB1, CB2]`
+- **WHEN** an `IncomingValuesImpl` instance is constructed with `byName = {"firstName" → CB1, "lastName" → CB2}` and positional list `[CB1, CB2]`
 - **THEN** `byName("firstName")` returns `CB1`
 - **AND** `byName("lastName")` returns `CB2`
 - **AND** `byGroupPosition(0)` returns `CB1`
@@ -145,13 +143,13 @@ The `VarNames` implementation in slice 1 SHALL be a placeholder with no public m
 
 #### Scenario: IncomingValues single() returns the only positional entry
 
-- **WHEN** an `IncomingValues` instance is constructed with a single-entry positional list `[CB]`
+- **WHEN** an `IncomingValuesImpl` instance is constructed with a single-entry positional list `[CB]`
 - **THEN** `single()` returns `CB`
 
-#### Scenario: VarNames placeholder is non-null
+#### Scenario: Codegen renders with only IncomingValues
 
-- **WHEN** `BuildMethodBodies` invokes any `EdgeCodegen.render(varNames, …)` or producer `Codegen.render(varNames, …)`
-- **THEN** the `varNames` argument is a non-null `VarNames` instance
+- **WHEN** `BuildMethodBodies` invokes a producer's `OperationCodegen.render(...)`
+- **THEN** the sole argument is an `IncomingValues` instance and no `VarNames` argument is passed
 
 ### Requirement: Method bodies render by walking the extracted plan
 
@@ -159,8 +157,8 @@ The `VarNames` implementation in slice 1 SHALL be a placeholder with no public m
 (`plan-extraction`) from the method's return-root `Value`: render the Value's chosen producer
 `Operation` by invoking its codegen with `IncomingValues` keyed by **port name**, where each
 incoming value is the recursively rendered port `Value`. Producer identity is structural — the
-generator SHALL NOT infer it from shared codegen instances, edge labels, or any
-group/`ExpansionGroup` surface, and SHALL NOT read `Nullability` to decide wiring.
+generator SHALL NOT infer it from shared codegen instances, edge labels, or any grouping label, and
+SHALL NOT read `Nullability` to decide wiring.
 
 #### Scenario: Fan-in renders from the chosen producer
 - **WHEN** the return-root's chosen producer is `new Address(int,String)` with ports `number`,
@@ -170,7 +168,7 @@ group/`ExpansionGroup` surface, and SHALL NOT read `Nullability` to decide wirin
 
 #### Scenario: No group or label reads
 - **WHEN** the source of `BuildMethodBodies` is inspected
-- **THEN** it references no `ExpansionGroup`, no group id, and no edge-carried consumer slot
+- **THEN** it references no grouping label, no group id, and no edge-carried consumer slot
 
 ### Requirement: Child scopes render as lambda bodies
 
@@ -187,8 +185,8 @@ expression is the lambda result, and the owning Operation's codegen weaves the c
 ### Requirement: Stream stages render as a threaded pipeline
 
 Each plain container Operation in the plan (`iterate`, `collect`, `wrap`, `unwrap`) SHALL render by
-threading its single `StreamOps`/container snippet onto the rendered expression of its operand, so a
-chain of such Operations composes into one fluent pipeline expression. The generator SHALL NOT fuse
+threading its single container snippet onto the rendered expression of its operand, so a chain of such
+Operations composes into one fluent pipeline expression. The generator SHALL NOT fuse
 `iterate`/`map`/`collect` into a single Operation's codegen.
 
 #### Scenario: Cross-kind pipeline threads stage by stage

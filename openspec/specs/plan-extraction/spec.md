@@ -116,13 +116,14 @@ hoisting shared Values into local variables is explicitly out of scope for this 
 ### Requirement: Cost is a lexicographically-ordered vector
 
 Selection SHALL be expressed over a single comparable `Cost` value — a lexicographically-ordered
-vector whose components are, in order: **totality** (partial-operation count, most significant),
-**weight** (the summed operation weights), and a **deterministic tie-break** derived from vertex
-identity. `Cost.INFINITE` SHALL denote an unreachable vertex and `Cost.ZERO` a base case. Combination
-is the semiring shape: `⊕` (at a `Value`) is `min` over producers; `⊗` (at an `Operation`) combines
-componentwise (counts and weights add). A **new selection preference SHALL be introduced as an
-additional `Cost` component** at its chosen significance, with no change to the fold algorithm or to
-any strategy.
+vector whose components are, in order: **totality** (`partials`, the transitive partial-operation
+count, most significant) and **weight** (the summed operation weights). `Cost.INFINITE` SHALL denote
+an unreachable vertex and `Cost.ZERO` a base case. Combination is the semiring shape: `⊕` (at a
+`Value`) is `min` over producers; `⊗` (at an `Operation`, `Cost.plus`) combines componentwise (counts
+and weights add, INFINITE-absorbing). When two producers compare equal on `Cost`, the **deterministic
+tie-break** is applied outside the vector, on `Operation.id()`. A **new selection preference SHALL be
+introduced as an additional `Cost` component** at its chosen significance, with no change to the fold
+algorithm or to any strategy.
 
 #### Scenario: Component order is totality, then weight, then tie-break
 - **WHEN** two producers differ in totality

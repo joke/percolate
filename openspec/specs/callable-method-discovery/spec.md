@@ -6,26 +6,26 @@ This spec defines the callable method discovery stage that walks the `@Mapper` i
 
 ## Requirements
 
-### Requirement: DiscoverCallableMethods stage exists and runs after MapperShape discovery
+### Requirement: DiscoverCallableMethodsStage exists and runs after MapperShape discovery
 
-The processor SHALL define a stage `DiscoverCallableMethods` in package `io.github.joke.percolate.processor.stages.discover` that consumes the discovered `@Mapper` `TypeElement` (already available via `MapperContext.getMapperType()`) and produces a `CallableMethods` instance, attached to the per-mapper context.
+The processor SHALL define a stage `DiscoverCallableMethodsStage` in package `io.github.joke.percolate.processor.stages.discover` that consumes the discovered `@Mapper` `TypeElement` (already available via `MapperContext.getMapperType()`) and produces a `CallableMethods` instance, attached to the per-mapper context.
 
-`DiscoverCallableMethods` SHALL run before `SeedGraph` so the `CallableMethods` index is available to expansion phases via `ResolveCtx`. The stage SHALL be `@Inject`-constructed via Lombok `@RequiredArgsConstructor(onConstructor_ = @Inject)`.
+`DiscoverCallableMethodsStage` SHALL run before `ExpandStage` so the `CallableMethods` index is available to expansion phases via `ResolveCtx`. The stage SHALL be `@Inject`-constructed via Lombok `@RequiredArgsConstructor(onConstructor_ = @Inject)`.
 
-`DiscoverCallableMethods` SHALL NOT modify the `MapperGraph` (the graph does not exist yet at this stage's runtime).
+`DiscoverCallableMethodsStage` SHALL NOT modify the `MapperGraph` (the graph does not exist yet at this stage's runtime).
 
-#### Scenario: Stage is wired into the pipeline before SeedGraph
+#### Scenario: Stage is wired into the pipeline before ExpandStage
 - **WHEN** the pipeline's stage list is inspected
-- **THEN** `DiscoverCallableMethods` appears before `SeedGraph` and after the mapper-shape discovery stages
+- **THEN** `DiscoverCallableMethodsStage` appears before `ExpandStage` and after the mapper-shape discovery stages
 - **AND** the stage is `@Inject`-constructed via Lombok
 
 #### Scenario: Stage produces a CallableMethods instance attached to MapperContext
-- **WHEN** `DiscoverCallableMethods.run(ctx)` completes
+- **WHEN** `DiscoverCallableMethodsStage.run(ctx)` completes
 - **THEN** the produced `CallableMethods` instance is reachable from `ctx` (and therefore from any `ResolveCtx` derived from it)
 
 ### Requirement: Discovery walks the @Mapper interface's full linearisation
 
-`DiscoverCallableMethods` SHALL invoke `ctx.getElements().getAllMembers(mapperType)` to obtain the complete linearisation of methods on the `@Mapper`-annotated `TypeElement`, including those inherited from super-interfaces.
+`DiscoverCallableMethodsStage` SHALL invoke `ctx.getElements().getAllMembers(mapperType)` to obtain the complete linearisation of methods on the `@Mapper`-annotated `TypeElement`, including those inherited from super-interfaces.
 
 The stage SHALL NOT walk methods declared on any other types — including types that appear as method parameters, return types, or fields of the mapper. Discovery is strictly scoped to the current `@Mapper` interface and its inherited methods.
 
@@ -43,7 +43,7 @@ The stage SHALL NOT walk methods declared on any other types — including types
 
 ### Requirement: Object-inherited members are filtered
 
-`DiscoverCallableMethods` SHALL exclude any method whose enclosing element is `java.lang.Object` (i.e. `toString`, `hashCode`, `equals`, `getClass`, `clone`, `wait`, `wait(long)`, `wait(long, int)`, `notify`, `notifyAll`, `finalize`).
+`DiscoverCallableMethodsStage` SHALL exclude any method whose enclosing element is `java.lang.Object` (i.e. `toString`, `hashCode`, `equals`, `getClass`, `clone`, `wait`, `wait(long)`, `wait(long, int)`, `notify`, `notifyAll`, `finalize`).
 
 #### Scenario: toString from Object is excluded
 - **WHEN** discovery walks an `@Mapper` interface that does not override `toString`
@@ -55,7 +55,7 @@ The stage SHALL NOT walk methods declared on any other types — including types
 
 ### Requirement: Multi-parameter methods are filtered
 
-`DiscoverCallableMethods` SHALL exclude any method with more than one declared parameter. Methods with exactly one parameter are eligible. Methods with zero parameters are eligible only if they have a non-`void` return type, but for v1 they remain eligible (single-input bridges still work for them when the single input is the bare receiver — though `MethodCallBridge` itself only emits for one-parameter cases; see expansion-strategy-spi).
+`DiscoverCallableMethodsStage` SHALL exclude any method with more than one declared parameter. Methods with exactly one parameter are eligible. Methods with zero parameters are eligible only if they have a non-`void` return type, but for v1 they remain eligible (single-input bridges still work for them when the single input is the bare receiver — though `MethodCallBridge` itself only emits for one-parameter cases; see expansion-strategy-spi).
 
 In v1, only single-parameter, non-static, non-void methods are practically usable. Multi-parameter methods are deferred to a future multi-argument assembly strategy (an `AssemblyStrategy`, analogous to `ConstructorCall` but over a callable method).
 
@@ -116,7 +116,7 @@ public interface CallableMethods {
 
 ### Requirement: Receiver abstraction with ThisReceiver as the v1 implementor
 
-The processor SHALL define an interface `Receiver`:
+The `percolate-spi` module SHALL define an interface `Receiver`:
 
 ```java
 public interface Receiver {
@@ -133,29 +133,29 @@ The processor SHALL ship exactly one v1 implementation: `ThisReceiver`. `ThisRec
 - **THEN** the returned `CodeBlock` renders to the literal string `this`
 
 #### Scenario: All v1 candidates carry ThisReceiver
-- **WHEN** `DiscoverCallableMethods` produces an index and any `MethodCandidate` is inspected
+- **WHEN** `DiscoverCallableMethodsStage` produces an index and any `MethodCandidate` is inspected
 - **THEN** the candidate's `receiver()` is the `ThisReceiver` instance
 
 ### Requirement: MethodCandidate is the nullability source for callable methods
 
-`MethodCandidate.method` (the `ExecutableElement` already exposed by today's discovery) SHALL be the authoritative source for callable-method nullability derivation. When the expansion engine commits a callable-method match (typing a slot Node via the callable's return type), it SHALL invoke `NullabilityResolver.resolve(method.getReturnType(), method)` to derive the produced value's `Nullability`. No new field is added to `MethodCandidate`.
+`MethodCandidate.method` (the `ExecutableElement` already exposed by today's discovery) SHALL be the authoritative source for callable-method nullability derivation. When `MethodCallBridge` produces a callable-method `OperationSpec`, it SHALL derive the produced value's `Nullability` via the demand oracle `demand.nullnessOf(method.getReturnType(), method)` (which delegates to `NullabilityResolver.resolve`). No new field is added to `MethodCandidate`.
 
-Parameter nullability of the callable's input is similarly derived on demand from `method.getParameters().get(i)` (a `VariableElement`) when the engine needs to type the callable's input slot.
+Parameter nullability of the callable's input is similarly derived on demand from `method.getParameters().get(0)` (a `VariableElement`) when the bridge types the operation's input port.
 
-The `DiscoverCallableMethods` stage SHALL NOT precompute, cache, or attach any `Nullability` data to the candidate index. Nullability resolution is engine-internal and deferred to producer-commit time.
+The `DiscoverCallableMethodsStage` stage SHALL NOT precompute, cache, or attach any `Nullability` data to the candidate index. Nullability resolution is deferred to spec-production time.
 
 #### Scenario: MethodCandidate exposes ExecutableElement unchanged
 - **WHEN** the source of `MethodCandidate` is inspected
 - **THEN** it exposes exactly the two fields documented today (`method`, `receiver`) plus their Lombok-generated accessors
 - **AND** no `nullability` or `producedFrom` field is added
 
-#### Scenario: Engine derives return-type nullability from MethodCandidate.method
-- **WHEN** the expansion engine commits a callable-method match for `MethodCandidate(method, receiver)` and types the target slot Node
-- **THEN** the slot Node's `setTyping(method.getReturnType(), nullability)` is invoked
-- **AND** `nullability` equals `NullabilityResolver.resolve(method.getReturnType(), method)`
+#### Scenario: Bridge derives return-type nullability from MethodCandidate.method
+- **WHEN** `MethodCallBridge` produces a callable-method `OperationSpec` for `MethodCandidate(method, receiver)`
+- **THEN** the spec's output nullness is `demand.nullnessOf(method.getReturnType(), method)`
+- **AND** that equals `NullabilityResolver.resolve(method.getReturnType(), method)`
 
-#### Scenario: DiscoverCallableMethods produces no Nullability state
-- **WHEN** `DiscoverCallableMethods.run(ctx)` completes
+#### Scenario: DiscoverCallableMethodsStage produces no Nullability state
+- **WHEN** `DiscoverCallableMethodsStage.run(ctx)` completes
 - **THEN** the produced `CallableMethods` instance carries no precomputed `Nullability` values
 - **AND** no class in `processor/src/main/java/io/github/joke/percolate/processor/stages/discover/` imports `Nullability` or `NullabilityResolver`
 

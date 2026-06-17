@@ -12,10 +12,10 @@ The validation model is **demand-driven, not topology-driven**: the engine deriv
 
 `RealisationDiagnosticsStage` SHALL pass `ctx.getMapperType()` (the `TypeElement` of the mapper-under-compilation) as the `Element` location argument to `Diagnostics.error(...)`. The IDE that consumes the diagnostic underlines the mapper class name (not individual `@Map` annotations).
 
-Anchoring at the mapper-type level is intentional: with the per-group greedy model, the failing slot's `@Map` directive is no longer the natural locus of the diagnostic — the failure is at the group/slot level, often crossing multiple directives.
+Anchoring at the mapper-type level is intentional: with the demand work-list model, the failing demand is not tied to a single `@Map` directive — an unreachable target often crosses multiple directives and conversion hops, so the mapper class name is the stable locus.
 
 #### Scenario: Diagnostic carries the mapper TypeElement
-- **WHEN** an UNSAT outcome's diagnostic is emitted
+- **WHEN** an unreachable demand's diagnostic is emitted
 - **THEN** the `Diagnostics.error(...)` call passes `ctx.getMapperType()` as its location argument
 
 ### Requirement: Diagnostics walk unsatisfied demands

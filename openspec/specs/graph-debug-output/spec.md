@@ -8,17 +8,17 @@ This spec defines the debug-graph dump stages and the deterministic DOT renderer
 
 ### Requirement: Deterministic DOT renderer
 
-The processor SHALL define a `DotRenderer` in `io.github.joke.percolate.processor.graph` that produces a `String` DOT representation of a **single scope's** slice of a `GraphSource` by delegating to JGraphT `org.jgrapht.nio.dot.DOTExporter`. The renderer SHALL NOT hand-assemble DOT text, escape characters by hand, or emit `subgraph cluster_*` blocks; statement structure, identifier quoting, and special-character escaping SHALL be owned by `DOTExporter`.
+The processor SHALL define a `DotRenderer` in `io.github.joke.percolate.processor.graph` that produces a `String` DOT representation of a **single scope's** slice of the bipartite `MapperGraph` by delegating to JGraphT `org.jgrapht.nio.dot.DOTExporter`. The renderer SHALL NOT hand-assemble DOT text, escape characters by hand, or emit `subgraph cluster_*` blocks; statement structure, identifier quoting, and special-character escaping SHALL be owned by `DOTExporter`.
 
-The renderer SHALL feed `DOTExporter` an `org.jgrapht.Graph<Node, Edge>` restricted to one `Scope` — obtained as an `AsSubgraph`/`MaskSubgraph` over the underlying graph (no full-graph copy), filtered to the nodes of that scope and to the edges exposed by the view being rendered.
+The renderer SHALL be handed an `org.jgrapht.Graph<GraphVertex, Dep>` restricted to one `Scope` — the per-scope slice built by `GraphDumpWriter`, filtered to the vertices of that scope and the `Dep` edges among them.
 
 The renderer SHALL configure `DOTExporter` so that:
-- `setVertexIdProvider` returns `Node.id()` (fully qualified, stable, unique).
-- `setVertexAttributeProvider` supplies the node `label` (per the "Node labels include the simple type segment" requirement) and the visual attributes (per the "Node and edge visual distinction" requirement).
-- `setEdgeAttributeProvider` supplies the edge `label` and visual attributes (per the "Edge label includes EdgeKind marker" and "Node and edge visual distinction" requirements).
+- the vertex id provider returns `GraphVertex.id()` (fully qualified, stable, unique).
+- the vertex attribute provider supplies the vertex `label` (per the "Bipartite DOT rendering" requirement: typed `label` for an `Operation`, readable type for a `Value`) and the visual attributes (box vs ellipse, fill, and the unreachable dimming).
+- the edge attribute provider supplies the `Dep`'s port id as its `label` (when feeding an Operation port).
 - `setGraphAttributeProvider` supplies a graph-level `label` attribute carrying the human-readable scope description, so the rendered graph is captioned with its scope.
 
-Determinism: given the same scope slice with the view's documented node and edge ordering, the produced `String` SHALL be byte-stable across runs. Vertices SHALL be presented to the exporter in ascending `Node.id()` order and edges in ascending natural `Edge` order.
+Determinism: given the same scope slice, the produced `String` SHALL be byte-stable across runs. Vertices SHALL be presented to the exporter in ascending `GraphVertex.id()` order and edges in a deterministic `Dep` order (by source id, target id, then port id).
 
 #### Scenario: Output is byte-stable across runs given the same scope slice
 - **WHEN** the same single-scope slice of a `MapperGraph` view is rendered twice in two separate JVM runs
@@ -34,11 +34,11 @@ Determinism: given the same scope slice with the view's documented node and edge
 
 #### Scenario: Vertex iteration order
 - **WHEN** rendering a scope slice
-- **THEN** vertex statements appear in ascending `Node.id()` order
+- **THEN** vertex statements appear in ascending `GraphVertex.id()` order
 
 #### Scenario: Edge iteration order
 - **WHEN** rendering a scope slice
-- **THEN** edge statements appear in ascending natural `Edge` order
+- **THEN** edge statements appear in a deterministic `Dep` order (source id, target id, then port id)
 
 #### Scenario: Special characters in labels are escaped by the exporter
 - **WHEN** a node's label contains `"` or `\` or a newline character
@@ -76,11 +76,13 @@ do not share a file.
 
 The processor SHALL define a single collaborator `GraphDumpWriter` in package `io.github.joke.percolate.processor.stages.dump` that owns the entire dump IO mechanism: the `ProcessorOptions.isDebugGraphs()` gate, the empty-graph skip, the per-scope partition, the `DOTExporter` rendering pass, the `Filer.createResource(StandardLocation.SOURCE_OUTPUT, …)` write per scope, and the `IOException`→warning handling. `GraphDumpWriter` SHALL be `@Inject`-constructed and SHALL depend on `Filer`, `Diagnostics`, `ProcessorOptions`, and the `DotRenderer`.
 
-Each dump stage (`DumpFullGraph`, `DumpTransforms`, `DumpPlan`) SHALL delegate to `GraphDumpWriter`,
-supplying only its view selector (`g -> g`, `g -> g.transformsView()`, `g -> g.planView()`) and its
-`<view>` infix. All dump stages SHALL run **after** the expansion stage (there is no pre-expansion
-seed dump). A `Filer`/`IOException` failure SHALL be reported as a `Diagnostics` warning referencing
-the originating `TypeElement`, SHALL NOT be an error, and SHALL NOT abort the compile.
+Each dump stage (`DumpFullGraphStage`, `DumpTransformsStage`, `DumpPlanStage`) SHALL delegate to `GraphDumpWriter`,
+supplying only a vertex-inclusion `Predicate<GraphVertex>` and its `<view>` infix: `full` includes every
+vertex (`vertex -> true`) and additionally requests unreachable-dimming; `transforms` includes the
+reachable vertices (`plan::reachable`); `plan` includes the in-plan vertices (chosen-producer membership).
+All dump stages SHALL run **after** the expansion stage (there is no pre-expansion seed dump). A
+`Filer`/`IOException` failure SHALL be reported as a `Diagnostics` warning referencing the originating
+`TypeElement`, SHALL NOT be an error, and SHALL NOT abort the compile.
 
 When partitioning a view's edges by scope, an edge SHALL be assigned to the scope of its `from` node, so that no edge is dropped even though, by construction, edges do not span scopes.
 
@@ -95,7 +97,7 @@ When partitioning a view's edges by scope, an edge SHALL be assigned to the scop
 - **AND** no diagnostic is emitted
 
 #### Scenario: One write per scope when option on
-- **WHEN** `DumpFullGraph` runs with `ProcessorOptions.isDebugGraphs() == true` for a non-empty `MapperGraph` with two scopes
+- **WHEN** `DumpFullGraphStage` runs with `ProcessorOptions.isDebugGraphs() == true` for a non-empty `MapperGraph` with two scopes
 - **THEN** `GraphDumpWriter` invokes `Filer.createResource(...)` once per scope, each with the scope's `<MapperFQN>.<method>.full.dot` name
 - **AND** each resource's contents are the `DOTExporter` rendering of that scope's slice
 
@@ -118,8 +120,9 @@ labelled with location plus a **readable type**: simple type names (no package q
 JSpecify nullness suffix `?`/`!` rendered **per level** from a `TypeMirror` walk — the outer level's
 nullness from the Value's own `nullness`, each nested type-argument's nullness from its annotation
 mirrors (e.g. `Optional<Set<Address?>>!`). Inline annotation FQNs SHALL NOT appear in a value label.
-`Dep` edges carry their port id (when feeding an Operation port). Scope-owning Operations render their
-child scope as a DOT cluster. Rendering remains deterministic (stable vertex and edge ordering).
+`Dep` edges carry their port id (when feeding an Operation port). A scope-owning Operation's child
+scope is written as a **separate per-scope file** (the renderer emits no clusters — grouping is the
+one-file-per-scope split). Rendering remains deterministic (stable vertex and edge ordering).
 
 #### Scenario: Operation label is the typed production
 - **WHEN** an `int`-to-`long` widening Operation is rendered
@@ -134,9 +137,10 @@ child scope as a DOT cluster. Rendering remains deterministic (stable vertex and
 - **WHEN** a graph containing Values and Operations is rendered
 - **THEN** Operations render as boxes and Values as ellipses, with port ids on port edges
 
-#### Scenario: Child scope renders as a cluster
-- **WHEN** a scope-owning container Operation is rendered
-- **THEN** its child scope's vertices appear inside a DOT cluster attached to the Operation
+#### Scenario: Child scope is a separate file, not a cluster
+- **WHEN** a scope-owning container Operation owns a child scope
+- **THEN** the child scope's vertices are written to their own per-scope `.dot` file, and no
+  `subgraph cluster_` token appears in any rendered output
 
 ### Requirement: Three dumps over the bipartite graph
 

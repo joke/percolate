@@ -77,10 +77,11 @@ When a constant directive's value cannot be coerced to its resolved target type,
 ### Requirement: ConstantValue emits a zero-port Operation
 
 `ConstantValue` SHALL emit a zero-port `Operation` whose codegen renders the coerced literal and
-whose produced `Value` is minted `NON_NULL`. A zero-port Operation is base-case SAT — the one place
-vacuous satisfaction is correct, because the goal-spec gate (not SAT) protects declared bindings.
-Coercion scope, strictness, and failure diagnostics are unchanged.
+whose produced `Value` is minted `NON_NULL`. A zero-port Operation is base-case reachable (a finite
+extraction cost with no ports to feed) — the one place vacuous satisfaction is correct, because the
+goal-spec gate (not reachability) protects declared bindings. Coercion scope, strictness, and failure
+diagnostics are unchanged.
 
-#### Scenario: Constant is base-case SAT
+#### Scenario: Constant is base-case reachable
 - **WHEN** a binding declares `constant = "42"` for an `int` target
-- **THEN** a zero-port Operation producing a `NON_NULL` `int` Value is SAT with no further demands
+- **THEN** a zero-port Operation producing a `NON_NULL` `int` Value is reachable with no further demands
