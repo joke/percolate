@@ -5,6 +5,7 @@ import static java.util.stream.Collectors.toUnmodifiableList;
 import com.palantir.javapoet.CodeBlock;
 import com.palantir.javapoet.TypeName;
 import io.github.joke.percolate.processor.MapperContext;
+import io.github.joke.percolate.processor.ProcessorOptions;
 import io.github.joke.percolate.processor.graph.ExtractedPlan;
 import io.github.joke.percolate.processor.graph.MapperGraph;
 import io.github.joke.percolate.processor.graph.MethodScope;
@@ -40,6 +41,8 @@ import lombok.RequiredArgsConstructor;
 @RequiredArgsConstructor(onConstructor_ = @Inject)
 public final class BuildMethodBodies {
 
+    private final ProcessorOptions options;
+
     List<MethodImpl> build(final MapperContext ctx) {
         final var shape = ctx.getShape();
         final var graph = ctx.getGraph();
@@ -54,7 +57,12 @@ public final class BuildMethodBodies {
 
     private MethodImpl renderMethod(final MapperGraph graph, final ExtractedPlan plan, final ExecutableElement method) {
         final var root = returnRoot(graph, new MethodScope(method));
-        final var body = new Walk(graph, plan, HoistPlan.forRoot(graph, plan, root)).renderMethodBody(root);
+        final var reserved = method.getParameters().stream()
+                .map(parameter -> parameter.getSimpleName().toString())
+                .collect(toUnmodifiableList());
+        final var hoist = HoistPlan.forMethod(graph, plan, root, reserved);
+        final var style = new LocalStyle(options.isLocalsFinal(), options.isLocalsVar());
+        final var body = new Walk(graph, plan, hoist, style).renderMethodBody(root);
         return new MethodImpl(method, body, Set.of());
     }
 
@@ -71,21 +79,23 @@ public final class BuildMethodBodies {
         private final MapperGraph graph;
         private final ExtractedPlan plan;
         private final HoistPlan hoist;
+        private final LocalStyle style;
 
         @SuppressWarnings({"PMD.UseConcurrentHashMap", "IdentityHashMapUsage"})
         private final Map<Value, CodeBlock> lambdaVars = new IdentityHashMap<>();
 
-        private Walk(final MapperGraph graph, final ExtractedPlan plan, final HoistPlan hoist) {
+        private Walk(final MapperGraph graph, final ExtractedPlan plan, final HoistPlan hoist, final LocalStyle style) {
             this.graph = graph;
             this.plan = plan;
             this.hoist = hoist;
+            this.style = style;
         }
 
         /** The method body: the scope's local declarations, then {@code return <return-root expression>;}. */
         private CodeBlock renderMethodBody(final Value root) {
             final var builder = CodeBlock.builder();
             for (final var value : hoistedInScope(root)) {
-                builder.addStatement("$T $N = $L", localType(value), hoist.declare(value), renderInline(value));
+                emitLocal(builder, value);
             }
             return builder.addStatement("return $L", renderInline(root)).build();
         }
@@ -101,12 +111,24 @@ public final class BuildMethodBodies {
             }
             final var builder = CodeBlock.builder().add("{\n").indent();
             for (final var value : hoistedHere) {
-                builder.addStatement("$T $N = $L", localType(value), hoist.declare(value), renderInline(value));
+                emitLocal(builder, value);
             }
             return builder.addStatement("return $L", renderInline(root))
                     .unindent()
                     .add("}")
                     .build();
+        }
+
+        /** Emit one hoisted local: {@code [final] <Type|var> <name> = <expr>;} per the configured {@link LocalStyle}. */
+        private void emitLocal(final CodeBlock.Builder builder, final Value value) {
+            final var name = hoist.declare(value);
+            final var rhs = renderInline(value);
+            builder.addStatement("$L$L $N = $L", style.isMakeFinal() ? "final " : "", typeToken(value), name, rhs);
+        }
+
+        /** The declaration's type token: {@code var} when configured, otherwise the Value's explicit type. */
+        private CodeBlock typeToken(final Value value) {
+            return style.isUseVar() ? CodeBlock.of("var") : CodeBlock.of("$T", localType(value));
         }
 
         /** An operand: a variable reference when the Value is hoisted, otherwise its inline expression. */
@@ -148,8 +170,9 @@ public final class BuildMethodBodies {
                     .map(this::renderOperand)
                     .orElseThrow(() -> new IllegalStateException("container mapping has no source port"));
             final var child = operation.getChildScope().orElseThrow();
-            final var var = hoist.freshVar();
-            lambdaVars.put(child.getParamRoot(), CodeBlock.of("$N", var));
+            final var paramRoot = child.getParamRoot();
+            final var var = hoist.lambdaName(paramRoot);
+            lambdaVars.put(paramRoot, CodeBlock.of("$N", var));
             final var childBody = renderScopeBody(child.getReturnRoot());
             return ((ScopeCodegen) operation.getCodegen()).weave(sourceExpr, var, childBody);
         }

@@ -42,6 +42,27 @@ class ProcessorOptionsSpec extends Specification {
         options.customNullableAnnotations == [] as Set
     }
 
+    def 'locals.final and locals.var default to false when absent'() {
+        when:
+        def options = ProcessorOptions.from([:])
+
+        then:
+        !options.localsFinal
+        !options.localsVar
+    }
+
+    def 'percolate.locals.final and percolate.locals.var parse the true flag'() {
+        when:
+        def options = ProcessorOptions.from([
+                'percolate.locals.final': 'true',
+                'percolate.locals.var'  : 'true'
+        ])
+
+        then:
+        options.localsFinal
+        options.localsVar
+    }
+
     def 'PercolateProcessor advertises percolate.nullable.annotations option'() {
         when:
         def supported = new PercolateProcessor().supportedOptions
@@ -49,5 +70,7 @@ class ProcessorOptionsSpec extends Specification {
         then:
         'percolate.nullable.annotations' in supported
         'percolate.debug.graphs' in supported
+        'percolate.locals.final' in supported
+        'percolate.locals.var' in supported
     }
 }

@@ -16,7 +16,7 @@ already renders as a simple name — SHALL NOT be hoisted, even when it feeds an
 into `Person v = person;` would add only noise.
 
 The method return-root `Value` SHALL render inline as the `return` expression — never as a trailing
-temporary (`return new Human(v0, v1, v2);`, not `Human v = ...; return v;`).
+temporary (`return new Human(street, first);`, not `Human v = ...; return v;`).
 
 Local declarations within a scope SHALL be emitted in dependency (topological) order, so every
 variable is declared before its first reference; the plan is acyclic, so a post-order walk of the
@@ -30,7 +30,7 @@ observe whether an operand is an inline expression or a variable reference).
 
 #### Scenario: Constructor arguments become locals
 - **WHEN** the chosen producer of `mapAddress`'s return-root is `new Human.Address(int number, String street)` (two ports)
-- **THEN** the body declares a local for each argument (e.g. `int <n1> = address.getNumber();` and `String <n2> = address.getStreet();`) before `return new Human.Address(<n1>, <n2>);`
+- **THEN** the body declares a slot-named local for each argument (`int number = address.getNumber();` and `String street = address.getStreet();`) before `return new Human.Address(number, street);`
 
 #### Scenario: Single-port chains stay inline
 - **WHEN** the plan for a target is a container pipeline `wrap ⟵ collect ⟵ map ⟵ flatMap ⟵ iterate`, every stage single-port
@@ -60,6 +60,61 @@ duplicate evaluation.
 #### Scenario: A value feeding two ports is emitted once
 - **WHEN** one `Value` `name:String` feeds ports of two in-plan Operations
 - **THEN** the generated code declares one local for it and references that local at both use sites, evaluating the producing expression exactly once
+
+### Requirement: Hoisted locals are named after their slot
+
+A hoisted local SHALL be named after the slot its `Value` materialises — the target field
+(`TargetLocation`), the last source path segment (`SourceLocation`), or the element role
+(`ElementLocation`) given by `Location.slotName()` — rather than an opaque counter (`v0`, `v1`). A
+container lambda parameter SHALL be named after its element type. When `slotName()` is empty the local
+SHALL fall back to a stable default (`value`); when the element type is unavailable the lambda
+parameter SHALL fall back to `element`.
+
+Names SHALL be made unique within the method body so that no local shadows a method parameter, no two
+declarations collide, and reserved words are sanitised — colliding names get a numeric suffix. The
+method's parameter names SHALL be reserved before any local is named.
+
+#### Scenario: A constructor argument is named after its target field
+- **WHEN** the argument `Value`s of `new Thing(String status, int count)` are hoisted
+- **THEN** the locals are `String status = ...;` and `int count = ...;`, not `v0` / `v1`
+
+#### Scenario: A shared source value is named after its source segment
+- **WHEN** the source `Value` `person.name` is shared by two target slots and hoisted once
+- **THEN** the local is `String name = person.getName();` (the last path segment), referenced at both sites
+
+#### Scenario: A name that would shadow a parameter is uniquified
+- **WHEN** a slot name equals a method parameter name already in scope
+- **THEN** the local is given a suffixed unique name so it does not shadow the parameter
+
+### Requirement: Local declaration style is configurable
+
+The generate stage SHALL render hoisted local declarations according to two independent compile-time
+processor options, both defaulting to off, and both advertised by `getSupportedOptions()`:
+
+- `percolate.locals.final` — when `true`, each hoisted local is declared `final`.
+- `percolate.locals.var` — when `true`, each hoisted local is declared with `var` in place of its
+  explicit type.
+
+The two options SHALL compose (`final var <name> = <expr>;`). Neither option SHALL change *which*
+`Value`s hoist, the declaration order, or the chosen names — only the declaration syntax. The style
+SHALL be invisible to strategies (a strategy still receives operand `CodeBlock`s through
+`IncomingValues` and cannot observe the declaration syntax of any local).
+
+#### Scenario: Default style is an explicit-type, non-final declaration
+- **WHEN** neither option is set
+- **THEN** a hoisted local renders as `String first = person.getFirst();`
+
+#### Scenario: percolate.locals.final prefixes final
+- **WHEN** `percolate.locals.final=true`
+- **THEN** a hoisted local renders as `final String first = person.getFirst();`
+
+#### Scenario: percolate.locals.var uses var
+- **WHEN** `percolate.locals.var=true`
+- **THEN** a hoisted local renders as `var first = person.getFirst();`
+
+#### Scenario: Both options compose
+- **WHEN** both `percolate.locals.final=true` and `percolate.locals.var=true`
+- **THEN** a hoisted local renders as `final var first = person.getFirst();`
 
 ## MODIFIED Requirements
 

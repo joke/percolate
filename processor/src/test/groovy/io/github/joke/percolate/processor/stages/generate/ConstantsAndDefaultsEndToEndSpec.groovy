@@ -40,10 +40,10 @@ class ConstantsAndDefaultsEndToEndSpec extends Specification {
         then:
         compilation.errors().empty
         def content = generated(compilation, 'test.MImpl')
-        and: 'each n-ary constructor argument hoists to a named local, then the return-root calls inline'
-        content.contains('String v0 = "ACTIVE";')
-        content.contains('int v1 = 42;')
-        content.contains('return new Thing(v0, v1)')
+        and: 'each n-ary constructor argument hoists to a target-slot-named local, then the return-root calls inline'
+        content.contains('String status = "ACTIVE";')
+        content.contains('int count = 42;')
+        content.contains('return new Thing(status, count)')
     }
 
     def 'a default on a nullable scalar source coalesces with requireNonNullElse'() {

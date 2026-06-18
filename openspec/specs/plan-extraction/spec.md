@@ -103,16 +103,6 @@ return-root.
 - **WHEN** a `map` Operation owning a child scope is chosen for `List<A> → List<B>`
 - **THEN** the plan view contains the child scope's extracted plan rooted at its return-root Value
 
-### Requirement: Shared Values render inline per use
-
-A `Value` consumed by more than one in-plan port SHALL be rendered inline at each use site. The
-engine assumes accessor idempotency (re-reading a source accessor yields an equivalent value);
-hoisting shared Values into local variables is explicitly out of scope for this capability.
-
-#### Scenario: One Value feeding two ports renders twice
-- **WHEN** the Value `street:String` feeds ports of two in-plan Operations
-- **THEN** the generated code re-renders the producing expression at each consuming site
-
 ### Requirement: Cost is a lexicographically-ordered vector
 
 Selection SHALL be expressed over a single comparable `Cost` value — a lexicographically-ordered

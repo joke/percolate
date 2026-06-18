@@ -53,8 +53,8 @@ class TwoSameTypedSourcesSpec extends Specification {
         then: 'a binds in.getY() and b binds in.getX() — the directives are honoured, not cross-bound'
         compilation.errors().empty
         def content = compilation.generatedSourceFile('test.MImpl').get().getCharContent(true).toString()
-        content.contains('String v0 = in.getY();')
-        content.contains('String v1 = in.getX();')
-        content.contains('return new Target(v0, v1);')
+        content.contains('String a = in.getY();')
+        content.contains('String b = in.getX();')
+        content.contains('return new Target(a, b);')
     }
 }

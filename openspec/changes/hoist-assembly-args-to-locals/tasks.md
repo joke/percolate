@@ -17,7 +17,19 @@
 - [x] 3.2 Add focused coverage for the new scenarios in `HoistAssemblyEndToEndSpec`: constructor arguments become locals; a single-port chain stays inline; the return-root renders inline; a bare parameter argument is not aliased; a shared `Value` is emitted once.
 - [x] 3.3 Rebuild `percolate-integration` mappers and confirm the regenerated `PersonMapperImpl` shows the hoisted form (constructor args as locals, stream pipeline still a single chain) and compiles. (No standalone `percolate-integration` module exists; the integration goldens are the `@Tag('integration')` end-to-end specs that compile fixtures and assert on the generated `*Impl` — all pass: single-arg `new Human(person.getFirstName())` stays inline, the stream chain stays one threaded pipeline, multi-arg/constant args hoist.)
 
-## 4. Verify
+## 4. Readable, slot-derived local names (Design D6)
 
-- [x] 4.1 Run `./gradlew check` and resolve every violation — do NOT continue while any remain.
-- [ ] 4.2 Commit the completed change with `/commit-commands:commit`.
+- [x] 4.1 Replace the `vN` counter in the hoist helper with slot-derived naming: name each hoisted local from `Location.slotName()` (target field / source segment / element role) and each container lambda parameter from its element type, falling back to `value` / `element` when absent.
+- [x] 4.2 Make names unique within the method via JavaPoet's `NameAllocator`, seeded with the method's parameter names so no local shadows a parameter, collisions get a numeric suffix, and reserved words are sanitised.
+- [x] 4.3 Re-pin the end-to-end specs that asserted `v0`/`v1` to the slot-derived names: `HoistAssemblyEndToEndSpec` (`street`/`first`, shared `name`), `ConstantsAndDefaultsEndToEndSpec` (`status`/`count`), `TwoSameTypedSourcesSpec` (`a`/`b`). (code-generation: "Hoisted locals are named after their slot")
+
+## 5. Configurable declaration style: `percolate.locals.final` / `percolate.locals.var` (Design D7)
+
+- [x] 5.1 Add the two boolean options to `ProcessorOptions` (default off) and advertise both keys from `PercolateProcessor.getSupportedOptions()`.
+- [x] 5.2 Introduce a `LocalStyle` value object (`makeFinal`, `useVar`) and thread it from `ProcessorOptions` into `BuildMethodBodies`; render each hoisted local as `[final] <Type|var> <name> = <expr>;`, the two flags composing. Style is computed after the hoist decision and the names, so it changes only syntax — never which Values hoist, the order, or the identifiers.
+- [x] 5.3 Cover the flags: `ProcessorOptionsSpec` parses and advertises both; `HoistAssemblyEndToEndSpec` data-drives the four `final`/`var` combinations and asserts the generated mapper still compiles. (code-generation: "Local declaration style is configurable")
+
+## 6. Verify the extension
+
+- [x] 6.1 Run `./gradlew check` and resolve every violation — do NOT continue while any remain.
+- [x] 6.2 Commit the extension with `/commit-commands:commit`.

@@ -23,7 +23,11 @@ public final class PercolateProcessor extends BasicAnnotationProcessor {
 
     @Override
     public Set<String> getSupportedOptions() {
-        return Set.of("percolate.debug.graphs", "percolate.nullable.annotations");
+        return Set.of(
+                ProcessorOptions.DEBUG_GRAPHS,
+                ProcessorOptions.NULLABLE_ANNOTATIONS,
+                ProcessorOptions.LOCALS_FINAL,
+                ProcessorOptions.LOCALS_VAR);
     }
 
     @Override

@@ -1,19 +1,23 @@
 package io.github.joke.percolate.processor.stages.generate;
 
 import com.palantir.javapoet.CodeBlock;
+import com.palantir.javapoet.NameAllocator;
 import io.github.joke.percolate.processor.graph.ExtractedPlan;
 import io.github.joke.percolate.processor.graph.MapperGraph;
 import io.github.joke.percolate.processor.graph.Operation;
 import io.github.joke.percolate.processor.graph.Value;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.IdentityHashMap;
 import java.util.Map;
 import java.util.Set;
+import javax.lang.model.type.DeclaredType;
+import javax.lang.model.type.TypeMirror;
 import lombok.AccessLevel;
 import lombok.RequiredArgsConstructor;
 
 /**
- * The separable, pure hoist decision plus variable naming for one method body (design D1/D2). Given the
+ * The separable, pure hoist decision plus variable naming for one method body (design D1/D2/D5). Given the
  * {@link ExtractedPlan} reachable from a method return-root, it decides which in-plan {@link Value}s materialise
  * as named locals: a Value with a chosen producer that either feeds a port of an <b>n-ary</b> {@link Operation}
  * ({@code getPorts().size() >= 2} — a multi-argument assembly call) <b>or</b> is consumed by more than one
@@ -22,9 +26,11 @@ import lombok.RequiredArgsConstructor;
  * crossings) and bare leaves (parameter / element-lambda roots, which have no chosen producer) stay inline.
  *
  * <p>It mutates neither the {@link MapperGraph} nor the {@link ExtractedPlan} and adds no codegen IR — it is the
- * seam toward a future per-scope binding schedule. Variable naming extends the existing {@code vN} counter and
- * the {@code Value -> reference CodeBlock} lookup lives here too, so the rendering decision and the naming sit in
- * one separable place. The counter is shared with the {@code Walk}'s lambda parameters so names never collide.
+ * seam toward a future per-scope binding schedule. Naming lives here too: each hoisted local is named after the
+ * slot it materialises ({@code Location.slotName()} — the target field, source segment, or element role) and a
+ * lambda parameter after its element type, made unique within the method by a {@link NameAllocator} seeded with
+ * the method's parameter names (so a local never shadows a parameter, collisions get a suffix, and reserved words
+ * are sanitised).
  */
 // IdentityHashMap is the point: every memo here is keyed by Value/Operation instance identity, not value equality.
 @SuppressWarnings({"PMD.UseConcurrentHashMap", "IdentityHashMapUsage"})
@@ -35,12 +41,19 @@ final class HoistPlan {
 
     private final Set<Value> hoisted;
 
+    private final NameAllocator names;
+
     private final Map<Value, CodeBlock> references = new IdentityHashMap<>();
 
-    private int nextVar;
-
-    /** Builds the hoist decision for the plan reachable from {@code root}, descending into child scopes. */
-    static HoistPlan forRoot(final MapperGraph graph, final ExtractedPlan plan, final Value root) {
+    /**
+     * Builds the hoist decision for the plan reachable from {@code root}, descending into child scopes;
+     * {@code reservedNames} (the method's parameter names) are pre-allocated so no local shadows a parameter.
+     */
+    static HoistPlan forMethod(
+            final MapperGraph graph,
+            final ExtractedPlan plan,
+            final Value root,
+            final Collection<String> reservedNames) {
         final Set<Operation> inPlanOps = Collections.newSetFromMap(new IdentityHashMap<>());
         collectOps(graph, plan, root, inPlanOps, Collections.newSetFromMap(new IdentityHashMap<>()));
 
@@ -62,7 +75,10 @@ final class HoistPlan {
                 hoisted.add(value);
             }
         });
-        return new HoistPlan(hoisted);
+
+        final var names = new NameAllocator();
+        reservedNames.forEach(names::newName);
+        return new HoistPlan(hoisted, names);
     }
 
     private static void collectOps(
@@ -85,9 +101,9 @@ final class HoistPlan {
         return hoisted.contains(value);
     }
 
-    /** Allocates a fresh {@code vN} name for {@code value}, records its reference, and returns the name. */
+    /** Allocates a unique name for a hoisted {@code value} from its slot name, records its reference, returns it. */
     String declare(final Value value) {
-        final var name = freshVar();
+        final var name = names.newName(slotBase(value));
         references.put(value, CodeBlock.of("$N", name));
         return name;
     }
@@ -101,10 +117,27 @@ final class HoistPlan {
         return ref;
     }
 
-    /** The next {@code vN} name; shared by hoisted locals and lambda parameters so names never collide. */
-    String freshVar() {
-        final var current = nextVar;
-        nextVar++;
-        return "v" + current;
+    /** Allocates a unique lambda-parameter name for {@code paramRoot} from its element type. */
+    String lambdaName(final Value paramRoot) {
+        return names.newName(elementBase(paramRoot));
+    }
+
+    private static String slotBase(final Value value) {
+        final var slot = value.getLoc().slotName();
+        return slot.isEmpty() ? "value" : slot;
+    }
+
+    private static String elementBase(final Value paramRoot) {
+        return paramRoot.getType().map(HoistPlan::typeBase).orElse("element");
+    }
+
+    private static String typeBase(final TypeMirror type) {
+        if (type instanceof DeclaredType) {
+            final var simple = ((DeclaredType) type).asElement().getSimpleName().toString();
+            if (!simple.isEmpty()) {
+                return Character.toLowerCase(simple.charAt(0)) + simple.substring(1);
+            }
+        }
+        return "element";
     }
 }

@@ -19,6 +19,10 @@ are untouched.
   references; fluent container pipelines stay a single chain.
 - A `Value` shared by more than one port is evaluated once (a correctness/efficiency win, not just
   readability).
+- Hoisted locals read like the code a human would write: named after the slot they materialise (target
+  field / source segment / element role), unique within the method, never shadowing a parameter.
+- The declaration syntax is configurable at compile time — `final` and/or `var` — without touching the
+  hoist decision or the names.
 - Keep the change contained in the generate stage, behind a separable pure helper that could later
   graduate into a per-scope binding schedule.
 
@@ -26,7 +30,6 @@ are untouched.
 - No change to plan *selection* (the cheapest-cost fold) or to which producers win.
 - No graph/plan mutation, no SPI change, no strategy change.
 - No codegen IR (honours the LOCKED no-IR codegen direction).
-- Readable, slot-derived variable names — deferred (counter names for now).
 - A first-class `BindingSchedule` type / showing variables in `.plan.dot` — deferred (B1), but the
   helper is shaped so it can graduate without a rewrite.
 
@@ -65,16 +68,40 @@ renders inline as the `return` expression (its *ports* hoist, the root itself do
 `Walk` already recurses per scope (a container element mapping binds the child param-root and renders
 the child return-root). Hoisting is applied per scope with its own statement list: the method body is
 a statement block; a child (lambda) scope renders as an **expression lambda** when it hoists nothing
-(`v1 -> this.mapAddress(v1)` stays terse) and as a **block lambda** (`v -> { T a = ...; return ...; }`)
-when its element transform contains nested assembly. This keeps trivial element maps unchanged while
+(`address -> this.mapAddress(address)` stays terse) and as a **block lambda**
+(`address -> { String street = ...; return ...; }`) when its element transform contains nested
+assembly. This keeps trivial element maps unchanged while
 supporting nested constructors, and makes every scope uniformly "ordered bindings + a return
 expression" — the same shape a future `BindingSchedule` would take.
 
-### D5: Topological emission, counter names
+### D5: Topological emission
 Within a scope, declarations are emitted in dependency order via a post-order walk of the chosen-
 producer DAG (acyclic by extraction's cycle guard), so each local is declared before first use.
-Variable names use the existing `vN` counter (already used for lambda params); readable slot-derived
-names are deferred to avoid the collision-disambiguation work now.
+
+### D6: Readable, slot-derived names via a `NameAllocator`
+Each hoisted local is named after the slot it materialises — `Location.slotName()` returns the target
+field (`TargetLocation`), the last source path segment (`SourceLocation`), or the element role
+(`ElementLocation`); a container lambda parameter is named after its element type. Uniqueness and
+sanitisation are delegated to JavaPoet's `NameAllocator`: `HoistPlan.forMethod` seeds it with the
+method's parameter names so no local shadows a parameter, and every `newName(slot)` returns a
+collision-free, keyword-safe identifier (a numeric suffix on clash). Empty slot names fall back to
+`value`, an unavailable element type to `element`. This keeps naming a pure function of the plan,
+co-located with the hoist decision in the one helper (D1), and replaces the earlier `vN` counter
+without disturbing the emission order (D5).
+- *Why a `NameAllocator`, not a hand-rolled map:* it already encapsulates the collision-suffix and
+  reserved-word logic this requirement needs, so the helper stays small (prefer library primitives).
+
+### D7: Configurable declaration style (`final` / `var`) via `ProcessorOptions`
+Two independent boolean processor options — `percolate.locals.final` and `percolate.locals.var`, both
+default off, advertised by `getSupportedOptions()` — are parsed into `ProcessorOptions` and passed to
+`BuildMethodBodies` as a small value object (`LocalStyle`). When rendering a hoisted local, `final` is
+prefixed iff `makeFinal`, and the type token is `var` iff `useVar` (otherwise the Value's explicit
+type). The two compose to `final var name = …;`. Style is purely syntactic: it is computed *after* the
+hoist decision and the names, so it cannot change which Values hoist, the order, or the identifiers,
+and a strategy never observes it (it only ever sees operand `CodeBlock`s through `IncomingValues`).
+- *Alternative — a single tri-state option:* rejected; the two axes are orthogonal (`final var` is a
+  valid combination) and two booleans read more clearly in a build script.
+- *Default off:* preserves the existing output as the baseline; both are opt-in stylistic knobs.
 
 ## Risks / Trade-offs
 
@@ -85,9 +112,9 @@ names are deferred to avoid the collision-disambiguation work now.
   line in one helper and can later consult an explicit `OperationSpec` hint if a real exception appears.
 - **Block-lambda verbosity for nested element assembly.** → *Mitigation:* a child scope block-lambdas
   only when it actually hoists; trivial element maps stay expression lambdas (D4).
-- **Constant args become `String v0 = "Hello";`.** Mild noise. → *Mitigation:* acceptable and consistent
-  with "every argument named"; a future "exempt trivial producers" knob can live in the same helper
-  without a spec change to the leaf rule. Tracked as an open question.
+- **Constant args become `String status = "ACTIVE";`.** Mild noise. → *Mitigation:* acceptable and
+  consistent with "every argument named"; a future "exempt trivial producers" knob can live in the same
+  helper without a spec change to the leaf rule. Tracked as an open question.
 - **Golden-output test churn.** Every end-to-end codegen spec that pins generated text updates from
   nested-expression to hoisted-local form, and the `percolate-integration` golden regenerates. →
   *Mitigation:* expected and mechanical; the new shape is the assertion.
@@ -101,9 +128,7 @@ no API surface touched). `./gradlew check` is the gate.
 ## Open Questions
 
 - **Trivial-producer exemption:** should a constant literal feeding an n-ary port stay inline
-  (`new Human("Hello", lastName, addresses)`) rather than `String v0 = "Hello";`? A knob in the helper;
-  defaulting to "hoist all n-ary args" for now.
-- **Readable names (deferred):** derive locals from `Value.getLoc().slotName()` (`lastName`, `street`)
-  with collision suffixes — bigger readability win, separate change.
+  (`new Human("Hello", lastName, addresses)`) rather than `String status = "ACTIVE";`? A knob in the
+  helper; defaulting to "hoist all n-ary args" for now.
 - **Graduate to B1 (deferred):** promote the helper to a per-scope `BindingSchedule` so `.plan.dot`
   can render the hoisted variables — pursue only if dump-visibility is wanted.
