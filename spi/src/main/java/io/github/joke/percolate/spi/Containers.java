@@ -109,14 +109,6 @@ public class Containers {
     }
 
     private boolean isDeclaredTypeErasureMatch(final TypeMirror t, final String fqn, final ResolveCtx ctx) {
-        if (t.getKind() != TypeKind.DECLARED) {
-            return false;
-        }
-        final var typeElement = ctx.elements().getTypeElement(fqn);
-        if (typeElement == null) {
-            return false;
-        }
-        final var types = ctx.types();
-        return types.isSameType(types.erasure(t), types.erasure(typeElement.asType()));
+        return TypeProbe.isType(t, fqn, ctx);
     }
 }

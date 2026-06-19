@@ -5,7 +5,7 @@
 - [x] 1.3 Prototype grounding-by-match end to end on `Set<Person> → Set<PersonView>`: ground `A`, substitute across output + child scope, land a concrete Operation, confirm no abstract type enters the work-list
 - [x] 1.4 Establish the termination argument (finite in-scope sources, grounded-type dedup, Value dedup, bounded nesting) and the wildcard/bounded-generic policy (`Flux<? extends T>`: support or restrict)
 - [x] 1.5 Write the `Flux<Dto> → Flux<Entity>` and `Mono<Dto> → Mono<Entity>` paper trace into `design.md` proving a third party adds reactive with zero engine change
-- [x] 1.6 **Gate:** if the mechanic does not hold (termination/representation/agnosticism), STOP and revise the design before any further task
+- [x] 1.6 **Gate:** if the mechanic does not hold (termination/representation/agnosticism), STOP and revise the design before any further task — re-opened (the decomposed cross-kind Stream pipeline exposed a hole), revised, and APPROVED: a source-facing `SourceProjection` SPI parallel to `ExpansionStrategy` feeds grounding's match set; engine stays type-agnostic; reactive accepted as the justification (see design.md § Spike Revision / D8)
 
 ## 2. Engine — type-variable ports and grounding-by-match
 
@@ -14,14 +14,16 @@
 - [x] 2.3 Keep the work-list strictly concrete (no abstract Value), preserve target→source order (`never_forward`), and rely on over-emit + cost-prune (no engine-side choice)
 - [x] 2.4 Confirm Value dedup + grounded-type dedup bound instantiation; add the termination guard for nested generics
 - [x] 2.5 Spock specs for grounding-by-match (single match, multi-match over-emit, no-abstract-Value, termination/round-trip)
+- [ ] 2.6 Extend `Grounding` to widen its match set with the registered `SourceProjection`s' projections of the in-scope sources (engine stays type-agnostic; unify unchanged); Spock specs for the cross-kind bootstrap, drop-empties, and termination of the widened grounding
 
 ## 3. SPI — one uniform candidate-free surface
 
-- [ ] 3.1 Add `TypeProbe` to `spi` (`asTypeElement`/`isType`/`isEnum`/`simpleName`); make `Containers` delegate its declared-type checks to it
+- [x] 3.1 Add `TypeProbe` to `spi` (`asTypeElement`/`isType`/`isEnum`/`simpleName`); make `Containers` delegate its declared-type checks to it
 - [ ] 3.2 Remove `candidates()` from the `Demand` producer surface (the engine sources inputs); update the demand context type
 - [ ] 3.3 Remove `CombinatorialMatch` (and any candidate-iterating mixin); reshape `Container` as a functor-lift declaration over its own intermediate (emitting a type-variable `map` input port)
 - [ ] 3.4 De-hardcode `Containers`: remove the `java.util.stream.Stream`-privileged helpers (`streamOf`/`streamElement`) from the universal path; intermediates are author-declared
 - [ ] 3.5 Spock specs: the SPI package exposes no `CombinatorialMatch` and no `Demand.candidates()`; `Containers` delegates to `TypeProbe`
+- [ ] 3.6 Add the `SourceProjection` SPI interface (parallel to `ExpansionStrategy`) + engine loading; reshape `Container` to implement both interfaces (target-driven ops + source projection to its intermediate); add the conversion/accessor archetype middle bases (the folded-in ergonomic goal)
 
 ## 4. Migrate built-ins to the target-driven surface
 

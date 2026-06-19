@@ -193,6 +193,81 @@ demand Flux<Entity>  →  FluxMap emits  out=Flux<Entity>, port App(Flux,[Var0])
 
 `Mono<Dto> → Mono<Entity>` is identical with `MonoContainer`/`MonoMap` (`mono.map`). **The engine executes the byte-for-byte same grounding-by-match it ran for `Set` — it cannot tell `Flux.map` from `Stream.map` from `Optional.map`.** And because the engine invents no bridges (D4), `Flux<Dto> → List<Entity>` (which would need a blocking `collectList().block()`) is simply reported unrealisable unless a strategy declares that edge — reactive code is never silently given a blocking conversion. This is the north-star reactive promise, proven.
 
-### 1.6 — Gate: PASS
+### 1.6 — Gate: PASS (initial) → RE-OPENED (see Spike Revision)
 
-Representation holds (structural template, no fabricated `TypeVariable`); termination holds (finite sources, subterm bindings, Value + spec dedup, depth-bounded nesting); agnosticism holds (unification names no container kind; functor lift declared per-container; engine invents no bridges). The mechanic is a generalisation of `Containers.streamElement`/`streamOf`/`StreamMap`, which already ship. **No design revision is required; Section 2 (engine) may proceed.**
+Representation holds (structural template, no fabricated `TypeVariable`); termination holds (finite sources, subterm bindings, Value + spec dedup, depth-bounded nesting); agnosticism holds (unification names no container kind; functor lift declared per-container; engine invents no bridges). The mechanic is a generalisation of `Containers.streamElement`/`streamOf`/`StreamMap`, which already ship. The engine mechanic (Section 2) landed additively on this basis.
+
+**Gate re-opened during Section 4 scoping** — the initial trace covered only the *same-kind* case (`Set<Person>→Set<PersonView>`), where the source pre-exists. It did not trace the **decomposed cross-kind Stream pipeline** the codebase requires, and that case exposed a hole the gate is meant to catch. See the Spike Revision below; the Section 2 engine code is unaffected (correct for same-kind), but the container migration (3.4 / 4.5 / 4.6) is re-specified.
+
+## Spike Revision — decomposed-pipeline grounding (gate re-opened, task 1.6)
+
+### The gap
+
+`ContainerStreamEndToEndSpec` (`List<Optional<Paw>> → Optional<Set<Claw>>`, a cross-kind, mismatched-nesting, **drop-empties** conversion) is a regression guard whose own docstring states a *fused* per-container element-map model **cannot phrase it**; it requires the decomposed Stream-intermediate chain `wrap ← collect ← map[A→B] ← flatMap[Optional→Stream] ← iterate(List)`. Empties are dropped by `flatMap`; a per-container `Optional.map`/`Set.map` would instead route through a **partial `unwrap`** (throws on empty) — wrong semantics.
+
+Today `StreamMap` bootstraps that chain by reading a **non-`Stream` candidate**: `Containers.streamElement(List<Optional<Paw>>) = Optional<Paw>`, so it builds the **concrete** port `Stream<Optional<Paw>>`, which `iterate` then produces. Grounding-by-match as validated in § 1.2–1.6 removes that bridge: `StreamMap` would offer `Stream<Claw> ← Stream<A>` and ground `A` by unifying `Stream<A>` against the in-scope sources — but the only source is `List<Optional<Paw>>`, which **does not unify** with `Stream<A>` (erasure `List` ≠ `Stream`). The `Stream<X>` it needs is produced *by* the pipeline on demand, so there is nothing to ground against. **Removing the `streamElement` bridge outright breaks cross-kind bootstrap.** The § 1.2–1.6 traces missed this because they were all same-kind, where the source already has the port's erasure.
+
+### Resolution — a second SPI interface parallel to `ExpansionStrategy` (D3 amended, D8 added)
+
+The engine must stay **completely type-agnostic** (it names no `Stream`/`Collection`/kind), but the candidate-free `ExpansionStrategy` surface is **purely target-driven** ("what produces this target?") and so structurally *cannot* express the one source-facing fact the decomposed pipeline needs: *"a `List<X>` source can be viewed as a `Stream<X>`."* The resolution is therefore **not** a method bolted onto `ExpansionStrategy`, nor an engine rule, but a **second, parallel SPI interface** the loader discovers alongside `ExpansionStrategy` — a deliberately *source-facing* contract (the SPI is no longer entirely target-based):
+
+```java
+// percolate-spi — a top-level SPI parallel to ExpansionStrategy, loaded the same way
+public interface SourceProjection {
+    /** The derived types an in-scope {@code source} may be viewed as, for grounding only — e.g. a collection
+     *  projects to its element stream (List<X>/Set<X>/Optional<X>/X[] -> Stream<X>); a reactive source to its own
+     *  (Flux<X> -> Flux<X>). Returns nothing for a source this projector does not recognise. The engine consumes
+     *  these structurally and names no kind. */
+    Stream<TypeMirror> project(TypeMirror source, ResolveCtx ctx);
+}
+```
+
+De-hardcoding (3.4) **deletes** the universal `Containers.streamElement`/`streamOf` helpers outright; the element-bridge they embodied moves into `SourceProjection` implementations, where the *strategy* (not the engine) owns the type knowledge.
+
+**Grounding consumes the projections, not a hardcoded helper.** When the driver grounds a type-variable port, its match set is `sourceTypes(scope)` **plus** `projector.project(s)` for every in-scope source `s` and every registered `SourceProjection`. These derived types feed the **existing structural unification with no new rule**: `Stream<A>` unifies against the derived `Stream<Optional<Paw>>` and grounds `A := Optional<Paw>`. The derived `Stream<Optional<Paw>>` is then an ordinary **target-driven** demand, produced by a container's own `iterate`.
+
+This keeps the engine **kind-agnostic** (it calls `project` generically and inspects nothing), composes only **declared** ops (invents no bridge — D4), and preserves **`never_forward`**: grounding already *matches against in-scope sources*; this only widens that match with each projector's declarative one-step view of an in-scope source — **not** a forward expansion sweep (the graph still grows strictly target→source; the derived `Stream<X>` enters the work-list as an ordinary concrete demand).
+
+#### D8 — Two parallel SPI interfaces + middle authoring bases
+
+The SPI now has **two** orthogonal, parallel author interfaces — `ExpansionStrategy` (produce a target) and `SourceProjection` (project a source) — and a set of **middle base classes** that implement them with sensible defaults so a developer writes one small class (this is the original ergonomic goal of the abandoned `spi-strategy-archetype-bases`, folded in):
+
+- `Container` (reshaped) implements **both** interfaces — it emits the kind-local target-driven ops (`iterate`/`collect`/`wrap`/`unwrap`/`map`) *and* projects its kind's source to its intermediate (`Cont<X> → Stream<X>`) — so a container author still writes a single class (`matches`/`element`/snippets/intermediate); a `Flux` container is the same shape over `Flux`.
+- Archetype convenience bases for the recurring `ExpansionStrategy` shapes (conversion, accessor) round out the ergonomics.
+
+The engine consumes the two interfaces uniformly and names no type; all kind knowledge lives behind the middle bases.
+
+### Re-trace — `List<Optional<Paw>> → Optional<Set<Claw>>`
+
+```
+demand Optional<Set<Claw>>     → Optional.wrap   : Optional<Set<Claw>> ← Set<Claw>            (port Set<Claw>)
+demand Set<Claw>               → Set.collect     : Set<Claw> ← Stream<Claw>                   (port Stream<Claw>)
+demand Stream<Claw>            → StreamMap.flatMap: Stream<Claw> ← Stream<A>, child A→Stream<Claw>
+    ground Stream<A> :  no direct Stream source; in-scope List<Optional<Paw>> ─iterate→ Stream<Optional<Paw>>
+                        ⇒ A := element(List<Optional<Paw>>) = Optional<Paw>
+    land Stream<Claw> ← Stream<Optional<Paw>>;  child  Optional<Paw> → Stream<Claw>
+demand Stream<Optional<Paw>>   → List.iterate    : Stream<Optional<Paw>> ← List<Optional<Paw>>  (reuse the source)
+  child scope  Optional<Paw> → Stream<Claw>:
+    demand Stream<Claw>        → StreamMap.map    : Stream<Claw> ← Stream<A>, child A→Claw
+        ground Stream<A> :  in-scope Optional<Paw> (child param-root) ─iterate→ Stream<Paw> ⇒ A := Paw
+        land Stream<Claw> ← Stream<Paw>;  child Paw → Claw  (= mapPaw)
+    demand Stream<Paw>         → Optional.iterate : Stream<Paw> ← Optional<Paw>   (drops empties; reuse child root)
+```
+
+(Both `map` and `flatMap` are over-emitted at `Stream<Claw>`; the `map` branch's child `Optional<Paw> → Claw` can only route through the **partial** `unwrap`, so the plan-extraction totality rule keeps the **total** `flatMap` branch — the empties are dropped, matching the guard. No abstract type ever entered the work-list; every demand — `Set<Claw>`, `Stream<Claw>`, `Stream<Optional<Paw>>`, `Stream<Paw>`, `Paw` — is concrete.)
+
+### Termination + agnosticism (re-verified for the extension)
+
+- **Termination.** The bridge adds, per grounding, one element type per in-scope container source — finite. Bridged intermediates are subterms of existing concrete sources (`element(List<Optional<Paw>>) = Optional<Paw>`; child element types strictly shrink: `Optional<Paw> → Paw`), so no depth growth. Grounded concrete demands dedup by `(scope, location, type, nullness)` Value identity and by `OperationSpec` signature, exactly as in § 1.4. Closure depth is **one `iterate` step per grounding** (the bridged `Stream<X>` is re-demanded, re-grounding within the child scope on a strictly smaller element).
+- **Agnosticism.** The engine unifies the strategy-declared port against the projector-declared source views structurally; it names no kind. Reactive (`Flux`) bridges identically with zero engine change — a `Flux` projector projects `Flux<X> → Flux<X>` (or its own iterate), so a `Flux<Dto>` source grounds a `Flux<A>` port. Cross-**paradigm** (`Flux → List`) has no projection bridging the two intermediates, so it remains unrealisable (D4 intact).
+
+### Impact on the task plan
+
+- **D3 amended / D8 added:** "remove the `Stream` *privilege*" stands; `Containers.streamElement`/`streamOf` are **deleted**; a second SPI interface `SourceProjection` (parallel to `ExpansionStrategy`) takes over the source-facing bridge, and the middle `Container` base implements both interfaces.
+- **2.x engine extension:** grounding (`Grounding`) widens its match set with the registered `SourceProjection`s' projections of the in-scope sources, then unifies as before (no new unify rule). Additive to the committed Section 2 mechanic; needs its own spec (cross-kind bootstrap, drop-empties, termination).
+- **3.x re-specified:** add the `SourceProjection` SPI + engine loading; delete `Containers.streamElement`/`streamOf`; reshape `Container` to implement both interfaces; add the conversion/accessor archetype bases.
+- **4.5 / 4.6 re-specified:** `Container` projects its kind to its intermediate (kind-agnostic; JDK = `Stream`) and declares its kind-local ops target-driven; `StreamMap`/`mapPresence` become type-variable functor-lifts grounded via the widened match set (`Stream<X> → Stream<Y>` over any conversion).
+
+### 1.6 — Gate: PASS (revised, approved)
+
+With the source-facing `SourceProjection` SPI (parallel to `ExpansionStrategy`) feeding grounding's match set, the decomposed cross-kind pipeline grounds and terminates, the engine stays type-agnostic, agnosticism and `never_forward` hold, and the `ContainerStreamEndToEndSpec` semantics (drop-empties) are reproduced. The reactive goal is the accepted justification for the foundational rewrite (decision: *reactive matters — finish it*). **Approved; the container migration proceeds.**
