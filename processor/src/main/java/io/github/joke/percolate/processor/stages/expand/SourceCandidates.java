@@ -47,6 +47,23 @@ final class SourceCandidates {
     }
 
     /**
+     * The in-scope source <em>types</em> — method parameters plus discovered graph sources — that grounding-by-match
+     * unifies a type-variable port against. The same set the port-sourcing reuse draws from, exposed type-only so the
+     * driver can ground a template port without the (producer-facing) candidate snapshot.
+     */
+    List<TypeMirror> sourceTypes(final Scope scope) {
+        return Stream.concat(paramTypes(scope), sourceValues(scope).map(this::type))
+                .collect(toUnmodifiableList());
+    }
+
+    private Stream<TypeMirror> paramTypes(final Scope scope) {
+        if (!(scope instanceof MethodScope)) {
+            return Stream.empty();
+        }
+        return ((MethodScope) scope).getMethod().getParameters().stream().map(param -> param.asType());
+    }
+
+    /**
      * The in-scope source Value that can feed {@code port}: an already-materialised graph source first, else a
      * matching method parameter materialised on demand as a {@code LEAF} (parameters are not pre-seeded).
      */

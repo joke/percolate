@@ -94,6 +94,7 @@ public final class ExpandStage implements Stage {
         private final ResolveCtx resolveCtx;
         private final AccessorResolver accessorResolver;
         private final SourceCandidates sourceCandidates;
+        private final Grounding grounding;
         private final Applier applier = new Applier();
         private final Deque<Value> workList = new ArrayDeque<>();
         private final Set<Value> visited = new HashSet<>();
@@ -104,6 +105,7 @@ public final class ExpandStage implements Stage {
             this.resolveCtx = resolveCtx;
             this.accessorResolver = new AccessorResolver(strategies, resolveCtx, resolver);
             this.sourceCandidates = new SourceCandidates(graph, applier, resolver, resolveCtx);
+            this.grounding = new Grounding(resolveCtx);
         }
 
         /** Self-seeds one return-type demand per abstract method into the empty graph, then drains the work-list. */
@@ -163,7 +165,14 @@ public final class ExpandStage implements Stage {
                     value.getLoc().slotName(),
                     sourceCandidates.candidates(scope),
                     resolver);
-            for (final var spec : dedup(run(demand))) {
+            // Ground type-variable ports against the in-scope sources before dedup/land: every spec the driver
+            // lands is concrete (no abstract type ever enters the work-list), preserving target→source order and
+            // over-emit + cost-prune. A concrete spec passes through grounding unchanged.
+            final var sourceTypes = sourceCandidates.sourceTypes(scope);
+            final var grounded = run(demand).stream()
+                    .flatMap(spec -> grounding.ground(spec, sourceTypes))
+                    .collect(toUnmodifiableList());
+            for (final var spec : dedup(grounded)) {
                 land(value, spec, children, pinnedSource);
             }
         }
