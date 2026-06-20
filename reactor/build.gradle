@@ -1,0 +1,45 @@
+plugins {
+    id 'java'
+    id 'groovy'
+}
+
+dependencies {
+    annotationProcessor platform(project(':dependencies'))
+    annotationProcessor 'com.google.auto.service:auto-service'
+    annotationProcessor 'org.projectlombok:lombok'
+
+    compileOnly platform(project(':dependencies'))
+    compileOnly 'com.google.auto.service:auto-service-annotations'
+    compileOnly 'org.projectlombok:lombok'
+    compileOnly 'org.jspecify:jspecify'
+
+    implementation platform(project(':dependencies'))
+    implementation project(':spi')
+    implementation 'io.projectreactor:reactor-core'
+
+    testImplementation platform(project(':dependencies'))
+    testImplementation project(':processor')
+    testImplementation project(':strategies-builtin')
+    testImplementation 'com.google.testing.compile:compile-testing'
+    testImplementation 'org.spockframework:spock-core'
+    testImplementation 'org.mockito:mockito-junit-jupiter'
+    testImplementation 'org.jspecify:jspecify'
+    testImplementation 'io.projectreactor:reactor-core'
+
+    testRuntimeOnly 'net.bytebuddy:byte-buddy'
+    testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+}
+
+tasks.named('jacocoTestCoverageVerification') {
+    enabled = false
+}
+
+tasks.named('test') {
+    maxParallelForks = 1
+    systemProperty 'junit.jupiter.execution.parallel.enabled', 'false'
+    systemProperty 'spock.parallel.threads', '0'
+}
+
+tasks.named('compileTestJava') {
+    options.release = 17
+}
