@@ -3,25 +3,24 @@ package io.github.joke.percolate.spi.builtins;
 import com.google.auto.service.AutoService;
 import com.palantir.javapoet.CodeBlock;
 import io.github.joke.percolate.spi.ChildScopeSpec;
-import io.github.joke.percolate.spi.CombinatorialMatch;
 import io.github.joke.percolate.spi.Containers;
 import io.github.joke.percolate.spi.Demand;
 import io.github.joke.percolate.spi.ExpansionStrategy;
 import io.github.joke.percolate.spi.Nullability;
 import io.github.joke.percolate.spi.OperationSpec;
 import io.github.joke.percolate.spi.Port;
+import io.github.joke.percolate.spi.PortType;
 import io.github.joke.percolate.spi.ResolveCtx;
 import io.github.joke.percolate.spi.ScopeCodegen;
 import io.github.joke.percolate.spi.Weights;
 import java.util.List;
 import java.util.stream.Stream;
-import javax.lang.model.type.TypeMirror;
 import lombok.NoArgsConstructor;
 
 /**
- * The generic, kind-free element transform over a {@code Stream<T>} (design D7). Given a demand for
- * {@code Stream<B>} and any candidate with a stream-element {@code A} ({@link Containers#streamElement}: a
- * Collection / array / Optional / Stream), it offers two scope-owning operations whose child scope is the
+ * The generic, kind-free element transform over a {@code Stream<T>} (design D3/D7) — a <b>functor lift</b>: given a
+ * demand for {@code Stream<B>} it offers two scope-owning operations whose input port is the type-variable
+ * {@code Stream<A>} (a {@link PortType#app App} over {@link PortType#variable Var 0}) and whose child scope is the
  * per-element plan:
  *
  * <ul>
@@ -30,12 +29,16 @@ import lombok.NoArgsConstructor;
  *       which is how a wrapper element (its {@code iterate} yields a 0-or-1 stream) is flattened / dropped.</li>
  * </ul>
  *
- * It names no container kind; the source {@code Stream<A>} port is produced by a container's own {@code iterate},
- * so cross-kind composition and flatten emerge from the graph rather than from any multi-kind composer.
+ * <p>It reads no candidate: the element type {@code A} is grounded by the engine (design D2) by <em>matching</em> the
+ * {@code Stream<A>} port against an in-scope concrete source — directly when a {@code Stream<X>} source exists, or via
+ * a container's {@link io.github.joke.percolate.spi.SourceProjection} when only a {@code List<X>}/{@code Optional<X>}/…
+ * source exists (D8). It names no container kind beyond its own {@code Stream}; the grounded {@code Stream<A>} port is
+ * produced target-driven by a container's own {@code iterate}, so cross-kind composition and flatten emerge from the
+ * graph rather than from any multi-kind composer.
  */
 @AutoService(ExpansionStrategy.class)
 @NoArgsConstructor
-public final class StreamMap implements CombinatorialMatch {
+public final class StreamMap implements ExpansionStrategy {
 
     private static final String SOURCE_ROLE = "stream";
     private static final ScopeCodegen MAP =
@@ -44,31 +47,22 @@ public final class StreamMap implements CombinatorialMatch {
             (operand, var, body) -> CodeBlock.of("$L.flatMap($N -> $L)", operand, var, body);
 
     @Override
-    public Stream<OperationSpec> bridge(final TypeMirror from, final Demand demand, final ResolveCtx ctx) {
+    public Stream<OperationSpec> expand(final Demand demand, final ResolveCtx ctx) {
         final var to = demand.targetType();
         if (!Containers.isStream(to, ctx)) {
             return Stream.empty();
         }
-        final var elementIn = Containers.streamElement(from, ctx).orElse(null);
-        if (elementIn == null) {
+        final var streamErasure = ctx.elements().getTypeElement("java.util.stream.Stream");
+        if (streamErasure == null) {
             return Stream.empty();
         }
         final var elementOut = Containers.typeArgument(to, 0);
-        final var sourceStream = Containers.streamOf(elementIn, ctx).orElse(null);
-        final var elementStream = Containers.streamOf(elementOut, ctx).orElse(null);
-        if (sourceStream == null || elementStream == null) {
-            return Stream.empty();
-        }
-        // Degenerate self-map: the source stream equals the demand, so a container's own `iterate` already
-        // produces it (e.g. List<Optional<A>> → Stream<Optional<A>>). Emitting here would be a Stream<X>→Stream<X>
-        // identity loop that pollutes the graph and the diagnostics.
-        if (ctx.types().isSameType(sourceStream, to)) {
-            return Stream.empty();
-        }
-        final var ports = List.of(new Port(SOURCE_ROLE, sourceStream, Nullability.NON_NULL));
-        final var mapChild = new ChildScopeSpec(elementIn, Nullability.NON_NULL, elementOut, Nullability.NON_NULL);
+        final var template = PortType.app(streamErasure, List.of(PortType.variable(0)));
+        final var ports = List.of(new Port(SOURCE_ROLE, streamErasure.asType(), Nullability.NON_NULL, template));
+        final var mapChild =
+                ChildScopeSpec.lifted(PortType.variable(0), Nullability.NON_NULL, elementOut, Nullability.NON_NULL);
         final var flatMapChild =
-                new ChildScopeSpec(elementIn, Nullability.NON_NULL, elementStream, Nullability.NON_NULL);
+                ChildScopeSpec.lifted(PortType.variable(0), Nullability.NON_NULL, to, Nullability.NON_NULL);
         return Stream.of(
                 OperationSpec.mapping("map", MAP, Weights.CONTAINER, ports, to, Nullability.NON_NULL, mapChild),
                 OperationSpec.mapping(

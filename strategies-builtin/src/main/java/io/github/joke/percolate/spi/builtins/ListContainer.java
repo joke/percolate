@@ -5,13 +5,14 @@ import com.palantir.javapoet.CodeBlock;
 import io.github.joke.percolate.spi.Containers;
 import io.github.joke.percolate.spi.ExpansionStrategy;
 import io.github.joke.percolate.spi.ResolveCtx;
+import io.github.joke.percolate.spi.SourceProjection;
 import java.util.List;
 import java.util.stream.Collectors;
 import javax.lang.model.type.TypeMirror;
 import lombok.NoArgsConstructor;
 
 /** The {@code java.util.List} sequence container: candidacy + stream codegen in one class. */
-@AutoService(ExpansionStrategy.class)
+@AutoService({ExpansionStrategy.class, SourceProjection.class})
 @NoArgsConstructor
 public final class ListContainer extends CollectionContainer {
 

@@ -19,6 +19,10 @@ import lombok.Value;
  * The mechanic that walks this shape lives in the engine; {@code PortType} itself names no container or conversion
  * kind.
  */
+// Intentional pseudo-sealed base: the three leaves below are the only permitted shapes (a package-private
+// constructor pins membership), and the engine walks them structurally rather than through a dispatch method —
+// Java 11 has no `sealed`, so the closed hierarchy is enforced by convention, not an abstract method.
+@SuppressWarnings("PMD.AbstractClassWithoutAbstractMethod")
 public abstract class PortType {
 
     /** Package-private to keep the shape pseudo-sealed: only the leaves below participate. */

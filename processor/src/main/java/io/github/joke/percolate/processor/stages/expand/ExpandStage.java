@@ -28,6 +28,7 @@ import io.github.joke.percolate.spi.Nullability;
 import io.github.joke.percolate.spi.OperationSpec;
 import io.github.joke.percolate.spi.Port;
 import io.github.joke.percolate.spi.ResolveCtx;
+import io.github.joke.percolate.spi.SourceProjection;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Deque;
@@ -70,6 +71,7 @@ import org.jspecify.annotations.Nullable;
 public final class ExpandStage implements Stage {
 
     private final List<ExpansionStrategy> strategies;
+    private final List<SourceProjection> projections;
     private final Types types;
     private final Elements elements;
     private final NullabilityResolver resolver;
@@ -105,7 +107,7 @@ public final class ExpandStage implements Stage {
             this.resolveCtx = resolveCtx;
             this.accessorResolver = new AccessorResolver(strategies, resolveCtx, resolver);
             this.sourceCandidates = new SourceCandidates(graph, applier, resolver, resolveCtx);
-            this.grounding = new Grounding(resolveCtx);
+            this.grounding = new Grounding(resolveCtx, projections);
         }
 
         /** Self-seeds one return-type demand per abstract method into the empty graph, then drains the work-list. */

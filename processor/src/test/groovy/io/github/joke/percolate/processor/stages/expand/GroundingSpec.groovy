@@ -2,12 +2,14 @@ package io.github.joke.percolate.processor.stages.expand
 
 import com.palantir.javapoet.CodeBlock
 import io.github.joke.percolate.spi.ChildScopeSpec
+import io.github.joke.percolate.spi.Containers
 import io.github.joke.percolate.spi.Nullability
 import io.github.joke.percolate.spi.OperationSpec
 import io.github.joke.percolate.spi.Port
 import io.github.joke.percolate.spi.PortType
 import io.github.joke.percolate.spi.ResolveCtx
 import io.github.joke.percolate.spi.ScopeCodegen
+import io.github.joke.percolate.spi.SourceProjection
 import io.github.joke.percolate.spi.Weights
 import io.github.joke.percolate.spi.test.HarnessResolveCtx
 import io.github.joke.percolate.spi.test.TypeUniverse
@@ -17,6 +19,7 @@ import spock.lang.Tag
 
 import javax.lang.model.element.TypeElement
 import javax.lang.model.type.TypeMirror
+import java.util.stream.Stream
 
 /**
  * Grounding-by-match (design D2/D5): the engine sources a type-variable port by <b>matching</b> it against an
@@ -28,8 +31,11 @@ import javax.lang.model.type.TypeMirror
 @Tag('unit')
 class GroundingSpec extends Specification {
 
+    private static final ScopeCodegen MAP =
+            { operand, var, body -> CodeBlock.of('$L.map($N -> $L)', operand, var, body) } as ScopeCodegen
+
     @Shared ResolveCtx ctx = HarnessResolveCtx.create()
-    @Shared Grounding grounding = new Grounding(ctx)
+    @Shared Grounding grounding = new Grounding(ctx, [])
 
     @Shared TypeElement setElement = TypeUniverse.elements().getTypeElement('java.util.Set')
     @Shared TypeElement streamElement = TypeUniverse.elements().getTypeElement('java.util.stream.Stream')
@@ -39,9 +45,6 @@ class GroundingSpec extends Specification {
     @Shared TypeMirror setOfLong = decl('java.util.Set', TypeUniverse.LONG_TYPE)
     @Shared TypeMirror streamOfString = decl('java.util.stream.Stream', TypeUniverse.STRING)
     @Shared TypeMirror streamOfInteger = decl('java.util.stream.Stream', TypeUniverse.INTEGER)
-
-    private static final ScopeCodegen MAP =
-            { operand, var, body -> CodeBlock.of('$L.map($N -> $L)', operand, var, body) } as ScopeCodegen
 
     // ---- single match: ground A, substitute across output + child scope --------------------------------------
 
@@ -98,7 +101,7 @@ class GroundingSpec extends Specification {
         portTypes.any { ctx.types().isSameType(it, setOfLong) }
 
         and: 'identical weight — the engine prefers neither (cost extraction prunes the unreachable one later)'
-        grounded.collect { it.weight }.toUnique() == [Weights.CONTAINER]
+        grounded*.weight.toUnique() == [Weights.CONTAINER]
     }
 
     def 'a source that does not unify contributes nothing — no bridge is invented'() {
@@ -165,6 +168,34 @@ class GroundingSpec extends Specification {
         second.size() == 1
         ctx.types().isSameType(first[0].ports[0].type, second[0].ports[0].type)
         ctx.types().isSameType(first[0].childScope.get().elementIn, second[0].childScope.get().elementIn)
+    }
+
+    // ---- SourceProjection widening: cross-kind bootstrap (D8) -------------------------------------------------
+
+    def 'a SourceProjection widens the match set so a Stream<A> port grounds from a List<String> source'() {
+        given: 'a projector that views any List<X> as Stream<X> (the collection->stream bridge)'
+        def listToStream = { TypeMirror source, ResolveCtx c ->
+            Containers.isList(source, c)
+                    ? Stream.of(c.types().getDeclaredType(streamElement, Containers.typeArgument(source, 0)))
+                    : Stream.<TypeMirror> empty()
+        } as SourceProjection
+        def widening = new Grounding(ctx, [listToStream])
+
+        when: 'grounding a Stream<A> map against only a List<String> source (no direct Stream source)'
+        def grounded = widening.ground(lift(streamElement, streamOfInteger, TypeUniverse.INTEGER),
+                [TypeUniverse.LIST_OF_STRING]).toList()
+
+        then: 'A grounds to String via the projected Stream<String>; the work-list stays concrete'
+        grounded.size() == 1
+        ctx.types().isSameType(grounded[0].ports[0].type, streamOfString)
+        ctx.types().isSameType(grounded[0].childScope.get().elementIn, TypeUniverse.STRING)
+        grounded[0].ports[0].template == null
+    }
+
+    def 'with no projections registered, grounding falls back to the raw source set (additive)'() {
+        expect: 'a List<String> source alone cannot feed a Stream<A> port'
+        new Grounding(ctx, []).ground(lift(streamElement, streamOfInteger, TypeUniverse.INTEGER),
+                [TypeUniverse.LIST_OF_STRING]).toList().empty
     }
 
     // ---- concrete specs are untouched (additive) -------------------------------------------------------------

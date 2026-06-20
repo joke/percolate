@@ -8,6 +8,7 @@ import io.github.joke.percolate.spi.ExpansionStrategy;
 import io.github.joke.percolate.spi.Nullability;
 import io.github.joke.percolate.spi.ResolveCtx;
 import io.github.joke.percolate.spi.ScopeCodegen;
+import io.github.joke.percolate.spi.SourceProjection;
 import java.util.Optional;
 import javax.lang.model.type.TypeMirror;
 import lombok.NoArgsConstructor;
@@ -18,7 +19,7 @@ import lombok.NoArgsConstructor;
  * a flat-map drops empties; {@link #mapPresence()} maps the wrapped value ({@code opt.map}); {@link #wrap()} lifts a
  * scalar via {@code ofNullable}; {@link #unwrap()} collapses under the target's nullability.
  */
-@AutoService(ExpansionStrategy.class)
+@AutoService({ExpansionStrategy.class, SourceProjection.class})
 @NoArgsConstructor
 public final class OptionalContainer extends Container {
 

@@ -18,6 +18,7 @@ import io.github.joke.percolate.spi.ResolveCtx;
 import java.util.Comparator;
 import java.util.List;
 import java.util.stream.Stream;
+import javax.lang.model.element.Element;
 import javax.lang.model.type.TypeMirror;
 import lombok.RequiredArgsConstructor;
 import org.jspecify.annotations.Nullable;
@@ -60,7 +61,7 @@ final class SourceCandidates {
         if (!(scope instanceof MethodScope)) {
             return Stream.empty();
         }
-        return ((MethodScope) scope).getMethod().getParameters().stream().map(param -> param.asType());
+        return ((MethodScope) scope).getMethod().getParameters().stream().map(Element::asType);
     }
 
     /**

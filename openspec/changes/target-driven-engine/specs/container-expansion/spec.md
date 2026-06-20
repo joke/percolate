@@ -22,6 +22,14 @@ A container SHALL expose its element sequence as an explicit intermediate `Value
 - **WHEN** a third-party `Flux` container is declared
 - **THEN** it iterates/collects through its own reactive intermediate (not `java.util.stream.Stream`), with no engine change
 
+### Requirement: A container projects its own kind to its intermediate for cross-kind grounding
+
+A container SHALL implement `SourceProjection` (design D8) to project an in-scope source of **its own kind** to its declared intermediate — a JVM-collection container projects `Cont<X> → Stream<X>`; a reactive container projects `Flux<X> → Flux<X>`. This source-facing projection is what lets the engine ground a type-variable element-map port against a cross-kind source without the engine naming any kind: the projected intermediate is then produced target-driven by the same container's `iterate`. A container SHALL project **only** its own kind and SHALL NOT project across paradigms (no `Flux → Stream`), so cross-paradigm bridges stay un-invented (see "No engine-invented cross-paradigm bridges").
+
+#### Scenario: A list projects to a stream so a stream map grounds across the kind boundary
+- **WHEN** `Optional<Set<Claw>>` is demanded from a `List<Optional<Paw>>` source (cross-kind, mismatched nesting, drop-empties)
+- **THEN** the list container's projection contributes `Stream<Optional<Paw>>`, the decomposed `wrap ← collect ← map ← flatMap ← iterate` pipeline grounds with every demand concrete, and the empty-dropping `flatMap` branch is the one totality keeps
+
 ### Requirement: Element mapping is a functor lift grounded by matching
 
 The per-element transform SHALL be a generic functor lift declared per container: *given child `A → B`, produce `F<B> ← F<A>`*, emitted as a scope-owning `OperationSpec` whose input port is `F<A>` for a type variable `A` and whose child scope is `A → B`. The engine grounds `A` by **matching** the `F<A>` port against an in-scope concrete source (see `polymorphic-conversion` / `graph-expansion`), not by the strategy reading candidates and not by demanding an abstract type. The child scope then expands on the same work-list confined to the child scope.

@@ -26,10 +26,12 @@ public class ChildScopeSpec {
     Nullability elementOutNullness;
 
     /** The variable shape of the element-in type, or {@code null} when it is concrete. */
-    @Nullable PortType elementInTemplate;
+    @Nullable
+    PortType elementInTemplate;
 
     /** The variable shape of the element-out type, or {@code null} when it is concrete. */
-    @Nullable PortType elementOutTemplate;
+    @Nullable
+    PortType elementOutTemplate;
 
     /** A concrete child scope (both element types fully known). */
     public ChildScopeSpec(

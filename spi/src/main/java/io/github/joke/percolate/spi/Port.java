@@ -24,7 +24,8 @@ public class Port {
     Nullability nullness;
 
     /** The variable-carrying shape of this port, or {@code null} for an ordinary concrete port. */
-    @Nullable PortType template;
+    @Nullable
+    PortType template;
 
     /** A concrete port whose {@link #type} fully determines the feeding value (no type variable). */
     public Port(final String name, final TypeMirror type, final Nullability nullness) {

@@ -16,11 +16,23 @@ Every `ExpansionStrategy` SHALL answer a single question — "what produces this
 - **WHEN** any conversion/assembly/accessor/container strategy decides what to emit
 - **THEN** it reads only the demanded target, its nullness, the directive, and the declared children — never an in-scope candidate list
 
+### Requirement: Source-facing SourceProjection SPI
+
+The `percolate-spi` module SHALL ship a second author interface, `io.github.joke.percolate.spi.SourceProjection`, parallel to `ExpansionStrategy` and discovered the same way (`ServiceLoader`). Where an `ExpansionStrategy` answers "what produces this **target**?", a `SourceProjection` answers "what other types may this in-scope **source** be viewed as?" — its only effect is to contribute extra grounding-match candidates (design D8). A projection SHALL be consulted **only** to widen grounding-by-match's match set; it SHALL NOT receive or traverse the graph, and it SHALL return an empty stream for a source it does not recognise. The engine SHALL consume the projected types **structurally** (unifying them like any other source type) and SHALL name no container kind.
+
+#### Scenario: A collection source is projected to its element stream
+- **WHEN** a `List<X>` source is in scope and a stream container's `SourceProjection` is registered
+- **THEN** the projection contributes `Stream<X>`, so a type-variable `Stream<A>` element-map port grounds `A := X` and the concrete `Stream<X>` is produced target-driven by the container's own `iterate`
+
+#### Scenario: An unrecognised source projects nothing
+- **WHEN** a `SourceProjection` is handed a source it does not recognise
+- **THEN** it returns an empty stream and contributes no grounding candidate (no bridge is invented)
+
 ## MODIFIED Requirements
 
 ### Requirement: Strategy author mixins
 
-The `percolate-spi` module SHALL provide the abstract `Container` base for declaring a container in one class, plus archetype convenience bases for the recurring target-driven shapes (conversion, accessor) — all on the single uniform `ExpansionStrategy.produce` surface. There SHALL be **no candidate-iterating mixin**: the former `CombinatorialMatch` (whose default `expand` iterated `demand.candidates()` and delegated to a per-`(from,to)` method) is removed, because the engine, not the strategy, sources inputs. A container declares its type predicate, element extractor, kind-local operation snippets, and its functor-lift `map` over its own intermediate; the base emits target-driven `OperationSpec`s (the lift carrying a type-variable input port).
+The `percolate-spi` module SHALL provide the abstract `Container` base for declaring a container in one class, plus archetype convenience bases for the recurring target-driven shapes (conversion, accessor) — all on the single uniform `ExpansionStrategy.produce` surface. The `Container` base SHALL implement **both** `ExpansionStrategy` (its kind-local target-driven ops) and `SourceProjection` (projecting its kind to its own intermediate), so a container author still writes a single class. There SHALL be **no candidate-iterating mixin**: the former `CombinatorialMatch` (whose default `expand` iterated `demand.candidates()` and delegated to a per-`(from,to)` method) is removed, because the engine, not the strategy, sources inputs. A container declares its type predicate, element extractor, kind-local operation snippets, and its functor-lift `map` over its own intermediate; the base emits target-driven `OperationSpec`s (the lift carrying a type-variable input port).
 
 #### Scenario: No candidate-iterating mixin exists
 - **WHEN** the `io.github.joke.percolate.spi` package is inspected

@@ -41,7 +41,9 @@ public class TypeProbe {
 
     /** Whether {@code type} is an {@code enum} declaration. */
     public boolean isEnum(final TypeMirror type, final ResolveCtx ctx) {
-        return asTypeElement(type, ctx).map(element -> element.getKind() == ElementKind.ENUM).orElse(false);
+        return asTypeElement(type, ctx)
+                .map(element -> element.getKind() == ElementKind.ENUM)
+                .orElse(false);
     }
 
     /** A short display name for {@code type}: a declared type's simple name, else its string form. */

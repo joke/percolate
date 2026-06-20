@@ -14,6 +14,7 @@ import io.github.joke.percolate.processor.stages.discover.DiscoverAbstractMethod
 import io.github.joke.percolate.processor.stages.discover.DiscoverCallableMethodsStage
 import io.github.joke.percolate.processor.stages.discover.DiscoverMappingsStage
 import io.github.joke.percolate.spi.ExpansionStrategy
+import io.github.joke.percolate.spi.SourceProjection
 import spock.lang.Specification
 import spock.lang.Tag
 
@@ -122,7 +123,10 @@ class ExpandingProcessor extends AbstractProcessor {
         def strategies = ServiceLoader.load(ExpansionStrategy, ExpandingProcessor.classLoader)
                 .collect { it }
                 .sort(false) { [it.priority(), it.class.name] }
-        def expand = ProcessorModule.assembleExpansionPipeline(strategies, types, elements, resolver)
+        def projections = ServiceLoader.load(SourceProjection, ExpandingProcessor.classLoader)
+                .collect { it }
+                .sort(false) { it.class.name }
+        def expand = ProcessorModule.assembleExpansionPipeline(strategies, projections, types, elements, resolver)
         def discoverAbstract = new DiscoverAbstractMethodsStage(elements, types)
         def discoverMappings = new DiscoverMappingsStage(elements)
         def discoverCallable = new DiscoverCallableMethodsStage(elements, types)

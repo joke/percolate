@@ -7,6 +7,7 @@ import io.github.joke.percolate.spi.OperationSpec;
 import io.github.joke.percolate.spi.Port;
 import io.github.joke.percolate.spi.PortType;
 import io.github.joke.percolate.spi.ResolveCtx;
+import io.github.joke.percolate.spi.SourceProjection;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -41,20 +42,40 @@ final class Grounding {
     private static final int MAX_DEPTH = 32;
 
     private final ResolveCtx ctx;
+    private final List<SourceProjection> projections;
 
     /**
      * Grounds {@code spec} against the {@code sources} in scope: a spec with no type-variable port is returned as-is;
      * otherwise one concrete spec is emitted per consistent match (none when nothing unifies — no bridge invented).
+     * The match set is the in-scope sources <b>widened</b> with the registered {@link SourceProjection}s' one-step
+     * views of them (design D8) — so a {@code Stream<A>} port grounds against the {@code Stream<X>} a {@code List<X>}
+     * source projects to. The engine consumes the projections structurally and names no kind.
      */
     Stream<OperationSpec> ground(final OperationSpec spec, final List<TypeMirror> sources) {
-        final var templatePorts =
-                spec.getPorts().stream().filter(port -> port.getTemplate() != null).collect(toUnmodifiableList());
+        final var templatePorts = spec.getPorts().stream()
+                .filter(port -> port.getTemplate() != null)
+                .collect(toUnmodifiableList());
         if (templatePorts.isEmpty()) {
             return Stream.of(spec);
         }
+        final var matchSet = widen(sources);
         final var bindingSets = new ArrayList<Map<Integer, TypeMirror>>();
-        assign(templatePorts, 0, sources, new HashMap<>(), bindingSets);
+        assign(templatePorts, 0, matchSet, new HashMap<>(), bindingSets);
         return bindingSets.stream().map(bindings -> instantiate(spec, bindings));
+    }
+
+    /** The in-scope sources plus each projector's one-step view of them — the grounding match set (D8). */
+    private List<TypeMirror> widen(final List<TypeMirror> sources) {
+        if (projections.isEmpty()) {
+            return sources;
+        }
+        final var widened = new ArrayList<>(sources);
+        for (final var projection : projections) {
+            for (final var source : sources) {
+                projection.project(source, ctx).forEach(widened::add);
+            }
+        }
+        return widened;
     }
 
     /** Assigns each template port to a unifying source, collecting every consistent binding map (the cross-product). */
@@ -80,7 +101,10 @@ final class Grounding {
     // ---- unification (match a template against a concrete source, binding variables) ----------------------
 
     private boolean unify(
-            final PortType template, final TypeMirror source, final Map<Integer, TypeMirror> bindings, final int depth) {
+            final PortType template,
+            final TypeMirror source,
+            final Map<Integer, TypeMirror> bindings,
+            final int depth) {
         if (depth > MAX_DEPTH) {
             return false;
         }
@@ -90,10 +114,7 @@ final class Grounding {
         if (template instanceof PortType.Var) {
             return bindVariable(((PortType.Var) template).getIndex(), source, bindings);
         }
-        if (template instanceof PortType.App) {
-            return unifyApp((PortType.App) template, source, bindings, depth);
-        }
-        return false;
+        return template instanceof PortType.App && unifyApp((PortType.App) template, source, bindings, depth);
     }
 
     private boolean bindVariable(final int index, final TypeMirror source, final Map<Integer, TypeMirror> bindings) {
@@ -117,7 +138,8 @@ final class Grounding {
             return false;
         }
         final var types = ctx.types();
-        if (!types.isSameType(types.erasure(source), types.erasure(template.getErasure().asType()))) {
+        if (!types.isSameType(
+                types.erasure(source), types.erasure(template.getErasure().asType()))) {
             return false;
         }
         final var args = ((DeclaredType) source).getTypeArguments();
@@ -142,9 +164,8 @@ final class Grounding {
     // ---- instantiation (substitute the bindings to build a fully-concrete spec) ---------------------------
 
     private OperationSpec instantiate(final OperationSpec spec, final Map<Integer, TypeMirror> bindings) {
-        final var ports = spec.getPorts().stream()
-                .map(port -> groundPort(port, bindings))
-                .collect(toUnmodifiableList());
+        final var ports =
+                spec.getPorts().stream().map(port -> groundPort(port, bindings)).collect(toUnmodifiableList());
         final var childScope = spec.getChildScope().map(child -> groundChild(child, bindings));
         if (childScope.isPresent()) {
             return OperationSpec.mapping(

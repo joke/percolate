@@ -23,6 +23,7 @@ import io.github.joke.percolate.processor.stages.validate.ValidateMappingShapeSt
 import io.github.joke.percolate.processor.stages.validate.ValidateNoDuplicateTargetsStage;
 import io.github.joke.percolate.processor.stages.validate.ValidateSourceParametersStage;
 import io.github.joke.percolate.spi.ExpansionStrategy;
+import io.github.joke.percolate.spi.SourceProjection;
 import jakarta.inject.Inject;
 import jakarta.inject.Named;
 import jakarta.inject.Singleton;
@@ -92,19 +93,21 @@ public final class ProcessorModule {
 
     public static ExpandStage assembleExpansionPipeline(
             final List<ExpansionStrategy> strategies,
+            final List<SourceProjection> projections,
             final Types types,
             final Elements elements,
             final NullabilityResolver nullabilityResolver) {
-        return new ExpandStage(strategies, types, elements, nullabilityResolver);
+        return new ExpandStage(strategies, projections, types, elements, nullabilityResolver);
     }
 
     @Provides
     ExpandStage expandStage(
             final List<ExpansionStrategy> strategies,
+            final List<SourceProjection> projections,
             final Types types,
             final Elements elements,
             final NullabilityResolver nullabilityResolver) {
-        return assembleExpansionPipeline(strategies, types, elements, nullabilityResolver);
+        return assembleExpansionPipeline(strategies, projections, types, elements, nullabilityResolver);
     }
 
     @Provides
@@ -159,6 +162,21 @@ public final class ProcessorModule {
                         false)
                 .sorted(Comparator.comparingInt(ExpansionStrategy::priority)
                         .thenComparing(strategy -> strategy.getClass().getName()))
+                .collect(toUnmodifiableList());
+    }
+
+    /**
+     * The {@link SourceProjection} list (design D8), loaded once. Source-facing projectors the driver consults to
+     * widen grounding-by-match's match set; ordered by FQN for deterministic expansion.
+     */
+    @Singleton
+    @Provides
+    static List<SourceProjection> sourceProjections() {
+        return StreamSupport.stream(
+                        ServiceLoader.load(SourceProjection.class, ProcessorModule.class.getClassLoader())
+                                .spliterator(),
+                        false)
+                .sorted(Comparator.comparing(projection -> projection.getClass().getName()))
                 .collect(toUnmodifiableList());
     }
 }

@@ -20,9 +20,16 @@ import javax.lang.model.type.TypeMirror;
  *
  * <p>The per-element transform is <em>not</em> here: it is the kind-free stream {@code map}/{@code flatMap} strategy
  * ({@code StreamMap}), which composes with these over shared {@code Stream} Values. The developer writes no graph or
- * operation logic; register with {@code @AutoService(ExpansionStrategy.class)} like any other strategy.
+ * operation logic; register with {@code @AutoService({ExpansionStrategy.class, SourceProjection.class})} like any
+ * other strategy.
+ *
+ * <p>A container is also the source-facing half of element mapping (design D8): it implements {@link SourceProjection}
+ * to project a source of <b>its own kind</b> to its intermediate ({@code Cont<X> → Stream<X>}), so the engine can
+ * ground a generic {@code Stream<A>} map port against a cross-kind source (a {@code List<X>}/{@code Optional<X>}/…)
+ * without naming any kind. Only a container that can be opened (supplies {@link #iterate}) projects; it projects only
+ * its own kind, so cross-paradigm bridges are never invented.
  */
-public abstract class Container implements ContainerMatch {
+public abstract class Container implements ContainerMatch, SourceProjection {
 
     private static final String ELEMENT_ROLE = "element";
     private static final String SOURCE_ROLE = "source";
@@ -71,6 +78,20 @@ public abstract class Container implements ContainerMatch {
     /** The same-kind presence-preserving element map ({@code Cont<A> → Cont<B>}, scope-owning); empty otherwise. */
     public Optional<ScopeCodegen> mapPresence() {
         return Optional.empty();
+    }
+
+    /**
+     * Projects an in-scope {@code source} of this container's kind to its element stream ({@code Cont<X> → Stream<X>})
+     * for grounding-by-match only (design D8) — empty for any other source, and empty for a kind that cannot be opened
+     * (no {@link #iterate}). The engine widens its match set with this so a generic {@code Stream<A>} port grounds
+     * {@code A := X}; the concrete {@code Stream<X>} is then produced by this container's own {@code iterate}.
+     */
+    @Override
+    public final Stream<TypeMirror> project(final TypeMirror source, final ResolveCtx ctx) {
+        if (iterate().isEmpty() || !matches(source, ctx)) {
+            return Stream.empty();
+        }
+        return Containers.streamOf(element(source), ctx).stream();
     }
 
     @Override

@@ -6,6 +6,7 @@ import io.github.joke.percolate.spi.Container;
 import io.github.joke.percolate.spi.Containers;
 import io.github.joke.percolate.spi.ExpansionStrategy;
 import io.github.joke.percolate.spi.ResolveCtx;
+import io.github.joke.percolate.spi.SourceProjection;
 import java.util.Arrays;
 import java.util.Optional;
 import javax.lang.model.type.TypeMirror;
@@ -16,7 +17,7 @@ import lombok.NoArgsConstructor;
  * synchronous single-element wrap, so {@link #wrap()} stays empty (inherited default) — kind stays a sequence
  * because {@link #collect()} is supplied.
  */
-@AutoService(ExpansionStrategy.class)
+@AutoService({ExpansionStrategy.class, SourceProjection.class})
 @NoArgsConstructor
 public final class ArrayContainer extends Container {
 
