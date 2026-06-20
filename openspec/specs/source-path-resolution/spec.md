@@ -10,7 +10,7 @@ This spec defines source-path-segment resolution: the `ExpansionStrategy` implem
 
 The `percolate-strategies-builtin` module SHALL ship `io.github.joke.percolate.spi.builtins.GetterPathResolver` implementing `ExpansionStrategy` and annotated `@AutoService(ExpansionStrategy.class)`.
 
-`GetterPathResolver.expand(demand, ctx)` SHALL read the single segment to resolve from `demand.directive()`'s source path (see "Path resolvers emit accessor Operations per segment") and, for each `demand.candidates()` parent type, SHALL:
+`GetterPathResolver.expand(demand, ctx)` SHALL read the single segment to resolve from `demand.directive()`'s source path (see "Path resolvers emit accessor Operations per segment") and, for the directive-pinned parent type (`demand.targetType()`, the parent the accessor surface pins), SHALL:
 
 1. Produce no spec when the parent type's `getKind() != TypeKind.DECLARED` or its element is not a `TypeElement`.
 2. Probe for a JavaBean accessor method on the parent type, in this order:
@@ -52,7 +52,7 @@ The `percolate-strategies-builtin` module SHALL ship `io.github.joke.percolate.s
 
 The `percolate-strategies-builtin` module SHALL ship `io.github.joke.percolate.spi.builtins.MethodPathResolver` implementing `ExpansionStrategy` and annotated `@AutoService(ExpansionStrategy.class)`.
 
-`MethodPathResolver.expand(demand, ctx)` SHALL read the single segment to resolve from `demand.directive()`'s source path and, for each `demand.candidates()` parent type, SHALL:
+`MethodPathResolver.expand(demand, ctx)` SHALL read the single segment to resolve from `demand.directive()`'s source path and, for the directive-pinned parent type (`demand.targetType()`, the parent the accessor surface pins), SHALL:
 
 1. Produce no spec when the parent type's `getKind() != TypeKind.DECLARED` or its element is not a `TypeElement`.
 2. Probe for a zero-arg method named exactly the segment on the parent type, ignoring methods declared on `java.lang.Object`.
@@ -91,7 +91,7 @@ The `percolate-strategies-builtin` module SHALL ship `io.github.joke.percolate.s
 
 The `percolate-strategies-builtin` module SHALL ship `io.github.joke.percolate.spi.builtins.FieldPathResolver` implementing `ExpansionStrategy` and annotated `@AutoService(ExpansionStrategy.class)`.
 
-`FieldPathResolver.expand(demand, ctx)` SHALL read the single segment to resolve from `demand.directive()`'s source path and, for each `demand.candidates()` parent type, SHALL:
+`FieldPathResolver.expand(demand, ctx)` SHALL read the single segment to resolve from `demand.directive()`'s source path and, for the directive-pinned parent type (`demand.targetType()`, the parent the accessor surface pins), SHALL:
 
 1. Produce no spec when the parent type's `getKind() != TypeKind.DECLARED` or its element is not a `TypeElement`.
 2. Probe for a `VariableElement` on the parent type whose `simpleName` equals the segment, whose `ElementKind` is `FIELD`, and whose modifiers contain neither `PRIVATE` nor `STATIC`.

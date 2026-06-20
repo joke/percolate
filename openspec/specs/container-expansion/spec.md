@@ -2,7 +2,7 @@
 
 ## Purpose
 
-This spec defines container expansion: the `Containers` type-shape helper and the one-class-per-container strategies (`Optional` / `List` / `Set` / `Array`) that compose container conversions through an explicit `Stream<E>` intermediate. Each container emits plain kind-local `iterate` / `collect` / `wrap` / `unwrap` Operations for its own kind only; a generic, kind-free stream strategy emits the scope-owning `map` / `flatMap` over `Stream` Values (and wrappers a same-kind `mapPresence`). Cross-kind and flatten conversions emerge from OR-matching on shared `Stream` Values — no Operation knows two kinds — under the scope-ownership invariant (no dependency edge crosses a child-scope boundary).
+This spec defines container expansion: the `Containers` type-shape helper and the one-class-per-container strategies (`Optional` / `List` / `Set` / `Array`) that compose container conversions through each container's **own author-declared intermediate** (JDK containers over `Stream<E>`; a reactive container over its own type — no privileged universal intermediate). Each container emits plain kind-local `iterate` / `collect` / `wrap` / `unwrap` Operations for its own kind only, plus a same-kind functor-lift `mapPresence`; a generic, kind-free stream strategy emits the scope-owning `map` / `flatMap` over `Stream` Values. Element mapping is a functor lift grounded by type-variable matching (see `polymorphic-conversion`); cross-kind and flatten conversions emerge from composing over shared intermediates — bootstrapped by each container's `SourceProjection` of its own kind to its intermediate, no Operation knowing two kinds — under the scope-ownership invariant (no dependency edge crosses a child-scope boundary). The engine invents no cross-paradigm bridge.
 
 ## Requirements
 
@@ -22,22 +22,16 @@ The class SHALL expose at least these methods:
   is a declared type whose erasure is `java.util.Optional`.
 - `boolean isStream(TypeMirror t, ResolveCtx ctx)` — true iff `t` is
   a declared type whose erasure is `java.util.stream.Stream`.
-- `Optional<TypeMirror> streamElement(TypeMirror t, ResolveCtx ctx)`
-  — the element a `.stream()` over `t` yields (array → component;
-  `Stream<E>` / `Optional<E>` / `Collection<E>` → `E`), else empty —
-  the structural bridge that lets the generic stream strategy name
-  its port from a non-stream candidate without knowing any kind.
-- `Optional<TypeMirror> streamOf(TypeMirror element, ResolveCtx ctx)`
-  — `Stream<element>` for a reference `element`, else empty.
+- `boolean isReferenceType(TypeMirror element)` — true iff `element`
+  is a reference type (declared, array, or type variable), i.e. usable
+  as a generic type argument; false for a primitive.
 - `boolean isList(TypeMirror t, ResolveCtx ctx)` — true iff `t` is a
   declared type whose erasure is `java.util.List`.
 - `boolean isSet(TypeMirror t, ResolveCtx ctx)` — true iff `t` is a
   declared type whose erasure is `java.util.Set`.
 - `boolean isCollection(TypeMirror t, ResolveCtx ctx)` — true iff
   `t` is a declared type assignable to `java.util.Collection`, i.e.
-  a `Collection` or a subtype thereof (the assignability test
-  `Containers.streamElement` relies on to name a stream port from a
-  non-stream candidate).
+  a `Collection` or a subtype thereof.
 - `boolean isIterable(TypeMirror t, ResolveCtx ctx)` — true iff `t`
   is a declared type whose erasure is `java.lang.Iterable`, or a
   subtype thereof.
@@ -85,48 +79,71 @@ the caller violates the precondition (e.g., calling
 - **WHEN** `Containers.arrayComponentType(<Dog[]>)` is invoked
 - **THEN** returns the `TypeMirror` for `Dog`
 
-### Requirement: Containers iterate and collect through a Stream intermediate
+### Requirement: Containers iterate and collect through an author-declared intermediate
 
-A container SHALL expose its element sequence as an explicit `Stream<E>` `Value`. Each container emits
-a plain `iterate` Operation `Cont<E> → Stream<E>` for **its own kind only** (a sequence via
-`Collection.stream()`/`Arrays.stream`; a presence wrapper via `Optional.stream()` — the 0-or-1 stream
-that realises drop-empties). A container that supplies `collect` (i.e. **a sequence** — kind is
-emergent from the presence of `collect`, not a separate base type) emits a plain `collect` Operation
-`Stream<E> → Seq<E>` for its own kind; a presence wrapper supplies no `collect`. No container
-Operation SHALL reference a container kind other than its own.
+A container SHALL expose its element sequence as an explicit intermediate `Value` of **its own declared
+type** (a JVM-collection container over `Stream<E>`; a reactive container over its own reactive type).
+Each container emits a plain `iterate` Operation `Cont<E> → Intermediate<E>` and (if it is a sequence —
+kind emergent from the presence of `collect`) a plain `collect` Operation `Intermediate<E> → Seq<E>`,
+**for its own kind only**, referencing no other container kind and **no privileged universal
+intermediate**. `java.util.stream.Stream` is one container's intermediate, not the engine's.
 
-#### Scenario: A list iterates and a set collects
-- **WHEN** a `Stream<E>` is demanded from a `List<E>` candidate, and a `Set<E>` from a `Stream<E>`
-  candidate
-- **THEN** the `List` container emits the `iterate` (`.stream()`) and the `Set` container emits the
-  `collect` (`Collectors.toSet()`), each unaware of the other kind
+#### Scenario: A list iterates and a set collects through Stream
+- **WHEN** a `Stream<E>` is demanded from a `List<E>` source, and a `Set<E>` from a `Stream<E>` source
+- **THEN** the `List` container emits `iterate` (`.stream()`) and the `Set` container emits `collect`
+  (`Collectors.toSet()`), each unaware of the other kind
 
 #### Scenario: A presence wrapper iterates but does not collect
-- **WHEN** a `Stream<E>` is demanded from an `Optional<E>` candidate
+- **WHEN** a `Stream<E>` is demanded from an `Optional<E>` source
 - **THEN** the `Optional` container emits an `iterate` rendering `Optional.stream()`, and supplies no
   `collect` (it is a wrapper by the absence of `collect`)
 
-### Requirement: Element mapping is a scope-owning Operation over a Stream
+#### Scenario: A reactive container uses its own intermediate
+- **WHEN** a third-party `Flux` container is declared
+- **THEN** it iterates/collects through its own reactive intermediate (not `java.util.stream.Stream`),
+  with no engine change
 
-The per-element transform SHALL be a single **generic**, kind-free stream strategy that emits
-scope-owning `map` (`Stream<A> → Stream<B>`, child `elem:A → elem:B`) and `flatMap`
-(`Stream<A> → Stream<B>`, child `elem:A → Stream<B>`) Operations. The child scope holds an element
-param-root `Value` (`elem:A`, base-case SAT) and an element return-root demand; the Operation is SAT
-iff its outer port `Stream` and the child return-root are SAT. The child demand expands on the same
-work-list with candidate search confined to the child scope.
+### Requirement: A container projects its own kind to its intermediate for cross-kind grounding
 
-#### Scenario: Child demand expands like a method body
-- **WHEN** a `map` over `Stream<A> → Stream<B>` is emitted
-- **THEN** the demand `elem:B` joins the work-list and resolves against the child scope's param-root,
-  exactly as a method return-root resolves against method parameters
+A container SHALL implement `SourceProjection` (design D8) to project an in-scope source of **its own
+kind** to its declared intermediate — a JVM-collection container projects `Cont<X> → Stream<X>`; a
+reactive container projects `Flux<X> → Flux<X>`. This source-facing projection is what lets the engine
+ground a type-variable element-map port against a cross-kind source without the engine naming any kind:
+the projected intermediate is then produced target-driven by the same container's `iterate`. A
+container SHALL project **only** its own kind and SHALL NOT project across paradigms (no
+`Flux → Stream`), so cross-paradigm bridges stay un-invented (see "No engine-invented cross-paradigm
+bridges").
 
-#### Scenario: The element strategy is kind-free
-- **WHEN** the stream `map`/`flatMap` strategy is inspected
-- **THEN** it matches on `Stream<…>` types only and references no specific container kind
+#### Scenario: A list projects to a stream so a stream map grounds across the kind boundary
+- **WHEN** `Optional<Set<Claw>>` is demanded from a `List<Optional<Paw>>` source (cross-kind, mismatched
+  nesting, drop-empties)
+- **THEN** the list container's projection contributes `Stream<Optional<Paw>>`, the decomposed
+  `wrap ← collect ← map ← flatMap ← iterate` pipeline grounds with every demand concrete, and the
+  empty-dropping `flatMap` branch is the one totality keeps
+
+### Requirement: Element mapping is a functor lift grounded by matching
+
+The per-element transform SHALL be a generic functor lift declared per container: *given child
+`A → B`, produce `F<B> ← F<A>`*, emitted as a scope-owning `OperationSpec` whose input port is `F<A>`
+for a type variable `A` and whose child scope is `A → B`. The engine grounds `A` by **matching** the
+`F<A>` port against an in-scope concrete source (see `polymorphic-conversion` / `graph-expansion`), not
+by the strategy reading candidates and not by demanding an abstract type. The child scope then expands
+on the same work-list confined to the child scope.
+
+#### Scenario: The map input element type is grounded from the source
+- **WHEN** a `Stream<B>` is demanded and a `Stream<A> → Stream<B>` lift is offered with a
+  `Stream<Person>` source in scope
+- **THEN** the engine grounds `A := Person`, the child scope becomes `Person → B`, and `B` resolves on
+  the work-list like a method return-root
+
+#### Scenario: The lift names no specific container kind in its grounding
+- **WHEN** the functor-lift strategy and its grounding are inspected
+- **THEN** the lift declares `F<B> ← F<A>` for its own `F` and the grounding mechanic references no
+  container kind by name
 
 #### Scenario: Nested containers nest scopes
 - **WHEN** the target is `List<List<B>>` from `List<List<A>>`
-- **THEN** the chosen `map` Operation's child plan contains another scope-owning `map` Operation
+- **THEN** the chosen lift's child plan contains another scope-owning lift Operation
 
 ### Requirement: Wrappers map presence in their own kind
 
@@ -155,20 +172,32 @@ distinction is structural (plain Operation vs scope-owning Operation), not an SP
 - **WHEN** `Optional<T> → T` is produced by unwrapping
 - **THEN** the emitted Operation is plain and flagged partial
 
+### Requirement: No engine-invented cross-paradigm bridges
+
+The engine SHALL NOT synthesise a conversion between container paradigms that no strategy declared. A
+collection ↔ reactive bridge (e.g. a blocking `Flux → List` via `collectList().block()`) is produced
+only if a strategy explicitly emits it; absent that, the demand is reported unrealisable. This keeps
+reactive code from being silently given a blocking conversion.
+
+#### Scenario: Reactive-to-collection is not auto-bridged
+- **WHEN** a `List<B>` target is fed only by a `Flux<A>` source and no strategy declares the bridge
+- **THEN** no blocking conversion is generated and the demand has no producer
+
 ### Requirement: Cross-kind and flatten emerge from Stream OR-matching
 
 The engine SHALL produce cross-kind conversions (`List → Set`) and mismatched-nesting / flatten
 conversions (`List<Optional<A>> → Optional<Set<B>>`) with no dedicated Operation, by composing the
 kind-local `iterate`/`collect`/`wrap`/`unwrap` and the generic `map`/`flatMap` over shared `Stream`
-Values. To bootstrap the first `Stream` port from a non-stream candidate (target→source), the
-stream strategy SHALL read the candidate's stream-element type from a shared structural helper
-(`Containers.streamElement`: assignable-to-`Collection<E>` → E; array → component;
-`Optional<E>`/`Stream<E>` → E), and the existing port-synthesis turns it into the `iterate` demand. No
-container Operation and no engine component SHALL hold multi-kind composition logic.
+Values. To bootstrap the first `Stream` port from a non-stream source (target→source), the engine
+grounds the stream strategy's type-variable `Stream<A>` port against the `Stream<X>` each in-scope
+container source projects via its `SourceProjection` (see "A container projects its own kind to its
+intermediate for cross-kind grounding"); the grounded concrete `Stream<X>` is then produced by that
+container's own `iterate`. No container Operation and no engine component SHALL hold multi-kind
+composition logic.
 
 #### Scenario: Mismatched nesting composes from single-kind operations
 - **WHEN** `List<Optional<A>> → Optional<Set<B>>` is demanded with the source `List` as the only
-  candidate
+  in-scope source
 - **THEN** the plan is `wrap ⟵ collect ⟵ map[A→B] ⟵ flatMap[Optional→Stream] ⟵ iterate(List)`, every
   Operation single-kind or kind-free
 

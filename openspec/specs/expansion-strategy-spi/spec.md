@@ -8,7 +8,7 @@ This spec defines the strategy author surface for the expansion engine: immutabl
 
 ### Requirement: SPI package isolation
 
-The percolate-spi Gradle module SHALL ship a package `io.github.joke.percolate.spi` containing exactly the strategy-author surface: one strategy interface (`ExpansionStrategy`) plus its optional mixin interfaces (`CombinatorialMatch`, `ContainerMatch`) and the `Container` base; the immutable result/context types (`OperationSpec`, `Port`, `Demand`, `Candidate`, `Directive`, `ChildScopeSpec`, `Nullability`); the `ResolveCtx` interface; the codegen interfaces (`Codegen`, `OperationCodegen`, `ScopeCodegen`, `IncomingValues`); the `Receiver` / `ThisReceiver` / `CallableMethods` / `MethodCandidate` types; the `LiteralCoercion` helper; and the `Containers` and `Weights` utilities. The module SHALL depend only on JDK types plus `com.palantir.javapoet` (because `CodeBlock` is part of the codegen interface surface). It SHALL NOT depend on `percolate-annotations` or `percolate-processor`.
+The percolate-spi Gradle module SHALL ship a package `io.github.joke.percolate.spi` containing exactly the strategy-author surface: two author interfaces (`ExpansionStrategy` and the source-facing `SourceProjection`) plus the `Container` base and the `Conversion` / `Accessor` archetype bases; the immutable result/context types (`OperationSpec`, `Port`, `PortType`, `Demand`, `Directive`, `ChildScopeSpec`, `Nullability`); the `ResolveCtx` interface; the codegen interfaces (`Codegen`, `OperationCodegen`, `ScopeCodegen`, `IncomingValues`); the `Receiver` / `ThisReceiver` / `CallableMethods` / `MethodCandidate` types; the `LiteralCoercion` helper; and the `TypeProbe`, `Containers`, and `Weights` utilities. The module SHALL depend only on JDK types plus `com.palantir.javapoet` (because `CodeBlock` is part of the codegen interface surface). It SHALL NOT depend on `percolate-annotations` or `percolate-processor`.
 
 The package SHALL NOT contain `ExpansionStep`, `Slot`, `Frontier`, `EdgeCodegen`, `GroupCodegen`, `VarNames`, `Intent`, `ElementScope`, `Bridge`, `GroupTarget`, `PathSegmentResolver`, `BridgeStep`, `GroupBuild`, `ResolvedSegment`, `ScopeTransition`, `SourceStep`, `Step`, or `ElementSeed` — these are removed or replaced by the unified `OperationSpec` / `Port` / `Demand` / `OperationCodegen` surface.
 
@@ -84,33 +84,35 @@ The `percolate-spi` module SHALL define a `io.github.joke.percolate.spi.Directiv
 
 ### Requirement: Strategy author mixins
 
-The `percolate-spi` module SHALL provide optional mixin interfaces with `default expand(...)` implementations to absorb common boilerplate without reintroducing kind-ordering at the loader:
+The `percolate-spi` module SHALL provide the abstract `Container` base for declaring a container in one class, plus archetype convenience bases for the recurring target-driven shapes — `Conversion` (a unary `target ← input` conversion) and `Accessor` (a directive-pinned source-path-segment accessor) — all on the single uniform `ExpansionStrategy.expand` surface. The `Container` base SHALL implement **both** `ExpansionStrategy` (its kind-local target-driven ops) and `SourceProjection` (projecting its kind to its own intermediate), so a container author still writes a single class. There SHALL be **no candidate-iterating mixin**: the former `CombinatorialMatch` (whose default `expand` iterated `demand.candidates()` and delegated to a per-`(from,to)` method) is removed, because the engine, not the strategy, sources inputs. A container declares its type predicate, element extractor, kind-local operation snippets, and its functor-lift `map` over its own intermediate; the base emits target-driven `OperationSpec`s (the lift carrying a type-variable input port). The `Conversion` base wires each author-declared input into a one-port `OperationSpec`; the `Accessor` base reads the pinned segment and parent type and wires the one-port accessor `OperationSpec`.
 
-- `CombinatorialMatch` — its default `expand` SHALL iterate `demand.candidates()` and delegate to an author-supplied `bridge(TypeMirror from, Demand, ResolveCtx)` method, emitting the `OperationSpec`s applicable to each `(candidateType, targetType)` pair.
-- `ContainerMatch` — extends `CombinatorialMatch`; the `Container` abstract base supplies its `bridge`, emitting kind-local `iterate`/`collect`/`wrap`/`unwrap`/`map` (`mapPresence`) `OperationSpec`s over an explicit `Stream<E>` intermediate, from the author-supplied `matches` / `element` predicates and operation snippets.
+#### Scenario: No candidate-iterating mixin exists
+- **WHEN** the `io.github.joke.percolate.spi` package is inspected
+- **THEN** there is no `CombinatorialMatch` (or any mixin whose default `expand` iterates `demand.candidates()`)
 
-Both mixins SHALL extend `ExpansionStrategy` so that an implementor remains a single `ExpansionStrategy` to the loader. Segment-directed strategies (path resolvers) SHALL implement `expand(...)` directly rather than via a mixin.
+#### Scenario: A container is authored on the uniform surface
+- **WHEN** a developer declares a container
+- **THEN** it extends `Container`, supplying `matches`/`element`, its kind-local snippets, and its functor-lift `map`, and it reads no candidates
 
-#### Scenario: a combinatorial author writes no candidate loop
-- **WHEN** a strategy implements `CombinatorialMatch` and its `bridge` per-pair method
-- **THEN** it inherits the candidate iteration from the default `expand`
-- **AND** it is discoverable as a single `ExpansionStrategy`
+#### Scenario: A conversion or accessor is authored on its archetype base
+- **WHEN** a developer declares a unary conversion or a source accessor
+- **THEN** it extends `Conversion` (supplying the input-typed conversion steps) or `Accessor` (supplying the member match for the pinned segment), and the base wires the one-port `OperationSpec` — the author reads no candidates
 
 ### Requirement: Built-in strategies bind to ExpansionStrategy
 
-Every built-in strategy (`ConstructorCall`, `DirectAssign`, `MethodCallBridge`, the container strategies, and the `Getter` / `Method` / `Field` path resolvers) SHALL implement `ExpansionStrategy` (directly or via a mixin) and SHALL register via `@AutoService(ExpansionStrategy.class)`. Their generated code (the codegen each emits) is unchanged; only the SPI binding and result type change.
+Every built-in strategy (`ConstructorCall`, `DirectAssign`, `MethodCallBridge`, the container strategies, and the `Getter` / `Method` / `Field` path resolvers) SHALL implement `ExpansionStrategy` (directly or via a base — `Container` / `Conversion` / `Accessor`) and SHALL register via `@AutoService(ExpansionStrategy.class)`. Their generated code (the codegen each emits) is unchanged; only the SPI binding and result type change.
 
-`DirectAssign` SHALL implement `CombinatorialMatch` and emit a single same-type identity `OperationSpec` (label `assign`, weight `Weights.NOOP`, one port nullness-transparent to the demand) when a candidate's type equals the demanded type. The zero-cost identity Operation chains over the candidate Value; a round-trip that reuses a downstream Value closes a cycle the cost-extraction fold never chooses.
+`DirectAssign` SHALL be target-driven: for any demand it emits a single same-type identity `OperationSpec` (label `assign`, weight `Weights.NOOP`) whose lone port is **reuse-only** and nullness-transparent to the demand — the driver binds an in-scope source of the demanded type and nullness, or the operation does not apply (it is never minted). It reads no candidate. The zero-cost identity Operation flows the bound source value through; a round-trip that reuses a downstream Value closes a cycle the cost-extraction fold never chooses.
 
 #### Scenario: built-ins register under the unified service type
 - **WHEN** the source of any built-in strategy in `strategies-builtin/` is inspected
 - **THEN** it carries `@AutoService(ExpansionStrategy.class)`
-- **AND** it implements `ExpansionStrategy` directly or through a mixin
+- **AND** it implements `ExpansionStrategy` directly or through a base
 
-#### Scenario: DirectAssign emits a zero-cost identity for a same-type candidate
-- **WHEN** `DirectAssign.bridge` sees a candidate whose type equals the demanded type
-- **THEN** it emits one `OperationSpec` of weight `Weights.NOOP` with a single port carrying the demanded nullness
-- **AND** for a non-matching candidate type it emits nothing
+#### Scenario: DirectAssign emits a zero-cost reuse-only identity for the demand
+- **WHEN** `DirectAssign.expand` processes a demand
+- **THEN** it emits one `OperationSpec` of weight `Weights.NOOP` with a single reuse-only port carrying the demanded type and nullness
+- **AND** the driver binds an in-scope same-type source to that port, or the operation does not apply
 
 ### Requirement: ResolveCtx exposes Types, Elements, callableMethods
 
@@ -284,36 +286,69 @@ be no `VarNames` parameter threaded through the render contract. The `Codegen` m
 Strategies SHALL receive a demand context exposing: the demanded Value's type and nullness; the
 binding `Directive` in effect (carried by the work-list, see `graph-expansion`); the declared
 bindings at the current target level (for assembly strategies); the **binding/slot name** the demand
-serves (so a crossing strategy can name it, e.g. in a `requireNonNull` message); and a candidate
-snapshot of the **in-scope source Values** — the current scope's parameter roots and the source
-accessor Values already materialized in it, **not** a per-demand list hand-curated by the driver.
-Directive selection of a specific source is carried by the demanded `SourceLocation`, not by
-candidate filtering. The context exposes neither the graph nor any handle to traverse it.
+serves (so a crossing strategy can name it, e.g. in a `requireNonNull` message); and a nullness
+oracle. The context SHALL NOT expose a candidate snapshot of in-scope source Values: sourcing inputs
+is the engine's job (it binds each `OperationSpec` port to an in-scope source or a fresh intermediate,
+and grounds type-variable ports by matching). The context exposes neither the graph nor any handle to
+traverse it.
 
 #### Scenario: Assembly reads the goal spec from the context
 - **WHEN** `ConstructorCall` matches a demand
 - **THEN** it reads the declared-children name set from the demand context, not from a group
 
-#### Scenario: Candidates are the in-scope source values
-- **WHEN** a strategy inspects a demand's candidates
-- **THEN** it sees the in-scope source Values of the current (method or child) scope, not a list the
-  driver curated for that one demand
+#### Scenario: The demand context exposes no candidates
+- **WHEN** a strategy inspects its demand context
+- **THEN** there is no `candidates()` accessor; the strategy cannot enumerate in-scope source Values
 
 ### Requirement: Nullness crossings and source accessors are strategies
 
 Nullness crossings and source accessors SHALL be ordinary `ExpansionStrategy` implementations, not
 engine-resident productions: the `NULLABLE → NON_NULL` crossings (`[requireNonNull]` and, with a
 declared default, `[coalesce]`) and the per-segment source accessors (getter / method / field)
-register through the existing `ServiceLoader`/`@AutoService` mechanism. A crossing strategy fires on a `(nullable candidate,
-non-null demand)` pair, reading the binding/slot name and any `defaultValue` from the demand context;
-an accessor strategy produces a source `Value` from its parent (a shallower `SourceLocation` demand).
+register through the existing `ServiceLoader`/`@AutoService` mechanism. A crossing strategy is
+**target-driven**: keyed on the demanded target it over-emits the crossings that can produce it — a
+partial `[requireNonNull]` for a `NON_NULL` reference-scalar demand and (with a declared
+`defaultValue`) total `[coalesce]` forms — each over a **reuse-only** input port the driver binds to
+the in-scope nullable scalar / `Optional<T>` source (or the operation does not apply); it reads the
+binding/slot name and any `defaultValue` from the demand context and reads no candidate. An accessor
+strategy produces a source `Value` from its parent (a shallower `SourceLocation` demand), the parent
+type pinned by the demand.
 
 #### Scenario: requireNonNull is a service-loadable strategy
 - **WHEN** `ServiceLoader.load(ExpansionStrategy.class)` is enumerated
-- **THEN** the nullness-crossing strategy is present, and it emits `[requireNonNull]` (or `[coalesce]`
-  when the demand's directive declares a default) for a nullable-to-non-null pair
+- **THEN** the nullness-crossing strategy is present, and for a `NON_NULL` reference-scalar demand it
+  emits `[requireNonNull]` (and `[coalesce]` when the demand's directive declares a default) over
+  reuse-only ports
 
 #### Scenario: An accessor strategy pulls its parent
 - **WHEN** a `Value` at `SourceLocation("p.address.street")` is demanded
 - **THEN** an accessor strategy emits the `getStreet()` Operation and demands `SourceLocation("p.address")`,
   which recurses to the parameter root — no eager whole-path materialization
+
+### Requirement: TypeProbe type-introspection helper
+
+The `percolate-spi` module SHALL ship a public utility `io.github.joke.percolate.spi.TypeProbe` exposing the general type-introspection primitives every strategy otherwise re-rolls: `asTypeElement(TypeMirror)`, `isType(TypeMirror, fqn)`, `isEnum(TypeMirror)`, and `simpleName(TypeMirror)`. `TypeProbe` SHALL hold only general primitives; the container-flavoured `Containers` helper SHALL delegate its declared-type checks to it without duplicating the FQN-match logic.
+
+#### Scenario: Containers delegates to TypeProbe
+- **WHEN** `Containers.isOptional`/`isStream`/`isList`/`isSet` resolve a type
+- **THEN** the FQN/erasure match is performed by `TypeProbe.isType`, not re-implemented in `Containers`
+
+### Requirement: One uniform target-driven strategy surface
+
+Every `ExpansionStrategy` SHALL answer a single question — "what produces this demanded target?" — and return `OperationSpec`s. A strategy is distinguished only by **what it reads from the demand**: the `targetType` (conversions, containers), the `declaredChildren` (assembly), or the `directive` source segment (accessors). No strategy reads a candidate snapshot to decide what to emit; the engine sources every input port. The element-mapping case that needs a source element type declares a **type-variable port** (see `polymorphic-conversion`), grounded by the engine, not enumerated by the strategy.
+
+#### Scenario: A producer reads no candidates
+- **WHEN** any conversion/assembly/accessor/container strategy decides what to emit
+- **THEN** it reads only the demanded target, its nullness, the directive, and the declared children — never an in-scope candidate list
+
+### Requirement: Source-facing SourceProjection SPI
+
+The `percolate-spi` module SHALL ship a second author interface, `io.github.joke.percolate.spi.SourceProjection`, parallel to `ExpansionStrategy` and discovered the same way (`ServiceLoader`). Where an `ExpansionStrategy` answers "what produces this **target**?", a `SourceProjection` answers "what other types may this in-scope **source** be viewed as?" — its only effect is to contribute extra grounding-match candidates (design D8). A projection SHALL be consulted **only** to widen grounding-by-match's match set; it SHALL NOT receive or traverse the graph, and it SHALL return an empty stream for a source it does not recognise. The engine SHALL consume the projected types **structurally** (unifying them like any other source type) and SHALL name no container kind.
+
+#### Scenario: A collection source is projected to its element stream
+- **WHEN** a `List<X>` source is in scope and a stream container's `SourceProjection` is registered
+- **THEN** the projection contributes `Stream<X>`, so a type-variable `Stream<A>` element-map port grounds `A := X` and the concrete `Stream<X>` is produced target-driven by the container's own `iterate`
+
+#### Scenario: An unrecognised source projects nothing
+- **WHEN** a `SourceProjection` is handed a source it does not recognise
+- **THEN** it returns an empty stream and contributes no grounding candidate (no bridge is invented)

@@ -2,7 +2,7 @@
 
 ## Purpose
 
-The container-codegen SPI is the strategy-supplied seam through which a developer adds container support (`List`/`Set`/array/`Optional`, and developer `Flux`/`Mono`/custom) by writing **one class per container** — both a `ContainerMatch` candidacy and a codegen-handle provider (per-paradigm snippets). The composer owns only structure (the recursive extracted-plan walk) and obtains every container `CodeBlock` from a handle attached to the container `Operation` — a scope-owning Operation's handle weaves around the rendered child-plan lambda, a wrap/unwrap handle renders inline — so adding a container needs no engine or composer change. Code generation is a pure function of the solved graph.
+The container-codegen SPI is the strategy-supplied seam through which a developer adds container support (`List`/`Set`/array/`Optional`, and developer `Flux`/`Mono`/custom) by writing **one class per container** — both its target-driven container `ExpansionStrategy` (the kind-local ops) and a codegen-handle provider (per-paradigm snippets). The composer owns only structure (the recursive extracted-plan walk) and obtains every container `CodeBlock` from a handle attached to the container `Operation` — a scope-owning Operation's handle weaves around the rendered child-plan lambda, a wrap/unwrap handle renders inline — so adding a container needs no engine or composer change. Code generation is a pure function of the solved graph.
 
 ## Requirements
 
@@ -35,8 +35,8 @@ container syntax.
 
 ### Requirement: A single Container base; kind is emergent
 
-The percolate-spi module SHALL define one abstract `Container` base (implementing `ContainerMatch`)
-that lets a developer declare a container in **one class** by supplying its type predicate
+The percolate-spi module SHALL define one abstract `Container` base (implementing `ExpansionStrategy`
+and `SourceProjection`) that lets a developer declare a container in **one class** by supplying its type predicate
 (`matches`), its element extractor (`element`), and the optional kind-local operation snippets it
 supports. Container **kind is emergent from which operations are present** — a container that supplies
 `collect` is a sequence; one that omits `collect` (supplying `wrap`/`unwrap`/`mapPresence`) is a
