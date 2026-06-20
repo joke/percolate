@@ -1,6 +1,5 @@
 package io.github.joke.percolate.spi;
 
-import java.util.List;
 import java.util.Optional;
 import java.util.Set;
 import javax.lang.model.element.Element;
@@ -13,9 +12,13 @@ import javax.lang.model.type.TypeMirror;
  *
  * <p>It carries the demanded type and {@link Nullability}; the in-effect {@code @Map} {@link Directive} (travelling
  * with the demand, never stamped on a Value); the declared-children name set at the current target level (the goal
- * spec an assembly strategy gates on); a flat snapshot of in-scope source {@link Candidate}s; and a nullness oracle
- * ({@link #nullnessOf}) — the processor's nullability resolution, injected so a strategy can type the ports and
- * output it produces without graph access.
+ * spec an assembly strategy gates on); and a nullness oracle ({@link #nullnessOf}) — the processor's nullability
+ * resolution, injected so a strategy can type the ports and output it produces without graph access.
+ *
+ * <p>It deliberately exposes <b>no</b> snapshot of in-scope source values: the engine, not the strategy, sources
+ * every input port (design D1). A strategy declares "what produces this target?" and the driver binds each
+ * {@link OperationSpec} port to an in-scope source (or a fresh intermediate, or grounds a type-variable port by
+ * matching); a strategy that needs a source element type declares a type-variable port instead of enumerating.
  */
 public interface Demand {
 
@@ -40,9 +43,6 @@ public interface Demand {
      * demand serves no named slot.
      */
     String bindingName();
-
-    /** A flat snapshot of the in-scope source values, scope-confined to the current (method or child) scope. */
-    List<Candidate> candidates();
 
     /** The nullness of {@code type} as declared at {@code scope} — the processor's nullability resolution. */
     Nullability nullnessOf(TypeMirror type, Element scope);

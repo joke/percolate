@@ -90,7 +90,7 @@ class OptionalContainerSpec extends Specification {
 
     def 'a scalar target offers a plain partial unwrap from Optional<scalar> under the demanded nullness'() {
         when:
-        def demand = Demands.forTarget(TypeUniverse.STRING, [], Nullability.NULLABLE)
+        def demand = Demands.forTarget(TypeUniverse.STRING, Nullability.NULLABLE)
         def specs = new OptionalContainer().expand(demand, ctx).toList()
 
         then:

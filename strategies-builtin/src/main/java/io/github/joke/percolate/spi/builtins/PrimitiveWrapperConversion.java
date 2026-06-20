@@ -9,14 +9,13 @@ import io.github.joke.percolate.spi.OperationCodegen;
 import io.github.joke.percolate.spi.OperationSpec;
 import io.github.joke.percolate.spi.Port;
 import io.github.joke.percolate.spi.ResolveCtx;
+import io.github.joke.percolate.spi.TypeProbe;
 import io.github.joke.percolate.spi.Weights;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Stream;
-import javax.lang.model.element.TypeElement;
-import javax.lang.model.type.DeclaredType;
 import javax.lang.model.type.PrimitiveType;
 import javax.lang.model.type.TypeKind;
 import javax.lang.model.type.TypeMirror;
@@ -91,14 +90,10 @@ public final class PrimitiveWrapperConversion implements ExpansionStrategy {
     /** The primitive a declared wrapper target unboxes to, or {@code null} when the target is not a wrapper. */
     @Nullable
     private static TypeMirror unboxedOrNull(final TypeMirror target, final ResolveCtx ctx) {
-        if (target.getKind() != TypeKind.DECLARED) {
-            return null;
-        }
-        final var element = ((DeclaredType) target).asElement();
-        if (!(element instanceof TypeElement)) {
-            return null;
-        }
-        final var fqn = ((TypeElement) element).getQualifiedName().toString();
-        return WRAPPER_FQNS.contains(fqn) ? ctx.types().unboxedType(target) : null;
+        return TypeProbe.asTypeElement(target, ctx)
+                .map(element -> element.getQualifiedName().toString())
+                .filter(WRAPPER_FQNS::contains)
+                .<TypeMirror>map(fqn -> ctx.types().unboxedType(target))
+                .orElse(null);
     }
 }

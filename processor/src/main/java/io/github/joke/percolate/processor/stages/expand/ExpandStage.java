@@ -165,7 +165,6 @@ public final class ExpandStage implements Stage {
                     directive,
                     children,
                     value.getLoc().slotName(),
-                    sourceCandidates.candidates(scope),
                     resolver);
             // Ground type-variable ports against the in-scope sources before dedup/land: every spec the driver
             // lands is concrete (no abstract type ever enters the work-list), preserving target→source order and

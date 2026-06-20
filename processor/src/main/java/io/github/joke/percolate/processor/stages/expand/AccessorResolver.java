@@ -3,7 +3,6 @@ package io.github.joke.percolate.processor.stages.expand;
 import io.github.joke.percolate.processor.graph.MethodScope;
 import io.github.joke.percolate.processor.graph.Scope;
 import io.github.joke.percolate.processor.nullability.NullabilityResolver;
-import io.github.joke.percolate.spi.Candidate;
 import io.github.joke.percolate.spi.ExpansionStrategy;
 import io.github.joke.percolate.spi.Nullability;
 import io.github.joke.percolate.spi.OperationSpec;
@@ -86,7 +85,6 @@ final class AccessorResolver {
                 Optional.of(BindingDirective.segment(segment)),
                 Set.of(),
                 segment,
-                List.of(new Candidate(parentType, Nullability.NON_NULL)),
                 resolver);
         return strategies.stream()
                 .flatMap(strategy -> strategy.expand(demand, resolveCtx))

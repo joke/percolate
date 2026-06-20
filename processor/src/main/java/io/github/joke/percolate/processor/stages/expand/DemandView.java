@@ -1,11 +1,9 @@
 package io.github.joke.percolate.processor.stages.expand;
 
 import io.github.joke.percolate.processor.nullability.NullabilityResolver;
-import io.github.joke.percolate.spi.Candidate;
 import io.github.joke.percolate.spi.Demand;
 import io.github.joke.percolate.spi.Directive;
 import io.github.joke.percolate.spi.Nullability;
-import java.util.List;
 import java.util.Optional;
 import java.util.Set;
 import javax.lang.model.element.Element;
@@ -15,8 +13,8 @@ import lombok.RequiredArgsConstructor;
 /**
  * The myopic {@link Demand} the driver hands a strategy for one unsatisfied {@code Value} (design D9). It exposes
  * only local decision context — the demanded type and nullness, the in-effect {@code @Map} {@link Directive}, the
- * declared-children goal set, the binding/slot name the demand serves, a flat candidate snapshot of the in-scope
- * source values, and the nullness oracle — and no graph or engine handle.
+ * declared-children goal set, the binding/slot name the demand serves, and the nullness oracle — and no graph or
+ * engine handle. It carries no candidate snapshot: the engine sources every input port (design D1).
  */
 @RequiredArgsConstructor
 // each field backs the Demand accessor of the same name; this is a deliberate myopic data-carrier adapter
@@ -28,7 +26,6 @@ final class DemandView implements Demand {
     private final Optional<Directive> directive;
     private final Set<String> declaredChildren;
     private final String bindingName;
-    private final List<Candidate> candidates;
     private final NullabilityResolver resolver;
 
     @Override
@@ -54,11 +51,6 @@ final class DemandView implements Demand {
     @Override
     public String bindingName() {
         return bindingName;
-    }
-
-    @Override
-    public List<Candidate> candidates() {
-        return candidates;
     }
 
     @Override

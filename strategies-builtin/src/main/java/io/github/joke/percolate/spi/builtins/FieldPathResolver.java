@@ -21,9 +21,10 @@ import javax.lang.model.type.TypeMirror;
 import lombok.NoArgsConstructor;
 
 /**
- * Resolves one source-path segment to a visible (non-private, non-static) field on a candidate (parent) type,
- * emitting a one-port {@link OperationSpec} typed to the field's type. The operation renders {@code parent.field};
- * the produced value's nullness is the field's, resolved through the demand oracle.
+ * Resolves one source-path segment to a visible (non-private, non-static) field on the demanded (parent) type,
+ * emitting a one-port {@link OperationSpec} typed to the field's type. It is candidate-free: the driver pins the
+ * parent type as {@link Demand#targetType()}. The operation renders {@code parent.field}; the produced value's
+ * nullness is the field's, resolved through the demand oracle.
  */
 @AutoService(ExpansionStrategy.class)
 @NoArgsConstructor
@@ -32,8 +33,7 @@ public final class FieldPathResolver implements ExpansionStrategy {
     @Override
     public Stream<OperationSpec> expand(final Demand demand, final ResolveCtx ctx) {
         return Segments.single(demand)
-                .map(segment -> demand.candidates().stream()
-                        .flatMap(candidate -> resolve(candidate.getType(), segment, demand, ctx)))
+                .map(segment -> resolve(demand.targetType(), segment, demand, ctx))
                 .orElseGet(Stream::empty);
     }
 

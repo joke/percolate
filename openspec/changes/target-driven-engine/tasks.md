@@ -19,28 +19,28 @@
 ## 3. SPI — one uniform candidate-free surface
 
 - [x] 3.1 Add `TypeProbe` to `spi` (`asTypeElement`/`isType`/`isEnum`/`simpleName`); make `Containers` delegate its declared-type checks to it
-- [ ] 3.2 Remove `candidates()` from the `Demand` producer surface (the engine sources inputs); update the demand context type
-- [~] 3.3 Remove `CombinatorialMatch` (and any candidate-iterating mixin); reshape `Container` as a functor-lift declaration over its own intermediate (emitting a type-variable `map` input port) — DONE: `Container` reshaped target-driven (implements `ExpansionStrategy` directly), `ContainerMatch` deleted, `mapPresence` is a type-variable functor lift. PENDING: `CombinatorialMatch` itself (still used by `DirectAssign`/`NullnessCrossing` until 4.2/4.3)
+- [x] 3.2 Remove `candidates()` from the `Demand` producer surface (the engine sources inputs); update the demand context type — `Demand.candidates()` removed; `DemandView`/`SourceCandidates`/`AccessorResolver` candidate plumbing dropped; the engine sources every port
+- [x] 3.3 Remove `CombinatorialMatch` (and any candidate-iterating mixin); reshape `Container` as a functor-lift declaration over its own intermediate (emitting a type-variable `map` input port) — DONE: `Container` reshaped target-driven (implements `ExpansionStrategy` directly), `ContainerMatch` deleted, `mapPresence` is a type-variable functor lift; `CombinatorialMatch` now deleted (its last consumers `DirectAssign`/`NullnessCrossing` are target-driven as of 4.2/4.3)
 - [x] 3.4 De-hardcode `Containers`: remove the `java.util.stream.Stream`-privileged helpers (`streamOf`/`streamElement`) from the universal path; intermediates are author-declared — `streamOf`/`streamElement` deleted; each container declares its `intermediateErasure` (JDK = Stream via `StreamContainer` base; reactive would declare Flux); `isReferenceType` made public
-- [ ] 3.5 Spock specs: the SPI package exposes no `CombinatorialMatch` and no `Demand.candidates()`; `Containers` delegates to `TypeProbe`
-- [~] 3.6 Add the `SourceProjection` SPI interface (parallel to `ExpansionStrategy`) + engine loading; reshape `Container` to implement both interfaces (target-driven ops + source projection to its intermediate); add the conversion/accessor archetype middle bases (the folded-in ergonomic goal) — DONE: `SourceProjection` SPI + `ServiceLoader`/Dagger loading; `Container implements SourceProjection` (projects its kind to `Stream<element>`), all four built-in containers registered for both services. PENDING: container *ops* still candidate-keyed (4.5); conversion/accessor archetype bases
+- [x] 3.5 Spock specs: the SPI package exposes no `CombinatorialMatch` and no `Demand.candidates()`; `Containers` delegates to `TypeProbe` — `CandidateFreeSurfaceSpec` (no `CombinatorialMatch`/`Candidate`, `Demand` has no `candidates()`, `Containers.is*` delegate to `TypeProbe.isType`)
+- [~] 3.6 Add the `SourceProjection` SPI interface (parallel to `ExpansionStrategy`) + engine loading; reshape `Container` to implement both interfaces (target-driven ops + source projection to its intermediate); add the conversion/accessor archetype middle bases (the folded-in ergonomic goal) — DONE: `SourceProjection` SPI + `ServiceLoader`/Dagger loading; `Container implements SourceProjection` (projects its kind to `Stream<element>`), all four built-in containers registered for both services; container *ops* now target-driven (4.5). PENDING (optional ergonomic nicety only): conversion/accessor archetype convenience bases — built-ins ship as plain `ExpansionStrategy` implementations without them
 
 ## 4. Migrate built-ins to the target-driven surface
 
-- [ ] 4.1 `WidenPrimitive` / `PrimitiveWrapperConversion` — already target-keyed; route type checks through `TypeProbe`, confirm candidate-free
-- [ ] 4.2 `DirectAssign` — re-express target-driven (identity `T ← T`, driver reuse binds the source; self-loop cost-pruned when none)
-- [ ] 4.3 `NullnessCrossing` — re-express target-driven (`non-null T ← nullable T`, `coalesce`) reading no candidates
-- [ ] 4.4 `Getter`/`Field`/`MethodPathResolver` — re-express on the directive-pinned accessor surface, candidate-free
+- [x] 4.1 `WidenPrimitive` / `PrimitiveWrapperConversion` — already target-keyed; route type checks through `TypeProbe`, confirm candidate-free — `PrimitiveWrapperConversion.unboxedOrNull` routes through `TypeProbe.asTypeElement`; `WidenPrimitive` is `TypeKind`-only and already candidate-free
+- [x] 4.2 `DirectAssign` — re-express target-driven (identity `T ← T`, driver reuse binds the source; self-loop cost-pruned when none) — already a reuse-only identity `OperationSpec.of`; `DirectAssignSpec` re-pointed to `expand` (reuse-only port)
+- [x] 4.3 `NullnessCrossing` — re-express target-driven (`non-null T ← nullable T`, `coalesce`) reading no candidates — over-emits `requireNonNull` + scalar/Optional `coalesce` keyed on the target; reuse-only ports; the driver binds the in-scope source
+- [x] 4.4 `Getter`/`Field`/`MethodPathResolver` — re-express on the directive-pinned accessor surface, candidate-free — all three read the parent type from `demand.targetType()` (pinned by the accessor surface) instead of `candidates()`
 - [x] 4.5 Container ops (`iterate`/`collect`/`wrap`/`unwrap`) — target-driven over each container's own intermediate. `unwrap`'s wrapper input is a **reuse-only** `Port` (new `Port.reuseOnly` + driver support): bound to an in-scope source or the op does not apply, never minted — this is what keeps a consuming op whose input is larger than its output from manufacturing an ever-deeper source (the termination guarantee for the container family)
 - [x] 4.6 `StreamMap` → functor-lift `map`/`flatMap` with a type-variable input port (target-driven, candidate-free, grounded via `SourceProjection`); `mapPresence` likewise — now a type-variable functor lift on `Container`
-- [ ] 4.7 End-to-end suite green after each family (compiles + semantically equivalent; byte-identical NOT required — update expected output where the engine restructures)
+- [x] 4.7 End-to-end suite green after each family (compiles + semantically equivalent; byte-identical NOT required — update expected output where the engine restructures) — full `:processor:test` (all integration/end-to-end suites) green; `DirectAssignSpec`/`NullnessCrossingSpec`/`Demands` updated to the target-driven shape
 
 ## 5. Remove the dead candidate-keyed surface
 
-- [ ] 5.1 Delete the now-unused candidate machinery (the demand candidate snapshot plumbing, `CombinatorialMatch`, `Stream`-hardcoded `Containers` helpers) and any orphaned helpers
-- [ ] 5.2 Confirm no built-in or engine path reads candidates to decide what to emit
+- [x] 5.1 Delete the now-unused candidate machinery (the demand candidate snapshot plumbing, `CombinatorialMatch`, `Stream`-hardcoded `Containers` helpers) and any orphaned helpers — `CombinatorialMatch` + `Candidate` deleted; `SourceCandidates.candidates`/`paramCandidates` and the unused `Demands.withDefault` removed (`streamOf`/`streamElement` already gone in 3.4)
+- [x] 5.2 Confirm no built-in or engine path reads candidates to decide what to emit — grep confirms no `.candidates(`/`new Candidate`/`CombinatorialMatch` in any non-test source; the `Demand` contract no longer exposes candidates
 
 ## 6. Verify
 
-- [ ] 6.1 Run `./gradlew check` and resolve every violation before continuing (do not pipe the output to `tail`)
-- [ ] 6.2 Commit the completed change with `/commit-commands:commit`
+- [x] 6.1 Run `./gradlew check` and resolve every violation before continuing (do not pipe the output to `tail`) — `./gradlew spotlessApply check` BUILD SUCCESSFUL (all modules, spotless/PMD/errorprone/NullAway + full test suite green)
+- [x] 6.2 Commit the completed change with `/commit-commands:commit`

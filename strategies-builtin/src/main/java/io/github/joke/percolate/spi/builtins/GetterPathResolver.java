@@ -22,10 +22,11 @@ import javax.lang.model.type.TypeMirror;
 import lombok.NoArgsConstructor;
 
 /**
- * Resolves one source-path segment to a JavaBeans getter ({@code getX()} / boolean {@code isX()}) on a candidate
- * (parent) type, emitting a one-port {@link OperationSpec} typed to the getter's return type. The driver feeds the
- * segment to descend via {@link Demand#directive()} and binds the port to the existing parent Value; the operation
- * renders {@code parent.getX()}. The produced value's nullness is the getter's, resolved through the demand oracle.
+ * Resolves one source-path segment to a JavaBeans getter ({@code getX()} / boolean {@code isX()}) on the demanded
+ * (parent) type, emitting a one-port {@link OperationSpec} typed to the getter's return type. It is candidate-free:
+ * the driver pins the parent type as {@link Demand#targetType()} and the segment to descend via
+ * {@link Demand#directive()}, and binds the port to the existing parent Value; the operation renders
+ * {@code parent.getX()}. The produced value's nullness is the getter's, resolved through the demand oracle.
  */
 @AutoService(ExpansionStrategy.class)
 @NoArgsConstructor
@@ -34,8 +35,7 @@ public final class GetterPathResolver implements ExpansionStrategy {
     @Override
     public Stream<OperationSpec> expand(final Demand demand, final ResolveCtx ctx) {
         return Segments.single(demand)
-                .map(segment -> demand.candidates().stream()
-                        .flatMap(candidate -> resolve(candidate.getType(), segment, demand, ctx)))
+                .map(segment -> resolve(demand.targetType(), segment, demand, ctx))
                 .orElseGet(Stream::empty);
     }
 

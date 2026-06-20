@@ -15,9 +15,9 @@ class DirectAssignSpec extends Specification {
     def ctx = new ResolveCtxBuilder().build()
     def types = TypeUniverse.types()
 
-    def 'emits a zero-cost identity operation for same-type assignment'() {
+    def 'emits a zero-cost identity operation that produces the demanded target'() {
         when:
-        def specs = new DirectAssign().bridge(TypeUniverse.STRING, Demands.forTarget(TypeUniverse.STRING), ctx).toList()
+        def specs = new DirectAssign().expand(Demands.forTarget(TypeUniverse.STRING), ctx).toList()
 
         then:
         specs.size() == 1
@@ -32,19 +32,22 @@ class DirectAssignSpec extends Specification {
         spec.outputNullness == Nullability.NON_NULL
     }
 
+    def 'its single port is reuse-only: the driver binds an in-scope same-type source or the op does not apply'() {
+        when:
+        def specs = new DirectAssign().expand(Demands.forTarget(TypeUniverse.STRING), ctx).toList()
+
+        then: 'never minted — a same-type value already feeds the target directly (no self-copy manufacturing)'
+        specs[0].ports[0].reuseOnly
+    }
+
     def 'is nullness-transparent: port and output carry the demanded nullness'() {
         when:
-        def demand = Demands.forTarget(TypeUniverse.STRING, [], Nullability.NULLABLE)
-        def specs = new DirectAssign().bridge(TypeUniverse.STRING, demand, ctx).toList()
+        def demand = Demands.forTarget(TypeUniverse.STRING, Nullability.NULLABLE)
+        def specs = new DirectAssign().expand(demand, ctx).toList()
 
         then:
         specs.size() == 1
         specs[0].ports[0].nullness == Nullability.NULLABLE
         specs[0].outputNullness == Nullability.NULLABLE
-    }
-
-    def 'returns empty when types are distinct'() {
-        expect:
-        new DirectAssign().bridge(TypeUniverse.STRING, Demands.forTarget(TypeUniverse.INT), ctx).toList().empty
     }
 }
