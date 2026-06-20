@@ -28,7 +28,7 @@ class ArrayContainerSpec extends Specification {
 
     def 'iterates an array into a Stream via Arrays.stream, a plain operation with no child scope'() {
         when:
-        def specs = new ArrayContainer().bridge(stringArray, Demands.forTarget(streamOfString), ctx).toList()
+        def specs = new ArrayContainer().expand(Demands.forTarget(streamOfString), ctx).toList()
 
         then:
         specs.size() == 1
@@ -43,7 +43,7 @@ class ArrayContainerSpec extends Specification {
 
     def 'collects a Stream into an array and offers no single-element wrap (arrays have no factory)'() {
         when:
-        def specs = new ArrayContainer().bridge(streamOfString, Demands.forTarget(stringArray), ctx).toList()
+        def specs = new ArrayContainer().expand(Demands.forTarget(stringArray), ctx).toList()
 
         then:
         specs.size() == 1
@@ -55,8 +55,8 @@ class ArrayContainerSpec extends Specification {
         new ArrayContainer().collect().get().render(CodeBlock.of('$N', 's')).toString().contains('toArray()')
     }
 
-    def 'declines when neither side is an array'() {
+    def 'declines a target that is neither an array nor a Stream'() {
         expect:
-        new ArrayContainer().bridge(TypeUniverse.STRING, Demands.forTarget(TypeUniverse.STRING), ctx).toList().empty
+        new ArrayContainer().expand(Demands.forTarget(TypeUniverse.STRING), ctx).toList().empty
     }
 }

@@ -36,7 +36,7 @@ class ListContainerSpec extends Specification {
 
     def 'iterates a List into a Stream via .stream(), a plain operation with no child scope'() {
         when:
-        def specs = new ListContainer().bridge(listOfString, Demands.forTarget(streamOfString), ctx).toList()
+        def specs = new ListContainer().expand(Demands.forTarget(streamOfString), ctx).toList()
 
         then:
         specs.size() == 1
@@ -51,7 +51,7 @@ class ListContainerSpec extends Specification {
 
     def 'collects a Stream into a List and offers a plain single-element List.of wrap'() {
         when:
-        def specs = new ListContainer().bridge(streamOfString, Demands.forTarget(listOfString), ctx).toList()
+        def specs = new ListContainer().expand(Demands.forTarget(listOfString), ctx).toList()
 
         then: 'a plain collect Stream<String> -> List<String>'
         def collect = specs.find { ctx.types().isSameType(it.ports[0].type, streamOfString) }
@@ -73,8 +73,8 @@ class ListContainerSpec extends Specification {
         specs.every { it.childScope.empty }
     }
 
-    def 'declines when neither side is a List'() {
+    def 'declines a target that is neither a List nor a Stream'() {
         expect:
-        new ListContainer().bridge(TypeUniverse.STRING, Demands.forTarget(setOfString), ctx).toList().empty
+        new ListContainer().expand(Demands.forTarget(setOfString), ctx).toList().empty
     }
 }

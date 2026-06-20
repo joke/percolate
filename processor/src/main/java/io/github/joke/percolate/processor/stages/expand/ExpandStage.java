@@ -221,9 +221,14 @@ public final class ExpandStage implements Stage {
                 final Set<String> children,
                 final @Nullable Value pinnedSource) {
             final var parentPath = ((TargetLocation) output.getLoc()).getPath().toString();
-            final var ports = spec.getPorts().stream()
-                    .map(port -> new PortBinding(port, sourceForPort(output, parentPath, port, children, pinnedSource)))
-                    .collect(toUnmodifiableList());
+            final var ports = new ArrayList<PortBinding>();
+            for (final var port : spec.getPorts()) {
+                final var source = sourceForPort(output, parentPath, port, children, pinnedSource);
+                if (source == null) {
+                    return; // a reuse-only port found no in-scope source: this producer does not apply
+                }
+                ports.add(new PortBinding(port, source));
+            }
             final var operation = apply(new AddOperation(
                     spec.getLabel(),
                     spec.getCodegen(),
@@ -246,7 +251,7 @@ public final class ExpandStage implements Stage {
          * deeper child-target demand; otherwise the port reuses the directive-pinned source, then any in-scope source
          * of the port's type and assignment-compatible nullness, then a fresh intermediate at the output location.
          */
-        private AddValue sourceForPort(
+        private @Nullable AddValue sourceForPort(
                 final Value output,
                 final String parentPath,
                 final Port port,
@@ -265,6 +270,12 @@ public final class ExpandStage implements Stage {
             final var candidate = sourceCandidates.matchingSource(output.getScope(), port);
             if (candidate != null) {
                 return reuse(candidate);
+            }
+            if (port.isReuseOnly()) {
+                // A reuse-only port (e.g. unwrap's wrapper input) is never minted: with no in-scope source the
+                // operation simply does not apply. This keeps a consuming op whose input is larger than its output
+                // from manufacturing an ever-deeper source to feed itself.
+                return null;
             }
             // A fresh intermediate at the output location, itself re-demanded: a multi-hop conversion (e.g.
             // int -> long -> Long). If no strategy ultimately produces it, it acquires no producer and this

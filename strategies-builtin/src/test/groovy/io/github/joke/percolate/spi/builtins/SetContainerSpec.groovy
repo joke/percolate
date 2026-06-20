@@ -33,7 +33,7 @@ class SetContainerSpec extends Specification {
 
     def 'iterates a Set into a Stream via .stream(), a plain operation with no child scope'() {
         when:
-        def specs = new SetContainer().bridge(setOfString, Demands.forTarget(streamOfString), ctx).toList()
+        def specs = new SetContainer().expand(Demands.forTarget(streamOfString), ctx).toList()
 
         then:
         specs.size() == 1
@@ -47,7 +47,7 @@ class SetContainerSpec extends Specification {
 
     def 'collects a Stream into a Set (Collectors.toSet) and offers a plain single-element Set.of wrap'() {
         when:
-        def specs = new SetContainer().bridge(streamOfString, Demands.forTarget(setOfString), ctx).toList()
+        def specs = new SetContainer().expand(Demands.forTarget(setOfString), ctx).toList()
 
         then: 'a plain collect Stream<String> -> Set<String>'
         def collect = specs.find { ctx.types().isSameType(it.ports[0].type, streamOfString) }
@@ -66,8 +66,8 @@ class SetContainerSpec extends Specification {
         ctx.types().isSameType(wrap.outputType, setOfString)
     }
 
-    def 'declines when neither side is a Set'() {
+    def 'declines a target that is neither a Set nor a Stream'() {
         expect:
-        new SetContainer().bridge(TypeUniverse.STRING, Demands.forTarget(TypeUniverse.LIST_OF_STRING), ctx).toList().empty
+        new SetContainer().expand(Demands.forTarget(TypeUniverse.LIST_OF_STRING), ctx).toList().empty
     }
 }
