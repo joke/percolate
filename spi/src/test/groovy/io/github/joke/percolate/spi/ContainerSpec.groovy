@@ -161,7 +161,6 @@ class ContainerSpec extends Specification {
                 directive       : { Optional.empty() },
                 declaredChildren: { [] as Set },
                 bindingName     : { '' },
-                candidates      : { [] },
                 nullnessOf      : { TypeMirror t, Element s -> Nullability.NON_NULL },
         ] as Demand
     }

@@ -10,35 +10,10 @@ import javax.lang.model.element.ElementKind
 @Tag('unit')
 class MembersSpec extends Specification {
 
-    def 'asTypeElement returns the type element for a declared parent'() {
-        given:
-        def ctx = new ResolveCtxBuilder().build()
-        def personBean = TypeUniverse.element('io.github.joke.percolate.spi.builtins.fixtures.PersonBean').asType()
-
-        when:
-        def result = Members.asTypeElement(personBean, ctx)
-
-        then:
-        result.present
-        result.get().qualifiedName.toString() == 'io.github.joke.percolate.spi.builtins.fixtures.PersonBean'
-    }
-
-    def 'asTypeElement returns empty for a non-declared parent'() {
-        given:
-        def ctx = new ResolveCtxBuilder().build()
-
-        when:
-        def result = Members.asTypeElement(TypeUniverse.INT, ctx)
-
-        then:
-        !result.present
-    }
-
     def 'declaredMembersOf enumerates accessible members of the type'() {
         given:
         def ctx = new ResolveCtxBuilder().build()
-        def personBean = TypeUniverse.element('io.github.joke.percolate.spi.builtins.fixtures.PersonBean').asType()
-        def typeElement = Members.asTypeElement(personBean, ctx).get()
+        def typeElement = TypeUniverse.element('io.github.joke.percolate.spi.builtins.fixtures.PersonBean')
 
         when:
         def memberNames = []
@@ -52,8 +27,7 @@ class MembersSpec extends Specification {
     def 'isInObjectClass distinguishes Object methods from declared-type methods'() {
         given:
         def ctx = new ResolveCtxBuilder().build()
-        def personBean = TypeUniverse.element('io.github.joke.percolate.spi.builtins.fixtures.PersonBean').asType()
-        def typeElement = Members.asTypeElement(personBean, ctx).get()
+        def typeElement = TypeUniverse.element('io.github.joke.percolate.spi.builtins.fixtures.PersonBean')
         def members = []
         Members.declaredMembersOf(typeElement, ctx).each { members << it }
 

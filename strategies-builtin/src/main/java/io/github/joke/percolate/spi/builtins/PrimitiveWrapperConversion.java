@@ -2,16 +2,12 @@ package io.github.joke.percolate.spi.builtins;
 
 import com.google.auto.service.AutoService;
 import com.palantir.javapoet.CodeBlock;
-import io.github.joke.percolate.spi.Demand;
+import io.github.joke.percolate.spi.Conversion;
 import io.github.joke.percolate.spi.ExpansionStrategy;
-import io.github.joke.percolate.spi.Nullability;
 import io.github.joke.percolate.spi.OperationCodegen;
-import io.github.joke.percolate.spi.OperationSpec;
-import io.github.joke.percolate.spi.Port;
 import io.github.joke.percolate.spi.ResolveCtx;
 import io.github.joke.percolate.spi.TypeProbe;
 import io.github.joke.percolate.spi.Weights;
-import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
@@ -24,13 +20,13 @@ import org.jspecify.annotations.Nullable;
 
 /**
  * Boxing (JLS 5.1.7) and unboxing (JLS 5.1.8) as one concept — the primitive↔wrapper identity — authored
- * target-to-source. A wrapper target consumes its primitive (box); a primitive target consumes its wrapper
- * (unbox). Each emits a single unary {@link OperationSpec}; the engine composes longer chains (e.g.
+ * target-to-source on the {@link Conversion} archetype base. A wrapper target consumes its primitive (box); a primitive
+ * target consumes its wrapper (unbox). Each is a single unary conversion; the engine composes longer chains (e.g.
  * {@code int → Long} as widen-then-box) through deduped intermediate Values.
  */
 @AutoService(ExpansionStrategy.class)
 @NoArgsConstructor
-public final class PrimitiveWrapperConversion implements ExpansionStrategy {
+public final class PrimitiveWrapperConversion extends Conversion {
 
     private static final Set<String> WRAPPER_FQNS = Set.of(
             "java.lang.Boolean",
@@ -53,38 +49,25 @@ public final class PrimitiveWrapperConversion implements ExpansionStrategy {
             TypeKind.DOUBLE, "doubleValue");
 
     @Override
-    public Stream<OperationSpec> expand(final Demand demand, final ResolveCtx ctx) {
-        final var target = demand.targetType();
+    protected Stream<Step> conversions(final TypeMirror target, final ResolveCtx ctx) {
         if (target.getKind().isPrimitive()) {
-            return unbox(target, ctx);
+            return Stream.of(unbox(target, ctx));
         }
         final var primitive = unboxedOrNull(target, ctx);
-        return primitive == null ? Stream.empty() : box(target, primitive);
+        return primitive == null ? Stream.empty() : Stream.of(box(target, primitive));
     }
 
-    private static Stream<OperationSpec> box(final TypeMirror wrapperTarget, final TypeMirror primitive) {
+    private static Step box(final TypeMirror wrapperTarget, final TypeMirror primitive) {
         final OperationCodegen codegen = inputs -> CodeBlock.of("$T.valueOf($L)", wrapperTarget, inputs.single());
-        return Stream.of(conversionSpec(primitive, wrapperTarget, codegen));
+        return new Step(primitive, Labels.conversion(primitive, wrapperTarget), Weights.STEP, codegen);
     }
 
-    private static Stream<OperationSpec> unbox(final TypeMirror primitiveTarget, final ResolveCtx ctx) {
+    private static Step unbox(final TypeMirror primitiveTarget, final ResolveCtx ctx) {
         final TypeMirror wrapper =
                 ctx.types().boxedClass((PrimitiveType) primitiveTarget).asType();
         final var accessor = Objects.requireNonNull(UNBOX_ACCESSOR.get(primitiveTarget.getKind()));
         final OperationCodegen codegen = inputs -> CodeBlock.of("$L.$N()", inputs.single(), accessor);
-        return Stream.of(conversionSpec(wrapper, primitiveTarget, codegen));
-    }
-
-    private static OperationSpec conversionSpec(
-            final TypeMirror inputType, final TypeMirror output, final OperationCodegen codegen) {
-        final var port = new Port("value", inputType, Nullability.NON_NULL);
-        return OperationSpec.of(
-                Labels.conversion(inputType, output),
-                codegen,
-                Weights.STEP,
-                List.of(port),
-                output,
-                Nullability.NON_NULL);
+        return new Step(wrapper, Labels.conversion(wrapper, primitiveTarget), Weights.STEP, codegen);
     }
 
     /** The primitive a declared wrapper target unboxes to, or {@code null} when the target is not a wrapper. */
