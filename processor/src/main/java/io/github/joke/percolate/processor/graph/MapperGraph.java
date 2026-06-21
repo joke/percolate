@@ -3,8 +3,10 @@ package io.github.joke.percolate.processor.graph;
 import io.github.joke.percolate.spi.Nullability;
 import java.util.Comparator;
 import java.util.HashMap;
+import java.util.LinkedHashSet;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import javax.lang.model.type.TypeMirror;
@@ -31,6 +33,14 @@ public final class MapperGraph {
     @SuppressWarnings("PMD.UseConcurrentHashMap") // single-threaded per-mapper graph
     private final Map<String, Value> valueIndex = new HashMap<>();
 
+    /**
+     * The method return-root Values seeded by the driver, in seeding (method) order. This is the authority for
+     * return-root identity — distinct from the same-location conversion way-points over-emission later mints at the
+     * empty-path target location (a {@code Stream<E>} minted while producing a {@code List<E>} root). {@link Value}
+     * equality is identity, so a {@link LinkedHashSet} is a deterministic identity set.
+     */
+    private final Set<Value> seededRoots = new LinkedHashSet<>();
+
     private int operationSeq;
 
     /**
@@ -54,6 +64,15 @@ public final class MapperGraph {
     /** Applies an {@link AddValue}: the {@link #valueFor} get-or-create rule. Applier-only during expansion. */
     public Value apply(final AddValue delta) {
         return valueFor(delta.getScope(), delta.getLocation(), delta.getType(), delta.getNullness());
+    }
+
+    /**
+     * Records {@code value} as a seeded method return root (the driver's only seed). This is the authority for
+     * return-root identity used by extraction, realisation diagnostics, and code generation — not the location-only
+     * {@link Location#isReturnRoot()}, which also matches same-location conversion way-points.
+     */
+    public void markReturnRoot(final Value value) {
+        seededRoots.add(value);
     }
 
     /**
@@ -169,6 +188,11 @@ public final class MapperGraph {
     /** All Values in deterministic order. */
     public Stream<Value> values() {
         return vertices().filter(Value.class::isInstance).map(Value.class::cast);
+    }
+
+    /** The seeded method return-root Values, in seeding (method) order. The authority for root identity. */
+    public Stream<Value> returnRoots() {
+        return seededRoots.stream();
     }
 
     /** All Operations in deterministic order. */

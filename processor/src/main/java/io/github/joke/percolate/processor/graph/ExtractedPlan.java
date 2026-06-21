@@ -31,13 +31,15 @@ public final class ExtractedPlan {
         this.graph = graph;
     }
 
-    /** Extracts the plan, rooted at every reachable return-root Value. */
+    /**
+     * Extracts the plan, rooted at every reachable <b>seeded</b> method return root (the graph's recorded roots,
+     * not every Value at the empty-path location). Child element plans flow from there through {@link #walk}'s
+     * child-scope recursion, so a same-location conversion way-point (a {@code Stream<E>} minted while producing a
+     * {@code List<E>} root) participates only as a producer's port, never as an independent root.
+     */
     public static ExtractedPlan extract(final MapperGraph graph) {
         final var plan = new ExtractedPlan(graph);
-        graph.values()
-                .filter(value -> value.getLoc().isReturnRoot())
-                .filter(plan::reachable)
-                .forEach(plan::walk);
+        graph.returnRoots().filter(plan::reachable).forEach(plan::walk);
         return plan;
     }
 

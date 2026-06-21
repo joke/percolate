@@ -96,6 +96,29 @@ class ReactorContainerEndToEndSpec extends Specification {
         !body.contains('.block(')
     }
 
+    def 'direct Flux<DTO> -> Flux<DAO> container-return method maps element-wise without self-bridging'() {
+        when: 'a top-level container-return method (no bean wrapper), enabled by the engine self-bridge + root-id fix'
+        def mapper = JavaFileObjects.forSourceLines(
+                'io.github.joke.percolate.reactor.test.PersonMapper',
+                'package io.github.joke.percolate.reactor.test;',
+                'import io.github.joke.percolate.Mapper;',
+                'import io.github.joke.percolate.Map;',
+                'import reactor.core.publisher.Flux;',
+                '@Mapper',
+                'public interface PersonMapper {',
+                '    Flux<PersonDAO> map(Flux<PersonDTO> people);',
+                '    @Map(target = "name", source = "dto.name")',
+                '    PersonDAO mapOne(PersonDTO dto);',
+                '}')
+        def body = body(Compiler.javac().withProcessors(new PercolateProcessor()).compile(DTO, DAO, mapper))
+
+        then: 'maps the Flux through the element transform — never return this.map(people)'
+        body.contains('.map(')
+        body.contains('mapOne(')
+        !body.contains('this.map(')
+        !body.contains('.block(')
+    }
+
     // ---- harness -------------------------------------------------------------------------------------------
 
     private static final DTO = JavaFileObjects.forSourceLines(

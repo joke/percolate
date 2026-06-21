@@ -4,7 +4,6 @@ import io.github.joke.percolate.processor.Diagnostics;
 import io.github.joke.percolate.processor.MapperContext;
 import io.github.joke.percolate.processor.graph.ExtractedPlan;
 import io.github.joke.percolate.processor.graph.MapperGraph;
-import io.github.joke.percolate.processor.graph.MethodScope;
 import io.github.joke.percolate.processor.graph.Operation;
 import io.github.joke.percolate.processor.graph.TargetLocation;
 import io.github.joke.percolate.processor.graph.Value;
@@ -34,11 +33,7 @@ public final class RealisationDiagnosticsStage implements Stage {
             return;
         }
         final var plan = ExtractedPlan.extract(graph);
-        graph.values()
-                .filter(value -> value.getScope() instanceof MethodScope)
-                .filter(value -> value.getLoc().isReturnRoot())
-                .filter(value -> !plan.reachable(value))
-                .forEach(root -> emit(graph, plan, root, ctx));
+        graph.returnRoots().filter(value -> !plan.reachable(value)).forEach(root -> emit(graph, plan, root, ctx));
     }
 
     private void emit(final MapperGraph graph, final ExtractedPlan plan, final Value root, final MapperContext ctx) {

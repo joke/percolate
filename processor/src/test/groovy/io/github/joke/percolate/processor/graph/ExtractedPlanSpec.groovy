@@ -15,7 +15,9 @@ class ExtractedPlanSpec extends Specification {
 
     final MapperGraph graph = new MapperGraph()
     final Scope scope = new HarnessScope('m()')
+    // Extraction roots at the graph's seeded return roots, so the harness root must be marked like the driver does.
     final Value root = graph.valueFor(scope, new TargetLocation(TargetPath.of('')), TypeUniverse.STRING, Nullability.NON_NULL)
+            .tap { graph.markReturnRoot(it) }
 
     def 'an OR resolves to the cheapest producer'() {
         given:

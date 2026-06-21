@@ -67,8 +67,8 @@ public final class BuildMethodBodies {
     }
 
     private static Value returnRoot(final MapperGraph graph, final Scope scope) {
-        return graph.valuesIn(scope)
-                .filter(value -> value.getLoc().isReturnRoot())
+        return graph.returnRoots()
+                .filter(value -> value.getScope().equals(scope))
                 .findFirst()
                 .orElseThrow(() -> new IllegalStateException("no return-root Value in scope " + scope.encode()));
     }

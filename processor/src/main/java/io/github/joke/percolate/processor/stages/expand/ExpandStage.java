@@ -93,21 +93,21 @@ public final class ExpandStage implements Stage {
 
         private final MapperGraph graph;
         private final Map<Scope, GoalSpec> goalSpecs;
-        private final ResolveCtx resolveCtx;
         private final AccessorResolver accessorResolver;
         private final SourceCandidates sourceCandidates;
         private final Grounding grounding;
         private final Applier applier = new Applier();
         private final Deque<Value> workList = new ArrayDeque<>();
         private final Set<Value> visited = new HashSet<>();
+        private final SelfCallGuard selfCallGuard;
 
         private Driver(final MapperGraph graph, final Map<Scope, GoalSpec> goalSpecs, final ResolveCtx resolveCtx) {
             this.graph = graph;
             this.goalSpecs = goalSpecs;
-            this.resolveCtx = resolveCtx;
             this.accessorResolver = new AccessorResolver(strategies, resolveCtx, resolver);
             this.sourceCandidates = new SourceCandidates(graph, applier, resolver, resolveCtx);
             this.grounding = new Grounding(resolveCtx, projections);
+            this.selfCallGuard = new SelfCallGuard(resolveCtx, elements, types);
         }
 
         /** Self-seeds one return-type demand per abstract method into the empty graph, then drains the work-list. */
@@ -121,13 +121,16 @@ public final class ExpandStage implements Stage {
             }
         }
 
-        /** The only seed: a return-type demand per abstract method, landed through the {@link Applier}. */
+        /** The only seed: a return-type demand per abstract method, landed through the {@link Applier} and recorded
+         * as the method's return root (the authority a method may not satisfy by self-call, and the single root
+         * extraction/diagnostics/codegen key on — not the same-location intermediates over-emission later mints). */
         private void seedReturnRoot(final ExecutableElement method) {
             final var scope = new MethodScope(method);
             final var returnType = method.getReturnType();
             final var nullness = resolver.resolve(returnType, method);
             final var root = applier.apply(
                     graph, new AddValue(scope, new TargetLocation(TargetPath.of("")), returnType, nullness));
+            graph.markReturnRoot(root);
             enqueue(root);
         }
 
@@ -170,7 +173,7 @@ public final class ExpandStage implements Stage {
             // lands is concrete (no abstract type ever enters the work-list), preserving target→source order and
             // over-emit + cost-prune. A concrete spec passes through grounding unchanged.
             final var sourceTypes = sourceCandidates.sourceTypes(scope);
-            final var grounded = run(demand).stream()
+            final var grounded = run(demand, selfCallGuard.resolveCtxFor(value)).stream()
                     .flatMap(spec -> grounding.ground(spec, sourceTypes))
                     .collect(toUnmodifiableList());
             for (final var spec : dedup(grounded)) {
@@ -324,9 +327,9 @@ public final class ExpandStage implements Stage {
             return new AddValue(value.getScope(), value.getLoc(), type(value), nullness(value));
         }
 
-        private List<OperationSpec> run(final DemandView demand) {
+        private List<OperationSpec> run(final DemandView demand, final ResolveCtx ctx) {
             return strategies.stream()
-                    .flatMap(strategy -> strategy.expand(demand, resolveCtx))
+                    .flatMap(strategy -> strategy.expand(demand, ctx))
                     .collect(toUnmodifiableList());
         }
 
