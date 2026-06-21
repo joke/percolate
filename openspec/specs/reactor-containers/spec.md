@@ -8,17 +8,23 @@ This spec defines the Project Reactor (`Flux`/`Mono`) container family — a thi
 
 ### Requirement: Container mappings use the bean-field convention
 
-Reactive container conversions SHALL be expressed the same way every percolate container conversion is: a **bean field** of reactive type, sourced from another bean field via `@Map`, with the per-element transform delegated to a declared `@Map`-annotated method. A **direct container-return** top-level method (`Flux<DAO> map(Flux<DTO>)`) is a **known pre-existing percolate limitation** — the engine produces no plan for a root demand that is itself a container, and the builtin `StreamMap` fails identically for `List<DAO> map(List<DTO>)`. It is documented here and tracked as a separate follow-up; it is NOT introduced by this change and affects the JDK and reactive paradigms equally.
+Reactive container conversions SHALL generate in both shapes: as a **bean field** of reactive type
+(sourced from another bean field via `@Map`, with the per-element transform delegated to a declared
+`@Map`-annotated method), and as a **direct container-return** top-level method. The direct
+container-return case (`Flux<DAO> map(Flux<DTO>)`, and the builtin `List<DAO> map(Set<DTO>)`) SHALL no
+longer be a limitation — it is fixed by the engine changes in this change (the narrow self-bridge
+exclusion and the seeded return-root identity, per `graph-expansion` / `plan-extraction` /
+`code-generation`) and MUST behave identically across the JDK and reactive paradigms.
 
 #### Scenario: Reactive field conversion composes
 
 - **WHEN** a mapper maps a target bean field of type `Flux<DAO>` from a source bean field of type `Flux<DTO>` via `@Map(target="people", source="src.people")`, with a declared element method `DAO mapOne(DTO)`
 - **THEN** the generated code produces the field via `src.getPeople().map(e -> mapOne(e))` and compiles
 
-#### Scenario: Direct container-return is not silently mis-generated
+#### Scenario: Direct container-return generates the real plan
 
-- **WHEN** a mapper declares a direct container-return method `Flux<DAO> map(Flux<DTO>)`
-- **THEN** compilation reports a "no plan" diagnostic (the pre-existing limitation), never silently wrong output — identical to the builtin `List<DAO> map(List<DTO>)` behaviour
+- **WHEN** a mapper declares a direct container-return method `Flux<DAO> map(Flux<DTO>)` with a declared element method `DAO mapOne(DTO)` (and identically for the builtin `List<DAO> mapAddresses(Set<DTO>)` with `DAO mapAddress(DTO)`)
+- **THEN** the generated code delegates per element to the sibling method (`flux.map(e -> mapOne(e))`; `src.stream().map(e -> mapAddress(e)).collect(...)`) — never a `return this.map(src)` self-call and never a "no plan" diagnostic
 
 ### Requirement: Reactor container family over a single shared Flux intermediate
 
@@ -95,11 +101,28 @@ With only the `reactor` module on the annotation-processor classpath, the engine
 - **WHEN** a `Flux<DTO>` field is mapped to a `List<DAO>` field and only the `reactor` module is present
 - **THEN** compilation reports a "no producer" diagnostic and the generated output contains no `collectList().block()` or `toStream()`
 
-### Requirement: Opt-in blocking module is deferred (blocked by a pre-existing self-bridge quirk)
+### Requirement: Opt-in blocking module ships (upward async-to-sync crossings)
 
-The opt-in `reactor-blocking` module (upward async-to-sync crossings: `block`/`blockOptional`/`single().block`/`collectList().block`/`toStream`, each weighted above any non-blocking alternative) is **deferred to a follow-up change**. The strategies were prototyped and shown to terminate (reuse-only ports, the `unwrap` pattern), but their behaviour cannot be demonstrated correctly because of a **pre-existing, paradigm-agnostic percolate quirk**: a mapper method bridges its own signature (`Tgt map(Src)` is generated as `return this.map(src)`), and that self-bridge (weight `METHOD`) out-prices the deliberately high-weighted blocking path, masking it. The quirk also masks a clean "no plan" for an unsatisfiable bean root. The blocking module SHALL ship only alongside a fix that excludes a method from bridging its own signature; until then, a developer needing an upward crossing writes a manual converter (the D4 path), and the engine never auto-invents blocking (next requirement).
+An opt-in `reactor-blocking` Gradle module SHALL provide the upward async→sync crossings — `block`
+(`Mono<T>→T`), `blockOptional` (`Mono<T>→Optional<T>`), `single().block` (`Flux<T>→T`),
+`collectList().block` (`Flux<T>→List<T>`), and `toStream` (`Flux<T>→Stream<T>`) — as a pure SPI plugin
+(`@AutoService`, `implementation project(':spi')`, a `reactor-core` pin, no engine dependency). Each
+upward edge SHALL be weighted strictly above any non-blocking alternative and SHALL use reuse-only
+ports (the `unwrap` pattern) so it never mints an ever-deeper source. The boundary-direction rule SHALL
+remain enforced by packaging: downward auto (`reactor`), upward only when `reactor-blocking` is on the
+annotation-processor classpath.
 
-#### Scenario: No blocking strategy is registered until the self-bridge fix ships
+#### Scenario: Upward crossing is satisfied only with the blocking module present
 
-- **WHEN** the `reactor` module is assembled and only its strategies are on the annotation-processor classpath
-- **THEN** no `reactor-blocking` module is present, no async-to-sync blocking strategy (`block`/`blockOptional`/`single().block`/`collectList().block`/`toStream`) is registered, and an upward crossing is satisfiable only by a hand-written converter
+- **WHEN** a `Mono<DTO>` field maps to a plain `DAO` field and both `reactor` and `reactor-blocking` are on the annotation-processor classpath
+- **THEN** the engine satisfies the upward crossing via the weighted blocking strategy (e.g. `.block()` feeding the element transform), and the same mapper with only `reactor` present still reports "no producer"
+
+#### Scenario: Blocking never out-prices a non-blocking alternative
+
+- **WHEN** a demand can be satisfied either by staying reactive (a non-blocking path) or by an upward blocking crossing — e.g. `Mono<DAO> map(Mono<DTO>)` where lazy `mono.map(f)` competes with eager `Mono.just(f(mono.block()))`
+- **THEN** the non-blocking (lazy) path is always selected, because every blocking edge is weighted strictly higher — a correctness property (deferred vs blocks-at-assembly), not a style one
+
+#### Scenario: Blocking is not auto-invented and does not self-bridge
+
+- **WHEN** `reactor-blocking` is present and an upward crossing is demanded at a method return root
+- **THEN** the blocking strategy (not a `this.m(...)` self-call) is selected, confirming the self-bridge exclusion lets the high-weight blocking path surface rather than being masked
