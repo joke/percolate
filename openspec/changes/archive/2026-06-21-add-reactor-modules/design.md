@@ -9,7 +9,7 @@ Relevant shipped surface: `Container` (base implementing both `ExpansionStrategy
 ## Goals / Non-Goals
 
 **Goals:**
-- A `reactor` module (`Flux`/`Mono` containers + `FluxMap` + non-blocking interop) and a `reactor-blocking` opt-in module, both pure SPI plugins with zero engine change.
+- A `reactor` module (`Flux`/`Mono` containers + `FluxMap` + non-blocking interop) as a pure SPI plugin with zero engine change. (The `reactor-blocking` opt-in module is **deferred** to a follow-up — see D9.)
 - Single shared reactive intermediate (`Flux`), so cross-kind reactive composes exactly as JDK cross-kind does over `Stream`.
 - The boundary-direction rule (downward auto, upward opt-in only) enforced by *which strategies each module registers* — not by any engine special-case.
 - Executed end-to-end tests that turn the parent change's paper claims (zero engine change, no auto-invented blocking) into regression guards.
@@ -87,11 +87,11 @@ They are simple `ExpansionStrategy` classes like `ConstructorCall`. Only **eleme
 
 In `reactor-blocking`, each upward edge carries a weight higher than any non-blocking path. This is not just preference: for `Mono<Dao> map(Mono<Dto>)`, the lazy `mono.map(f)` and the eager `Mono.just(f(mono.block()))` are **not equivalent Monos** (deferred vs blocks-at-assembly). The weight guarantees the lazy path wins — a correctness property, not a style one.
 
-### D7 — bean-field convention; direct container-return is a pre-existing limitation (finding)
+### D8 — bean-field convention; direct container-return is a pre-existing limitation (finding)
 
 Building the module surfaced that percolate produces **no plan for a direct container-return** top-level method (`Flux<DAO> map(Flux<DTO>)`) — and the builtin `StreamMap` fails identically for `List<DAO> map(List<DTO>)`. The engine only maps a container when it is a **bean field sourced via `@Map`** (the Beast/Creature pattern); every existing container test is bean-field. This is **pre-existing, paradigm-agnostic, and not introduced by this change.** Decision: reactor ships using the bean-field convention (validated — generates `new Tgt(src.getPeople().map(e -> mapOne(e)))`), and "direct container-return mappers" is recorded as a known limitation and a candidate **separate** engine change (it would touch root-demand seeding/source-binding, breaking the zero-engine-change thesis if folded in here). The canonical reactive signatures discussed during design (`Flux<DAO> map(Flux<DTO>)`) therefore require a bean wrapper today.
 
-### D8 — `reactor-blocking` deferred (self-bridge quirk finding)
+### D9 — `reactor-blocking` deferred (self-bridge quirk finding)
 
 Building `reactor-blocking` surfaced a second pre-existing, paradigm-agnostic percolate quirk: a mapper method **bridges its own signature** — `Tgt map(Src)` is generated as `return this.map(src)` whenever the legitimate plan is more expensive than a method call. Because the blocking edges are deliberately weighted high (D7), the self-bridge always out-prices them, masking the blocking path (and also masking a clean "no plan" for an unsatisfiable bean root). The blocking strategies themselves are correct and terminate (reuse-only ports, the `unwrap` pattern). Decision: **defer `reactor-blocking` to a follow-up** that first fixes the engine to exclude a method from bridging its own exact signature. This change still delivers the boundary rule's load-bearing half — *the engine never auto-invents blocking* — proven by the `reactor`-only negatives.
 
@@ -107,8 +107,8 @@ Building `reactor-blocking` surfaced a second pre-existing, paradigm-agnostic pe
 
 1. **Spike (task 1, gate):** prove `Flux` (`kind == intermediate`) composes `Flux→Flux` map and `Mono→Flux` with no degenerate self-loop and terminates. Stop and surface if it needs engine support.
 2. Add `reactor` module + `reactor-core` pin; `FluxContainer`/`MonoContainer` over the shared `Flux` intermediate; `FluxMap`.
-3. Add the non-blocking downward bridges + reductions (`justOrEmpty`/`fromIterable`/`fromStream`/`fromCallable`/`collectList`/`single`/`singleOptional`).
-4. Add `reactor-blocking` module with the weighted upward edges.
+3. Add the non-blocking downward bridges + reductions: `justOrEmpty` (`Optional<T>→Mono<T>`), `fromStream` (`Stream<T>→Flux<T>`, with JDK collections feeding through the shared `Stream` intermediate), `T→Mono<T>` via the `Mono` container's `wrap`, `collectList`, `single`, `singleOptional`. (No separate `fromIterable`/`fromCallable` strategy shipped — both fall out of the above.)
+4. **Deferred (D9):** `reactor-blocking` module with the weighted upward edges.
 5. End-to-end Spock suites (positive per family + the upward "no producer" negatives + the high-weight-no-eager-block guard).
 
 Rollback: both modules are additive and isolated; removing them from `settings.gradle` reverts with no engine impact.

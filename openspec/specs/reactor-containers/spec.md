@@ -1,4 +1,10 @@
-## ADDED Requirements
+# Reactor Containers Spec
+
+## Purpose
+
+This spec defines the Project Reactor (`Flux`/`Mono`) container family — a third-party `percolate-spi` plugin (the `reactor` Gradle module) that adds reactive mapper support with **zero engine change**, as the first real customer of the target-driven dev SPI. Both containers compose over a **single shared reactive intermediate (`Flux`)**: `Flux` is the sequence kind and `Mono` is a presence wrapper that projects to `Flux` (mirroring how `Optional` projects to `Stream`), so cross-kind reactive (`Mono → Flux`) composes exactly as JDK cross-kind does over `Stream`. The module supplies `FluxContainer`/`MonoContainer` + a `FluxMap` functor-lift, the non-blocking **downward** interop bridges and same-paradigm reductions (`justOrEmpty`/`fromStream`/`collectList`/`single()`/`singleOptional`), and enforces the **boundary-direction rule** — the engine auto-crosses the JDK↔reactive paradigm boundary only downward (sync→async, free); **upward** (async→sync, blocking) crossings are never auto-invented and require an opt-in module (deferred). All behaviour rides the published `spi` surface (`polymorphic-conversion`, `container-expansion`, `expansion-strategy-spi`) and changes no engine requirement.
+
+## Requirements
 
 ### Requirement: Container mappings use the bean-field convention
 
@@ -92,3 +98,8 @@ With only the `reactor` module on the annotation-processor classpath, the engine
 ### Requirement: Opt-in blocking module is deferred (blocked by a pre-existing self-bridge quirk)
 
 The opt-in `reactor-blocking` module (upward async-to-sync crossings: `block`/`blockOptional`/`single().block`/`collectList().block`/`toStream`, each weighted above any non-blocking alternative) is **deferred to a follow-up change**. The strategies were prototyped and shown to terminate (reuse-only ports, the `unwrap` pattern), but their behaviour cannot be demonstrated correctly because of a **pre-existing, paradigm-agnostic percolate quirk**: a mapper method bridges its own signature (`Tgt map(Src)` is generated as `return this.map(src)`), and that self-bridge (weight `METHOD`) out-prices the deliberately high-weighted blocking path, masking it. The quirk also masks a clean "no plan" for an unsatisfiable bean root. The blocking module SHALL ship only alongside a fix that excludes a method from bridging its own signature; until then, a developer needing an upward crossing writes a manual converter (the D4 path), and the engine never auto-invents blocking (next requirement).
+
+#### Scenario: No blocking strategy is registered until the self-bridge fix ships
+
+- **WHEN** the `reactor` module is assembled and only its strategies are on the annotation-processor classpath
+- **THEN** no `reactor-blocking` module is present, no async-to-sync blocking strategy (`block`/`blockOptional`/`single().block`/`collectList().block`/`toStream`) is registered, and an upward crossing is satisfiable only by a hand-written converter

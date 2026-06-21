@@ -19,6 +19,10 @@ final class TypeUniverse {
     private static final Elements ELEMENT_UTILS = JAVAC_TASK.elements
     private static final Elements SYNCHRONIZED_ELEMENTS = new SynchronizedElements(ELEMENT_UTILS)
     private static final Map<String, TypeElement> ELEMENT_CACHE = new ConcurrentHashMap<>()
+    // Symbols whose inheritance closure has already been forced. Mutated only under the TypeUniverse
+    // lock (completeClosure is reached only from the synchronized lookup). Declared before the type
+    // constants below, which call lookup -> completeClosure during static initialisation.
+    private static final Set<String> COMPLETED = [] as Set
 
     static {
         // On Java 21+, `java.util.Collection` extends `SequencedCollection`. javac
@@ -232,8 +236,45 @@ final class TypeUniverse {
                 if (element == null) {
                     throw new NullPointerException("type not found on classpath: ${name}")
                 }
+                completeClosure(element)
                 element
             }
         }
+    }
+
+    /**
+     * Force javac to fully load a type and its entire supertype / interface / nested-type closure the
+     * first time it is resolved, single-threaded and in a controlled order. javac completes symbols
+     * lazily; if one load starts while another is mid-flight (getAllMembers walking a supertype closure
+     * is the usual trigger), ClassFinder throws "Filling X during Y". That assertion is unconditional —
+     * com.sun.tools.javac.util.Assert throws regardless of -ea/-da — so the only cure is to never let a
+     * fill start mid-traversal. Priming the whole closure up front makes the symbol table complete
+     * before any spec touches it. This generalises the static initialiser's fixed JDK list to every
+     * type a test resolves: a record fixture pulls in java.lang.Record, an enum java.lang.Enum, etc.,
+     * with no per-fixture additions. The walk follows the inheritance and nesting graph only (not member
+     * signatures), which is exactly the closure getAllMembers / Types.closure would otherwise fill lazily.
+     */
+    private static void completeClosure(final Element element) {
+        if (!(element instanceof TypeElement)) {
+            return
+        }
+        final TypeElement type = (TypeElement) element
+        if (!COMPLETED.add(completionKey(type))) {
+            return
+        }
+        completeSupertype(type.superclass)
+        type.interfaces.each { iface -> completeSupertype(iface) }
+        type.enclosedElements.each { member -> completeClosure(member) }
+    }
+
+    private static void completeSupertype(final TypeMirror supertype) {
+        if (supertype instanceof DeclaredType) {
+            completeClosure(((DeclaredType) supertype).asElement())
+        }
+    }
+
+    private static String completionKey(final TypeElement type) {
+        final String qualified = type.qualifiedName as String
+        qualified.empty ? type.toString() : qualified
     }
 }
