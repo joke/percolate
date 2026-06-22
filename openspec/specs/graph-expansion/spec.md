@@ -71,33 +71,36 @@ the graph. There SHALL be no separate seed stage.
 - **WHEN** producing a container return root `List<E>` over-emits an intermediate `Stream<E>` (and other typed candidates) at the same empty-path return location
 - **THEN** only the seeded `List<E>` Value is recorded as the method's return root; the same-location intermediates are not, despite sharing the location
 
-### Requirement: A method never satisfies demands in its own method scope
+### Requirement: A method never calls itself on its own whole parameter
 
-The driver SHALL exclude a method from its own candidate set **throughout its own `MethodScope`**
-(every location, not only the return root), because a method consuming its own parameter to produce
-its own output is always a degenerate self-call (infinite recursion) — whether at the return root
-(`return this.m(param)`), behind an `iterate`/`collect` round-trip at a same-location sibling, or
-wrapped at a field (`List.of(this.m(param))`). The exclusion SHALL be a
-driver-side, per-scope candidate-visibility concern — a filtered `CallableMethods` view keyed on the
-scope's `ExecutableElement`, matched by signature (name + parameter types) — with **no change to the
-`CallableMethods` / `ResolveCtx` SPI** and no loss of strategy myopia. It SHALL NOT apply to a
-container's per-element transform, which is a separate child (element) scope; and delegation to a
-*different* abstract method that returns the same type SHALL remain available.
+The driver SHALL refuse to land a self-call operation whose argument port binds to the calling method's **own parameter-root `Value`** — the whole, unchanged parameter (`this.m(src)`), which is always degenerate (runtime infinite recursion). A self-call on a **strict sub-part** of the parameter (an accessor result such as `src.getNext()`, or a container element) SHALL remain available, because structural recursion over a shrinking input terminates. The decision SHALL be made **per binding** at land time, not per scope or per site: at one target site the engine over-emits both bindings and the degenerate one is *strictly cheaper* (the parameter-root costs nothing, an accessor costs `ACCESS`), so over-emit + cost-prune alone cannot choose correctly — the binding must be refused outright.
+
+The driver SHALL recognise a self-call structurally by comparing the operation's **call target** (carried on its `OperationSpec`, see `expansion-strategy-spi`) against the current `MethodScope`'s method, matched by signature (name + parameter types); it SHALL NOT infer identity from the spec's `label`. The refusal SHALL apply only when the call target is the scope's own method **and** the bound argument is that scope's parameter-root `Value`; it SHALL NOT apply to a container's per-element transform (a separate child scope), and delegation to a *different* method returning the same type SHALL remain available. There SHALL be no change to the `CallableMethods` / `ResolveCtx` SPI and no loss of strategy myopia.
 
 #### Scenario: A container-return method does not self-bridge
 
 - **WHEN** `List<DAO> mapMany(Set<DTO>)` is expanded and the mapper also declares `DAO mapOne(DTO)`
-- **THEN** `mapMany` is not a candidate anywhere in its own scope, so the selected plan is `src.stream().map(this::mapOne).collect(...)`, never `return this.mapMany(src)` nor an `iterate`/`collect` round-trip over `this.mapMany(src)`
+- **THEN** `mapMany` called on its own parameter is refused, so the selected plan is `src.stream().map(this::mapOne).collect(...)`, never `return this.mapMany(src)` nor an `iterate`/`collect` round-trip over `this.mapMany(src)`
 
 #### Scenario: Legitimate self-recursion through a container element is preserved
 
 - **WHEN** a self-similar mapper `Cat mapCat(CatDto)` maps a `List<Cat> children` field from `List<CatDto>` element-wise
-- **THEN** the element transform (a child scope) calls `mapCat` recursively — `src.getChildren().stream().map(e -> mapCat(e))` — while the method's own scope never self-bridges
+- **THEN** the element transform (a child scope) calls `mapCat` recursively — `src.getChildren().stream().map(e -> mapCat(e))` — while the method's own scope never binds `mapCat` to the whole parameter
 
-#### Scenario: A scalar self-referential field is reported, not silently recursive
+#### Scenario: A scalar self-referential field generates structural recursion
 
-- **WHEN** a mapper `Node mapNode(NodeSrc)` maps a scalar `Node next` field from `src.next` (the recursion would live in the method's own scope, not a child scope)
-- **THEN** the exclusion forbids the self-call there too, so the mapper reports a clean "no plan" rather than emitting infinite `return this.mapNode(src)` recursion (making scalar self-reference work is a separate, argument-aware follow-up)
+- **WHEN** a mapper `Node mapNode(NodeSrc)` maps a scalar `Node next` field from `src.getNext()` (the recursion lives in the method's own scope, not a child scope)
+- **THEN** the self-call `this.mapNode(src.getNext())` is kept (its argument is a sub-part of the parameter), so the mapper generates the terminating `next`-walk and the degenerate `this.mapNode(src)` binding is the only one refused
+
+#### Scenario: The whole-parameter self-call remains an honest no plan
+
+- **WHEN** a mapper would only be satisfiable by calling itself on its whole, unchanged parameter (no smaller argument exists)
+- **THEN** that binding is refused and the demand reports a clean "no plan", never an infinite `return this.m(src)` recursion
+
+#### Scenario: Delegation to a different method returning the same type is available
+
+- **WHEN** `M` and a different method `N` both return the demanded type and `N` consumes the parameter (`return n(p)`)
+- **THEN** the call to `N` is landed (only `M`'s self-call on its own parameter-root is refused)
 
 ### Requirement: All graph mutation flows through the Applier
 
