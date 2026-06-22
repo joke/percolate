@@ -93,21 +93,22 @@ public final class ExpandStage implements Stage {
 
         private final MapperGraph graph;
         private final Map<Scope, GoalSpec> goalSpecs;
+        private final ResolveCtx resolveCtx;
         private final AccessorResolver accessorResolver;
         private final SourceCandidates sourceCandidates;
         private final Grounding grounding;
         private final Applier applier = new Applier();
+        private final SelfCallGuard selfCallGuard = new SelfCallGuard();
         private final Deque<Value> workList = new ArrayDeque<>();
         private final Set<Value> visited = new HashSet<>();
-        private final SelfCallGuard selfCallGuard;
 
         private Driver(final MapperGraph graph, final Map<Scope, GoalSpec> goalSpecs, final ResolveCtx resolveCtx) {
             this.graph = graph;
             this.goalSpecs = goalSpecs;
+            this.resolveCtx = resolveCtx;
             this.accessorResolver = new AccessorResolver(strategies, resolveCtx, resolver);
             this.sourceCandidates = new SourceCandidates(graph, applier, resolver, resolveCtx);
             this.grounding = new Grounding(resolveCtx, projections);
-            this.selfCallGuard = new SelfCallGuard(resolveCtx, elements, types);
         }
 
         /** Self-seeds one return-type demand per abstract method into the empty graph, then drains the work-list. */
@@ -173,7 +174,7 @@ public final class ExpandStage implements Stage {
             // lands is concrete (no abstract type ever enters the work-list), preserving target→source order and
             // over-emit + cost-prune. A concrete spec passes through grounding unchanged.
             final var sourceTypes = sourceCandidates.sourceTypes(scope);
-            final var grounded = run(demand, selfCallGuard.resolveCtxFor(value)).stream()
+            final var grounded = run(demand, resolveCtx).stream()
                     .flatMap(spec -> grounding.ground(spec, sourceTypes))
                     .collect(toUnmodifiableList());
             for (final var spec : dedup(grounded)) {
@@ -230,6 +231,9 @@ public final class ExpandStage implements Stage {
                     return; // a reuse-only port found no in-scope source: this producer does not apply
                 }
                 ports.add(new PortBinding(port, source));
+            }
+            if (selfCallGuard.refuses(output.getScope(), spec, ports)) {
+                return; // a method may not call itself on its own whole parameter (degenerate infinite recursion)
             }
             final var operation = apply(new AddOperation(
                     spec.getLabel(),

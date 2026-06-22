@@ -37,8 +37,8 @@ public final class MethodCallBridge implements ExpansionStrategy {
     public Stream<OperationSpec> expand(final Demand demand, final ResolveCtx ctx) {
         if (!demand.declaredChildren().isEmpty()) {
             // A target the user declared field-by-field is assembled, not produced by a method call: a method-call
-            // bridge applies only to leaf demands. This also keeps a mapper's own method from satisfying its own
-            // return root (a degenerate self-call) at an assembly demand.
+            // bridge applies only to leaf demands. (Degenerate self-calls are refused at bind time by the driver
+            // via the spec's call target, independently of this leaf-only constraint.)
             return Stream.empty();
         }
         final var callableMethods = ctx.callableMethods();
@@ -64,13 +64,14 @@ public final class MethodCallBridge implements ExpansionStrategy {
         final var weight = Weights.METHOD + returnDistance;
         final var port =
                 new Port(param.getSimpleName().toString(), param.asType(), demand.nullnessOf(param.asType(), param));
-        return OperationSpec.of(
+        return OperationSpec.callOf(
                 method.getSimpleName() + "(…)",
                 renderCodegen(candidate),
                 weight,
                 List.of(port),
                 returnType,
-                demand.nullnessOf(returnType, method));
+                demand.nullnessOf(returnType, method),
+                method);
     }
 
     private OperationCodegen renderCodegen(final MethodCandidate candidate) {

@@ -65,6 +65,35 @@ class ReactorBlockingEndToEndSpec extends Specification {
         !body.contains('single()')
     }
 
+    def 'Flux<DTO> param to List<DAO> transforms elements via the Flux->Stream grounding view (param-direct)'() {
+        when: 'the param itself is the reactive source, isolating the projection fix from bean-field materialisation order'
+        def body = paramBody(compileParamMapper('Flux<PersonDTO>', 'List<PersonDAO>'))
+
+        then: 'the element type grounds against the Flux source, so elements map to DAO through the JDK container'
+        body.contains('mapOne(')
+        body.contains('.collect(')
+        body.contains('toStream()') || body.contains('collectList().block()')
+    }
+
+    def 'Flux<DTO> field to List<DAO> field transforms elements via the Flux->Stream grounding view (bean-field)'() {
+        when:
+        def body = body(compileFieldMapper('Flux<PersonDTO>', 'List<PersonDAO>'))
+
+        then:
+        body.contains('mapOne(')
+        body.contains('.collect(')
+        body.contains('toStream()') || body.contains('collectList().block()')
+    }
+
+    def 'Mono<DTO> field to Optional<DAO> field transforms the element via the total Mono->Optional grounding view'() {
+        when:
+        def body = body(compileFieldMapper('Mono<PersonDTO>', 'Optional<PersonDAO>'))
+
+        then: 'the presence-preserving total view grounds the element type, so the element maps to DAO'
+        body.contains('blockOptional()')
+        body.contains('mapOne(')
+    }
+
     def 'no eager block: a lazy reactive path always out-prices the blocking one'() {
         when: 'Mono to Mono, where both lazy mono.map and eager Mono.just(map(block())) are possible'
         def body = body(compileFieldMapper('Mono<PersonDTO>', 'Mono<PersonDAO>'))
@@ -133,6 +162,36 @@ class ReactorBlockingEndToEndSpec extends Specification {
     private static String body(final Compilation compilation) {
         assert compilation.errors().empty
         def file = compilation.generatedSourceFile('io.github.joke.percolate.reactorblocking.test.PersonMapperImpl')
+        assert file.present
+        file.get().getCharContent(true).toString()
+    }
+
+    /** A param-direct mapper: the container method's parameter is itself the reactive source, delegating elements to mapOne. */
+    private static Compilation compileParamMapper(final String srcType, final String tgtType) {
+        def mapper = JavaFileObjects.forSourceLines(
+                'io.github.joke.percolate.reactorblocking.test.DirectMapper',
+                'package io.github.joke.percolate.reactorblocking.test;',
+                'import io.github.joke.percolate.Mapper;',
+                'import io.github.joke.percolate.Map;',
+                'import java.util.List;',
+                'import java.util.Optional;',
+                'import java.util.stream.Stream;',
+                'import reactor.core.publisher.Flux;',
+                'import reactor.core.publisher.Mono;',
+                '@Mapper',
+                'public interface DirectMapper {',
+                "    ${tgtType} map(${srcType} src);",
+                '    @Map(target = "name", source = "dto.name")',
+                '    PersonDAO mapOne(PersonDTO dto);',
+                '}')
+        Compiler.javac()
+                .withProcessors(new PercolateProcessor())
+                .compile(DTO, DAO, mapper)
+    }
+
+    private static String paramBody(final Compilation compilation) {
+        assert compilation.errors().empty
+        def file = compilation.generatedSourceFile('io.github.joke.percolate.reactorblocking.test.DirectMapperImpl')
         assert file.present
         file.get().getCharContent(true).toString()
     }

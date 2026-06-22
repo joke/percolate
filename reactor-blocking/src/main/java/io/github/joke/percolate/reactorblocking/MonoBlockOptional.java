@@ -10,8 +10,10 @@ import io.github.joke.percolate.spi.OperationCodegen;
 import io.github.joke.percolate.spi.OperationSpec;
 import io.github.joke.percolate.spi.Port;
 import io.github.joke.percolate.spi.ResolveCtx;
+import io.github.joke.percolate.spi.SourceProjection;
 import java.util.List;
 import java.util.stream.Stream;
+import javax.lang.model.type.TypeMirror;
 import lombok.NoArgsConstructor;
 
 /**
@@ -19,10 +21,16 @@ import lombok.NoArgsConstructor;
  * blocking bridge, keyed on a target {@code Optional<T>} and sourcing a {@code Mono<T>} through a <b>reuse-only</b>
  * port. Weighted strictly above any non-blocking alternative; shipped only in the opt-in {@code reactor-blocking}
  * module.
+ *
+ * <p>It is also the matching <b>{@link SourceProjection}</b> ({@code Mono<X> → Optional<X>}): a <b>total</b> grounding
+ * view (projected from {@code blockOptional}, never the partial {@code block}/{@code single().block}) so an
+ * {@code Optional<A>} presence-map port grounds its element type {@code A} against an in-scope reactive {@code Mono<X>}
+ * source. The view only widens the grounding-match set; the concrete {@code Optional<X>} is still produced by the
+ * weighted reuse-only {@code blockOptional} above.
  */
-@AutoService(ExpansionStrategy.class)
+@AutoService({ExpansionStrategy.class, SourceProjection.class})
 @NoArgsConstructor
-public final class MonoBlockOptional implements ExpansionStrategy {
+public final class MonoBlockOptional implements ExpansionStrategy, SourceProjection {
 
     @Override
     public Stream<OperationSpec> expand(final Demand demand, final ResolveCtx ctx) {
@@ -39,5 +47,10 @@ public final class MonoBlockOptional implements ExpansionStrategy {
                         to,
                         Nullability.NON_NULL))
                 .stream();
+    }
+
+    @Override
+    public Stream<TypeMirror> project(final TypeMirror source, final ResolveCtx ctx) {
+        return Blockings.view(source, Blockings.MONO, Blockings.OPTIONAL, ctx);
     }
 }

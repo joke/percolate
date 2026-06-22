@@ -118,6 +118,130 @@ class ContainerReturnEndToEndSpec extends Specification {
         content.findAll(/mapCat\(/).size() >= 2
     }
 
+    def 'a scalar self-referential mapper generates the terminating next-walk (self-call on a sub-part)'() {
+        given: 'a self-referential type in its own dedicated @NullMarked package (so next is non-null) mapped via the same method'
+        def pkg = 'io.github.joke.percolate.processor.nodefixtures'
+        def pkgInfo = JavaFileObjects.forSourceLines(
+                "${pkg}.package-info",
+                '@org.jspecify.annotations.NullMarked',
+                "package ${pkg};")
+        def dto = JavaFileObjects.forSourceLines(
+                "${pkg}.NodeDto",
+                "package ${pkg};",
+                'public final class NodeDto {',
+                '    private final String label;',
+                '    private final NodeDto next;',
+                '    public NodeDto(final String label, final NodeDto next) { this.label = label; this.next = next; }',
+                '    public String getLabel() { return label; }',
+                '    public NodeDto getNext() { return next; }',
+                '}')
+        def dao = JavaFileObjects.forSourceLines(
+                "${pkg}.NodeDao",
+                "package ${pkg};",
+                'public final class NodeDao {',
+                '    private final String label;',
+                '    private final NodeDao next;',
+                '    public NodeDao(final String label, final NodeDao next) { this.label = label; this.next = next; }',
+                '    public String getLabel() { return label; }',
+                '    public NodeDao getNext() { return next; }',
+                '}')
+        def mapper = JavaFileObjects.forSourceLines(
+                "${pkg}.NodeMapper",
+                "package ${pkg};",
+                '',
+                'import io.github.joke.percolate.Mapper;',
+                'import io.github.joke.percolate.Map;',
+                '',
+                '@Mapper',
+                'public interface NodeMapper {',
+                '    @Map(target = "label", source = "src.label")',
+                '    @Map(target = "next", source = "src.next")',
+                '    NodeDao mapNode(NodeDto src);',
+                '}')
+
+        when:
+        Compilation compilation = Compiler.javac()
+                .withProcessors(new PercolateProcessor())
+                .compile(pkgInfo, dto, dao, mapper)
+
+        then: 'it generates with no "no plan" — the sub-part self-call is allowed, unlike the whole-parameter one'
+        compilation.errors().empty
+        compilation.diagnostics().every { !it.getMessage(null).contains('no plan') }
+
+        and:
+        def content = compilation.generatedSourceFile("${pkg}.NodeMapperImpl").get().getCharContent(true).toString()
+
+        and: 'the root is assembled and next recurses into the same method on a sub-part of the input'
+        content.contains('new NodeDao(')
+        content.contains('mapNode(')
+        content.contains('getNext()')
+    }
+
+    def 'delegation to a different method returning the same type is landed, not refused as a self-call'() {
+        given:
+        def dto = bean('AddrDto', 'getStreet')
+        def dao = beanWithCtor('AddrDao', 'street')
+        def mapper = JavaFileObjects.forSourceLines(
+                "${PKG}.DelegMapper",
+                "package ${PKG};",
+                '',
+                'import io.github.joke.percolate.Mapper;',
+                'import io.github.joke.percolate.Map;',
+                '',
+                '@Mapper',
+                'public interface DelegMapper {',
+                '    @Map(target = "street", source = "dto.street")',
+                '    AddrDao mapOne(AddrDto dto);',
+                '',
+                '    AddrDao mapAgain(AddrDto dto);',
+                '}')
+
+        when:
+        Compilation compilation = Compiler.javac()
+                .withProcessors(new PercolateProcessor())
+                .compile(dto, dao, mapper)
+
+        then: 'mapAgain delegates to the different method mapOne and never self-bridges'
+        compilation.errors().empty
+        def content = compilation.generatedSourceFile("${PKG}.DelegMapperImpl").get().getCharContent(true).toString()
+        content.contains('mapOne(dto)')
+        !content.contains('mapAgain(dto)')
+    }
+
+    def 'a mapper satisfiable only by the whole-parameter self-call reports a clean no plan'() {
+        given: 'a scalar method with no other producer than calling itself on its whole parameter'
+        def dto = JavaFileObjects.forSourceLines(
+                "${PKG}.LoopDto",
+                "package ${PKG};",
+                'public final class LoopDto { public String getName() { return ""; } }')
+        def dao = JavaFileObjects.forSourceLines(
+                "${PKG}.LoopDao",
+                "package ${PKG};",
+                'public final class LoopDao {',
+                '    public LoopDao(final String name) { }',
+                '    public String getName() { return ""; }',
+                '}')
+        def mapper = JavaFileObjects.forSourceLines(
+                "${PKG}.LoopMapper",
+                "package ${PKG};",
+                '',
+                'import io.github.joke.percolate.Mapper;',
+                '',
+                '@Mapper',
+                'public interface LoopMapper {',
+                '    LoopDao loop(LoopDto src);',
+                '}')
+
+        when:
+        Compilation compilation = Compiler.javac()
+                .withProcessors(new PercolateProcessor())
+                .compile(dto, dao, mapper)
+
+        then: 'the whole-parameter self-call is refused, leaving an honest no plan rather than infinite recursion'
+        !compilation.errors().empty
+        compilation.errors().any { it.getMessage(null).contains('no plan') }
+    }
+
     private static JavaFileObject bean(final String name, final String getter) {
         final var field = getter.substring(3).toLowerCase()
         JavaFileObjects.forSourceLines(

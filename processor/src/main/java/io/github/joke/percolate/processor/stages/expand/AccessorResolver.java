@@ -76,7 +76,18 @@ final class AccessorResolver {
                         .orElse(null);
     }
 
-    /** The single one-port accessor a strategy produces for {@code segment} on {@code parentType}, else null. */
+    /**
+     * The single one-port accessor a strategy produces for {@code segment} on {@code parentType}, else null. A genuine
+     * accessor consumes {@code parentType} through a <b>non-reuse-only</b> port (the {@code Accessor} base) and renders
+     * {@code parent.getSegment()}. The non-reuse-only test is what discriminates it from the same-typed identity /
+     * nullness specs (DirectAssign, {@code requireNonNull}/{@code coalesce}), which consume {@code parentType} through
+     * a <b>reuse-only</b> port and would otherwise shadow the accessor. The accessor's output type is therefore
+     * <em>not</em> required to differ from {@code parentType}: a self-referential field ({@code Node getNext()}
+     * returning {@code Node}) is a legitimate accessor, and accepting it lets a scalar self-referential mapper resolve
+     * its {@code src.next} sub-part (which the self-call rule then maps via {@code this.m(src.getNext())}). This
+     * replaces the former {@code output != parentType} proxy, which excluded those identity/nullness specs but also
+     * wrongly excluded recursive accessors.
+     */
     @Nullable
     OperationSpec resolveAccessor(final TypeMirror parentType, final String segment) {
         final var demand = new DemandView(
@@ -91,7 +102,7 @@ final class AccessorResolver {
                 .filter(spec -> spec.getPorts().size() == 1
                         && spec.getChildScope().isEmpty()
                         && resolveCtx.types().isSameType(spec.getPorts().get(0).getType(), parentType)
-                        && !resolveCtx.types().isSameType(spec.getOutputType(), parentType))
+                        && !spec.getPorts().get(0).isReuseOnly())
                 .findFirst()
                 .orElse(null);
     }

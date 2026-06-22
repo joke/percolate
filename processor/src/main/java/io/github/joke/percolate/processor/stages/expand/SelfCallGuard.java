@@ -1,60 +1,52 @@
 package io.github.joke.percolate.processor.stages.expand;
 
+import io.github.joke.percolate.processor.graph.AccessPath;
+import io.github.joke.percolate.processor.graph.Location;
 import io.github.joke.percolate.processor.graph.MethodScope;
+import io.github.joke.percolate.processor.graph.PortBinding;
 import io.github.joke.percolate.processor.graph.Scope;
-import io.github.joke.percolate.processor.graph.Value;
-import io.github.joke.percolate.spi.CallableMethods;
-import io.github.joke.percolate.spi.ResolveCtx;
-import java.util.HashMap;
-import java.util.Map;
+import io.github.joke.percolate.processor.graph.SourceLocation;
+import io.github.joke.percolate.spi.OperationSpec;
+import java.util.List;
+import java.util.Set;
 import java.util.stream.Collectors;
 import javax.lang.model.element.ExecutableElement;
-import javax.lang.model.util.Elements;
-import javax.lang.model.util.Types;
-import lombok.RequiredArgsConstructor;
 
 /**
- * Per-method-scope candidate visibility for the expansion driver: a method consuming its own parameter to produce its
- * own output is always a degenerate self-call (infinite recursion) — at the return root ({@code return this.m(param)}),
- * behind an {@code iterate}/{@code collect} round-trip at a same-location sibling, or wrapped at a field
- * ({@code List.of(this.m(param))}). All such forms live in the method's own scope, so this guard hands the driver a
- * {@link ResolveCtx} whose {@link CallableMethods} excludes the current {@code MethodScope}'s method whenever the
- * demand being expanded belongs to that scope. Legitimate recursion is preserved because a container's per-element
- * transform is a separate child scope (where the base context applies). It is a cohesive collaborator (mirroring
- * {@link SourceCandidates} / {@link AccessorResolver}) so the driver stays the work-list dispatch + landing site; it
- * filters the {@link CallableMethods} the driver already holds, with no SPI change. Method identity is by signature
- * (name + parameter types), robust across {@code Element} instances.
+ * Bind-time self-call guard for the expansion driver: a method may not be landed calling its own method on its own
+ * <b>whole parameter</b> ({@code this.m(param)}), which is always a degenerate self-call (runtime infinite recursion)
+ * the cost model cannot see — over-emit + cost-prune cannot reject it because the whole-parameter binding is strictly
+ * cheaper than any sub-part one. A self-call on a <b>sub-part</b> of the parameter (an {@code ACCESS} source such as
+ * {@code src.getNext()}) or a container element (a child scope) is <b>not</b> refused, and delegation to a
+ * <em>different</em> method returning the same type is <b>not</b> refused. The guard is per-binding and purely
+ * structural: it compares the spec's neutral {@link OperationSpec#getCallTarget() call target} to the enclosing
+ * {@link MethodScope}'s method by signature (name + parameter types) and checks whether a bound port is that method's
+ * own parameter-root {@link Value} (a {@code LEAF} {@link SourceLocation}). It never inspects the label, and it needs
+ * no {@code CallableMethods}/{@code ResolveCtx} change. A cohesive collaborator the driver delegates to (mirroring
+ * {@link SourceCandidates} / {@link AccessorResolver}), so the driver stays the work-list dispatch + landing site.
  */
-@RequiredArgsConstructor
 final class SelfCallGuard {
 
-    private final ResolveCtx base;
-    private final Elements elements;
-    private final Types types;
-
-    @SuppressWarnings("PMD.UseConcurrentHashMap") // single-threaded per-mapper expansion
-    private final Map<Scope, ResolveCtx> byScope = new HashMap<>();
-
-    /** The base context, or — within a method's own scope — a view excluding that method from its own candidates. */
-    ResolveCtx resolveCtxFor(final Value value) {
-        if (!(value.getScope() instanceof MethodScope)) {
-            return base;
+    /** Whether landing {@code spec} bound by {@code ports} in {@code scope} would be a whole-parameter self-call. */
+    boolean refuses(final Scope scope, final OperationSpec spec, final List<PortBinding> ports) {
+        if (!(scope instanceof MethodScope) || !spec.getCallTarget().isPresent()) {
+            return false;
         }
-        return byScope.computeIfAbsent(value.getScope(), scope -> excluding(((MethodScope) scope).getMethod()));
+        final var method = ((MethodScope) scope).getMethod();
+        if (!signature(spec.getCallTarget().get()).equals(signature(method))) {
+            return false;
+        }
+        final var parameterRoots = parameterRootLocations(method);
+        return ports.stream()
+                .anyMatch(binding -> parameterRoots.contains(binding.getSource().getLocation()));
     }
 
-    private ResolveCtx excluding(final ExecutableElement method) {
-        final var callableMethods = base.callableMethods();
-        final CallableMethods filtered = callableMethods == null
-                ? null
-                : outputType -> callableMethods
-                        .producing(outputType)
-                        .filter(candidate -> !sameMethod(candidate.getMethod(), method));
-        return new CompileResolveCtx(elements, types, filtered);
-    }
-
-    private static boolean sameMethod(final ExecutableElement candidate, final ExecutableElement excluded) {
-        return signature(candidate).equals(signature(excluded));
+    /** The whole-parameter source locations of {@code method}: a {@code LEAF} {@link SourceLocation} per parameter. */
+    private static Set<Location> parameterRootLocations(final ExecutableElement method) {
+        return method.getParameters().stream()
+                .map(parameter -> (Location) new SourceLocation(
+                        AccessPath.of(parameter.getSimpleName().toString())))
+                .collect(Collectors.toUnmodifiableSet());
     }
 
     private static String signature(final ExecutableElement method) {
