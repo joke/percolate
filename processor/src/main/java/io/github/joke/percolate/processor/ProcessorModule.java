@@ -140,11 +140,13 @@ public final class ProcessorModule {
                                 validateMappingShape,
                                 validateSourceParameters,
                                 expandStage,
+                                // Realisation outcome is computed before the Filer-writing stages (dumps,
+                                // generate) so they can skip a deferred round and write each artifact once.
+                                validateConstantDefaultLegality,
+                                realisationDiagnostics,
                                 dumpFullGraph,
                                 dumpTransforms,
                                 dumpPlan,
-                                validateConstantDefaultLegality,
-                                realisationDiagnostics,
                                 generateStage))
                 .collect(toUnmodifiableList());
     }

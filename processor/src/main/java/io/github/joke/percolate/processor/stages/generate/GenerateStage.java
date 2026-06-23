@@ -15,7 +15,10 @@ public final class GenerateStage implements Stage {
 
     @Override
     public void run(final MapperContext ctx) {
-        if (diagnostics.hasErrorsFor(ctx.getMapperType())) {
+        // Skip a scarred mapper, and skip one whose realisation is unsatisfied (deferred for a later
+        // round, or genuinely un-realisable) — its graph is incomplete, so there is nothing to emit.
+        if (diagnostics.hasErrorsFor(ctx.getMapperType())
+                || !ctx.getUnsatisfiedRealisation().isEmpty()) {
             return;
         }
 

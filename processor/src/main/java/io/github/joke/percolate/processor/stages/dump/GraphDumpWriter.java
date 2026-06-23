@@ -59,7 +59,13 @@ public final class GraphDumpWriter {
             final Predicate<GraphVertex> include,
             final boolean dimUnreachable) {
         final var graph = ctx.getGraph();
-        if (graph == null || !processorOptions.isDebugGraphs() || graph.vertexCount() == 0) {
+        // Like GenerateStage, this stage writes through the Filer, which forbids reopening a path. The
+        // pipeline re-runs every deferral round, so dump only on the round the mapper realises (empty
+        // outcome) — otherwise a deferred-then-realised mapper would write each .dot twice.
+        if (graph == null
+                || !processorOptions.isDebugGraphs()
+                || graph.vertexCount() == 0
+                || !ctx.getUnsatisfiedRealisation().isEmpty()) {
             return;
         }
         final Predicate<GraphVertex> dimmed = dimUnreachable ? dimmedByCost(graph) : vertex -> false;

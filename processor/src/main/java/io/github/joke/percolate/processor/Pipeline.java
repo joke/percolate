@@ -13,9 +13,9 @@ final class Pipeline {
 
     private final List<Stage> stages;
 
-    Void process(final TypeElement element) {
+    MapperContext process(final TypeElement element) {
         final var ctx = new MapperContext(element);
         stages.forEach(s -> s.run(ctx));
-        return null;
+        return ctx;
     }
 }

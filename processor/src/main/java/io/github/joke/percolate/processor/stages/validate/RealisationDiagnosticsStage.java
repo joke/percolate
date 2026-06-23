@@ -12,14 +12,17 @@ import jakarta.inject.Inject;
 import java.util.HashSet;
 import java.util.Optional;
 import java.util.Set;
+import java.util.stream.Collectors;
 import javax.lang.model.type.TypeMirror;
 import lombok.RequiredArgsConstructor;
 
 /**
- * Walks unsatisfied demands and reports the closest miss (design D11): for each return-root {@code Value} left
+ * Walks unsatisfied demands and records the closest miss (design D11): for each return-root {@code Value} left
  * unreachable (infinite extraction cost), it descends the deepest unreachable port chain to the demand with no
- * producer and emits a "no plan" error naming it. A targeted earlier diagnostic (constant coercion failure, dead
- * default) already explains an unreachable binding, so once the mapper is scarred the generic message is suppressed.
+ * producer and builds a "no plan" message naming it. The messages are <em>recorded</em> on the
+ * {@link MapperContext} rather than emitted; {@code MapperStep} emits them once the mapper's outcome reaches the
+ * deferral fixpoint. A targeted earlier diagnostic (constant coercion failure, dead default) already explains an
+ * unreachable binding, so once the mapper is scarred nothing is recorded.
  */
 @RequiredArgsConstructor(onConstructor_ = @Inject)
 public final class RealisationDiagnosticsStage implements Stage {
@@ -33,16 +36,20 @@ public final class RealisationDiagnosticsStage implements Stage {
             return;
         }
         final var plan = ExtractedPlan.extract(graph);
-        graph.returnRoots().filter(value -> !plan.reachable(value)).forEach(root -> emit(graph, plan, root, ctx));
+        final var messages = graph.returnRoots()
+                .filter(value -> !plan.reachable(value))
+                .map(root -> message(graph, plan, root))
+                .collect(Collectors.toUnmodifiableList());
+        if (!messages.isEmpty()) {
+            ctx.setUnsatisfiedRealisation(messages);
+        }
     }
 
-    private void emit(final MapperGraph graph, final ExtractedPlan plan, final Value root, final MapperContext ctx) {
+    private static String message(final MapperGraph graph, final ExtractedPlan plan, final Value root) {
         final var miss = deepestMiss(graph, plan, root);
-        diagnostics.error(
-                ctx.getMapperType(),
-                String.format(
-                        "no plan for %s: %s has no producer in the graph. Likely missing: a @Map-annotated method whose source produces %s",
-                        label(root), label(miss), typeName(miss)));
+        return String.format(
+                "no plan for %s: %s has no producer in the graph. Likely missing: a @Map-annotated method whose source produces %s",
+                label(root), label(miss), typeName(miss));
     }
 
     /** Descends the first unreachable port chain from {@code value} to the demand with no reachable producer. */

@@ -1,12 +1,4 @@
-# Realisation Validation Spec
-
-## Purpose
-
-This spec defines the post-expansion validation stage that emits diagnostics for demands that did not satisfy. `RealisationDiagnosticsStage` walks unsatisfied demands — a `Value` with no reachable (finite-cost) producer, or an `Operation` naming its unsatisfied ports — and produces user-facing error messages with closest-miss information.
-
-The validation model is **demand-driven, not topology-driven**: the engine derives, via the plan-extraction minimum-cost fold, which Values and Operations are reachable (finite cost). The validation stage's job is to translate the unsatisfied demands into actionable diagnostics — closest-miss is the deepest unsatisfied port chain — not to re-derive realisability from edge inspection.
-
-## Requirements
+## MODIFIED Requirements
 
 ### Requirement: Diagnostics anchor on the MapperContext.mapperType
 
@@ -54,18 +46,3 @@ diagnostic already explains the failure).
   at the same return location
 - **THEN** no `no plan for tgt[]` message is recorded for any of those siblings; only an unreachable
   *seeded* return root is ever recorded
-
-### Requirement: Closest-miss is the deepest unsatisfied port chain
-
-The UNSAT diagnostic SHALL include a closest-miss walk over the bipartite graph: from the
-unsatisfied return-root demand, follow an **unreachable** producer `Operation` (the first in
-deterministic `Operation.id()` order) and descend its **first unreachable port** `Value` at each
-step, down to the deepest demand that has no reachable producer at all. The emitted message SHALL
-name the unresolved root target (its return-root location label), the deepest-miss demand (its
-location label), and that demand's type — with a hint that a `@Map`-annotated method producing that
-type is likely missing.
-
-#### Scenario: Missing source names the starving demand
-- **WHEN** `new Address(int number, String street)` is UNSAT because no binding feeds `street`
-- **THEN** the diagnostic names the unresolved root target and the deepest-miss demand for `street`
-  (its location label and `String` type), reporting it as having no producer in the graph

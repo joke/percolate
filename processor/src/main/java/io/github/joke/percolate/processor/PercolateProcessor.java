@@ -6,6 +6,7 @@ import java.util.List;
 import java.util.Objects;
 import java.util.Set;
 import javax.annotation.processing.Processor;
+import javax.annotation.processing.RoundEnvironment;
 import javax.lang.model.SourceVersion;
 import lombok.NoArgsConstructor;
 import org.jspecify.annotations.Nullable;
@@ -36,5 +37,18 @@ public final class PercolateProcessor extends BasicAnnotationProcessor {
             component = DaggerProcessorComponent.factory().create(new ProcessorModule(processingEnv));
         }
         return List.of(Objects.requireNonNull(component).mapperStep());
+    }
+
+    /**
+     * On the final round, flush the recorded {@code no plan} diagnostics for any mapper still deferred.
+     * {@code BasicAnnotationProcessor} does not invoke a {@code Step} at {@code processingOver}, so a
+     * genuinely un-realisable mapper (no later round ever completed its types) is diagnosed here. This
+     * is the only round-state the processor touches; the pipeline stages stay round-agnostic.
+     */
+    @Override
+    protected void postRound(final RoundEnvironment roundEnv) {
+        if (roundEnv.processingOver() && component != null) {
+            component.mapperStep().flushDeferredDiagnostics();
+        }
     }
 }
