@@ -34,4 +34,4 @@
 
 - [x] 6.1 `./gradlew check` in `percolate` is green (generated output byte-identical for all realisable mappers — the no-regression guard).
 - [x] 6.2 `./gradlew :mappers:classes` green in `percolate-integration` (composite `includeBuild`, so built against the local processor changes).
-- [ ] 6.3 `/opsx:sync unify-scope-inputs` — apply the four delta specs to main; `/opsx:archive`; commit via `/commit-commands:commit`.
+- [x] 6.3 `/opsx:sync unify-scope-inputs` — apply the four delta specs to main; `/opsx:archive`; commit via `/commit-commands:commit`.
