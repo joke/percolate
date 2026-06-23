@@ -6,6 +6,8 @@ import com.palantir.javapoet.CodeBlock;
 import com.palantir.javapoet.TypeName;
 import io.github.joke.percolate.processor.MapperContext;
 import io.github.joke.percolate.processor.ProcessorOptions;
+import io.github.joke.percolate.processor.graph.ChildScope;
+import io.github.joke.percolate.processor.graph.ElementLocation;
 import io.github.joke.percolate.processor.graph.ExtractedPlan;
 import io.github.joke.percolate.processor.graph.MapperGraph;
 import io.github.joke.percolate.processor.graph.MethodScope;
@@ -22,6 +24,7 @@ import java.util.IdentityHashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import javax.lang.model.element.ExecutableElement;
 import lombok.RequiredArgsConstructor;
@@ -170,11 +173,17 @@ public final class BuildMethodBodies {
                     .map(this::renderOperand)
                     .orElseThrow(() -> new IllegalStateException("container mapping has no source port"));
             final var child = operation.getChildScope().orElseThrow();
-            final var paramRoot = child.getParamRoot();
-            final var var = hoist.lambdaName(paramRoot);
-            lambdaVars.put(paramRoot, CodeBlock.of("$N", var));
+            final var var = hoist.lambdaName(child.getElementInput().getType());
+            materialisedElementRoot(child).ifPresent(paramRoot -> lambdaVars.put(paramRoot, CodeBlock.of("$N", var)));
             final var childBody = renderScopeBody(child.getReturnRoot());
             return ((ScopeCodegen) operation.getCodegen()).weave(sourceExpr, var, childBody);
+        }
+
+        /** The element param-root Value if the child plan sourced from it (lazily materialised), else empty. */
+        private Optional<Value> materialisedElementRoot(final ChildScope child) {
+            return graph.valuesIn(child)
+                    .filter(value -> value.getLoc() instanceof ElementLocation)
+                    .findFirst();
         }
 
         private CodeBlock renderLeaf(final Value value) {

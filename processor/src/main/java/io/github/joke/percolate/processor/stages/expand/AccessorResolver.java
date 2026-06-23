@@ -1,6 +1,5 @@
 package io.github.joke.percolate.processor.stages.expand;
 
-import io.github.joke.percolate.processor.graph.MethodScope;
 import io.github.joke.percolate.processor.graph.Scope;
 import io.github.joke.percolate.processor.nullability.NullabilityResolver;
 import io.github.joke.percolate.spi.ExpansionStrategy;
@@ -54,7 +53,7 @@ final class AccessorResolver {
             return null;
         }
         if (segments.size() == SINGLE_SEGMENT) {
-            return paramTyping(scope, segments.get(0));
+            return inputTyping(scope, segments.get(0));
         }
         final var parent = typing(scope, segments.subList(0, segments.size() - 1));
         if (parent == null) {
@@ -64,16 +63,13 @@ final class AccessorResolver {
         return spec == null ? null : new Typing(spec.getOutputType(), spec.getOutputNullness());
     }
 
-    private @Nullable Typing paramTyping(final Scope scope, final String name) {
-        if (!(scope instanceof MethodScope)) {
-            return null;
-        }
-        return ((MethodScope) scope)
-                .getMethod().getParameters().stream()
-                        .filter(param -> param.getSimpleName().toString().equals(name))
-                        .findFirst()
-                        .map(param -> new Typing(param.asType(), resolver.resolve(param.asType(), param)))
-                        .orElse(null);
+    /** Types the path's root segment against the scope's input declarations — uniform across method and child scopes. */
+    private @Nullable Typing inputTyping(final Scope scope, final String name) {
+        return scope.inputDecls(resolver::resolve)
+                .filter(decl -> decl.getLocation().slotName().equals(name))
+                .findFirst()
+                .map(decl -> new Typing(decl.getType(), decl.getNullness()))
+                .orElse(null);
     }
 
     /**

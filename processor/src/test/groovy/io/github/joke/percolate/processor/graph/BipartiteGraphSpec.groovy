@@ -175,7 +175,7 @@ class BipartiteGraphSpec extends Specification {
         thrown(IllegalStateException)
     }
 
-    def 'a scope-owning Operation mints its child param-root and return-root inside the child scope'() {
+    def 'a scope-owning Operation mints its child return-root eagerly and declares its element input lazily'() {
         given:
         final var decl = new ChildScopeDecl(
                 TypeUniverse.INTEGER, Nullability.NON_NULL, TypeUniverse.STRING, Nullability.NON_NULL)
@@ -184,12 +184,18 @@ class BipartiteGraphSpec extends Specification {
                 target('out', TypeUniverse.LIST_OF_STRING), Optional.of(decl)))
         final var child = op.childScope.get()
 
-        expect:
+        expect: 'the return-root Value is minted eagerly inside the child scope'
         op.childScope.present
-        child.paramRoot.type.get() == TypeUniverse.INTEGER
         child.returnRoot.type.get() == TypeUniverse.STRING
-        child.paramRoot.scope.is(child)
         child.returnRoot.scope.is(child)
+
+        and: 'the element input is declared (type INTEGER at an ElementLocation), not minted as a Value'
+        child.elementInput.type == TypeUniverse.INTEGER
+        child.elementInput.nullness == Nullability.NON_NULL
+        child.elementInput.location instanceof ElementLocation
+
+        and: 'no element param-root Value exists until a port reuses it'
+        graph.valuesIn(child).noneMatch { it.loc instanceof ElementLocation }
     }
 
     // ---- helpers --------------------------------------------------------------------------------

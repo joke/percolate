@@ -117,18 +117,14 @@ final class HoistPlan {
         return ref;
     }
 
-    /** Allocates a unique lambda-parameter name for {@code paramRoot} from its element type. */
-    String lambdaName(final Value paramRoot) {
-        return names.newName(elementBase(paramRoot));
+    /** Allocates a unique lambda-parameter name for an element of {@code elementType} (from the child input decl). */
+    String lambdaName(final TypeMirror elementType) {
+        return names.newName(typeBase(elementType));
     }
 
     private static String slotBase(final Value value) {
         final var slot = value.getLoc().slotName();
         return slot.isEmpty() ? "value" : slot;
-    }
-
-    private static String elementBase(final Value paramRoot) {
-        return paramRoot.getType().map(HoistPlan::typeBase).orElse("element");
     }
 
     private static String typeBase(final TypeMirror type) {

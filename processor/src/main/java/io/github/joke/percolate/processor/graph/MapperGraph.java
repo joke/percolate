@@ -78,8 +78,8 @@ public final class MapperGraph {
     /**
      * Applies an {@link AddOperation} atomically: the {@link Operation} vertex, its output {@link Dep} into the
      * produced Value, and one port edge per declared port — each feeding Value resolved through the
-     * {@link AddValue} rule. A scope-owning Operation's {@link ChildScope} roots are minted with it.
-     * Applier-only during expansion.
+     * {@link AddValue} rule. A scope-owning Operation's {@link ChildScope} is initialised with it (return-root
+     * minted, element input declared). Applier-only during expansion.
      */
     public Operation apply(final AddOperation delta) {
         final var output = apply(delta.getOutput());
@@ -96,7 +96,7 @@ public final class MapperGraph {
                 output.getScope(),
                 delta.getChildScope().isPresent());
         bipartite.addVertex(operation);
-        delta.getChildScope().ifPresent(decl -> mintChildRoots(operation, decl));
+        delta.getChildScope().ifPresent(decl -> initChildScope(operation, decl));
         addDep(operation, output, Dep.output());
         for (final var binding : delta.getPorts()) {
             final var source = apply(binding.getSource());
@@ -105,12 +105,17 @@ public final class MapperGraph {
         return operation;
     }
 
-    private void mintChildRoots(final Operation operation, final ChildScopeDecl decl) {
+    /**
+     * Initialises a freshly-landed scope-owning Operation's {@link ChildScope}: mints the return-root {@link Value}
+     * eagerly (the child plan's demand) and records the element {@link InputDecl}. The element's {@code LEAF}
+     * {@link Value} is not minted here — it is materialised lazily only if the child plan sources from it.
+     */
+    private void initChildScope(final Operation operation, final ChildScopeDecl decl) {
         final var child = operation.getChildScope().orElseThrow();
-        final var paramRoot = valueFor(child, new ElementLocation(), decl.getElementIn(), decl.getElementInNullness());
         final var returnRoot = valueFor(
                 child, new TargetLocation(TargetPath.of("")), decl.getElementOut(), decl.getElementOutNullness());
-        child.setRoots(paramRoot, returnRoot);
+        final var elementInput = new InputDecl(new ElementLocation(), decl.getElementIn(), decl.getElementInNullness());
+        child.initialise(returnRoot, elementInput);
     }
 
     /** The single dependency-edge mutation site: enforces the no-{@link Dep}-crosses-scope invariant. */
