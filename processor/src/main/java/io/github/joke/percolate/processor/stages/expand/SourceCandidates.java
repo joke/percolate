@@ -27,8 +27,8 @@ import org.jspecify.annotations.Nullable;
  * inputs plus discovered graph sources) that grounding-by-match unifies a type-variable port against — never a
  * strategy-facing candidate snapshot (the engine sources inputs). The path is uniform across scope kinds: a method
  * parameter and a container element root are both just input declarations, with no {@code instanceof} test. A cohesive
- * collaborator the work-list driver delegates to (mirroring {@link AccessorResolver}), so the driver stays the
- * work-list dispatch + Operation landing site.
+ * collaborator the work-list driver delegates to, so the driver stays the work-list dispatch + Operation landing
+ * site.
  */
 @RequiredArgsConstructor
 final class SourceCandidates {

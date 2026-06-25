@@ -7,12 +7,12 @@ import static java.util.stream.Collectors.toUnmodifiableSet;
 import com.google.auto.service.AutoService;
 import com.palantir.javapoet.ClassName;
 import com.palantir.javapoet.CodeBlock;
-import io.github.joke.percolate.spi.Demand;
 import io.github.joke.percolate.spi.ExpansionStrategy;
 import io.github.joke.percolate.spi.Nullability;
 import io.github.joke.percolate.spi.OperationCodegen;
 import io.github.joke.percolate.spi.OperationSpec;
 import io.github.joke.percolate.spi.Port;
+import io.github.joke.percolate.spi.ProduceDemand;
 import io.github.joke.percolate.spi.ResolveCtx;
 import io.github.joke.percolate.spi.Weights;
 import java.util.List;
@@ -30,7 +30,7 @@ import org.jspecify.annotations.Nullable;
 /**
  * Assembles the demanded type by calling one of its constructors: a multi-port {@link OperationSpec} whose ports
  * are the constructor parameters, named after them. It is gated by the demand's declared-children goal spec — a
- * constructor is a candidate only when its parameter-name set equals {@link Demand#declaredChildren()} — so a
+ * constructor is a candidate only when its parameter-name set equals {@link ProduceDemand#declaredChildren()} — so a
  * zero-parameter constructor is never chosen over the user's declared mapping, and assembly never recurses
  * unboundedly. Each port's nullness is resolved through the demand's nullness oracle. It is a plain
  * {@link ExpansionStrategy} in the one unified loader list; "assembly" is an emission-time gating concern, not a
@@ -41,7 +41,7 @@ import org.jspecify.annotations.Nullable;
 public final class ConstructorCall implements ExpansionStrategy {
 
     @Override
-    public Stream<OperationSpec> expand(final Demand demand, final ResolveCtx ctx) {
+    public Stream<OperationSpec> expand(final ProduceDemand demand, final ResolveCtx ctx) {
         final var targetType = demand.targetType();
         final var typeElement = resolveTypeElement(targetType, ctx);
         if (typeElement == null) {
@@ -80,7 +80,7 @@ public final class ConstructorCall implements ExpansionStrategy {
             final ExecutableElement ctor,
             final TypeElement typeElement,
             final TypeMirror targetType,
-            final Demand demand) {
+            final ProduceDemand demand) {
         final List<Port> ports = ctor.getParameters().stream()
                 .map(param -> new Port(
                         param.getSimpleName().toString(), param.asType(), demand.nullnessOf(param.asType(), param)))

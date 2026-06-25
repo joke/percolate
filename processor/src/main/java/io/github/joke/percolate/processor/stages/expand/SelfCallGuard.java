@@ -23,7 +23,7 @@ import javax.lang.model.element.ExecutableElement;
  * {@link MethodScope}'s method by signature (name + parameter types) and checks whether a bound port is that method's
  * own parameter-root {@link Value} (a {@code LEAF} {@link SourceLocation}). It never inspects the label, and it needs
  * no {@code CallableMethods}/{@code ResolveCtx} change. A cohesive collaborator the driver delegates to (mirroring
- * {@link SourceCandidates} / {@link AccessorResolver}), so the driver stays the work-list dispatch + landing site.
+ * {@link SourceCandidates}), so the driver stays the work-list dispatch + landing site.
  */
 final class SelfCallGuard {
 

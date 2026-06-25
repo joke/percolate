@@ -17,7 +17,7 @@ class FieldPathResolverSpec extends Specification {
 
     def 'matches a public, non-static field as a unary accessor operation typed to the field type'() {
         when:
-        def specs = new FieldPathResolver().expand(Demands.descend(box, 'value'), ctx).toList()
+        def specs = new FieldPathResolver().descend(Demands.descend(box, 'value'), ctx).toList()
 
         then:
         specs.size() == 1
@@ -34,7 +34,7 @@ class FieldPathResolverSpec extends Specification {
 
     def 'types the produced value through the demand nullness oracle'() {
         when:
-        def specs = new FieldPathResolver().expand(Demands.descend(box, 'value', Nullability.NULLABLE), ctx).toList()
+        def specs = new FieldPathResolver().descend(Demands.descend(box, 'value', Nullability.NULLABLE), ctx).toList()
 
         then:
         specs.size() == 1
@@ -43,11 +43,11 @@ class FieldPathResolverSpec extends Specification {
 
     def 'rejects private fields'() {
         expect:
-        new FieldPathResolver().expand(Demands.descend(box, 'secret'), ctx).toList().empty
+        new FieldPathResolver().descend(Demands.descend(box, 'secret'), ctx).toList().empty
     }
 
     def 'rejects static fields'() {
         expect:
-        new FieldPathResolver().expand(Demands.descend(box, 'DEFAULT'), ctx).toList().empty
+        new FieldPathResolver().descend(Demands.descend(box, 'DEFAULT'), ctx).toList().empty
     }
 }

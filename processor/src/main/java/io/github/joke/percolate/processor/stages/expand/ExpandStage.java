@@ -59,10 +59,11 @@ import org.jspecify.annotations.Nullable;
  * deeper child-target demand; any other port reuses an in-scope source Value of the port's type and (assignment-
  * compatible) nullness — preferring the directive-pinned source so a same-typed sibling can never shadow it — or, when
  * none exists, a fresh intermediate at the output location that is itself re-demanded (a multi-hop conversion) and
- * left unreachable if nothing produces it. A directive's source path is itself a backward chain of {@code ACCESS}
- * demands ({@link AccessorResolver}): the FREE target's pinned leaf source Value enters the work-list, and each
- * {@code ACCESS} demand resolves its last segment's accessor and re-demands the parent path down to the parameter
- * {@code LEAF} — there is no eager, forward descent.
+ * left unreachable if nothing produces it. A directive's source path is materialised by <b>forward, target-bound
+ * descent</b> when its FREE target is resolved ({@code pinnedSource}): the scope-input root {@code LEAF} is created,
+ * then each further segment's accessor (a {@code descend} strategy match) is landed against the type of the Value
+ * landed for the previous segment, advancing to the leaf — over-emitting every matching accessor per segment, with
+ * no typing pre-walk, no second strategy-invocation site, and no backward parent re-demand.
  *
  * <p>After the work-list drains the graph is fully over-emitted; satisfaction is not computed here — a vertex is
  * reachable iff its extraction cost is finite ({@code ExtractedPlan}), so there is no separate SAT pass.
@@ -94,7 +95,6 @@ public final class ExpandStage implements Stage {
         private final MapperGraph graph;
         private final Map<Scope, GoalSpec> goalSpecs;
         private final ResolveCtx resolveCtx;
-        private final AccessorResolver accessorResolver;
         private final SourceCandidates sourceCandidates;
         private final Grounding grounding;
         private final Applier applier = new Applier();
@@ -106,7 +106,6 @@ public final class ExpandStage implements Stage {
             this.graph = graph;
             this.goalSpecs = goalSpecs;
             this.resolveCtx = resolveCtx;
-            this.accessorResolver = new AccessorResolver(strategies, resolveCtx, resolver);
             this.sourceCandidates = new SourceCandidates(graph, applier, resolver, resolveCtx);
             this.grounding = new Grounding(resolveCtx, projections);
         }
@@ -140,13 +139,12 @@ public final class ExpandStage implements Stage {
         }
 
         private void expand(final Value value) {
-            final var role = value.getLoc().role();
-            if (role == Location.Role.FREE) {
+            if (value.getLoc().role() == Location.Role.FREE) {
                 expandFree(value);
-            } else if (role == Location.Role.ACCESS) {
-                expandAccess(value);
             }
-            // LEAF (parameter / element roots) and CONSTANT are base cases: nothing to expand.
+            // LEAF (parameter / element roots), ACCESS (source-path Values produced by forward descent), and
+            // CONSTANT are base cases: nothing to expand. A multi-segment source Value is produced forward by
+            // pinnedSource's descent, never demanded and walked backward.
         }
 
         /**
@@ -180,40 +178,6 @@ public final class ExpandStage implements Stage {
             for (final var spec : dedup(grounded)) {
                 land(value, spec, children, pinnedSource);
             }
-        }
-
-        /**
-         * An ACCESS (multi-segment source-path) demand: only an accessor strategy may produce it. Resolve the last
-         * segment's accessor on the parent type, land it through the {@link Applier} producing this Value from the
-         * parent {@link SourceLocation}, and enqueue the parent demand so the chain builds target-to-source.
-         */
-        private void expandAccess(final Value value) {
-            final var scope = value.getScope();
-            final var segments = ((SourceLocation) value.getLoc()).getPath().getSegments();
-            final var parentSegments = segments.subList(0, segments.size() - 1);
-            final var parentTyping = accessorResolver.typing(scope, parentSegments);
-            if (parentTyping == null) {
-                return;
-            }
-            final var spec =
-                    accessorResolver.resolveAccessor(parentTyping.getType(), segments.get(segments.size() - 1));
-            if (spec == null) {
-                return;
-            }
-            final var parentSource = new AddValue(
-                    scope,
-                    new SourceLocation(new AccessPath(List.copyOf(parentSegments))),
-                    parentTyping.getType(),
-                    parentTyping.getNullness());
-            final var operation = apply(new AddOperation(
-                    spec.getLabel(),
-                    spec.getCodegen(),
-                    spec.getWeight(),
-                    spec.isPartial(),
-                    List.of(new PortBinding(spec.getPorts().get(0), parentSource)),
-                    outputOf(value),
-                    Optional.empty()));
-            graph.portSourcesOf(operation).forEach(this::enqueue);
         }
 
         // ---- landing an operation -------------------------------------------------------------------------
@@ -301,20 +265,60 @@ public final class ExpandStage implements Stage {
         // ---- source-path typing + leaf creation (target-to-source; the location pins the source) -----------
 
         /**
-         * The typed leaf source {@code Value} for {@code segments}, created once via the dedup index so a FREE
-         * target's producer can bind it as the preferred candidate; the work-list (ACCESS) then builds its accessor
-         * chain. {@code null} when the path is empty or untypable.
+         * The leaf source {@code Value} for a directive's source {@code segments}, materialised by forward,
+         * target-bound descent (design D1/D2): the scope-input root {@code LEAF} is created, then each further
+         * segment's accessor is landed against the type of the {@code Value} landed for the previous segment,
+         * advancing to the leaf — over-emitting every matching accessor per segment (cost prunes later), with no
+         * typing pre-walk and no {@code findFirst}. It runs here, before the demand's ports bind, so the leaf is the
+         * preferred source for a directive-bound target. {@code null} when the path is empty or a segment resolves no
+         * accessor. Idempotent through the dedup index, so re-deriving the same source path re-lands nothing new.
          */
         private @Nullable Value pinnedSource(final Scope scope, final List<String> segments) {
             if (segments.isEmpty()) {
                 return null;
             }
-            final var typing = accessorResolver.typing(scope, segments);
-            if (typing == null) {
-                return null;
+            var parent = materialiseRoot(scope, segments.get(0));
+            for (var depth = 1; parent != null && depth < segments.size(); depth++) {
+                parent = descendSegment(scope, parent, segments.subList(0, depth + 1));
             }
-            final var loc = new SourceLocation(new AccessPath(List.copyOf(segments)));
-            return applier.apply(graph, new AddValue(scope, loc, typing.getType(), typing.getNullness()));
+            return parent;
+        }
+
+        /** The scope-input root {@code LEAF} for the path's first {@code segment}, typed from the scope's input
+         * declaration uniformly across method and child scopes (no scope-kind branch); {@code null} when no input
+         * declares it. */
+        private @Nullable Value materialiseRoot(final Scope scope, final String segment) {
+            return scope.inputDecls(resolver::resolve)
+                    .filter(decl -> decl.getLocation().slotName().equals(segment))
+                    .findFirst()
+                    .map(decl -> applier.apply(
+                            graph, new AddValue(scope, decl.getLocation(), decl.getType(), decl.getNullness())))
+                    .orElse(null);
+        }
+
+        /**
+         * Lands every accessor that reads {@code path}'s last segment off {@code parent}, returning the produced
+         * source {@code Value} at {@code path} — the deduped child shared by equal-typed accessors (getter and field
+         * over-emit two Operations into one Value; cost prunes). {@code null} when no accessor resolves the segment.
+         */
+        private @Nullable Value descendSegment(final Scope scope, final Value parent, final List<String> path) {
+            final var demand = new DescendView(type(parent), nullness(parent), path.get(path.size() - 1), resolver);
+            final var childLoc = new SourceLocation(new AccessPath(List.copyOf(path)));
+            Value child = null;
+            for (final var spec : dedup(descend(demand, resolveCtx))) {
+                final var operation = apply(new AddOperation(
+                        spec.getLabel(),
+                        spec.getCodegen(),
+                        spec.getWeight(),
+                        spec.isPartial(),
+                        List.of(new PortBinding(spec.getPorts().get(0), reuse(parent))),
+                        new AddValue(scope, childLoc, spec.getOutputType(), spec.getOutputNullness()),
+                        Optional.empty()));
+                if (child == null) {
+                    child = graph.outputOf(operation).orElse(null);
+                }
+            }
+            return child;
         }
 
         // ---- shared ----------------------------------------------------------------------------------------
@@ -334,6 +338,12 @@ public final class ExpandStage implements Stage {
         private List<OperationSpec> run(final DemandView demand, final ResolveCtx ctx) {
             return strategies.stream()
                     .flatMap(strategy -> strategy.expand(demand, ctx))
+                    .collect(toUnmodifiableList());
+        }
+
+        private List<OperationSpec> descend(final DescendView demand, final ResolveCtx ctx) {
+            return strategies.stream()
+                    .flatMap(strategy -> strategy.descend(demand, ctx))
                     .collect(toUnmodifiableList());
         }
 

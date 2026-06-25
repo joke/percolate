@@ -19,7 +19,7 @@ class MethodPathResolverSpec extends Specification {
         def point = TypeUniverse.element('io.github.joke.percolate.spi.builtins.fixtures.Point').asType()
 
         when:
-        def specs = new MethodPathResolver().expand(Demands.descend(point, 'x'), ctx).toList()
+        def specs = new MethodPathResolver().descend(Demands.descend(point, 'x'), ctx).toList()
 
         then:
         specs.size() == 1
@@ -38,7 +38,7 @@ class MethodPathResolverSpec extends Specification {
         def address = TypeUniverse.element('io.github.joke.percolate.spi.builtins.fixtures.AddressFluent').asType()
 
         when:
-        def specs = new MethodPathResolver().expand(Demands.descend(address, 'street'), ctx).toList()
+        def specs = new MethodPathResolver().descend(Demands.descend(address, 'street'), ctx).toList()
 
         then:
         specs.size() == 1
@@ -51,7 +51,7 @@ class MethodPathResolverSpec extends Specification {
         def overloaded = TypeUniverse.element('io.github.joke.percolate.spi.builtins.fixtures.OverloadedGetter').asType()
 
         expect:
-        new MethodPathResolver().expand(Demands.descend(overloaded, 'getName'), ctx).toList().empty
+        new MethodPathResolver().descend(Demands.descend(overloaded, 'getName'), ctx).toList().empty
     }
 
     def 'ignores methods declared on java.lang.Object'() {
@@ -59,11 +59,11 @@ class MethodPathResolverSpec extends Specification {
         def objectType = TypeUniverse.element('java.lang.Object').asType()
 
         expect:
-        new MethodPathResolver().expand(Demands.descend(objectType, 'toString'), ctx).toList().empty
+        new MethodPathResolver().descend(Demands.descend(objectType, 'toString'), ctx).toList().empty
     }
 
     def 'returns empty for non-declared parent types'() {
         expect:
-        new MethodPathResolver().expand(Demands.descend(TypeUniverse.INT, 'length'), ctx).toList().empty
+        new MethodPathResolver().descend(Demands.descend(TypeUniverse.INT, 'length'), ctx).toList().empty
     }
 }

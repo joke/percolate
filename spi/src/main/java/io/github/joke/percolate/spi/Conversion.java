@@ -24,7 +24,7 @@ public abstract class Conversion implements ExpansionStrategy {
     protected abstract Stream<Step> conversions(TypeMirror target, ResolveCtx ctx);
 
     @Override
-    public final Stream<OperationSpec> expand(final Demand demand, final ResolveCtx ctx) {
+    public final Stream<OperationSpec> expand(final ProduceDemand demand, final ResolveCtx ctx) {
         final var target = demand.targetType();
         return conversions(target, ctx)
                 .map(step -> OperationSpec.of(

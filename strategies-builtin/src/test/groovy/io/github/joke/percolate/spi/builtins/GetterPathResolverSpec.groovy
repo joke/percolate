@@ -19,7 +19,7 @@ class GetterPathResolverSpec extends Specification {
         def personBean = TypeUniverse.element('io.github.joke.percolate.spi.builtins.fixtures.PersonBean').asType()
 
         when:
-        def specs = new GetterPathResolver().expand(Demands.descend(personBean, 'name'), ctx).toList()
+        def specs = new GetterPathResolver().descend(Demands.descend(personBean, 'name'), ctx).toList()
 
         then:
         specs.size() == 1
@@ -38,7 +38,7 @@ class GetterPathResolverSpec extends Specification {
         def personBean = TypeUniverse.element('io.github.joke.percolate.spi.builtins.fixtures.PersonBean').asType()
 
         when:
-        def specs = new GetterPathResolver().expand(Demands.descend(personBean, 'name', Nullability.NULLABLE), ctx).toList()
+        def specs = new GetterPathResolver().descend(Demands.descend(personBean, 'name', Nullability.NULLABLE), ctx).toList()
 
         then:
         specs.size() == 1
@@ -50,7 +50,7 @@ class GetterPathResolverSpec extends Specification {
         def booleanBean = TypeUniverse.element('io.github.joke.percolate.spi.builtins.fixtures.BooleanBean').asType()
 
         when:
-        def specs = new GetterPathResolver().expand(Demands.descend(booleanBean, 'flag'), ctx).toList()
+        def specs = new GetterPathResolver().descend(Demands.descend(booleanBean, 'flag'), ctx).toList()
 
         then:
         specs.size() == 1
@@ -63,7 +63,7 @@ class GetterPathResolverSpec extends Specification {
         def overloaded = TypeUniverse.element('io.github.joke.percolate.spi.builtins.fixtures.OverloadedGetter').asType()
 
         expect:
-        new GetterPathResolver().expand(Demands.descend(overloaded, 'name'), ctx).toList().empty
+        new GetterPathResolver().descend(Demands.descend(overloaded, 'name'), ctx).toList().empty
     }
 
     def 'ignores methods declared on java.lang.Object'() {
@@ -71,11 +71,11 @@ class GetterPathResolverSpec extends Specification {
         def objectType = TypeUniverse.element('java.lang.Object').asType()
 
         expect:
-        new GetterPathResolver().expand(Demands.descend(objectType, 'class'), ctx).toList().empty
+        new GetterPathResolver().descend(Demands.descend(objectType, 'class'), ctx).toList().empty
     }
 
     def 'returns empty for non-declared parent types'() {
         expect:
-        new GetterPathResolver().expand(Demands.descend(TypeUniverse.INT, 'length'), ctx).toList().empty
+        new GetterPathResolver().descend(Demands.descend(TypeUniverse.INT, 'length'), ctx).toList().empty
     }
 }

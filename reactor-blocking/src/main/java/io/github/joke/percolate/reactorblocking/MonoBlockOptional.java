@@ -3,12 +3,12 @@ package io.github.joke.percolate.reactorblocking;
 import com.google.auto.service.AutoService;
 import com.palantir.javapoet.CodeBlock;
 import io.github.joke.percolate.spi.Containers;
-import io.github.joke.percolate.spi.Demand;
 import io.github.joke.percolate.spi.ExpansionStrategy;
 import io.github.joke.percolate.spi.Nullability;
 import io.github.joke.percolate.spi.OperationCodegen;
 import io.github.joke.percolate.spi.OperationSpec;
 import io.github.joke.percolate.spi.Port;
+import io.github.joke.percolate.spi.ProduceDemand;
 import io.github.joke.percolate.spi.ResolveCtx;
 import io.github.joke.percolate.spi.SourceProjection;
 import java.util.List;
@@ -33,7 +33,7 @@ import lombok.NoArgsConstructor;
 public final class MonoBlockOptional implements ExpansionStrategy, SourceProjection {
 
     @Override
-    public Stream<OperationSpec> expand(final Demand demand, final ResolveCtx ctx) {
+    public Stream<OperationSpec> expand(final ProduceDemand demand, final ResolveCtx ctx) {
         final var to = demand.targetType();
         if (!Containers.isOptional(to, ctx)) {
             return Stream.empty();

@@ -154,7 +154,7 @@ class ContainerSpec extends Specification {
         unwrap.outputNullness == Nullability.NULLABLE
     }
 
-    private static Demand demand(final TypeMirror target, final Nullability nullness = Nullability.NON_NULL) {
+    private static ProduceDemand demand(final TypeMirror target, final Nullability nullness = Nullability.NON_NULL) {
         [
                 targetType      : { target },
                 targetNullness  : { nullness },
@@ -162,7 +162,7 @@ class ContainerSpec extends Specification {
                 declaredChildren: { [] as Set },
                 bindingName     : { '' },
                 nullnessOf      : { TypeMirror t, Element s -> Nullability.NON_NULL },
-        ] as Demand
+        ] as ProduceDemand
     }
 
     private static TypeMirror decl(final String fqn, final TypeMirror arg) {

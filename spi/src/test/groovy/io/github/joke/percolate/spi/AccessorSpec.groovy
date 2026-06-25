@@ -11,19 +11,19 @@ import javax.lang.model.element.TypeElement
 import javax.lang.model.type.TypeMirror
 
 /**
- * Exercises the {@link Accessor} archetype base through a tiny authored subclass. The base is directive-pinned: it
- * reads the single source-path segment and the parent type from the demand, declines a non-declared parent or a
- * non-single-segment directive, and wires the one-port accessor {@link OperationSpec} (typing the produced nullness
- * through the demand oracle). The author supplies only {@link Accessor#accessor}: the member match and its rendering.
+ * Exercises the {@link Accessor} archetype base through a tiny authored subclass. The base answers the descend
+ * question: it reads the concrete parent type and the single segment from a {@link DescendDemand}, declines a
+ * non-declared parent, and wires the one-port accessor {@link OperationSpec} (typing the produced nullness through the
+ * demand oracle). The author supplies only {@link Accessor#accessor}: the member match and its rendering.
  */
 @Tag('unit')
 class AccessorSpec extends Specification {
 
     @Shared ResolveCtx ctx = ctx()
 
-    def 'the base wires a one-port accessor spec from a single-segment directive on a declared parent'() {
+    def 'the base wires a one-port accessor spec from a single segment on a declared parent'() {
         when:
-        def specs = new TestAccessor().expand(descend(TypeUniverse.STRING, 'known'), ctx).toList()
+        def specs = new TestAccessor().descend(descend(TypeUniverse.STRING, 'known'), ctx).toList()
 
         then:
         specs.size() == 1
@@ -41,51 +41,23 @@ class AccessorSpec extends Specification {
         spec.outputNullness == Nullability.NULLABLE
     }
 
-    def 'no directive yields no accessor'() {
-        expect:
-        new TestAccessor().expand(bare(TypeUniverse.STRING), ctx).toList().empty
-    }
-
-    def 'a multi-segment directive yields no accessor (only a single segment is resolved)'() {
-        expect:
-        new TestAccessor().expand(descend(TypeUniverse.STRING, 'a', 'b'), ctx).toList().empty
-    }
-
     def 'a non-declared parent yields no accessor'() {
         expect:
-        new TestAccessor().expand(descend(TypeUniverse.INT, 'known'), ctx).toList().empty
+        new TestAccessor().descend(descend(TypeUniverse.INT, 'known'), ctx).toList().empty
     }
 
     def 'an unresolved segment yields no accessor'() {
         expect:
-        new TestAccessor().expand(descend(TypeUniverse.STRING, 'missing'), ctx).toList().empty
+        new TestAccessor().descend(descend(TypeUniverse.STRING, 'missing'), ctx).toList().empty
     }
 
-    private static Demand descend(final TypeMirror parent, final String... segments) {
-        demand(parent, directive(segments.toList()))
-    }
-
-    private static Demand bare(final TypeMirror parent) {
-        demand(parent, null)
-    }
-
-    private static Demand demand(final TypeMirror parent, final Directive directive) {
+    private static DescendDemand descend(final TypeMirror parent, final String segment) {
         [
-                targetType      : { parent },
-                targetNullness  : { Nullability.NON_NULL },
-                directive       : { Optional.ofNullable(directive) },
-                declaredChildren: { [] as Set },
-                bindingName     : { '' },
-                nullnessOf      : { TypeMirror t, Element s -> Nullability.NULLABLE },
-        ] as Demand
-    }
-
-    private static Directive directive(final List<String> sourcePath) {
-        [
-                sourcePath  : { sourcePath },
-                constant    : { Optional.empty() },
-                defaultValue: { Optional.empty() },
-        ] as Directive
+                parentType    : { parent },
+                parentNullness: { Nullability.NON_NULL },
+                segment       : { segment },
+                nullnessOf    : { TypeMirror t, Element s -> Nullability.NULLABLE },
+        ] as DescendDemand
     }
 
     private static ResolveCtx ctx() {

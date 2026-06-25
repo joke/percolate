@@ -46,7 +46,7 @@ class ConversionSpec extends Specification {
         new TestConversion().expand(demand(TypeUniverse.STRING), ctx).toList().empty
     }
 
-    private static Demand demand(final TypeMirror target) {
+    private static ProduceDemand demand(final TypeMirror target) {
         [
                 targetType      : { target },
                 targetNullness  : { Nullability.NON_NULL },
@@ -54,7 +54,7 @@ class ConversionSpec extends Specification {
                 declaredChildren: { [] as Set },
                 bindingName     : { '' },
                 nullnessOf      : { TypeMirror t, Element s -> Nullability.NON_NULL },
-        ] as Demand
+        ] as ProduceDemand
     }
 
     private static ResolveCtx ctx() {

@@ -4,12 +4,12 @@ import static java.util.stream.Collectors.toUnmodifiableList;
 
 import com.google.auto.service.AutoService;
 import com.palantir.javapoet.CodeBlock;
-import io.github.joke.percolate.spi.Demand;
 import io.github.joke.percolate.spi.ExpansionStrategy;
 import io.github.joke.percolate.spi.MethodCandidate;
 import io.github.joke.percolate.spi.OperationCodegen;
 import io.github.joke.percolate.spi.OperationSpec;
 import io.github.joke.percolate.spi.Port;
+import io.github.joke.percolate.spi.ProduceDemand;
 import io.github.joke.percolate.spi.ResolveCtx;
 import io.github.joke.percolate.spi.Weights;
 import java.util.ArrayList;
@@ -34,7 +34,7 @@ public final class MethodCallBridge implements ExpansionStrategy {
     private static final int SINGLE_PARAM_COUNT = 1;
 
     @Override
-    public Stream<OperationSpec> expand(final Demand demand, final ResolveCtx ctx) {
+    public Stream<OperationSpec> expand(final ProduceDemand demand, final ResolveCtx ctx) {
         if (!demand.declaredChildren().isEmpty()) {
             // A target the user declared field-by-field is assembled, not produced by a method call: a method-call
             // bridge applies only to leaf demands. (Degenerate self-calls are refused at bind time by the driver
@@ -56,7 +56,10 @@ public final class MethodCallBridge implements ExpansionStrategy {
     }
 
     private OperationSpec buildSpec(
-            final MethodCandidate candidate, final TypeMirror targetType, final Demand demand, final ResolveCtx ctx) {
+            final MethodCandidate candidate,
+            final TypeMirror targetType,
+            final ProduceDemand demand,
+            final ResolveCtx ctx) {
         final var method = candidate.getMethod();
         final var param = method.getParameters().get(0);
         final var returnType = method.getReturnType();

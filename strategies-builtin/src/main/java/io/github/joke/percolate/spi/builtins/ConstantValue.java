@@ -2,13 +2,13 @@ package io.github.joke.percolate.spi.builtins;
 
 import com.google.auto.service.AutoService;
 import com.palantir.javapoet.CodeBlock;
-import io.github.joke.percolate.spi.Demand;
 import io.github.joke.percolate.spi.Directive;
 import io.github.joke.percolate.spi.ExpansionStrategy;
 import io.github.joke.percolate.spi.LiteralCoercion;
 import io.github.joke.percolate.spi.Nullability;
 import io.github.joke.percolate.spi.OperationCodegen;
 import io.github.joke.percolate.spi.OperationSpec;
+import io.github.joke.percolate.spi.ProduceDemand;
 import io.github.joke.percolate.spi.ResolveCtx;
 import io.github.joke.percolate.spi.Weights;
 import java.util.List;
@@ -29,7 +29,7 @@ import lombok.NoArgsConstructor;
 public final class ConstantValue implements ExpansionStrategy {
 
     @Override
-    public Stream<OperationSpec> expand(final Demand demand, final ResolveCtx ctx) {
+    public Stream<OperationSpec> expand(final ProduceDemand demand, final ResolveCtx ctx) {
         return demand.directive()
                 .flatMap(Directive::constant)
                 .flatMap(raw -> LiteralCoercion.coerce(raw, demand.targetType()))

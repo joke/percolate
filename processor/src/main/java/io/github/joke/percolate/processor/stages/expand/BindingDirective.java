@@ -28,11 +28,6 @@ final class BindingDirective implements Directive {
                 Optional.ofNullable(directive.getDefaultValue()));
     }
 
-    /** A bare single-segment source directive used to drive one accessor descent step. */
-    static BindingDirective segment(final String segment) {
-        return new BindingDirective(List.of(segment), Optional.empty(), Optional.empty());
-    }
-
     private static List<String> splitSource(final @Nullable String source) {
         if (source == null || source.isEmpty()) {
             return List.of();

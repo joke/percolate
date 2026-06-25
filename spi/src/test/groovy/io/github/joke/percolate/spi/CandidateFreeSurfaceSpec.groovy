@@ -41,7 +41,7 @@ class CandidateFreeSurfaceSpec extends Specification {
 
     def 'the Demand producer contract exposes no candidates() accessor'() {
         expect:
-        Demand.methods.every { it.name != 'candidates' }
+        ProduceDemand.methods.every { it.name != 'candidates' }
     }
 
     def 'Containers.isOptional delegates its declared-type check to TypeProbe.isType'() {

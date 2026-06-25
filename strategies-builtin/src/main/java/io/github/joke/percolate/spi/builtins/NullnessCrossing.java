@@ -3,7 +3,6 @@ package io.github.joke.percolate.spi.builtins;
 import com.google.auto.service.AutoService;
 import com.palantir.javapoet.CodeBlock;
 import io.github.joke.percolate.spi.Containers;
-import io.github.joke.percolate.spi.Demand;
 import io.github.joke.percolate.spi.Directive;
 import io.github.joke.percolate.spi.ExpansionStrategy;
 import io.github.joke.percolate.spi.LiteralCoercion;
@@ -11,6 +10,7 @@ import io.github.joke.percolate.spi.Nullability;
 import io.github.joke.percolate.spi.OperationCodegen;
 import io.github.joke.percolate.spi.OperationSpec;
 import io.github.joke.percolate.spi.Port;
+import io.github.joke.percolate.spi.ProduceDemand;
 import io.github.joke.percolate.spi.ResolveCtx;
 import io.github.joke.percolate.spi.Weights;
 import java.util.List;
@@ -30,7 +30,7 @@ import lombok.NoArgsConstructor;
  * <ul>
  *   <li><b>{@code [requireNonNull]}</b> (<b>partial</b>) for a {@code NON_NULL} reference-scalar demand — a reuse-only
  *       {@code (T, NULLABLE)} port collapsed by {@code Objects.requireNonNull(source, "source for slot '…' is null but
- *       target is non-null")}, naming the slot from {@link Demand#bindingName()};</li>
+ *       target is non-null")}, naming the slot from {@link ProduceDemand#bindingName()};</li>
  *   <li><b>{@code [coalesce]}</b> (<b>total</b>) when the binding's directive declares a {@code defaultValue}: a
  *       reuse-only {@code (T, NULLABLE)} scalar coalesces via {@code Objects.requireNonNullElse(source, D)}, and a
  *       reuse-only {@code (Optional<T>, NON_NULL)} source coalesces via {@code source.orElse(D)} — both reusing
@@ -57,7 +57,7 @@ public final class NullnessCrossing implements ExpansionStrategy {
     }
 
     @Override
-    public Stream<OperationSpec> expand(final Demand demand, final ResolveCtx ctx) {
+    public Stream<OperationSpec> expand(final ProduceDemand demand, final ResolveCtx ctx) {
         final var target = demand.targetType();
         final Optional<CodeBlock> defaultLiteral =
                 demand.directive().flatMap(Directive::defaultValue).flatMap(raw -> LiteralCoercion.coerce(raw, target));

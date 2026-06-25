@@ -107,7 +107,7 @@ public abstract class Container implements ExpansionStrategy, SourceProjection {
      * sources each port and prunes the unreachable ones — no candidate is read.
      */
     @Override
-    public final Stream<OperationSpec> expand(final Demand demand, final ResolveCtx ctx) {
+    public final Stream<OperationSpec> expand(final ProduceDemand demand, final ResolveCtx ctx) {
         final var to = demand.targetType();
         final var specs = Stream.<OperationSpec>builder();
         if (matches(to, ctx)) {
@@ -173,7 +173,10 @@ public abstract class Container implements ExpansionStrategy, SourceProjection {
     }
 
     private void unwrapInto(
-            final TypeMirror to, final Demand demand, final ResolveCtx ctx, final Stream.Builder<OperationSpec> specs) {
+            final TypeMirror to,
+            final ProduceDemand demand,
+            final ResolveCtx ctx,
+            final Stream.Builder<OperationSpec> specs) {
         // unwrap is a consuming operation whose source (the wrapper) is structurally larger than its output: its port
         // is therefore reuse-only (Port.reuse) — the driver binds an in-scope Cont<to> source or the op does not apply,
         // never minting one. That is what keeps it bounded (you never wrap a value just to unwrap it) and matches the
