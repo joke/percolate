@@ -34,4 +34,4 @@
 ## 6. Verify and commit
 
 - [x] 6.1 Run `./gradlew check` and read the full output (do not pipe to `tail`); fix every violation before proceeding — never continue with violations
-- [ ] 6.2 Commit the change with /commit-commands:commit
+- [x] 6.2 Commit the change with /commit-commands:commit

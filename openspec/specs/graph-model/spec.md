@@ -293,13 +293,17 @@ vertices and edges are never removed; plan selection is a view, not a mutation.
 ### Requirement: Location carries a role
 
 `Location` SHALL expose a `role()` returning its **resolution mode** — one of `FREE` (target values
-and conversion intermediates), `ACCESS` (multi-segment source-path values), `LEAF` (single-segment
+and conversion intermediates), `ACCESS` (multi-segment source-path values, **produced forward by
+target-bound descent** — a base case for expansion that is never re-demanded), `LEAF` (single-segment
 source-path parameter roots and container element roots), or `CONSTANT`. The mode SHALL be derivable
 from the concrete `Location` (kind plus access-path length): a `TargetLocation` is `FREE`; a
 `SourceLocation` is `ACCESS` when its access path has more than one segment and `LEAF` when it has
 exactly one; an `ElementLocation` is `LEAF`; a `ConstantLocation` is `CONSTANT`. The work-list
 dispatch and the cost base-case rule SHALL be made through `role()`, not through `instanceof` on the
-concrete `Location` implementations, so the distinction lives in one place.
+concrete `Location` implementations, so the distinction lives in one place. `ACCESS` SHALL remain
+distinct from `LEAF`: only a `LEAF` is a free supply root (a producerless `LEAF` is a base case),
+whereas a producerless `ACCESS` is unreachable — a safety distinction the cost base-case rule keeps
+even though forward target-bound descent lands every `ACCESS` `Value` with an accessor producer.
 
 #### Scenario: Base case keys off LEAF
 - **WHEN** the cost fold determines whether a producerless `Value` is a base case
@@ -316,3 +320,7 @@ concrete `Location` implementations, so the distinction lives in one place.
 #### Scenario: Each remaining Location implementation reports its mode
 - **WHEN** `TargetLocation`, `ElementLocation`, and `ConstantLocation` are inspected
 - **THEN** they report `FREE`, `LEAF`, and `CONSTANT` respectively
+
+#### Scenario: ACCESS values are produced forward, not demanded
+- **WHEN** a multi-segment `SourceLocation` `Value` exists in the graph
+- **THEN** it was landed as an accessor Operation's output by forward target-bound descent — it is never enqueued and expanded — so it carries a producer by construction
