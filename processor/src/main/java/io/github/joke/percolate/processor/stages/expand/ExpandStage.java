@@ -176,81 +176,80 @@ public final class ExpandStage implements Stage {
                     .flatMap(spec -> grounding.ground(spec, sourceTypes))
                     .collect(toUnmodifiableList());
             for (final var spec : dedup(grounded)) {
-                land(value, spec, children, pinnedSource);
+                land(value, spec, pinnedSource);
             }
         }
 
         // ---- landing an operation -------------------------------------------------------------------------
 
-        private void land(
-                final Value output,
-                final OperationSpec spec,
-                final Set<String> children,
-                final @Nullable Value pinnedSource) {
+        private void land(final Value output, final OperationSpec spec, final @Nullable Value pinnedSource) {
             final var parentPath = ((TargetLocation) output.getLoc()).getPath().toString();
             final var ports = new ArrayList<PortBinding>();
             for (final var port : spec.getPorts()) {
-                final var source = sourceForPort(output, parentPath, port, children, pinnedSource);
+                final var source = sourceForPort(output, parentPath, port, pinnedSource);
                 if (source == null) {
-                    return; // a reuse-only port found no in-scope source: this producer does not apply
+                    return; // a REUSE port found no in-scope source: this producer does not apply
                 }
                 ports.add(new PortBinding(port, source));
             }
             if (selfCallGuard.refuses(output.getScope(), spec, ports)) {
                 return; // a method may not call itself on its own whole parameter (degenerate infinite recursion)
             }
-            final var operation = apply(new AddOperation(
+            final var operation = landOperation(spec, ports, outputOf(output));
+            graph.portSourcesOf(operation).forEach(this::enqueue);
+            operation.getChildScope().ifPresent(child -> enqueue(child.getReturnRoot()));
+        }
+
+        /**
+         * The single {@link AddOperation}-construction primitive behind both walks: the producer path ({@link #land})
+         * and the accessor-descent path ({@link #descendSegment}) differ only in how they pin the output and resolve
+         * the ports; building and applying the delta (with any child-scope declaration) is shared here.
+         */
+        private Operation landOperation(
+                final OperationSpec spec, final List<PortBinding> ports, final AddValue output) {
+            return apply(new AddOperation(
                     spec.getLabel(),
                     spec.getCodegen(),
                     spec.getWeight(),
                     spec.isPartial(),
                     ports,
-                    outputOf(output),
+                    output,
                     spec.getChildScope()
                             .map(child -> new ChildScopeDecl(
                                     child.getElementIn(),
                                     child.getElementInNullness(),
                                     child.getElementOut(),
                                     child.getElementOutNullness()))));
-            graph.portSourcesOf(operation).forEach(this::enqueue);
-            operation.getChildScope().ifPresent(child -> enqueue(child.getReturnRoot()));
         }
 
         /**
-         * Binds one port to a feeding {@code Value} (D1, "a port is a demand"): a declared-child port becomes a
-         * deeper child-target demand; otherwise the port reuses the directive-pinned source, then any in-scope source
-         * of the port's type and assignment-compatible nullness, then a fresh intermediate at the output location.
+         * Binds one port to a feeding {@code Value} (D1, "a port is a demand") by dispatching on its declared
+         * {@link Port.Sourcing} mode — never reconstructing intent from a name-match or a boolean. {@code SUBTARGET}
+         * mints a deeper child-target demand at the child location; {@code REUSE} and {@code REUSE_OR_MINT} both bind
+         * an in-scope source (directive-{@code pinnedSource} ranked first by {@link SourceCandidates}), differing only
+         * when none is found — {@code REUSE} declines (the operation does not apply, never minted) while
+         * {@code REUSE_OR_MINT} mints a fresh intermediate at the output location, itself re-demanded (a multi-hop
+         * conversion) and pruned by cost if nothing produces it. The demand's declared-children set no longer
+         * participates here — it gates assembly in the demand only.
          */
         private @Nullable AddValue sourceForPort(
-                final Value output,
-                final String parentPath,
-                final Port port,
-                final Set<String> children,
-                final @Nullable Value pinnedSource) {
-            if (children.contains(port.getName())) {
+                final Value output, final String parentPath, final Port port, final @Nullable Value pinnedSource) {
+            if (port.getSourcing() == Port.Sourcing.SUBTARGET) {
                 return new AddValue(
                         output.getScope(),
                         childLocation(parentPath, port.getName()),
                         port.getType(),
                         port.getNullness());
             }
-            if (pinnedSource != null && sourceCandidates.matchesPort(pinnedSource, port)) {
-                return reuse(pinnedSource);
+            final var reused = sourceCandidates.matchingSource(output.getScope(), port, pinnedSource);
+            if (reused != null) {
+                return reuse(reused);
             }
-            final var candidate = sourceCandidates.matchingSource(output.getScope(), port);
-            if (candidate != null) {
-                return reuse(candidate);
-            }
-            if (port.isReuseOnly()) {
-                // A reuse-only port (e.g. unwrap's wrapper input) is never minted: with no in-scope source the
-                // operation simply does not apply. This keeps a consuming op whose input is larger than its output
-                // from manufacturing an ever-deeper source to feed itself.
-                return null;
-            }
-            // A fresh intermediate at the output location, itself re-demanded: a multi-hop conversion (e.g.
-            // int -> long -> Long). If no strategy ultimately produces it, it acquires no producer and this
-            // operation is unreachable by exhaustion (no driver-side guard) — over-emit then prune by cost.
-            return new AddValue(output.getScope(), output.getLoc(), port.getType(), port.getNullness());
+            // A REUSE port whose input is larger than its output is never minted (you never wrap a value just to
+            // unwrap it): with no in-scope source the consuming operation simply does not apply.
+            return port.getSourcing() == Port.Sourcing.REUSE
+                    ? null
+                    : new AddValue(output.getScope(), output.getLoc(), port.getType(), port.getNullness());
         }
 
         private Location childLocation(final String path, final String childName) {
@@ -306,14 +305,9 @@ public final class ExpandStage implements Stage {
             final var childLoc = new SourceLocation(new AccessPath(List.copyOf(path)));
             Value child = null;
             for (final var spec : dedup(descend(demand, resolveCtx))) {
-                final var operation = apply(new AddOperation(
-                        spec.getLabel(),
-                        spec.getCodegen(),
-                        spec.getWeight(),
-                        spec.isPartial(),
-                        List.of(new PortBinding(spec.getPorts().get(0), reuse(parent))),
-                        new AddValue(scope, childLoc, spec.getOutputType(), spec.getOutputNullness()),
-                        Optional.empty()));
+                final var ports = List.of(new PortBinding(spec.getPorts().get(0), reuse(parent)));
+                final var output = new AddValue(scope, childLoc, spec.getOutputType(), spec.getOutputNullness());
+                final var operation = landOperation(spec, ports, output);
                 if (child == null) {
                     child = graph.outputOf(operation).orElse(null);
                 }

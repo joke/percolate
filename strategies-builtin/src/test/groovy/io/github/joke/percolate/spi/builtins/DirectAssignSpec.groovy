@@ -2,6 +2,7 @@ package io.github.joke.percolate.spi.builtins
 
 import io.github.joke.percolate.spi.Nullability
 import io.github.joke.percolate.spi.OperationCodegen
+import io.github.joke.percolate.spi.Port
 import io.github.joke.percolate.spi.Weights
 import io.github.joke.percolate.spi.builtins.test.Demands
 import io.github.joke.percolate.spi.builtins.test.ResolveCtxBuilder
@@ -37,7 +38,7 @@ class DirectAssignSpec extends Specification {
         def specs = new DirectAssign().expand(Demands.forTarget(TypeUniverse.STRING), ctx).toList()
 
         then: 'never minted — a same-type value already feeds the target directly (no self-copy manufacturing)'
-        specs[0].ports[0].reuseOnly
+        specs[0].ports[0].sourcing == Port.Sourcing.REUSE
     }
 
     def 'is nullness-transparent: port and output carry the demanded nullness'() {

@@ -200,7 +200,8 @@ final class Grounding {
         if (template == null) {
             return port;
         }
-        return new Port(port.getName(), ground(template, bindings), port.getNullness());
+        // Preserve the original port's sourcing mode: grounding produces a concrete port, never resets it to default.
+        return new Port(port.getName(), ground(template, bindings), port.getNullness(), null, port.getSourcing());
     }
 
     private ChildScopeSpec groundChild(final ChildScopeSpec child, final Map<Integer, TypeMirror> bindings) {

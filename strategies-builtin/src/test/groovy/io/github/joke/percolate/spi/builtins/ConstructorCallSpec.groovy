@@ -2,6 +2,7 @@ package io.github.joke.percolate.spi.builtins
 
 import io.github.joke.percolate.spi.Nullability
 import io.github.joke.percolate.spi.OperationCodegen
+import io.github.joke.percolate.spi.Port
 import io.github.joke.percolate.spi.Weights
 import io.github.joke.percolate.spi.builtins.test.Demands
 import io.github.joke.percolate.spi.builtins.test.ResolveCtxBuilder
@@ -45,6 +46,8 @@ class ConstructorCallSpec extends Specification {
         // same constructor; the driver's name-based binding is covered by the processor specs.)
         spec.ports.size() == 2
         (spec.ports*.name as Set) == declared
+        // Every assembly port is a structural sub-target: the engine mints a child demand at the child location.
+        spec.ports.every { it.sourcing == Port.Sourcing.SUBTARGET }
         spec.ports[0].type.kind == TypeKind.INT
         ctx.types().isSameType(spec.ports[1].type, TypeUniverse.STRING)
     }

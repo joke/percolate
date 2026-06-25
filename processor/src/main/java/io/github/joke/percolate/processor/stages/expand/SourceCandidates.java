@@ -51,11 +51,16 @@ final class SourceCandidates {
     }
 
     /**
-     * The in-scope source Value that can feed {@code port}: an already-materialised graph source first, else the first
-     * matching scope input declaration, materialised on demand as a {@code LEAF} (idempotent through the dedup index).
+     * The in-scope source Value that can feed {@code port}, ranked: a matching directive-{@code pinnedSource} first
+     * (so a same-typed sibling can never shadow it), then an already-materialised graph source of least id, else the
+     * first matching scope input declaration materialised on demand as a {@code LEAF} (idempotent through the dedup
+     * index). {@code pinnedSource} is {@code null} when the demand carries no directive source path.
      */
     @Nullable
-    Value matchingSource(final Scope scope, final Port port) {
+    Value matchingSource(final Scope scope, final Port port, final @Nullable Value pinnedSource) {
+        if (pinnedSource != null && matchesPort(pinnedSource, port)) {
+            return pinnedSource;
+        }
         final var existing = sourceValues(scope)
                 .filter(value -> matchesPort(value, port))
                 .min(Comparator.comparing(Value::id))

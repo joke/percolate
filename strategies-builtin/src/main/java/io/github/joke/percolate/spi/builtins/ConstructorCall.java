@@ -82,7 +82,7 @@ public final class ConstructorCall implements ExpansionStrategy {
             final TypeMirror targetType,
             final ProduceDemand demand) {
         final List<Port> ports = ctor.getParameters().stream()
-                .map(param -> new Port(
+                .map(param -> Port.subTarget(
                         param.getSimpleName().toString(), param.asType(), demand.nullnessOf(param.asType(), param)))
                 .collect(toUnmodifiableList());
         final List<String> portNames = ports.stream().map(Port::getName).collect(toUnmodifiableList());

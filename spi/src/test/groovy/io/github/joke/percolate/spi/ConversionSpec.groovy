@@ -33,7 +33,7 @@ class ConversionSpec extends Specification {
         spec.codegen instanceof OperationCodegen
         spec.ports.size() == 1
         spec.ports[0].name == 'value'
-        !spec.ports[0].reuseOnly
+        spec.ports[0].sourcing == Port.Sourcing.REUSE_OR_MINT
         spec.ports[0].template == null
         ctx.types().isSameType(spec.ports[0].type, TypeUniverse.STRING)
         spec.ports[0].nullness == Nullability.NON_NULL

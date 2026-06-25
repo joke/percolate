@@ -2,6 +2,7 @@ package io.github.joke.percolate.spi.builtins
 
 import io.github.joke.percolate.spi.Nullability
 import io.github.joke.percolate.spi.OperationCodegen
+import io.github.joke.percolate.spi.Port
 import io.github.joke.percolate.spi.Weights
 import io.github.joke.percolate.spi.builtins.test.Demands
 import io.github.joke.percolate.spi.builtins.test.ResolveCtxBuilder
@@ -29,7 +30,7 @@ class NullnessCrossingSpec extends Specification {
         spec.codegen instanceof OperationCodegen
         types.isSameType(spec.ports[0].type, TypeUniverse.STRING)
         spec.ports[0].nullness == Nullability.NULLABLE
-        spec.ports[0].reuseOnly
+        spec.ports[0].sourcing == Port.Sourcing.REUSE
         types.isSameType(spec.outputType, TypeUniverse.STRING)
         spec.outputNullness == Nullability.NON_NULL
     }
@@ -66,8 +67,8 @@ class NullnessCrossingSpec extends Specification {
         and: 'the partial requireNonNull is also offered (totality picks coalesce in extraction)'
         specs.any { it.partial }
 
-        and: 'every crossing port is reuse-only — the driver binds an in-scope source or the op does not apply'
-        specs.every { it.ports[0].reuseOnly }
+        and: 'every crossing port is REUSE — the driver binds an in-scope source or the op does not apply'
+        specs.every { it.ports[0].sourcing == Port.Sourcing.REUSE }
     }
 
     def 'coerces the default literal to a wrapper target type'() {
