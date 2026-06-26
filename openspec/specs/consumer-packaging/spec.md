@@ -64,23 +64,28 @@ The `processor` engine module SHALL NOT declare any dependency edge — compile,
 
 ### Requirement: Published Maven artifacts
 
-Every publishable module SHALL apply Maven publication under the group `io.github.joke.percolate`: the annotations, spi, processor, strategies-builtin, reactor, reactor-blocking, the starter, and the BOM. `publishToMavenLocal` SHALL produce consumable artifacts whose POMs carry the correct coordinates and dependency declarations (in particular, the starter's POM SHALL declare processor and strategies-builtin).
+Every publishable module SHALL apply Maven publication under the group `io.github.joke.percolate`: the annotations, spi, processor, strategies-builtin, reactor, reactor-blocking, the starter, and the BOM. The internal `:dependencies` version platform SHALL NOT be published. Published POMs SHALL be self-contained: they SHALL declare concrete dependency versions and SHALL NOT import the internal version platform or otherwise impose percolate's internal third-party version constraints on consumers. `publishToMavenLocal` SHALL produce consumable artifacts whose POMs carry the correct coordinates and dependency declarations (in particular, the starter's POM SHALL declare processor and strategies-builtin).
 
 #### Scenario: publishToMavenLocal yields consumable coordinates
 
 - **WHEN** `publishToMavenLocal` runs and the local repository is inspected
 - **THEN** each publishable module is present under `io.github.joke.percolate` with a POM, and the starter's POM declares the processor and strategies-builtin dependencies
 
-### Requirement: Black-box consumer smoke build
+#### Scenario: POMs are self-contained
 
-The project SHALL provide a standalone `percolate-smoke` build that exercises the published consumer path. It SHALL resolve percolate artifacts by GAV from `mavenLocal()` — the starter on `annotationProcessor`, the annotations on `compileOnly`, versions via the BOM platform — and SHALL NOT reference any internal module (`project(':...')`) or the test harness. It SHALL compile one fixed mapper and assert generation succeeds. It SHALL NOT enumerate conversion combinations; its purpose is to confirm the assembled product works in a normal developer setup, not to provide behavioural coverage.
+- **WHEN** a published percolate POM is inspected
+- **THEN** its dependencies carry concrete versions and it contains no `<dependencyManagement>` import of the internal `:dependencies` platform, and no `percolate-dependencies` artifact is published
 
-#### Scenario: Smoke build compiles a mapper through the published path
+### Requirement: In-build consumer smoke module
 
-- **WHEN** the starter and annotations are resolved by GAV from `mavenLocal()` (after `publishToMavenLocal`) and the smoke build compiles its fixed `@Mapper`
-- **THEN** a mapper implementation is generated and compiles successfully
+The project SHALL provide an in-build `percolate-smoke` module that exercises the assembled consumer path against the exact build outputs. It SHALL depend via `annotationProcessor project(':percolate')` and `compileOnly project(':annotations')` — never putting any percolate artifact on its runtime classpath — compile one fixed mapper, and run the generated implementation. It SHALL be wired into `./gradlew check` as a one-pass gate and SHALL NOT apply Maven publication. It SHALL NOT enumerate conversion combinations; its purpose is to confirm the assembled product works in a normal developer setup.
 
-#### Scenario: Smoke build has no privileged dependencies
+#### Scenario: Smoke runs the generated mapper as part of check
 
-- **WHEN** the smoke build's dependencies are inspected
-- **THEN** they are resolved by GAV from `mavenLocal()` and contain only published consumer artifacts (starter, BOM, annotations), with no `project(':...')` reference to an internal module and no test-harness dependency
+- **WHEN** `./gradlew check` runs
+- **THEN** the smoke module compiles its fixed `@Mapper`, runs the generated implementation on a runtime classpath that carries no percolate artifact, and the run succeeds — failing the build if generation or the mapping is wrong
+
+#### Scenario: Smoke exercises starter aggregation via project dependencies
+
+- **WHEN** the smoke module's `annotationProcessor` classpath is resolved from `project(':percolate')`
+- **THEN** both the engine and the builtin strategies are present (the starter's aggregation), so builtin-backed generation is exercised without resolving any published coordinate
