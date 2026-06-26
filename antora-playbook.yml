@@ -1,0 +1,20 @@
+site:
+  title: Percolate
+  url: https://joke.github.io/percolate
+  start_page: percolate::index.adoc
+
+content:
+  sources:
+  - url: .
+    branches: HEAD
+      # Release tags become additional versions automatically once they exist (inert with zero tags).
+    tags: [v*.*.*]
+    start_path: docs
+
+ui:
+  bundle:
+    url: https://gitlab.com/antora/antora-ui-default/-/jobs/artifacts/HEAD/raw/build/ui-bundle.zip?job=bundle-stable
+    snapshot: true
+
+output:
+  dir: ./build/site

@@ -30,6 +30,16 @@ dependencies {
     testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
 }
 
+// Doc-owned example sources double as compile-testing fixtures: the user manual include::s the very
+// files these end-to-end specs compile, so a published example cannot drift from compiled code.
+sourceSets {
+    test {
+        resources {
+            srcDir rootProject.file('docs/modules/ROOT/examples')
+        }
+    }
+}
+
 tasks.named('jacocoTestCoverageVerification') {
     enabled = false
 }

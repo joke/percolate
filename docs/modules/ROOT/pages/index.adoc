@@ -1,0 +1,39 @@
+= Percolate User Manual
+:navtitle: Introduction
+
+Percolate is a Java annotation processor that generates bean mappers at compile time. You declare a
+`@Mapper` interface describing how to turn one bean into another; percolate generates the implementation
+during annotation processing. The generated code has **no runtime dependency** on percolate.
+
+[NOTE]
+====
+Percolate runs only at compile time. Your shipped artifact depends on neither the processor nor any
+percolate runtime library — just the plain generated mapper class.
+====
+
+== Who this manual is for
+
+This manual is written for a Java developer who wants to map their beans. It walks from adding percolate to
+a Maven or Gradle build, through writing mappers, to the conversion features that handle non-trivial field
+types. A closing xref:extending.adoc[Extending] section addresses authors who want to teach percolate new
+tricks by writing custom strategies.
+
+== A taste
+
+[source,java]
+----
+@Mapper
+public interface PersonMapper {
+    Human map(Person person);
+}
+----
+
+Percolate generates a `PersonMapperImpl` that reads each property of `Person` and writes the matching
+property of `Human`. From here the manual shows how to control that mapping, map nested paths and
+collections, and plug in conversion methods.
+
+== Where to next
+
+* xref:getting-started.adoc[Getting started] — add percolate to Maven or Gradle and write your first mapper.
+* xref:mapper-structure.adoc[Mapper structure] — what percolate discovers on a `@Mapper` type.
+* xref:map-annotation.adoc[The `@Map` annotation] — direct field-by-field control.

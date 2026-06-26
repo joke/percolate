@@ -1,0 +1,47 @@
+# Builds the Antora user manual and publishes it to GitHub Pages on every push to main.
+#
+# ONE-TIME SETUP (cannot be automated from CI): in the repository settings, set
+# Settings → Pages → "Build and deployment" → Source = "GitHub Actions".
+# Until that is done the deploy step has nothing to publish to.
+name: docs
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# Allow one concurrent deployment; let an in-progress one finish rather than cancelling it.
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+      with:
+          # Antora reads content from git refs; full history + tags are needed for versioning.
+        fetch-depth: 0
+    - uses: jdx/mise-action@v4
+      # mise puts the pinned `antora` on PATH. --log-failure-level=warn makes a broken
+      # include:: or xref: fail the build instead of publishing a silently incomplete site.
+    - run: antora --fetch --log-failure-level=warn antora-playbook.yml
+    - uses: actions/upload-pages-artifact@v3
+      with:
+        path: build/site
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+    - id: deployment
+      uses: actions/deploy-pages@v4

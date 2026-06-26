@@ -1,0 +1,11 @@
+name: percolate
+title: Percolate
+# Unversioned while pre-1.0 with no release tags: clean URLs, a single honest version.
+# At the first release this adopts a concrete version and the tag-sourced dropdown populates.
+version:
+nav:
+- modules/ROOT/nav.adoc
+asciidoc:
+  attributes:
+    # Single-sourced version string for the install snippets. Bump alongside a release.
+    percolate-version: 0.1.0

@@ -1,0 +1,61 @@
+= Mapper structure
+:navtitle: Mapper structure
+
+A mapper is an interface (or abstract class) annotated `@Mapper`. Percolate looks at its methods and
+generates an implementation named `<MapperName>Impl` with a public no-argument constructor.
+
+== What percolate generates
+
+Percolate implements every **abstract method** it discovers on the type:
+
+* methods declared directly on the `@Mapper` type, and
+* abstract methods inherited from super-interfaces or an abstract super-class (with generic type
+  arguments substituted).
+
+Each such method becomes a generated mapping; its return type is the target and its single parameter is the
+source.
+
+== What percolate leaves alone
+
+The following are **not** generated — they are skipped during discovery:
+
+[cols="1,3"]
+|===
+| Member | Why it is skipped
+
+| `default` methods and other concrete methods
+| They are already implemented. Percolate does not override them — and it can *call* them as conversions
+  (see xref:default-method-conversions.adoc[Default-method conversions]).
+
+| `equals`, `hashCode`, `toString` from `Object`
+| Inherited `Object` members are filtered. (A `toString` you declare *yourself* on the mapper is treated
+  as a normal method.)
+
+| `static` and `private` methods
+| Never part of the generated surface.
+|===
+
+[NOTE]
+====
+There are two distinct questions percolate asks about a method:
+
+. *Should I generate it?* — yes for abstract methods, no for already-implemented ones.
+. *Can I call it as a conversion?* — yes for any single-argument method, **including `default` methods**.
+
+That is why a `default` method is skipped for generation yet still available as a conversion bridge.
+====
+
+== Example
+
+[source,java]
+----
+include::example$getting-started/PersonMapper.java[tag=mapper]
+----
+
+`map(Person)` is abstract, so percolate generates it. A `default` helper on the same interface would be
+left as-is but remain callable from generated code.
+
+== Where to next
+
+* xref:map-annotation.adoc[The `@Map` annotation] — describe each target field.
+* xref:conversion-methods.adoc[Conversion methods] — reuse one mapper method inside another.

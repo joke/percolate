@@ -1,0 +1,55 @@
+= Collections
+:navtitle: Collections
+
+When a target field is a container, percolate maps it element-by-element, reusing one of your mapper methods
+for the element conversion.
+
+[source,java]
+----
+include::example$collections/TeamMapper.java[tag=mapper]
+----
+
+`Team.getMembers()` is a `List<Member>` and `TeamView` wants a `List<MemberView>`. Percolate composes a
+stream pipeline and delegates each element to `toView`:
+
+[source,java]
+----
+@Override
+public TeamView map(Team team) {
+    return new TeamView(
+        team.getMembers().stream().map(member -> this.toView(member)).collect(Collectors.toList()));
+}
+----
+
+== Supported container kinds
+
+[cols="1,3"]
+|===
+| Kind | Notes
+
+| `List`
+| Mapped through a stream and collected back into a list.
+
+| `Set`
+| Mapped through a stream and collected into a set.
+
+| `Optional`
+| Treated as a presence wrapper: percolate maps the contained value when present and preserves emptiness.
+
+| `Flux`, `Mono` (reactive)
+| Available when the optional `percolate-reactor` module is on the annotation-processor path. Reactive
+  containers compose over their own stream intermediate.
+|===
+
+== Cross-kind and nesting
+
+Containers compose over an internal stream, so percolate can bridge across kinds and nesting where the
+direction is sound — for example `List<Optional<A>>` into `Optional<Set<B>>` composes from single-kind steps
+(iterate, flat-map to drop empties, element-map, collect, wrap). It never invents an unsound crossing, such
+as collapsing an asynchronous `Flux` into a synchronous `List` (that upward crossing requires the opt-in
+`percolate-reactor-blocking` module).
+
+== Where to next
+
+* xref:conversion-methods.adoc[Conversion methods] — the element conversion, in depth.
+* xref:default-method-conversions.adoc[Default-method conversions] — hand-written element conversions.

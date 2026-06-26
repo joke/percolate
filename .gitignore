@@ -5,7 +5,6 @@ bin/
 build/
 .vscode/
 .worktrees/
-docs/site/
 
 .project
 .classpath
