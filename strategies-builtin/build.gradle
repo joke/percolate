@@ -1,6 +1,7 @@
 plugins {
     id 'java'
     id 'groovy'
+    id 'maven-publish'
 }
 
 dependencies {
@@ -17,6 +18,9 @@ dependencies {
     implementation project(':spi')
 
     testImplementation platform(project(':dependencies'))
+    testImplementation project(':processor')
+    testImplementation project(':test-foundation')
+    testImplementation 'com.google.testing.compile:compile-testing'
     testImplementation 'org.spockframework:spock-core'
     testImplementation 'org.mockito:mockito-junit-jupiter'
     testImplementation 'org.jspecify:jspecify'

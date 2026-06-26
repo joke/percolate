@@ -1,4 +1,4 @@
-package io.github.joke.percolate.processor.stages.expand
+package io.github.joke.percolate.spi.builtins.e2e
 
 import com.google.testing.compile.Compiler
 import com.google.testing.compile.JavaFileObjects

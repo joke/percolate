@@ -1,0 +1,4 @@
+// Standalone consumer build — deliberately NOT part of the root multi-project build.
+// It resolves percolate by GAV from mavenLocal(), exactly as a downstream developer would,
+// so it cannot reference any internal project(':...') or the test harness.
+rootProject.name = 'percolate-smoke'

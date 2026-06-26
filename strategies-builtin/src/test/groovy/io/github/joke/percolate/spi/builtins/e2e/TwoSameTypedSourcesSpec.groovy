@@ -1,9 +1,8 @@
-package io.github.joke.percolate.processor.stages.expand
+package io.github.joke.percolate.spi.builtins.e2e
 
 import com.google.testing.compile.Compilation
-import com.google.testing.compile.Compiler
 import com.google.testing.compile.JavaFileObjects
-import io.github.joke.percolate.processor.PercolateProcessor
+import io.github.joke.percolate.test.PercolateCompiler
 import spock.lang.Specification
 import spock.lang.Tag
 
@@ -46,9 +45,7 @@ class TwoSameTypedSourcesSpec extends Specification {
                 '}')
 
         when:
-        Compilation compilation = Compiler.javac()
-                .withProcessors(new PercolateProcessor())
-                .compile(source, target, mapper)
+        Compilation compilation = PercolateCompiler.compile(source, target, mapper)
 
         then: 'a binds in.getY() and b binds in.getX() — the directives are honoured, not cross-bound'
         compilation.errors().empty

@@ -8,6 +8,7 @@ plugins {
 
 subprojects { project ->
     group = 'io.github.joke.percolate'
+    version = '0.1.0-SNAPSHOT'
 
     repositories {
         mavenCentral()
@@ -167,6 +168,32 @@ subprojects { project ->
                     suggestSuppressions = true
                     checkContracts = true
                     acknowledgeRestrictiveAnnotations = true
+                }
+            }
+        }
+    }
+
+    // Consumer-facing Maven publication. Applied only by modules that opt into 'maven-publish'.
+    // The starter publishes as 'percolate'; every other publishable module as 'percolate-<name>'.
+    pluginManager.withPlugin('maven-publish') {
+        def publishedArtifactId = project.name == 'percolate' ? 'percolate' : "percolate-${project.name}"
+        pluginManager.withPlugin('java') {
+            publishing {
+                publications {
+                    maven(MavenPublication) {
+                        artifactId = publishedArtifactId
+                        from components.java
+                    }
+                }
+            }
+        }
+        pluginManager.withPlugin('java-platform') {
+            publishing {
+                publications {
+                    maven(MavenPublication) {
+                        artifactId = publishedArtifactId
+                        from components.javaPlatform
+                    }
                 }
             }
         }

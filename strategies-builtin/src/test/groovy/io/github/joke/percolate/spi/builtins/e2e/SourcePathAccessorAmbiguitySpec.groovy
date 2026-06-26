@@ -1,9 +1,8 @@
-package io.github.joke.percolate.processor.stages.expand
+package io.github.joke.percolate.spi.builtins.e2e
 
 import com.google.testing.compile.Compilation
-import com.google.testing.compile.Compiler
 import com.google.testing.compile.JavaFileObjects
-import io.github.joke.percolate.processor.PercolateProcessor
+import io.github.joke.percolate.test.PercolateCompiler
 import spock.lang.Specification
 import spock.lang.Tag
 
@@ -44,9 +43,7 @@ class SourcePathAccessorAmbiguitySpec extends Specification {
                 '}')
 
         when:
-        Compilation compilation = Compiler.javac()
-                .withProcessors(new PercolateProcessor())
-                .compile(src, target, mapper)
+        Compilation compilation = PercolateCompiler.compile(src, target, mapper)
 
         then: 'the getter is chosen, never the bare field read'
         compilation.errors().empty

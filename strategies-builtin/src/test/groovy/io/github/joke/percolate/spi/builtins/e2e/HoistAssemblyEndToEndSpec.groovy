@@ -1,9 +1,8 @@
-package io.github.joke.percolate.processor.stages.generate
+package io.github.joke.percolate.spi.builtins.e2e
 
 import com.google.testing.compile.Compilation
-import com.google.testing.compile.Compiler
 import com.google.testing.compile.JavaFileObjects
-import io.github.joke.percolate.processor.PercolateProcessor
+import io.github.joke.percolate.test.PercolateCompiler
 import spock.lang.Specification
 import spock.lang.Tag
 
@@ -165,7 +164,7 @@ class HoistAssemblyEndToEndSpec extends Specification {
     }
 
     private static Compilation compileWith(List<String> options, JavaFileObject... sources) {
-        Compiler.javac().withProcessors(new PercolateProcessor()).withOptions(options).compile(sources)
+        PercolateCompiler.compileWith(options, sources)
     }
 
     private static String generated(final Compilation compilation, final String fqn) {

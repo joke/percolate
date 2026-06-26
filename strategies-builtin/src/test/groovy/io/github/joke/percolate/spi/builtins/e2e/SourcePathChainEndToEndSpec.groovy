@@ -1,9 +1,8 @@
-package io.github.joke.percolate.processor.stages.generate
+package io.github.joke.percolate.spi.builtins.e2e
 
 import com.google.testing.compile.Compilation
-import com.google.testing.compile.Compiler
 import com.google.testing.compile.JavaFileObjects
-import io.github.joke.percolate.processor.PercolateProcessor
+import io.github.joke.percolate.test.PercolateCompiler
 import spock.lang.Specification
 import spock.lang.Tag
 
@@ -56,9 +55,7 @@ class SourcePathChainEndToEndSpec extends Specification {
                 '}')
 
         when:
-        Compilation compilation = Compiler.javac()
-                .withProcessors(new PercolateProcessor())
-                .compile(address, person, human, mapper)
+        Compilation compilation = PercolateCompiler.compile(address, person, human, mapper)
 
         then: 'compilation succeeded'
         compilation.errors().empty

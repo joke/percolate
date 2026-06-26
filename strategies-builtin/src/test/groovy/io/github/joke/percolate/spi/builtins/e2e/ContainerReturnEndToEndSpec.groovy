@@ -1,9 +1,8 @@
-package io.github.joke.percolate.processor.stages.generate
+package io.github.joke.percolate.spi.builtins.e2e
 
 import com.google.testing.compile.Compilation
-import com.google.testing.compile.Compiler
 import com.google.testing.compile.JavaFileObjects
-import io.github.joke.percolate.processor.PercolateProcessor
+import io.github.joke.percolate.test.PercolateCompiler
 import spock.lang.Specification
 import spock.lang.Tag
 
@@ -42,9 +41,7 @@ class ContainerReturnEndToEndSpec extends Specification {
                 '}')
 
         when:
-        Compilation compilation = Compiler.javac()
-                .withProcessors(new PercolateProcessor())
-                .compile(dto, dao, mapper)
+        Compilation compilation = PercolateCompiler.compile(dto, dao, mapper)
 
         then: 'no spurious "no plan" — the dead typed siblings at the return location are not diagnosed'
         compilation.errors().empty
@@ -105,9 +102,7 @@ class ContainerReturnEndToEndSpec extends Specification {
                 '}')
 
         when:
-        Compilation compilation = Compiler.javac()
-                .withProcessors(new PercolateProcessor())
-                .compile(dto, dao, mapper)
+        Compilation compilation = PercolateCompiler.compile(dto, dao, mapper)
 
         then: 'it compiles and the children element transform recurses into the same method'
         compilation.errors().empty
@@ -160,9 +155,7 @@ class ContainerReturnEndToEndSpec extends Specification {
                 '}')
 
         when:
-        Compilation compilation = Compiler.javac()
-                .withProcessors(new PercolateProcessor())
-                .compile(pkgInfo, dto, dao, mapper)
+        Compilation compilation = PercolateCompiler.compile(pkgInfo, dto, dao, mapper)
 
         then: 'it generates with no "no plan" — the sub-part self-call is allowed, unlike the whole-parameter one'
         compilation.errors().empty
@@ -197,9 +190,7 @@ class ContainerReturnEndToEndSpec extends Specification {
                 '}')
 
         when:
-        Compilation compilation = Compiler.javac()
-                .withProcessors(new PercolateProcessor())
-                .compile(dto, dao, mapper)
+        Compilation compilation = PercolateCompiler.compile(dto, dao, mapper)
 
         then: 'mapAgain delegates to the different method mapOne and never self-bridges'
         compilation.errors().empty
@@ -233,9 +224,7 @@ class ContainerReturnEndToEndSpec extends Specification {
                 '}')
 
         when:
-        Compilation compilation = Compiler.javac()
-                .withProcessors(new PercolateProcessor())
-                .compile(dto, dao, mapper)
+        Compilation compilation = PercolateCompiler.compile(dto, dao, mapper)
 
         then: 'the whole-parameter self-call is refused, leaving an honest no plan rather than infinite recursion'
         !compilation.errors().empty

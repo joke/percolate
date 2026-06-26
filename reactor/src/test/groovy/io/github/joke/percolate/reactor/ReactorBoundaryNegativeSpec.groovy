@@ -1,9 +1,8 @@
 package io.github.joke.percolate.reactor
 
 import com.google.testing.compile.Compilation
-import com.google.testing.compile.Compiler
 import com.google.testing.compile.JavaFileObjects
-import io.github.joke.percolate.processor.PercolateProcessor
+import io.github.joke.percolate.test.PercolateCompiler
 import spock.lang.Specification
 import spock.lang.Tag
 
@@ -66,9 +65,7 @@ class ReactorBoundaryNegativeSpec extends Specification {
                 'public interface PersonMapper {',
                 '    ' + method,
                 '}')
-        Compiler.javac()
-                .withProcessors(new PercolateProcessor())
-                .compile(DTO, DAO, mapper)
+        PercolateCompiler.compile(DTO, DAO, mapper)
     }
 
     private static String bodyOrEmpty(final Compilation compilation) {

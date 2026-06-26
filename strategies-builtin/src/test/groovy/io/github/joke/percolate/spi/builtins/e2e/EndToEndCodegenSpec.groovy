@@ -1,9 +1,8 @@
-package io.github.joke.percolate.processor.stages.generate
+package io.github.joke.percolate.spi.builtins.e2e
 
 import com.google.testing.compile.Compilation
-import com.google.testing.compile.Compiler
 import com.google.testing.compile.JavaFileObjects
-import io.github.joke.percolate.processor.PercolateProcessor
+import io.github.joke.percolate.test.PercolateCompiler
 import spock.lang.Specification
 import spock.lang.Tag
 
@@ -48,9 +47,7 @@ class EndToEndCodegenSpec extends Specification {
                 '}')
 
         when:
-        Compilation compilation = Compiler.javac()
-                .withProcessors(new PercolateProcessor())
-                .compile(person, human, mapper)
+        Compilation compilation = PercolateCompiler.compile(person, human, mapper)
 
         then: 'compilation succeeded'
         compilation.errors().empty
@@ -117,9 +114,7 @@ class EndToEndCodegenSpec extends Specification {
                 '}')
 
         when:
-        Compilation compilation = Compiler.javac()
-                .withProcessors(new PercolateProcessor())
-                .compile(person, human, skipMapper)
+        Compilation compilation = PercolateCompiler.compile(person, human, skipMapper)
 
         then: 'compilation failed at the @Mapper declaration site, not at a generated Impl'
         def errors = compilation.diagnostics().findAll { it.kind == Diagnostic.Kind.ERROR }

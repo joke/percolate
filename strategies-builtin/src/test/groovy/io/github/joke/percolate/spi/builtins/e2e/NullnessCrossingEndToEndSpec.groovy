@@ -1,9 +1,8 @@
-package io.github.joke.percolate.processor.stages.generate
+package io.github.joke.percolate.spi.builtins.e2e
 
 import com.google.testing.compile.Compilation
-import com.google.testing.compile.Compiler
 import com.google.testing.compile.JavaFileObjects
-import io.github.joke.percolate.processor.PercolateProcessor
+import io.github.joke.percolate.test.PercolateCompiler
 import spock.lang.Specification
 import spock.lang.Tag
 
@@ -41,9 +40,7 @@ class NullnessCrossingEndToEndSpec extends Specification {
                 '}')
 
         when:
-        Compilation compilation = Compiler.javac()
-                .withProcessors(new PercolateProcessor())
-                .compile(packageInfo, source, target, mapper)
+        Compilation compilation = PercolateCompiler.compile(packageInfo, source, target, mapper)
 
         then: 'compilation succeeds and the generated body guards the nullable source'
         compilation.errors().empty

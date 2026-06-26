@@ -1,0 +1,18 @@
+plugins {
+    id 'java-platform'
+    id 'maven-publish'
+}
+
+// Consumer Bill of Materials: manages versions of percolate's OWN published artifacts.
+// Distinct from the internal ':dependencies' platform, which pins third-party versions.
+dependencies {
+    constraints {
+        api project(':annotations')
+        api project(':percolate')
+        api project(':processor')
+        api project(':spi')
+        api project(':strategies-builtin')
+        api project(':reactor')
+        api project(':reactor-blocking')
+    }
+}

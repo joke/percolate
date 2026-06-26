@@ -1,0 +1,32 @@
+plugins {
+    id 'java'
+}
+
+repositories {
+    mavenLocal()
+    mavenCentral()
+}
+
+// Black-box consumer wiring: percolate is a compile-time-only tool, so the starter goes on
+// annotationProcessor and the annotations on compileOnly. Versions are managed by the BOM, so the
+// percolate dependencies carry no explicit version. No project(':...'), no test-foundation.
+def percolateVersion = '0.1.0-SNAPSHOT'
+
+dependencies {
+    annotationProcessor platform("io.github.joke.percolate:percolate-bom:${percolateVersion}")
+    annotationProcessor 'io.github.joke.percolate:percolate'
+
+    compileOnly platform("io.github.joke.percolate:percolate-bom:${percolateVersion}")
+    compileOnly 'io.github.joke.percolate:percolate-annotations'
+}
+
+// Runs the generated mapper on the MAIN runtime classpath, which carries no percolate artifact —
+// proving both that the published path generates a working mapper and that the footprint is zero.
+tasks.register('smokeRun', JavaExec) {
+    classpath = sourceSets.main.runtimeClasspath
+    mainClass = 'com.example.smoke.SmokeMain'
+}
+
+tasks.named('check') {
+    dependsOn 'smokeRun'
+}

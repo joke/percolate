@@ -14,10 +14,12 @@ pluginManagement {
 rootProject.name = 'percolate'
 
 include 'annotations'
-// include 'bom'
+include 'bom'
 include 'dependencies'
 include 'processor'
 include 'spi'
 include 'strategies-builtin'
 include 'reactor'
 include 'reactor-blocking'
+include 'percolate'
+include 'test-foundation'

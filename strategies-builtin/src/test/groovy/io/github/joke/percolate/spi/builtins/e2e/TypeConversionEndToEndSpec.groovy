@@ -1,9 +1,8 @@
-package io.github.joke.percolate.processor.stages.generate
+package io.github.joke.percolate.spi.builtins.e2e
 
 import com.google.testing.compile.Compilation
-import com.google.testing.compile.Compiler
 import com.google.testing.compile.JavaFileObjects
-import io.github.joke.percolate.processor.PercolateProcessor
+import io.github.joke.percolate.test.PercolateCompiler
 import spock.lang.Specification
 import spock.lang.Tag
 
@@ -91,6 +90,6 @@ class TypeConversionEndToEndSpec extends Specification {
                 '    CvTarget map(CvSource source);',
                 '}')
 
-        Compiler.javac().withProcessors(new PercolateProcessor()).compile(source, target, mapper)
+        PercolateCompiler.compile(source, target, mapper)
     }
 }

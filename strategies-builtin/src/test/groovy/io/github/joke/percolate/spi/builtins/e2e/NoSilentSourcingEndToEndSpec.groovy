@@ -1,9 +1,8 @@
-package io.github.joke.percolate.processor.stages.expand
+package io.github.joke.percolate.spi.builtins.e2e
 
 import com.google.testing.compile.Compilation
-import com.google.testing.compile.Compiler
 import com.google.testing.compile.JavaFileObjects
-import io.github.joke.percolate.processor.PercolateProcessor
+import io.github.joke.percolate.test.PercolateCompiler
 import spock.lang.Specification
 import spock.lang.Tag
 
@@ -41,9 +40,7 @@ class NoSilentSourcingEndToEndSpec extends Specification {
                 '}')
 
         when:
-        Compilation compilation = Compiler.javac()
-                .withProcessors(new PercolateProcessor())
-                .compile(source, target, mapper)
+        Compilation compilation = PercolateCompiler.compile(source, target, mapper)
 
         then: 'the gate rejects the 2-arg constructor (param set {a,b} != declared {a}); no vacuous fallback fires'
         def errors = compilation.diagnostics().findAll { it.kind == Diagnostic.Kind.ERROR }

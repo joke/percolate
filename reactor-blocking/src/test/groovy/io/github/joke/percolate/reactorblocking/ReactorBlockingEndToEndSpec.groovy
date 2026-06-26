@@ -1,9 +1,8 @@
 package io.github.joke.percolate.reactorblocking
 
 import com.google.testing.compile.Compilation
-import com.google.testing.compile.Compiler
 import com.google.testing.compile.JavaFileObjects
-import io.github.joke.percolate.processor.PercolateProcessor
+import io.github.joke.percolate.test.PercolateCompiler
 import spock.lang.Specification
 import spock.lang.Tag
 
@@ -154,9 +153,7 @@ class ReactorBlockingEndToEndSpec extends Specification {
                 '    @Map(target = "name", source = "dto.name")',
                 '    PersonDAO mapOne(PersonDTO dto);',
                 '}')
-        Compiler.javac()
-                .withProcessors(new PercolateProcessor())
-                .compile(DTO, DAO, bean('Src', srcType), bean('Tgt', tgtType), mapper)
+        PercolateCompiler.compile(DTO, DAO, bean('Src', srcType), bean('Tgt', tgtType), mapper)
     }
 
     private static String body(final Compilation compilation) {
@@ -184,9 +181,7 @@ class ReactorBlockingEndToEndSpec extends Specification {
                 '    @Map(target = "name", source = "dto.name")',
                 '    PersonDAO mapOne(PersonDTO dto);',
                 '}')
-        Compiler.javac()
-                .withProcessors(new PercolateProcessor())
-                .compile(DTO, DAO, mapper)
+        PercolateCompiler.compile(DTO, DAO, mapper)
     }
 
     private static String paramBody(final Compilation compilation) {

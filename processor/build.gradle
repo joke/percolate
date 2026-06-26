@@ -1,6 +1,7 @@
 plugins {
     id 'java'
     id 'groovy'
+    id 'maven-publish'
 }
 
 dependencies {
@@ -24,9 +25,12 @@ dependencies {
     implementation 'com.google.auto:auto-common'
     implementation 'com.google.dagger:dagger'
 
-    runtimeOnly project(':strategies-builtin')
+    // No edge to any strategy module: the engine is built and tested strategy-free. Bundling of the
+    // builtins for consumers is owned by the ':percolate' convenience starter. Engine e2e tests drive
+    // generation with the FakeStrategy from ':test-foundation', registered via a test-local META-INF/services.
 
     testImplementation platform(project(':dependencies'))
+    testImplementation project(':test-foundation')
     testImplementation 'com.google.testing.compile:compile-testing'
     testImplementation 'org.spockframework:spock-core'
     testImplementation 'org.assertj:assertj-core'
