@@ -16,7 +16,7 @@ class GetterPathResolverSpec extends Specification {
 
     def 'matches a getX accessor as a unary operation typed to the return type'() {
         given:
-        def personBean = TypeUniverse.element('io.github.joke.percolate.spi.builtins.fixtures.PersonBean').asType()
+        def personBean = TypeUniverse.of(io.github.joke.percolate.spi.builtins.fixtures.PersonBean).asType()
 
         when:
         def specs = new GetterPathResolver().descend(Demands.descend(personBean, 'name'), ctx).toList()
@@ -35,7 +35,7 @@ class GetterPathResolverSpec extends Specification {
 
     def 'types the produced value through the demand nullness oracle'() {
         given:
-        def personBean = TypeUniverse.element('io.github.joke.percolate.spi.builtins.fixtures.PersonBean').asType()
+        def personBean = TypeUniverse.of(io.github.joke.percolate.spi.builtins.fixtures.PersonBean).asType()
 
         when:
         def specs = new GetterPathResolver().descend(Demands.descend(personBean, 'name', Nullability.NULLABLE), ctx).toList()
@@ -47,7 +47,7 @@ class GetterPathResolverSpec extends Specification {
 
     def 'matches an isX accessor for a boolean-returning method'() {
         given:
-        def booleanBean = TypeUniverse.element('io.github.joke.percolate.spi.builtins.fixtures.BooleanBean').asType()
+        def booleanBean = TypeUniverse.of(io.github.joke.percolate.spi.builtins.fixtures.BooleanBean).asType()
 
         when:
         def specs = new GetterPathResolver().descend(Demands.descend(booleanBean, 'flag'), ctx).toList()
@@ -60,7 +60,7 @@ class GetterPathResolverSpec extends Specification {
 
     def 'rejects parameterized overloads when no zero-arg getter exists'() {
         given:
-        def overloaded = TypeUniverse.element('io.github.joke.percolate.spi.builtins.fixtures.OverloadedGetter').asType()
+        def overloaded = TypeUniverse.of(io.github.joke.percolate.spi.builtins.fixtures.OverloadedGetter).asType()
 
         expect:
         new GetterPathResolver().descend(Demands.descend(overloaded, 'name'), ctx).toList().empty

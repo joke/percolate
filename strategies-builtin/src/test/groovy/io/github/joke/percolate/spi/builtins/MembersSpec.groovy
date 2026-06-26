@@ -13,7 +13,7 @@ class MembersSpec extends Specification {
     def 'declaredMembersOf enumerates accessible members of the type'() {
         given:
         def ctx = new ResolveCtxBuilder().build()
-        def typeElement = TypeUniverse.element('io.github.joke.percolate.spi.builtins.fixtures.PersonBean')
+        def typeElement = TypeUniverse.of(io.github.joke.percolate.spi.builtins.fixtures.PersonBean)
 
         when:
         def memberNames = []
@@ -27,7 +27,7 @@ class MembersSpec extends Specification {
     def 'isInObjectClass distinguishes Object methods from declared-type methods'() {
         given:
         def ctx = new ResolveCtxBuilder().build()
-        def typeElement = TypeUniverse.element('io.github.joke.percolate.spi.builtins.fixtures.PersonBean')
+        def typeElement = TypeUniverse.of(io.github.joke.percolate.spi.builtins.fixtures.PersonBean)
         def members = []
         Members.declaredMembersOf(typeElement, ctx).each { members << it }
 

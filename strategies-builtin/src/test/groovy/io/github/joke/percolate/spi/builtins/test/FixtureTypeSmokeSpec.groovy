@@ -12,7 +12,7 @@ class FixtureTypeSmokeSpec extends Specification {
 
     def 'TypeUniverse resolves PersonRecord fixture'() {
         expect:
-        def element = TypeUniverse.element('io.github.joke.percolate.spi.builtins.fixtures.PersonRecord')
+        def element = TypeUniverse.of(io.github.joke.percolate.spi.builtins.fixtures.PersonRecord)
         element != null
         element instanceof TypeElement
         element.asType() instanceof DeclaredType
@@ -20,7 +20,7 @@ class FixtureTypeSmokeSpec extends Specification {
 
     def 'TypeUniverse resolves PersonBean fixture'() {
         expect:
-        def element = TypeUniverse.element('io.github.joke.percolate.spi.builtins.fixtures.PersonBean')
+        def element = TypeUniverse.of(io.github.joke.percolate.spi.builtins.fixtures.PersonBean)
         element != null
         element instanceof TypeElement
         element.asType() instanceof DeclaredType
@@ -28,7 +28,7 @@ class FixtureTypeSmokeSpec extends Specification {
 
     def 'TypeUniverse resolves BooleanBean fixture'() {
         expect:
-        def element = TypeUniverse.element('io.github.joke.percolate.spi.builtins.fixtures.BooleanBean')
+        def element = TypeUniverse.of(io.github.joke.percolate.spi.builtins.fixtures.BooleanBean)
         element != null
         element instanceof TypeElement
         element.asType() instanceof DeclaredType
@@ -36,7 +36,7 @@ class FixtureTypeSmokeSpec extends Specification {
 
     def 'TypeUniverse resolves PersonByFieldOrder fixture'() {
         expect:
-        def element = TypeUniverse.element('io.github.joke.percolate.spi.builtins.fixtures.PersonByFieldOrder')
+        def element = TypeUniverse.of(io.github.joke.percolate.spi.builtins.fixtures.PersonByFieldOrder)
         element != null
         element instanceof TypeElement
         element.asType() instanceof DeclaredType

@@ -13,7 +13,7 @@ import spock.lang.Tag
 class FieldPathResolverSpec extends Specification {
 
     def ctx = new ResolveCtxBuilder().build()
-    def box = TypeUniverse.element('io.github.joke.percolate.spi.builtins.fixtures.BoxFixture').asType()
+    def box = TypeUniverse.of(io.github.joke.percolate.spi.builtins.fixtures.BoxFixture).asType()
 
     def 'matches a public, non-static field as a unary accessor operation typed to the field type'() {
         when:

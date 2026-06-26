@@ -27,7 +27,7 @@ class ConstructorCallSpec extends Specification {
 
     def 'emits a multi-port assembly operation over the constructor parameters when the goal spec matches'() {
         given:
-        def personRecord = TypeUniverse.element('io.github.joke.percolate.spi.builtins.fixtures.PersonRecord').asType()
+        def personRecord = TypeUniverse.of(io.github.joke.percolate.spi.builtins.fixtures.PersonRecord).asType()
         def declared = constructorParamNames(personRecord)
 
         when:
@@ -54,7 +54,7 @@ class ConstructorCallSpec extends Specification {
 
     def 'binds ports in constructor-parameter order for PersonByFieldOrder'() {
         given:
-        def personByFieldOrder = TypeUniverse.element('io.github.joke.percolate.spi.builtins.fixtures.PersonByFieldOrder').asType()
+        def personByFieldOrder = TypeUniverse.of(io.github.joke.percolate.spi.builtins.fixtures.PersonByFieldOrder).asType()
         def declared = constructorParamNames(personByFieldOrder)
 
         when:
@@ -69,7 +69,7 @@ class ConstructorCallSpec extends Specification {
 
     def 'rejects a constructor whose parameters do not match the declared-children goal spec'() {
         given:
-        def personRecord = TypeUniverse.element('io.github.joke.percolate.spi.builtins.fixtures.PersonRecord').asType()
+        def personRecord = TypeUniverse.of(io.github.joke.percolate.spi.builtins.fixtures.PersonRecord).asType()
 
         expect:
         new ConstructorCall().expand(Demands.assembling(personRecord, ['nonexistent'] as Set), ctx).toList().empty

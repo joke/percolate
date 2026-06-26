@@ -16,7 +16,7 @@ class MethodPathResolverSpec extends Specification {
 
     def 'matches a canonical record accessor as a unary operation typed to the return type'() {
         given:
-        def point = TypeUniverse.element('io.github.joke.percolate.spi.builtins.fixtures.Point').asType()
+        def point = TypeUniverse.of(io.github.joke.percolate.spi.builtins.fixtures.Point).asType()
 
         when:
         def specs = new MethodPathResolver().descend(Demands.descend(point, 'x'), ctx).toList()
@@ -35,7 +35,7 @@ class MethodPathResolverSpec extends Specification {
 
     def 'matches a non-record fluent-style accessor'() {
         given:
-        def address = TypeUniverse.element('io.github.joke.percolate.spi.builtins.fixtures.AddressFluent').asType()
+        def address = TypeUniverse.of(io.github.joke.percolate.spi.builtins.fixtures.AddressFluent).asType()
 
         when:
         def specs = new MethodPathResolver().descend(Demands.descend(address, 'street'), ctx).toList()
@@ -48,7 +48,7 @@ class MethodPathResolverSpec extends Specification {
 
     def 'rejects parameterised methods of the same name'() {
         given:
-        def overloaded = TypeUniverse.element('io.github.joke.percolate.spi.builtins.fixtures.OverloadedGetter').asType()
+        def overloaded = TypeUniverse.of(io.github.joke.percolate.spi.builtins.fixtures.OverloadedGetter).asType()
 
         expect:
         new MethodPathResolver().descend(Demands.descend(overloaded, 'getName'), ctx).toList().empty

@@ -77,14 +77,8 @@ final class TypeUniverse {
     static final TypeMirror LONG_TYPE = lookup('java.lang.Long').asType()
     static final TypeMirror STRING = lookup('java.lang.String').asType()
     static final TypeMirror DAY_OF_WEEK = lookup('java.time.DayOfWeek').asType()
-    static final TypeMirror LOCAL_DATE_TIME = lookup('java.time.LocalDateTime').asType()
-    static final TypeMirror INSTANT = lookup('java.time.Instant').asType()
     static final TypeMirror LIST_OF_INT = TYPE_UTILS.getDeclaredType(lookup('java.util.List'), INTEGER)
     static final TypeMirror LIST_OF_STRING = TYPE_UTILS.getDeclaredType(lookup('java.util.List'), STRING)
-
-    private static final List<TypeMirror> TYPE_POOL = [
-            INT, LONG, INTEGER, LONG_TYPE, STRING, DAY_OF_WEEK, LOCAL_DATE_TIME, INSTANT, LIST_OF_INT, LIST_OF_STRING
-    ].asImmutable()
 
     private TypeUniverse() {}
 
@@ -205,21 +199,17 @@ final class TypeUniverse {
         }
     }
 
-    static List<TypeMirror> pool() {
-        TYPE_POOL
-    }
-
     static TypeElement element(final String qualifiedName) {
         lookup(qualifiedName)
     }
 
     /**
-     * Convenience placeholder for tests that need an AnnotatedConstruct (Slot.producedFrom,
-     * ResolvedSegment.producedFrom) but do not care about its nullability annotations.
-     * Returns a real TypeElement that carries no JSpecify annotations.
+     * Resolve a type from a {@link Class} literal through the same javac substrate as {@link #element}. A
+     * rename-safe, IDE-tracked alternative to passing a fully-qualified string — preferred for fixture types
+     * that exist as compiled classes on the test classpath.
      */
-    static javax.lang.model.AnnotatedConstruct anyConstruct() {
-        lookup('java.lang.String')
+    static TypeElement of(final Class<?> type) {
+        lookup(type.canonicalName)
     }
 
     private static JavacTask createTask() {

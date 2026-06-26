@@ -11,9 +11,8 @@ public final class SmokeMain {
 
     public static void main(final String[] args) {
         final Human human = new PersonMapperImpl().map(new Person("Alice", 30));
-        if (!"Alice".equals(human.getFirstName()) || human.getAge() == null || human.getAge() != 30) {
+        if (!"Alice".equals(human.getFirstName()) || human.getAge() != 30) {
             throw new AssertionError("smoke mapping failed: " + human.getFirstName() + " / " + human.getAge());
         }
-        System.out.println("percolate smoke OK: " + human.getFirstName() + ", " + human.getAge());
     }
 }

@@ -6,9 +6,9 @@ import spock.lang.Tag
 @Tag('unit')
 class TypeUniverseSpec extends Specification {
 
-    def 'pool contains expected number of types'() {
+    def 'of(Class) resolves the same element as element(String)'() {
         expect:
-        TypeUniverse.pool().size() == 10
+        TypeUniverse.of(String) == TypeUniverse.element('java.lang.String')
     }
 
     def 'types util is consistent with fields'() {

@@ -183,6 +183,17 @@ subprojects { project ->
                     maven(MavenPublication) {
                         artifactId = publishedArtifactId
                         from components.java
+                        // Pin concrete versions resolved from the build, so the POM needs no version platform.
+                        versionMapping {
+                            usage('java-api') { fromResolutionResult() }
+                            usage('java-runtime') { fromResolutionResult() }
+                        }
+                        // Drop the internal ':dependencies' platform's BOM-import: with versions pinned above the
+                        // import is redundant, and keeping it would leak internal constraints onto consumers (and
+                        // force us to publish the internal platform). Leaves consumer POMs self-contained.
+                        pom.withXml {
+                            asNode().dependencyManagement.each { it.parent().remove(it) }
+                        }
                     }
                 }
             }
