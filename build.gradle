@@ -19,6 +19,12 @@ antora {
     ]
 }
 
+// The doc-example e2e specs materialise the real doc-tagged generated source the manual include::s,
+// so the site build must run them first; the collector then scans their output into the catalog.
+tasks.named('antora') {
+    dependsOn ':strategies-builtin:integrationTest'
+}
+
 subprojects { project ->
     group = 'io.github.joke.percolate'
     version = '0.1.0-SNAPSHOT'

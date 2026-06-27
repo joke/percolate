@@ -19,8 +19,8 @@
 
 ## 4. Single-source the generated output
 
-- [ ] 4.1 Have the doc-example e2e specs compile their fixture with `-Apercolate.docTags=true`, assert the semantic invariant, and materialise the tagged generated source to a build directory the collector scans; make the `antora` Gradle task `dependsOn` that producing test task so ordering is a task edge
-- [ ] 4.2 Replace the hand-typed generated-output block in `nested-paths.adoc` (and any like it) with an `include::` of the materialised output by tag; update the manual so every shown output is single-sourced or absent
+- [x] 4.1 `DocExamplesEndToEndSpec.generate` now compiles each fixture with `-Apercolate.docTags=true`, asserts the semantic invariant, and materialises the tagged generated source to `build/generated-doc-examples/<category>/<Impl>.java`; a second collector `scan` imports that dir, and `tasks.named('antora') { dependsOn ':strategies-builtin:integrationTest' }` makes the ordering a task edge
+- [x] 4.2 Replaced the hand-typed generated-output block in `nested-paths.adoc` with `include::example$nested-paths/ProfileMapperImpl.java[tag=map]`; verified the page renders the real generated body with the tag-directive lines stripped
 
 ## 5. Reactive example in the reactor module
 

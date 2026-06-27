@@ -61,10 +61,24 @@ class DocExamplesEndToEndSpec extends Specification {
     }
 
     private static String generate(final String resource, final String implFqn) {
-        Compilation c = PercolateCompiler.compile(JavaFileObjects.forResource(resource))
+        Compilation c = PercolateCompiler.compileWith(['-Apercolate.docTags=true'], JavaFileObjects.forResource(resource))
         assert c.errors().empty
         def gen = c.generatedSourceFile(implFqn)
         assert gen.present
-        gen.get().getCharContent(true).toString()
+        def source = gen.get().getCharContent(true).toString()
+        materialise(resource, implFqn, source)
+        source
+    }
+
+    /**
+     * Write the real, doc-tagged generated source where the antora-collector scans it, so the manual single-sources
+     * its shown output from this compilation rather than hand-typing it. Mirrors the input fixture's category path.
+     */
+    private static void materialise(final String resource, final String implFqn, final String source) {
+        def category = resource.replaceFirst('^examples/', '').replaceFirst('/[^/]+$', '')
+        def simpleName = implFqn.substring(implFqn.lastIndexOf('.') + 1)
+        def target = new File("build/generated-doc-examples/${category}/${simpleName}.java")
+        target.parentFile.mkdirs()
+        target.text = source
     }
 }

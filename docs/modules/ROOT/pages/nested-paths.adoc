@@ -20,10 +20,7 @@ percolate generates:
 
 [source,java]
 ----
-@Override
-public Profile map(User user) {
-    return new Profile(new Location(user.getCompany().getAddress().getCity()));
-}
+include::example$nested-paths/ProfileMapperImpl.java[tag=map]
 ----
 
 == Source paths descend through accessors
