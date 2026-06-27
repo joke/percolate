@@ -24,4 +24,4 @@
 - [x] 4.1 Update the Extending (SPI) page of the user manual to state the now-enforced strategy-author boundary: a strategy implementation makes a local decision only and must not depend on the engine graph (enforced by the architecture suite)
 - [x] 4.2 Confirm this change adds NO build-config rule that fails on the existing `docs/` `srcDir` reach (that is healed by the later documentation-overhaul change)
 - [x] 4.3 Run `./gradlew check` and verify everything passes. NEVER continue if there are violations
-- [ ] 4.4 Commit the completed change with `/commit-commands:commit`
+- [x] 4.4 Commit the completed change with `/commit-commands:commit`
