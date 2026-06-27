@@ -1,0 +1,41 @@
+plugins {
+    id 'groovy'
+}
+
+// Cross-module architecture rules (ArchUnit). Test-only, never published. It takes every percolate
+// module on its test classpath so ArchUnit can import their classes and assert the declared
+// boundaries; the standard `test` task wires the rules into `./gradlew check`.
+dependencies {
+    testImplementation platform(project(':dependencies'))
+    testImplementation project(':annotations')
+    testImplementation project(':spi')
+    testImplementation project(':processor')
+    testImplementation project(':strategies-builtin')
+    testImplementation project(':reactor')
+    testImplementation project(':reactor-blocking')
+    testImplementation project(':test-foundation')
+    testImplementation 'com.tngtech.archunit:archunit'
+    testImplementation 'org.apache.groovy:groovy'
+    testImplementation 'org.spockframework:spock-core'
+}
+
+// The encapsulation rule must see other modules' TEST classes (e.g. a strategy spec reaching into an
+// engine internal package), which never appear on the normal classpath. Pass the strategy modules'
+// main+test class directories explicitly so ArchUnit can import them via paths. Resolved to absolute
+// path strings at configuration time so the configuration cache stays happy.
+def boundaryProbeModules = [':strategies-builtin', ':reactor', ':reactor-blocking']
+def boundaryProbeLayout = ['classes/java/main', 'classes/groovy/main', 'classes/java/test', 'classes/groovy/test']
+tasks.named('test') {
+    boundaryProbeModules.each { dependsOn "${it}:testClasses" }
+    def probeDirs = boundaryProbeModules.collectMany { path ->
+        def buildDir = project(path).layout.buildDirectory
+        boundaryProbeLayout.collect { buildDir.dir(it).get().asFile }
+    }
+    inputs.files(probeDirs).withPropertyName('boundaryProbeClasses').optional()
+    systemProperty 'percolate.boundaryProbeClasses', probeDirs*.absolutePath.join(File.pathSeparator)
+}
+
+// No production code lives here, so branch-coverage verification has nothing to measure.
+tasks.named('jacocoTestCoverageVerification') {
+    enabled = false
+}

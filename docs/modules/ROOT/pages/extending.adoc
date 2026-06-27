@@ -37,7 +37,9 @@ Two principles keep extensions composable:
 
 * **Strategies are myopic.** A strategy makes a local decision from the demand and the resolve context
   only. It never inspects or mutates the engine's graph — the engine owns all wiring. Needing graph access
-  is a sign the decision belongs in the engine, not a strategy.
+  is a sign the decision belongs in the engine, not a strategy. This is not just a guideline: the engine's
+  graph and stages live in an internal package the SPI never exposes, and an architecture test fails the
+  build if a strategy implementation depends on it.
 * **Over-emit, then prune.** A strategy returns *candidate* operations; the engine picks the cheapest
   viable plan by weight. You do not decide whether your candidate "wins".
 

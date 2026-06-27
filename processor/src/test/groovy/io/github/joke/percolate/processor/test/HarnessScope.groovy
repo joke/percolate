@@ -1,6 +1,6 @@
 package io.github.joke.percolate.processor.test
 
-import io.github.joke.percolate.processor.graph.Scope
+import io.github.joke.percolate.processor.internal.graph.Scope
 
 final class HarnessScope implements Scope {
 

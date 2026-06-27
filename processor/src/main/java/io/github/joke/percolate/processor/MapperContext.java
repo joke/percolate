@@ -1,7 +1,7 @@
 package io.github.joke.percolate.processor;
 
-import io.github.joke.percolate.processor.graph.MapperGraph;
-import io.github.joke.percolate.processor.graph.Scope;
+import io.github.joke.percolate.processor.internal.graph.MapperGraph;
+import io.github.joke.percolate.processor.internal.graph.Scope;
 import io.github.joke.percolate.processor.model.GoalSpec;
 import io.github.joke.percolate.processor.model.MapperMappings;
 import io.github.joke.percolate.processor.model.MapperShape;
