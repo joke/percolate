@@ -16,5 +16,11 @@ ui:
     url: https://gitlab.com/antora/antora-ui-default/-/jobs/artifacts/HEAD/raw/build/ui-bundle.zip?job=bundle-stable
     snapshot: true
 
+antora:
+  extensions:
+  # Installed into Antora's Node context by the org.antora plugin's `packages` map (see build.gradle).
+  # Imports module-owned example fixtures into the content catalog via `ext.collector` scan entries.
+  - require: '@antora/collector-extension'
+
 output:
   dir: ./build/site

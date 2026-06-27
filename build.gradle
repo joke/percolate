@@ -4,6 +4,19 @@ plugins {
     id 'net.ltgt.errorprone' apply false
     id 'net.ltgt.nullaway' apply false
     id 'org.danilopianini.cpd' apply false
+    id 'org.antora'
+}
+
+// The Antora user manual is provisioned and run by the org.antora plugin on a managed Node runtime,
+// so the site build is a `./gradlew antora` task that participates in the Gradle graph (replacing the
+// mise npm:antora pin). The collector extension is installed in Antora's own Node context via packages.
+antora {
+    version = '3.1.15'
+    playbook = 'antora-playbook.yml'
+    options = [clean: true, fetch: true]
+    packages = [
+            '@antora/collector-extension': '1.0.3'
+    ]
 }
 
 subprojects { project ->

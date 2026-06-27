@@ -13,21 +13,25 @@ public class ProcessorOptions {
     public static final String NULLABLE_ANNOTATIONS = "percolate.nullable.annotations";
     public static final String LOCALS_FINAL = "percolate.locals.final";
     public static final String LOCALS_VAR = "percolate.locals.var";
+    public static final String DOC_TAGS = "percolate.docTags";
 
     boolean debugGraphs;
     Set<String> customNullableAnnotations;
     boolean localsFinal;
     boolean localsVar;
+    boolean docTags;
 
     public ProcessorOptions(
             final boolean debugGraphs,
             final Set<String> customNullableAnnotations,
             final boolean localsFinal,
-            final boolean localsVar) {
+            final boolean localsVar,
+            final boolean docTags) {
         this.debugGraphs = debugGraphs;
         this.customNullableAnnotations = Set.copyOf(customNullableAnnotations);
         this.localsFinal = localsFinal;
         this.localsVar = localsVar;
+        this.docTags = docTags;
     }
 
     static ProcessorOptions from(final Map<String, String> options) {
@@ -41,7 +45,8 @@ public class ProcessorOptions {
                     .filter(s -> !s.isEmpty())
                     .collect(Collectors.toUnmodifiableSet());
         }
-        return new ProcessorOptions(debug, nullable, flag(options, LOCALS_FINAL), flag(options, LOCALS_VAR));
+        return new ProcessorOptions(
+                debug, nullable, flag(options, LOCALS_FINAL), flag(options, LOCALS_VAR), flag(options, DOC_TAGS));
     }
 
     private static boolean flag(final Map<String, String> options, final String key) {

@@ -66,7 +66,24 @@ public final class BuildMethodBodies {
         final var hoist = HoistPlan.forMethod(graph, plan, root, reserved);
         final var style = new LocalStyle(options.isLocalsFinal(), options.isLocalsVar());
         final var body = new Walk(graph, plan, hoist, style).renderMethodBody(root);
-        return new MethodImpl(method, body, Set.of());
+        return new MethodImpl(method, docTagged(body, method), Set.of());
+    }
+
+    /**
+     * When the {@code docTags} option is on, bracket the method body with AsciiDoc include-tag comments named after
+     * the method, so a documentation build can {@code include::[tag=<method>]} the generated body. Off by default,
+     * so ordinary consumer output is byte-for-byte unchanged. The tag-directive lines are stripped by the include.
+     */
+    private CodeBlock docTagged(final CodeBlock body, final ExecutableElement method) {
+        if (!options.isDocTags()) {
+            return body;
+        }
+        final var name = method.getSimpleName().toString();
+        return CodeBlock.builder()
+                .add("// tag::$L[]\n", name)
+                .add(body)
+                .add("// end::$L[]\n", name)
+                .build();
     }
 
     private static Value returnRoot(final MapperGraph graph, final Scope scope) {
