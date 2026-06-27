@@ -24,7 +24,7 @@
 
 ## 5. Reactive example in the reactor module
 
-- [ ] 5.1 Add a `Flux`/`Mono` example mapper fixture in `reactor/src/test/resources`, a reactor end-to-end spec exercising it, a manual page (and nav entry), and a collector `scan` entry — the example compiles where its atoms live
+- [x] 5.1 Added `reactor/src/test/resources/examples/reactive/FeedMapper.java` (a `Flux<Article> -> Flux<ArticleView>` mapper + element method, self-contained with tagged model), `ReactiveDocExampleSpec` (asserts the generated `flux.map`/`toView`, no `stream()`/`block()`), a `reactive.adoc` page + nav entry, and a collector `scan` for `reactor/src/test/resources/examples`. Reactor e2e + codenarc green; antora renders the page from the reactor-owned fixture
 
 ## 6. Gate the deploy on a green build
 

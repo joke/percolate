@@ -18,6 +18,11 @@ ext:
       dir: strategies-builtin/src/test/resources/examples
       files: '**/*.java'
       into: modules/ROOT/examples
+  # The reactive example is owned by and compiled in the reactor module (the only place Flux/Mono compile).
+  - scan:
+      dir: reactor/src/test/resources/examples
+      files: '**/*.java'
+      into: modules/ROOT/examples
   # The real doc-tagged generated source, materialised by the doc-example e2e specs (the antora task
   # dependsOn them). Pages include the generated body by tag, so shown output cannot drift from code.
   - scan:

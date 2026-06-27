@@ -4,6 +4,7 @@
 * xref:map-annotation.adoc[The @Map annotation]
 * xref:nested-paths.adoc[Nested paths]
 * xref:collections.adoc[Collections]
+* xref:reactive.adoc[Reactive containers]
 * Conversions
 ** xref:conversion-methods.adoc[Conversion methods]
 ** xref:default-method-conversions.adoc[Default-method conversions]
