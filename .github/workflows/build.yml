@@ -4,6 +4,10 @@ on:
   pull_request:
   push:
     branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
 
 jobs:
   build:
@@ -20,3 +24,42 @@ jobs:
         name: rests
         path: '**/test-results/test/TEST-*xml'
         reporter: java-junit
+
+  # Build the Antora user manual, but only after `check` passes (needs: build) and never on a PR.
+  # This gates publishing on a green build: a failing check skips docs + deploy, leaving the live site.
+  # ONE-TIME SETUP (cannot be automated): Settings → Pages → "Build and deployment" → Source = "GitHub Actions".
+  docs:
+    needs: build
+    if: github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v7
+      with:
+          # Antora derives versions from git refs; full history + tags are required.
+        fetch-depth: 0
+    - uses: jdx/mise-action@v4
+    - uses: gradle/actions/setup-gradle@v5
+      # The org.antora plugin builds the site on a managed Node; the `antora` task dependsOn the
+      # doc-example specs that materialise the generated output the manual include::s.
+    - run: ./gradlew antora
+    - uses: actions/upload-pages-artifact@v3
+      with:
+        path: build/site
+
+  deploy:
+    needs: docs
+    if: github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    # One concurrent Pages deployment; let an in-progress one finish rather than cancelling it.
+    concurrency:
+      group: pages
+      cancel-in-progress: false
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+    - id: deployment
+      uses: actions/deploy-pages@v4

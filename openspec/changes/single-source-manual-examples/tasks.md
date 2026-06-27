@@ -28,10 +28,10 @@
 
 ## 6. Gate the deploy on a green build
 
-- [ ] 6.1 Reconcile `build.yml` and `docs.yml` so the Pages deploy `needs:` a green `./gradlew check`: with the site build now a `./gradlew antora` task, the CI job runs `./gradlew check` then `./gradlew antora` and uploads `build/site`, and the deploy job `needs:` it; carry the `fetch-depth: 0` checkout and `pages: write`/`id-token: write` permissions, and resolve the `build` job-name collision
+- [x] 6.1 Folded the docs build+deploy into `build.yml` and deleted `docs.yml`: a `docs` job `needs: build` (the `./gradlew check` job) and runs `./gradlew antora` only when not a PR; a `deploy` job `needs: docs` runs `actions/deploy-pages` with deploy-scoped `pages: write`/`id-token: write` and the `pages` concurrency group. `fetch-depth: 0` on the docs checkout; the `build` job-name collision is gone. A failed check skips docs+deploy, leaving the live site
 
 ## 7. Verify
 
-- [ ] 7.1 Confirm the manual is updated: input and output examples are single-sourced, the reactive page is present, no hand-typed generated output remains
-- [ ] 7.2 Run `./gradlew check` and verify everything passes; run a local `antora` build and confirm it renders inputs and outputs from real fixtures. NEVER continue if there are violations
-- [ ] 7.3 Commit the completed change with `/commit-commands:commit`
+- [x] 7.1 Manual updated: inputs are module-owned + collector-imported, `nested-paths` output is single-sourced from real generation, the reactive page is present, no hand-typed generated output remains
+- [x] 7.2 `./gradlew check` is green across all modules; a local `./gradlew antora` build renders inputs (collections `TeamMapper`), real generated output (`nested-paths`), and the reactive page (`FeedMapper`), with no `tag::` directives leaked into any page
+- [x] 7.3 Commit the completed change with `/commit-commands:commit`
