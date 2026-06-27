@@ -49,6 +49,27 @@ break the build, so a published example cannot silently diverge from compiled co
 - **THEN** it resides in the owning module's test sources and reaches the site via the collector, with no
   cross-module `srcDir` reaching into the docs tree
 
+### Requirement: The documentation toolchain is a Gradle-provisioned Antora build
+
+The site build SHALL be provisioned and run by the `org.antora` Gradle plugin on a managed Node runtime, so
+a contributor builds the manual with `./gradlew antora` using the same toolchain CI uses, requiring no
+system Node. The plugin SHALL declare the Antora version and SHALL install the `@antora/collector-extension`
+via its `packages` map (in Antora's own Node context). `.mise.toml` SHALL NOT pin an Antora npm tool.
+
+#### Scenario: Antora is provisioned by the Gradle plugin
+- **WHEN** the root build is inspected
+- **THEN** it applies `org.antora`, configures the Antora version, the playbook, and the collector extension
+  in `packages`, and `.mise.toml` declares no Antora npm tool
+
+#### Scenario: The manual builds via Gradle
+- **WHEN** `./gradlew antora` runs
+- **THEN** the plugin provisions Node, installs Antora and the collector, and produces the static site
+
+## RENAMED Requirements
+
+- FROM: `### Requirement: The documentation toolchain is declared for local builds`
+- TO: `### Requirement: The documentation toolchain is a Gradle-provisioned Antora build`
+
 ## ADDED Requirements
 
 ### Requirement: Documented generated output is single-sourced from real generation

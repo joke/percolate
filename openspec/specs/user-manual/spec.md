@@ -44,14 +44,17 @@ release tags present, the site SHALL contain exactly one version.
 
 ### Requirement: The site deploys to GitHub Pages on every push to main
 
-The repository SHALL define `.github/workflows/docs.yml` that, on every push to `main`, builds the Antora
-site and publishes it to GitHub Pages via `actions/upload-pages-artifact` and `actions/deploy-pages`. The
-job SHALL grant `pages: write` and `id-token: write` permissions and SHALL check out full git history
+The repository SHALL define `.github/workflows/docs.yml` (or an equivalent pipeline) that, on every push
+to `main`, builds the Antora site and publishes it to GitHub Pages via `actions/upload-pages-artifact` and
+`actions/deploy-pages`. The deploy SHALL be **gated on `./gradlew check` passing**: the Pages deploy job
+SHALL run only after the check job succeeds, so a build whose tests fail never publishes the site and no
+"roll back the docs" recovery is needed — the previously published site is simply left in place. The job
+SHALL grant `pages: write` and `id-token: write` permissions and SHALL check out full git history
 (`fetch-depth: 0`) so tags are available to Antora. The advertised documentation URL SHALL stay consistent
 across `README.md` and `.github/settings.yml`.
 
 #### Scenario: Push to main triggers a deploy
-- **WHEN** `.github/workflows/docs.yml` is inspected
+- **WHEN** the docs pipeline is inspected
 - **THEN** it triggers on push to `main`, builds the Antora site, and uploads + deploys a Pages artifact
 
 #### Scenario: Workflow has the permissions Pages requires
@@ -61,6 +64,10 @@ across `README.md` and `.github/settings.yml`.
 #### Scenario: The advertised URL is consistent
 - **WHEN** `README.md`'s documentation link and `.github/settings.yml`'s `homepage` are compared
 - **THEN** both point at the same GitHub Pages base URL
+
+#### Scenario: A failing build does not publish
+- **WHEN** `./gradlew check` fails on a push to `main`
+- **THEN** the Pages deploy does not run and the previously published site is left untouched
 
 ### Requirement: The manual covers the bean-mapping consumer topics
 
@@ -100,9 +107,11 @@ The manual SHALL contain an Extending / SPI section aimed at strategy authors, d
 ### Requirement: Code examples are single-sourced from compiling fixtures
 
 Every code example that demonstrates mapper behavior SHALL be brought into the manual via AsciiDoc
-`include::` from a fixture that the build compiles, rather than inlined as literal prose. A change that
-breaks such a fixture SHALL break the build, so a published example cannot silently diverge from compiled
-code.
+`include::` from a fixture that the build compiles, rather than inlined as literal prose. The fixture SHALL
+be **owned by the module that compiles it** (under that module's `src/test/resources`) and reach the Antora
+content catalog via the **antora-collector `scan`** import — not via a cross-tree Gradle `srcDir` that
+reaches from one module into another module's or the docs tree. A change that breaks such a fixture SHALL
+break the build, so a published example cannot silently diverge from compiled code.
 
 #### Scenario: Behavioral examples are included, not inlined
 - **WHEN** a page presents a mapper example that asserts runtime behavior
@@ -111,6 +120,11 @@ code.
 #### Scenario: A broken fixture breaks the build
 - **WHEN** an included fixture no longer compiles
 - **THEN** the build fails before the site is published
+
+#### Scenario: Fixtures are owned by their module, not the docs tree
+- **WHEN** a behavioural example's fixture is located
+- **THEN** it resides in the owning module's test sources and reaches the site via the collector, with no
+  cross-module `srcDir` reaching into the docs tree
 
 ### Requirement: Conversion-method and default-method examples are backed by end-to-end tests
 
@@ -128,13 +142,47 @@ exercise.
 - **WHEN** the default-method end-to-end spec compiles its mapper
 - **THEN** generation succeeds and the generated source invokes the `default` conversion method
 
-### Requirement: The documentation toolchain is declared for local builds
+### Requirement: The documentation toolchain is a Gradle-provisioned Antora build
 
-`.mise.toml` SHALL declare the Antora CLI and site generator so a contributor can build the manual locally
-with the same toolchain CI uses. No new language runtime SHALL be required beyond the Node runtime already
-present for the existing tooling.
+The site build SHALL be provisioned and run by the `org.antora` Gradle plugin on a managed Node runtime, so
+a contributor builds the manual with `./gradlew antora` using the same toolchain CI uses, requiring no
+system Node. The plugin SHALL declare the Antora version and SHALL install the `@antora/collector-extension`
+via its `packages` map (in Antora's own Node context). `.mise.toml` SHALL NOT pin an Antora npm tool.
 
-#### Scenario: Antora tools are provisioned by mise
-- **WHEN** `.mise.toml` is inspected
-- **THEN** it declares the Antora toolchain (the `antora` umbrella package, which bundles the CLI and site
-  generator), and adds no Python or other new language runtime
+#### Scenario: Antora is provisioned by the Gradle plugin
+- **WHEN** the root build is inspected
+- **THEN** it applies `org.antora`, configures the Antora version, the playbook, and the collector extension
+  in `packages`, and `.mise.toml` declares no Antora npm tool
+
+#### Scenario: The manual builds via Gradle
+- **WHEN** `./gradlew antora` runs
+- **THEN** the plugin provisions Node, installs Antora and the collector, and produces the static site
+
+### Requirement: Documented generated output is single-sourced from real generation
+
+Where a page shows the code percolate generates for an example, that output SHALL be brought in via
+`include::` from real generated source — produced by compiling the example with documentation tags enabled
+— and never hand-typed as prose. The displayed region SHALL be selected by an AsciiDoc tag the generator
+emits around generated methods. A page SHALL either single-source its shown output this way or show no
+output at all; a hand-written block claimed to be generated code is not permitted.
+
+#### Scenario: Shown output comes from real generation
+- **WHEN** a page shows the code generated for an example
+- **THEN** the shown block is an `include::` (by tag) of generated source materialised from compiling that
+  example, not hand-inlined code
+
+#### Scenario: No hand-typed generated output remains
+- **WHEN** the manual's pages are inspected
+- **THEN** no page hand-writes a block presented as percolate's generated output (the former hand-typed
+  `nested-paths` output block is replaced by an `include::`)
+
+### Requirement: Reactive container mapping has a compiled example in the reactor module
+
+The manual SHALL document reactive container mapping with a behavioural example whose fixture is owned by
+and compiled in the `reactor` module — the only module where `Flux`/`Mono` mappers compile — backed by an
+end-to-end spec, and imported into the manual via the collector like every other example.
+
+#### Scenario: A reactive example is present and compiled in reactor
+- **WHEN** the manual's reactive container content is read
+- **THEN** it `include::`s a `Flux`/`Mono` mapper fixture owned by the `reactor` module and exercised by a
+  reactor end-to-end spec
