@@ -9,3 +9,12 @@ asciidoc:
   attributes:
     # Single-sourced version string for the install snippets. Bump alongside a release.
     percolate-version: 0.1.0
+ext:
+  collector:
+  # Import the module-owned example fixtures into the content catalog. `dir` is a plain path, so it
+  # resolves from the content-source worktree root (the repo root). The same `example$` subpaths the
+  # pages include:: are reconstructed under modules/ROOT/examples.
+  - scan:
+      dir: strategies-builtin/src/test/resources/examples
+      files: '**/*.java'
+      into: modules/ROOT/examples

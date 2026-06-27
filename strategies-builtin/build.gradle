@@ -30,15 +30,10 @@ dependencies {
     testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
 }
 
-// Doc-owned example sources double as compile-testing fixtures: the user manual include::s the very
-// files these end-to-end specs compile, so a published example cannot drift from compiled code.
-sourceSets {
-    test {
-        resources {
-            srcDir rootProject.file('docs/modules/ROOT/examples')
-        }
-    }
-}
+// The manual's example mappers are module-owned compile-testing fixtures under
+// src/test/resources/examples; the e2e specs compile them via forResource, and the user manual
+// include::s the same files (brought into Antora's catalog by the antora-collector `scan` in
+// docs/antora.yml), so a published example cannot drift from compiled code.
 
 tasks.named('jacocoTestCoverageVerification') {
     enabled = false

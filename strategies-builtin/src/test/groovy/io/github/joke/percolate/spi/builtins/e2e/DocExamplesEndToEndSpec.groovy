@@ -15,7 +15,7 @@ class DocExamplesEndToEndSpec extends Specification {
 
     def 'quick-start PersonMapper generates a direct constructor call'() {
         when:
-        def content = generate('getting-started/PersonMapper.java',
+        def content = generate('examples/getting-started/PersonMapper.java',
                 'io.github.joke.percolate.docs.gettingstarted.PersonMapperImpl')
 
         then:
@@ -24,7 +24,7 @@ class DocExamplesEndToEndSpec extends Specification {
 
     def 'nested source and target paths chain accessors and nest construction'() {
         when:
-        def content = generate('nested-paths/ProfileMapper.java',
+        def content = generate('examples/nested-paths/ProfileMapper.java',
                 'io.github.joke.percolate.docs.nested.ProfileMapperImpl')
 
         then:
@@ -33,7 +33,7 @@ class DocExamplesEndToEndSpec extends Specification {
 
     def 'map-annotation AccountMapper combines source, constant, and defaultValue'() {
         when:
-        def content = generate('map-annotation/AccountMapper.java',
+        def content = generate('examples/map-annotation/AccountMapper.java',
                 'io.github.joke.percolate.docs.mapannotation.AccountMapperImpl')
 
         then: 'the constant is supplied with no source'
@@ -48,7 +48,7 @@ class DocExamplesEndToEndSpec extends Specification {
 
     def 'collections TeamMapper composes a stream/map/collect pipeline delegating to the element method'() {
         when:
-        def content = generate('collections/TeamMapper.java',
+        def content = generate('examples/collections/TeamMapper.java',
                 'io.github.joke.percolate.docs.collections.TeamMapperImpl')
 
         then:

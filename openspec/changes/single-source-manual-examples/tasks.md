@@ -14,8 +14,8 @@
 ## 3. Adopt the org.antora plugin and invert example ownership via the collector
 
 - [x] 3.1 Adopt the `org.antora` Gradle plugin (managed Node): applied `id 'org.antora' 1.0.0` on the root build (so `url: .` resolves to the repo root), configured `version = '3.1.15'`, `playbook = 'antora-playbook.yml'`, `options = [clean: true, fetch: true]`, `packages = ['@antora/collector-extension': '1.0.3']`; registered the extension in the playbook's `antora.extensions`; removed `npm:antora` from `.mise.toml`. `./gradlew antora` builds the site on Gradle 9.3/Java 25, and the required collector extension loads — proving `packages` installs it in Antora's Node context (isolation finding resolved)
-- [ ] 3.2 Move the six example mappers from `docs/modules/ROOT/examples/` into their owning modules' `src/test/resources` (so `JavaFileObjects.forResource(...)` keeps working); delete the `rootProject.file('docs/.../examples')` `srcDir` from `strategies-builtin/build.gradle`
-- [ ] 3.3 Add antora-collector `scan` entries with plain repo-root `dir:` paths (e.g. `strategies-builtin/src/test/resources/examples`) so the fixtures reach the catalog under the same `example$` subpaths; confirm the existing page `include::`s render unchanged (input examples)
+- [x] 3.2 Move the six example mappers from `docs/modules/ROOT/examples/` into `strategies-builtin/src/test/resources/examples/`; update the e2e specs' `forResource`/`generate` paths to the `examples/...` resource prefix; delete the `rootProject.file('docs/.../examples')` `srcDir` from `strategies-builtin/build.gradle`. `:strategies-builtin:integrationTest` green
+- [x] 3.3 Added the antora-collector `scan` (plain repo-root `dir: strategies-builtin/src/test/resources/examples`, `into: modules/ROOT/examples`) to `docs/antora.yml`; `./gradlew antora` renders the pages with the same `example$` subpaths (collections page shows the collected `TeamMapper`), confirming the collector reads the worktree
 
 ## 4. Single-source the generated output
 

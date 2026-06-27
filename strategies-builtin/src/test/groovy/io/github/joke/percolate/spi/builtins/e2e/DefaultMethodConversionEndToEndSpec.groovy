@@ -8,14 +8,14 @@ import spock.lang.Tag
 
 /**
  * Backs the manual's default-method-conversions page. The fixture is the very file the page
- * include::s (docs/modules/ROOT/examples/default-method/ProductMapper.java).
+ * include::s (strategies-builtin/src/test/resources/examples/default-method/ProductMapper.java).
  */
 @Tag('integration')
 class DefaultMethodConversionEndToEndSpec extends Specification {
 
     def 'a default method supplies a conversion percolate calls'() {
         given: 'the example the manual includes'
-        def mapper = JavaFileObjects.forResource('default-method/ProductMapper.java')
+        def mapper = JavaFileObjects.forResource('examples/default-method/ProductMapper.java')
 
         when:
         Compilation compilation = PercolateCompiler.compile(mapper)

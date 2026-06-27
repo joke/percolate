@@ -8,7 +8,7 @@ import spock.lang.Tag
 
 /**
  * Backs the manual's conversion-methods page. The fixture is the very file the page include::s
- * (docs/modules/ROOT/examples/conversion-method/CustomerMapper.java), so the documented example
+ * (strategies-builtin/src/test/resources/examples/conversion-method/CustomerMapper.java), so the documented example
  * cannot diverge from compiled, generated code.
  */
 @Tag('integration')
@@ -16,7 +16,7 @@ class ConversionMethodEndToEndSpec extends Specification {
 
     def 'a second mapper method is reused as the conversion for a nested field'() {
         given: 'the example the manual includes'
-        def mapper = JavaFileObjects.forResource('conversion-method/CustomerMapper.java')
+        def mapper = JavaFileObjects.forResource('examples/conversion-method/CustomerMapper.java')
 
         when:
         Compilation compilation = PercolateCompiler.compile(mapper)
