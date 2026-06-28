@@ -42,7 +42,7 @@ jobs:
       # The org.antora plugin builds the site on a managed Node; the `antora` task dependsOn the
       # doc-example specs that materialise the generated output the manual include::s.
     - run: ./gradlew antora
-    - uses: actions/upload-pages-artifact@v3
+    - uses: actions/upload-pages-artifact@v5
       with:
         path: build/site
 
