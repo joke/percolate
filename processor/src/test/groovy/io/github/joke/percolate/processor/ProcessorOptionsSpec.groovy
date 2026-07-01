@@ -3,6 +3,8 @@ package io.github.joke.percolate.processor
 import spock.lang.Specification
 import spock.lang.Tag
 
+import javax.lang.model.SourceVersion
+
 @Tag('unit')
 class ProcessorOptionsSpec extends Specification {
 
@@ -42,6 +44,64 @@ class ProcessorOptionsSpec extends Specification {
         options.customNullableAnnotations == [] as Set
     }
 
+    def 'blank entries between and after commas are dropped'() {
+        when:
+        def options = ProcessorOptions.from(['percolate.nullable.annotations': 'a,,b,'])
+
+        then:
+        options.customNullableAnnotations == ['a', 'b'] as Set
+    }
+
+    def 'the custom nullable set is an immutable copy decoupled from the caller-supplied set'() {
+        given:
+        def input = ['com.example.Nullable'] as Set
+        def options = new ProcessorOptions(false, input, false, false, false)
+
+        when:
+        input << 'added.after.construction'
+
+        then:
+        options.customNullableAnnotations == ['com.example.Nullable'] as Set
+
+        when:
+        options.customNullableAnnotations << 'x'
+
+        then:
+        thrown(UnsupportedOperationException)
+    }
+
+    def 'debug.graphs and docTags default to false when absent'() {
+        when:
+        def options = ProcessorOptions.from([:])
+
+        then:
+        !options.debugGraphs
+        !options.docTags
+    }
+
+    def 'percolate.debug.graphs and percolate.docTags parse the true flag'() {
+        when:
+        def options = ProcessorOptions.from([
+                'percolate.debug.graphs': 'true',
+                'percolate.docTags'     : 'true'
+        ])
+
+        then:
+        options.debugGraphs
+        options.docTags
+    }
+
+    def 'flags parse case-insensitively'() {
+        expect:
+        ProcessorOptions.from(['percolate.locals.final': 'TRUE']).localsFinal
+        ProcessorOptions.from(['percolate.docTags': 'True']).docTags
+    }
+
+    def 'an unrecognised flag value is treated as false'() {
+        expect:
+        !ProcessorOptions.from(['percolate.debug.graphs': 'yes']).debugGraphs
+    }
+
     def 'locals.final and locals.var default to false when absent'() {
         when:
         def options = ProcessorOptions.from([:])
@@ -63,14 +123,19 @@ class ProcessorOptionsSpec extends Specification {
         options.localsVar
     }
 
-    def 'PercolateProcessor advertises percolate.nullable.annotations option'() {
-        when:
-        def supported = new PercolateProcessor().supportedOptions
+    def 'PercolateProcessor advertises exactly the five recognised options'() {
+        expect:
+        new PercolateProcessor().supportedOptions == [
+                'percolate.debug.graphs',
+                'percolate.nullable.annotations',
+                'percolate.locals.final',
+                'percolate.locals.var',
+                'percolate.docTags'
+        ] as Set
+    }
 
-        then:
-        'percolate.nullable.annotations' in supported
-        'percolate.debug.graphs' in supported
-        'percolate.locals.final' in supported
-        'percolate.locals.var' in supported
+    def 'PercolateProcessor supports the latest source version the compiler offers'() {
+        expect:
+        new PercolateProcessor().supportedSourceVersion == SourceVersion.latestSupported()
     }
 }

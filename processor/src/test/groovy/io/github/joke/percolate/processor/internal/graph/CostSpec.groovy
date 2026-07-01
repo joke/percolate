@@ -39,4 +39,19 @@ class CostSpec extends Specification {
         Cost.finite(0, 5.0).min(Cost.finite(1, 1.0)) == Cost.finite(0, 5.0)
         Cost.finite(2, 2.0).min(Cost.INFINITE) == Cost.finite(2, 2.0)
     }
+
+    def 'compareTo orders infinite and finite costs in both directions'() {
+        expect: 'an infinite receiver is greater; an infinite argument is smaller'
+        (Cost.INFINITE <=> Cost.finite(0, 0.0)) > 0
+        (Cost.finite(0, 0.0) <=> Cost.INFINITE) < 0
+
+        and: 'finite costs order by partials first (both directions)'
+        (Cost.finite(0, 9.0) <=> Cost.finite(1, 1.0)) < 0
+        (Cost.finite(1, 1.0) <=> Cost.finite(0, 9.0)) > 0
+
+        and: 'equal partials fall through to the weight tie-break (both directions)'
+        (Cost.finite(1, 2.0) <=> Cost.finite(1, 3.0)) < 0
+        (Cost.finite(1, 3.0) <=> Cost.finite(1, 2.0)) > 0
+        (Cost.finite(1, 2.0) <=> Cost.finite(1, 2.0)) == 0
+    }
 }

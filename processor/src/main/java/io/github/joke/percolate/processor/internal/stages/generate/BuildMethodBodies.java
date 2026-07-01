@@ -15,6 +15,7 @@ import io.github.joke.percolate.processor.internal.graph.Operation;
 import io.github.joke.percolate.processor.internal.graph.Scope;
 import io.github.joke.percolate.processor.internal.graph.SourceLocation;
 import io.github.joke.percolate.processor.internal.graph.Value;
+import io.github.joke.percolate.spi.DocTags;
 import io.github.joke.percolate.spi.OperationCodegen;
 import io.github.joke.percolate.spi.ScopeCodegen;
 import jakarta.inject.Inject;
@@ -71,19 +72,15 @@ public final class BuildMethodBodies {
 
     /**
      * When the {@code docTags} option is on, bracket the method body with AsciiDoc include-tag comments named after
-     * the method, so a documentation build can {@code include::[tag=<method>]} the generated body. Off by default,
-     * so ordinary consumer output is byte-for-byte unchanged. The tag-directive lines are stripped by the include.
+     * the method (the pure tag-wrapping lives in {@link DocTags}), so a documentation build can
+     * {@code include::[tag=<method>]} the generated body. Off by default, so ordinary consumer output is
+     * byte-for-byte unchanged.
      */
     private CodeBlock docTagged(final CodeBlock body, final ExecutableElement method) {
         if (!options.isDocTags()) {
             return body;
         }
-        final var name = method.getSimpleName().toString();
-        return CodeBlock.builder()
-                .add("// tag::$L[]\n", name)
-                .add(body)
-                .add("// end::$L[]\n", name)
-                .build();
+        return DocTags.wrap(body, method.getSimpleName().toString());
     }
 
     private static Value returnRoot(final MapperGraph graph, final Scope scope) {

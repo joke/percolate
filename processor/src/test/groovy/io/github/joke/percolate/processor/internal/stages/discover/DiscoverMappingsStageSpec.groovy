@@ -1,169 +1,125 @@
 package io.github.joke.percolate.processor.internal.stages.discover
 
-import com.google.testing.compile.Compiler
-import com.google.testing.compile.JavaFileObjects
 import io.github.joke.percolate.processor.MapperContext
 import io.github.joke.percolate.processor.internal.graph.MethodScope
-import io.github.joke.percolate.processor.model.MappingDirective
+import io.github.joke.percolate.processor.model.MapperShape
+import io.github.joke.percolate.processor.test.fixtures.DirectiveFixtures
+import io.github.joke.percolate.processor.test.fixtures.Human
+import io.github.joke.percolate.processor.test.fixtures.Person
+import io.github.joke.percolate.spi.test.TypeUniverse
+import spock.lang.Isolated
+import spock.lang.Shared
 import spock.lang.Specification
 import spock.lang.Tag
 
-import javax.annotation.processing.AbstractProcessor
-import javax.annotation.processing.RoundEnvironment
-import javax.annotation.processing.SupportedAnnotationTypes
-import javax.annotation.processing.SupportedSourceVersion
-import javax.lang.model.SourceVersion
 import javax.lang.model.element.ElementKind
 import javax.lang.model.element.ExecutableElement
-import javax.lang.model.element.TypeElement
 
 /**
- * Discovery reads {@code source}/{@code constant}/{@code defaultValue} against the {@code Map.UNSET} sentinel via
- * annotation-mirror walking (with the annotation's declared defaults), so it is exercised under a real compiler
- * round rather than with hand-mocked mirrors.
+ * {@link DiscoverMappingsStage} seam, unit-tested directly: the {@code @Map}/{@code @MapList} mirrors are read off the
+ * compiled {@code DirectiveFixtures} type via {@link TypeUniverse} (CLASS-retained, so present in bytecode — no
+ * annotation-processing round). Presence of {@code source}/{@code constant}/{@code defaultValue} is decided against
+ * the {@code Map.UNSET} sentinel with the annotation's declared defaults; an empty string is present, not absent.
  */
-@Tag('integration')
+@Tag('unit')
+@Isolated // bridge: shares the static TypeUniverse javac; serialise until the type-universe redesign (see openspec/notes.md)
 class DiscoverMappingsStageSpec extends Specification {
+
+    @Shared DiscoverMappingsStage stage = new DiscoverMappingsStage(TypeUniverse.elements())
+
+    def setupSpec() {
+        // prime the fixture + its methods' parameter/return closures single-threaded (see ExpandStageDriverSpec)
+        TypeUniverse.of(Person)
+        TypeUniverse.of(Human)
+        TypeUniverse.of(DirectiveFixtures)
+    }
+
+    def 'a source directive with a default is discovered with both present and no constant'() {
+        when:
+        def directives = stage.extractDirectives(method('sourceWithDefault').annotationMirrors)
+
+        then:
+        directives.size() == 1
+        def directive = directives[0]
+        directive.target == 'name'
+        directive.hasSource()
+        directive.source == 'in.name'
+        directive.hasDefaultValue()
+        directive.defaultValue == 'unknown'
+        !directive.hasConstant()
+    }
 
     def 'a constant directive is discovered with a present constant and no source'() {
         when:
-        def directives = discover('@Map(target = "status", constant = "ACTIVE")')
+        def directives = stage.extractDirectives(method('constantOnly').annotationMirrors)
 
         then:
         directives.size() == 1
-        def d = directives[0]
-        d.hasConstant()
-        d.constant == 'ACTIVE'
-        !d.hasSource()
-        d.source == null
-        d.constantValue != null
-        d.sourceValue == null
+        directives[0].hasConstant()
+        directives[0].constant == 'ACTIVE'
+        !directives[0].hasSource()
+        directives[0].source == null
     }
 
-    def 'a default directive is discovered alongside its source'() {
+    def 'an empty-string constant is present, not absent (sentinel, not isEmpty)'() {
         when:
-        def directives = discover('@Map(target = "name", source = "in.name", defaultValue = "unknown")')
+        def directive = stage.extractDirectives(method('emptyConstant').annotationMirrors)[0]
 
         then:
-        directives.size() == 1
-        def d = directives[0]
-        d.hasSource()
-        d.source == 'in.name'
-        d.hasDefaultValue()
-        d.defaultValue == 'unknown'
-        d.defaultValueValue != null
-        !d.hasConstant()
+        directive.hasConstant()
+        directive.constant == ''
+        !directive.hasSource()
     }
 
-    def 'an empty-string constant is present, not absent'() {
+    def 'repeated @Map directives are unwrapped from the @MapList container, in order'() {
         when:
-        def directives = discover('@Map(target = "note", constant = "")')
+        def directives = stage.extractDirectives(method('repeated').annotationMirrors)
 
         then:
-        directives.size() == 1
-        def d = directives[0]
-        d.hasConstant()
-        d.constant == ''
-        d.constantValue != null
-        !d.hasSource()
+        directives*.target == ['first', 'second']
+        directives.every { it.hasSource() && !it.hasConstant() }
     }
 
-    def 'discovery attaches a goal spec to each method scope carrying every directive'() {
-        when: 'the discovery phase runs over a mapper with two directives (no seed stage)'
-        def ctx = discoverContext()
+    def 'a method with no @Map yields no directives'() {
+        expect:
+        stage.extractDirectives(method('none').annotationMirrors).empty
+    }
 
-        then: 'the goal spec is reachable by the method scope and carries every declared binding'
-        def scope = new MethodScope(ctx.shape.abstractMethods[0])
-        def goal = ctx.goalSpecs[scope]
+    def 'run installs the mappings and a per-method-scope goal spec carrying every declared binding'() {
+        given:
+        def ctx = new MapperContext(TypeUniverse.of(DirectiveFixtures))
+        ctx.shape = new MapperShape(TypeUniverse.of(DirectiveFixtures), [method('repeated')])
+
+        when:
+        stage.run(ctx)
+
+        then: 'the goal spec is reachable by the method scope and declares both children'
+        ctx.mappings != null
+        def goal = ctx.goalSpecs[new MethodScope(method('repeated'))]
         goal != null
         goal.declaredChildren('') == ['first', 'second'] as Set
         goal.bindingFor('first').present
         goal.bindingFor('second').present
     }
 
-    private static MapperContext discoverContext() {
-        def processor = new CapturingContextProcessor()
-        def mapper = JavaFileObjects.forSourceLines(
-                'test.M',
-                'package test;',
-                'import io.github.joke.percolate.Mapper;',
-                'import io.github.joke.percolate.Map;',
-                '@Mapper',
-                'public interface M {',
-                '    @Map(target = "first", source = "in.first")',
-                '    @Map(target = "second", source = "in.second")',
-                '    Object map(Object in);',
-                '}')
-        def compilation = Compiler.javac()
-                .withProcessors(processor)
-                .compile(mapper)
-        assert compilation.errors().empty
-        Objects.requireNonNull(processor.captured)
+    def 'a non-@Map, non-@MapList annotation contributes no directive'() {
+        expect: 'the @Deprecated mirror on sink() is neither @Map nor @MapList, so it is skipped'
+        stage.extractDirectives(method('sink').annotationMirrors).empty
     }
 
-    private static List<MappingDirective> discover(final String mapAnnotation) {
-        def processor = new CapturingDiscoveryProcessor()
-        def mapper = JavaFileObjects.forSourceLines(
-                'test.M',
-                'package test;',
-                'import io.github.joke.percolate.Mapper;',
-                'import io.github.joke.percolate.Map;',
-                '@Mapper',
-                'public interface M {',
-                "    ${mapAnnotation}",
-                '    Object map(Object in);',
-                '}')
-        def compilation = Compiler.javac()
-                .withProcessors(processor)
-                .compile(mapper)
-        assert compilation.errors().empty
-        List.copyOf(processor.captured)
+    def 'run is a no-op when discovery produced no shape'() {
+        def ctx = new MapperContext(TypeUniverse.of(DirectiveFixtures))
+
+        when:
+        stage.run(ctx)
+
+        then:
+        ctx.mappings == null
     }
-}
 
-/** A throwaway processor that runs {@link DiscoverMappingsStage} over the {@code @Mapper} type's abstract methods. */
-@SupportedAnnotationTypes('io.github.joke.percolate.Mapper')
-@SupportedSourceVersion(SourceVersion.RELEASE_11)
-class CapturingDiscoveryProcessor extends AbstractProcessor {
-
-    final List<MappingDirective> captured = []
-
-    @Override
-    boolean process(final Set<? extends TypeElement> annotations, final RoundEnvironment roundEnv) {
-        def stage = new DiscoverMappingsStage(processingEnv.elementUtils)
-        annotations.each { annotation ->
-            roundEnv.getElementsAnnotatedWith(annotation).each { mapperType ->
-                mapperType.enclosedElements
-                        .findAll { it.kind == ElementKind.METHOD }
-                        .each { method ->
-                            captured.addAll(stage.extractDirectives((method as ExecutableElement).annotationMirrors))
-                        }
-            }
-        }
-        false
-    }
-}
-
-/** A throwaway processor that runs the discovery stages and captures the resulting per-mapper context. */
-@SupportedAnnotationTypes('io.github.joke.percolate.Mapper')
-@SupportedSourceVersion(SourceVersion.RELEASE_11)
-class CapturingContextProcessor extends AbstractProcessor {
-
-    MapperContext captured
-
-    @Override
-    boolean process(final Set<? extends TypeElement> annotations, final RoundEnvironment roundEnv) {
-        def elements = processingEnv.elementUtils
-        def discoverAbstract = new DiscoverAbstractMethodsStage(elements, processingEnv.typeUtils)
-        def discoverMappings = new DiscoverMappingsStage(elements)
-        annotations.each { annotation ->
-            roundEnv.getElementsAnnotatedWith(annotation).each { mapperType ->
-                def ctx = new MapperContext(mapperType as TypeElement)
-                discoverAbstract.run(ctx)
-                discoverMappings.run(ctx)
-                captured = ctx
-            }
-        }
-        false
+    private ExecutableElement method(final String name) {
+        TypeUniverse.of(DirectiveFixtures).enclosedElements.find {
+            it.kind == ElementKind.METHOD && it.simpleName.toString() == name
+        } as ExecutableElement
     }
 }

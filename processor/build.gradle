@@ -2,7 +2,14 @@ plugins {
     id 'java'
     id 'groovy'
     id 'maven-publish'
+    id 'info.solidsoft.pitest'
 }
+
+// Engine branch-coverage gate (change: harden-engine-as-library, task 4.3). The jacoco gate measures the UNIT
+// suite (jacocoTestCoverageVerification reads test.exec; only the report merges integrationTest.exec). Raised to
+// the design's 0.95 bar now that the engine seam tests land the unit-suite branch coverage above it (the pure
+// debug/rendering and generated-Dagger classes are excluded from the measured set below).
+ext.branchCoverageMinimum = 0.95
 
 dependencies {
     annotationProcessor platform(project(':dependencies'))
@@ -13,8 +20,8 @@ dependencies {
     compileOnly project(':annotations')
 
     compileOnly 'com.google.auto.service:auto-service-annotations'
-    compileOnly 'org.jspecify:jspecify'
     compileOnly 'org.jetbrains:annotations'
+    compileOnly 'org.jspecify:jspecify'
     compileOnly 'org.projectlombok:lombok'
 
     implementation platform(project(':dependencies'))
@@ -25,13 +32,12 @@ dependencies {
     implementation 'com.google.auto:auto-common'
     implementation 'com.google.dagger:dagger'
 
-    // No edge to any strategy module: the engine is built and tested strategy-free. Bundling of the
-    // builtins for consumers is owned by the ':percolate' convenience starter. Engine e2e tests drive
-    // generation with the FakeStrategy from ':test-foundation', registered via a test-local META-INF/services.
+    // No edge to any strategy module, and none to the compile harness: the engine is unit-tested at its own seams
+    // (change: harden-engine-as-library) with no strategy, no FakeStrategy, and no @Mapper compile. Real engine↔
+    // strategy integration lives in the feature-e2e layer. Bundling of the builtins for consumers is owned by the
+    // ':percolate' convenience starter. The seam tests build inputs on TypeUniverse (spi test-fixtures).
 
     testImplementation platform(project(':dependencies'))
-    testImplementation project(':test-foundation')
-    testImplementation 'com.google.testing.compile:compile-testing'
     testImplementation 'org.spockframework:spock-core'
     testImplementation 'org.assertj:assertj-core'
     testImplementation testFixtures(project(':spi'))
@@ -41,6 +47,33 @@ dependencies {
     testRuntimeOnly 'org.mockito:mockito-junit-jupiter'
 }
 
-tasks.named('jacocoTestCoverageVerification') {
-    enabled = false
+// The engine seam tests share TypeUniverse's single static JavacTask (spi test-fixtures). javac is not thread-safe,
+// so the user's global ~/.spock parallel execution races it (non-deterministic results) and the concurrent
+// optimizeRunOrder writes corrupt ~/.spock/RunHistory. Keep all test methods on one thread, exactly as spi /
+// strategies-builtin / reactor already do. (pitest runs its own JVM and is bridged with @Isolated specs until the
+// type-universe redesign — see openspec/notes.md.)
+tasks.withType(Test).configureEach {
+    maxParallelForks = 1
+    systemProperty 'junit.jupiter.execution.parallel.enabled', 'false'
+    systemProperty 'spock.parallel.threads', '0'
+}
+
+// Task 3.2 (harden-engine-as-library): narrow, individually-justified jacoco exclusions for the classes where 95%
+// branch coverage is not honestly reachable — pure debug/rendering and generated wiring with no engine decision
+// logic. Applied to BOTH the report and the verification gate so the 0.95 bar measures engine logic only. Each:
+def jacocoExcludes = [
+        // Pure debug: the dump stages serialise the full graph / transforms / extracted plan to the Filer for
+        // troubleshooting a mapper — no branching engine logic worth gating.
+        'io/github/joke/percolate/processor/internal/stages/dump/**',
+        // Pure Graphviz-DOT string rendering of the graph (debug visualisation); partially covered by DotRendererSpec,
+        // but the remaining format branches are debug-only.
+        'io/github/joke/percolate/processor/internal/graph/DotRenderer*',
+        // Generated Dagger wiring, not engine logic (mirrors the pitest excludedClasses filter added in task 4.3).
+        'io/github/joke/percolate/processor/Dagger*',
+]
+tasks.withType(JacocoReport).configureEach {
+    classDirectories.setFrom(classDirectories.files.collect { fileTree(dir: it, exclude: jacocoExcludes) })
+}
+tasks.withType(JacocoCoverageVerification).configureEach {
+    classDirectories.setFrom(classDirectories.files.collect { fileTree(dir: it, exclude: jacocoExcludes) })
 }

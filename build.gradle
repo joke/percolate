@@ -4,6 +4,7 @@ plugins {
     id 'net.ltgt.errorprone' apply false
     id 'net.ltgt.nullaway' apply false
     id 'org.danilopianini.cpd' apply false
+    id 'info.solidsoft.pitest' apply false
     id 'org.antora'
 }
 
@@ -87,7 +88,8 @@ subprojects { project ->
         }
         tasks.withType(Test).configureEach {
             maxParallelForks = Runtime.runtime.availableProcessors().intdiv(2) ?: 1
-        }    }
+        }
+    }
 
     pluginManager.withPlugin('groovy') {
         pluginManager.apply 'codenarc'
@@ -110,6 +112,58 @@ subprojects { project ->
         }
     }
 
+    pluginManager.withPlugin('info.solidsoft.pitest') {
+        pitest {
+            outputFormats = ['XML', 'HTML']
+            pitestVersion = '1.25.1'
+            junit5PluginVersion = '1.2.3'
+            mutators = ['ALL']
+            enableDefaultIncrementalAnalysis = true
+            includedGroups = ['unit']
+            timestampedReports = false
+            threads = (project.findProperty('pitestThreads') ?: 1) as int
+            if (project.findProperty('pitestTargetClasses')) {
+                targetClasses = project.findProperty('pitestTargetClasses').split(',') as List
+            }
+            if (project.findProperty('pitestTargetTests')) {
+                targetTests = project.findProperty('pitestTargetTests').split(',') as List
+            }
+            // pitest's minion JVMs do not inherit the Test task's parallel-disabling system properties and would
+            // otherwise read the developer's global ~/.spock config (parallel + optimizeRunOrder on). The engine
+            // seam specs share a static, non-thread-safe TypeUniverse javac, so a parallel minion deadlocks a spec
+            // ("suite not green") and corrupts ~/.spock/RunHistory. Point Spock at a serialised project-local
+            // config for the minions. Single-threaded pitest too (below), so the mutation gate is deterministic.
+            jvmArgs = [
+                    '-XX:+EnableDynamicAgentLoading',
+                    "-Dspock.configuration=${project.file('spock-pitest.groovy').absolutePath}".toString(),
+            ]
+            // Task 4.3 (harden-engine-as-library): keep the mutable set to engine logic — drop generated Dagger
+            // wiring and the pure debug/rendering classes that are also excluded from the jacoco 0.95 branch gate,
+            // so both gates measure the same surface.
+            excludedClasses = [
+                    'io.github.joke.percolate.processor.Dagger*',
+                    'io.github.joke.percolate.processor.internal.stages.dump.*',
+                    'io.github.joke.percolate.processor.internal.graph.DotRenderer',
+            ]
+            // Mutation guards (change: harden-engine-as-library). Ratchet FLOORS — deliberately set below the
+            // current measured score (killed ~90%, strength ~90% once the seam tests landed and Dagger/debug are
+            // excluded) so the build fails on a regression but main is never red. failWhenNoMutations catches a
+            // misconfigured run that mutates nothing.
+            failWhenNoMutations = true
+            mutationThreshold = 80
+            coverageThreshold = 90
+            testStrengthThreshold = 85
+        }
+        dependencies {
+            pitest 'org.pitest:pitest-history-plugin:0.0.1'
+            // @CoverageIgnore / @DoNotMutate escape hatches for pitest. compileOnly: they steer mutation analysis
+            // only, never ship. Use sparingly — only where a mutant is genuinely un-killable, each one justified.
+            compileOnly 'com.groupcdg:pitest-annotations:1.1.4'
+        }
+        // Task 4.3 (harden-engine-as-library): the mutation gate runs under check. Incremental analysis keeps a
+        // warm repeat run fast (~50s cold on the unit suite); a score below the ratchet floor fails the build.
+        tasks.named('check') { dependsOn 'pitest' }
+    }
 
     pluginManager.withPlugin('jacoco') {
         tasks.withType(JacocoReport).configureEach {
@@ -126,7 +180,9 @@ subprojects { project ->
                     limit {
                         counter = 'BRANCH'
                         value = 'COVEREDRATIO'
-                        minimum = 0.6
+                        // Per-module floor; defaults to 0.6. A module raises (or, while a ratchet is in
+                        // flight, temporarily lowers) its own bar via ext.branchCoverageMinimum.
+                        minimum = project.findProperty('branchCoverageMinimum') ?: 0.6
                     }
                 }
             }

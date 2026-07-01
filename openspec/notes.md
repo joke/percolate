@@ -88,6 +88,21 @@ packaged correctly. It is not a feature-coverage or integration layer.
 2. **`features-as-documentation`** — feature e2e=doc co-located per module; delete/replace the old
    `strategies-builtin` e2e; distribute pages into modules; central spine only.
 
+## Open topics
+
+- **Redesign the engine-test type universe (its own change, after `harden-engine-as-library`).** The shared,
+  all-`static` `TypeUniverse` javac singleton (`spi/src/testFixtures`) is **not thread-safe**, so the engine
+  seam tests race it under threaded pitest — non-deterministic, *under-reported* mutation scores (a class
+  swung 9%↔91% across identical clean runs; the race hid ~280 real kills). It has bitten the project
+  repeatedly. **Bridge** (in `harden-engine-as-library`): mark the TypeUniverse-using specs `@Isolated` —
+  serialises them, deterministic, ~zero cost since the unit suite isn't Spock-parallel today. **Real fix:** an
+  immutable, test-only fake `Types`/`Elements` implementing only the javax-model operations the engine calls,
+  with test-controllable type relationships — inherently thread-safe/parallel/fast, no javac "Filling"
+  fragility. No production abstraction needed (the engine already consumes the `Types`/`Elements` interfaces
+  via `ResolveCtx`); the fake is test-only. Engine *logic* is tested against a controlled oracle; real type
+  *semantics* are the feature-e2e layer's job (real compiles). Sequence it **before** writing further engine
+  seam tests.
+
 ## Scrapped
 
 - **`audit-e2e-test-placement`** — wrong frame (it re-sorted compile-testing e2e by contract and invented

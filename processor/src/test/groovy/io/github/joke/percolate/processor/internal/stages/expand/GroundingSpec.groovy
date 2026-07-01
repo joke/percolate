@@ -4,6 +4,7 @@ import com.palantir.javapoet.CodeBlock
 import io.github.joke.percolate.spi.ChildScopeSpec
 import io.github.joke.percolate.spi.Containers
 import io.github.joke.percolate.spi.Nullability
+import io.github.joke.percolate.spi.OperationCodegen
 import io.github.joke.percolate.spi.OperationSpec
 import io.github.joke.percolate.spi.Port
 import io.github.joke.percolate.spi.PortType
@@ -13,6 +14,7 @@ import io.github.joke.percolate.spi.SourceProjection
 import io.github.joke.percolate.spi.Weights
 import io.github.joke.percolate.spi.test.HarnessResolveCtx
 import io.github.joke.percolate.spi.test.TypeUniverse
+import spock.lang.Isolated
 import spock.lang.Shared
 import spock.lang.Specification
 import spock.lang.Tag
@@ -29,10 +31,12 @@ import java.util.stream.Stream
  * {@code Stream} identically); a wildcard source argument does not unify (restrict-v1 policy).
  */
 @Tag('unit')
+@Isolated // bridge: shares the static TypeUniverse javac; serialise until the type-universe redesign (see openspec/notes.md)
 class GroundingSpec extends Specification {
 
     private static final ScopeCodegen MAP =
             { operand, var, body -> CodeBlock.of('$L.map($N -> $L)', operand, var, body) } as ScopeCodegen
+    private static final OperationCodegen OP = { inputs -> CodeBlock.of('x') } as OperationCodegen
 
     @Shared ResolveCtx ctx = HarnessResolveCtx.create()
     @Shared Grounding grounding = new Grounding(ctx, [])
@@ -203,7 +207,7 @@ class GroundingSpec extends Specification {
     def 'a spec with no type-variable port passes through grounding unchanged'() {
         given:
         def concrete = OperationSpec.of('iterate',
-                { inputs -> CodeBlock.of('$L.stream()', inputs.single()) } as io.github.joke.percolate.spi.OperationCodegen,
+                { inputs -> CodeBlock.of('$L.stream()', inputs.single()) } as OperationCodegen,
                 Weights.CONTAINER, [new Port('src', setOfString, Nullability.NON_NULL)], streamOfString,
                 Nullability.NON_NULL)
 
@@ -213,6 +217,131 @@ class GroundingSpec extends Specification {
         then: 'returned as-is, regardless of how many sources are in scope'
         grounded.size() == 1
         grounded[0].is(concrete)
+    }
+
+    // ---- degenerate + multi-port templates: Concrete, shared variable, passthrough --------------------------
+
+    def 'a Concrete template port grounds by isSameType and lands a concrete variable-free spec'() {
+        // a template that carries no variable — a Concrete Set<String>
+        def port = new Port('src', setOfString, Nullability.NON_NULL, PortType.concrete(setOfString))
+        def spec = OperationSpec.of('copy', OP, Weights.STEP, [port], setOfString, Nullability.NON_NULL)
+
+        when:
+        def grounded = grounding.ground(spec, [setOfString]).toList()
+
+        then:
+        grounded.size() == 1
+        grounded[0].ports[0].template == null
+        ctx.types().isSameType(grounded[0].ports[0].type, setOfString)
+        grounded[0].childScope.empty
+    }
+
+    def 'a variable shared across two ports must bind consistently — mixed bindings are pruned'() {
+        // two Set<A> ports: A is bound on the first, then re-checked for equality on the second
+        def port0 = new Port('a', setElement.asType(), Nullability.NON_NULL, PortType.app(setElement, [PortType.variable(0)]))
+        def port1 = new Port('b', setElement.asType(), Nullability.NON_NULL, PortType.app(setElement, [PortType.variable(0)]))
+        def spec = OperationSpec.of('zip', OP, Weights.STEP, [port0, port1], setOfInteger, Nullability.NON_NULL)
+
+        when: 'Set<String> and Set<Integer> are in scope — only the two matching-pair bindings survive'
+        def grounded = grounding.ground(spec, [setOfString, setOfInteger]).toList()
+
+        then:
+        grounded.size() == 2
+        grounded.every { ctx.types().isSameType(it.ports[0].type, it.ports[1].type) }
+        grounded.every { it.childScope.empty }
+    }
+
+    def 'an already-concrete port beside a template port passes through grounding unchanged'() {
+        def templatePort = new Port('a', setElement.asType(), Nullability.NON_NULL,
+                PortType.app(setElement, [PortType.variable(0)]))
+        def concretePort = new Port('b', setOfString, Nullability.NON_NULL)
+        def spec = OperationSpec.of('merge', OP, Weights.STEP, [templatePort, concretePort], setOfInteger,
+                Nullability.NON_NULL)
+
+        when:
+        def grounded = grounding.ground(spec, [setOfString]).toList()
+
+        then:
+        grounded.size() == 1
+        grounded[0].ports[1].template == null
+        ctx.types().isSameType(grounded[0].ports[1].type, setOfString)
+    }
+
+    def 'a partial template spec instantiates through the partial path'() {
+        def port = new Port('src', setElement.asType(), Nullability.NON_NULL,
+                PortType.app(setElement, [PortType.variable(0)]))
+        def spec = OperationSpec.ofPartial('firstOrThrow', OP, Weights.STEP, [port], TypeUniverse.INTEGER,
+                Nullability.NON_NULL)
+
+        when:
+        def grounded = grounding.ground(spec, [setOfString]).toList()
+
+        then:
+        grounded.size() == 1
+        grounded[0].partial
+        grounded[0].childScope.empty
+    }
+
+    // ---- unification edges: non-declared source, arity mismatch, array binding, ungrounded var --------------
+
+    def 'an App template does not unify against a non-declared (array) source'() {
+        def arrayOfString = ctx.types().getArrayType(TypeUniverse.STRING)
+
+        expect: 'a String[] source is not a DECLARED type, so a Set<A> port cannot unify with it'
+        grounding.ground(lift(setElement, setOfInteger, TypeUniverse.INTEGER), [arrayOfString]).toList().empty
+    }
+
+    def 'an App template does not unify against a raw source of mismatched arity'() {
+        def rawSet = ctx.types().erasure(setElement.asType())
+
+        expect: 'raw Set has zero type arguments; a Set<A> template expects one, so the arity differs'
+        grounding.ground(lift(setElement, setOfInteger, TypeUniverse.INTEGER), [rawSet]).toList().empty
+    }
+
+    def 'a type variable grounds to an array argument — an invariant reference type'() {
+        def arrayOfString = ctx.types().getArrayType(TypeUniverse.STRING)
+        def setOfStringArray = ctx.types().getDeclaredType(setElement, arrayOfString)
+
+        when:
+        def grounded = grounding.ground(lift(setElement, setOfInteger, TypeUniverse.INTEGER), [setOfStringArray]).toList()
+
+        then:
+        grounded.size() == 1
+        ctx.types().isSameType(grounded[0].ports[0].type, setOfStringArray)
+        ctx.types().isSameType(grounded[0].childScope.get().elementIn, arrayOfString)
+    }
+
+    def 'unification refuses a template nested past the recursion bound'() {
+        // a Set<Set<...<A>>> template and a matching Set<Set<...<String>>> source, both nested past MAX_DEPTH
+        def template = PortType.variable(0)
+        def sourceType = TypeUniverse.STRING as TypeMirror
+        40.times {
+            template = PortType.app(setElement, [template])
+            sourceType = ctx.types().getDeclaredType(setElement, sourceType)
+        }
+        def port = new Port('deep', setElement.asType(), Nullability.NON_NULL, template)
+        def spec = OperationSpec.of('deep', OP, Weights.STEP, [port], setOfString, Nullability.NON_NULL)
+
+        expect: 'nesting beyond the bound aborts unification, so nothing grounds'
+        grounding.ground(spec, [sourceType]).toList().empty
+    }
+
+    def 'an ungrounded type variable in the child scope fails fast during instantiation'() {
+        // the child scope references Var 1, but only Var 0 is ever bound by a port
+        def port = new Port('src', setElement.asType(), Nullability.NON_NULL,
+                PortType.app(setElement, [PortType.variable(0)]))
+        def child = ChildScopeSpec.lifted(PortType.variable(1), Nullability.NON_NULL, TypeUniverse.INTEGER,
+                Nullability.NON_NULL)
+        def spec = OperationSpec.mapping('map', MAP, Weights.CONTAINER, [port], setOfInteger, Nullability.NON_NULL, child)
+
+        when:
+        grounding.ground(spec, [setOfString]).toList()
+
+        then:
+        def error = thrown(IllegalStateException)
+
+        expect:
+        error.message.contains('Ungrounded type variable')
     }
 
     // ---- helpers ---------------------------------------------------------------------------------------------

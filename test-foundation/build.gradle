@@ -2,8 +2,8 @@ plugins {
     id 'groovy'
 }
 
-// World-2 compile harness + FakeStrategy. Strategy-agnostic: depends on the engine and
-// compile-testing, but on NO strategy module. Consumed by every e2e suite via
+// World-2 compile harness (PercolateCompiler). Strategy-agnostic: depends on the engine and
+// compile-testing, but on NO strategy module. Consumed by the feature-e2e suites via
 // `testImplementation project(':test-foundation')`. Internal — not published.
 dependencies {
     implementation platform(project(':dependencies'))

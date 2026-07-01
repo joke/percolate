@@ -8,8 +8,14 @@ import javax.annotation.processing.AbstractProcessor
 import javax.annotation.processing.Processor
 import javax.annotation.processing.RoundEnvironment
 import javax.lang.model.SourceVersion
+import javax.lang.model.element.AnnotationMirror
+import javax.lang.model.element.Element
 import javax.lang.model.element.ExecutableElement
+import javax.lang.model.element.Name
+import javax.lang.model.element.PackageElement
 import javax.lang.model.element.TypeElement
+import javax.lang.model.type.DeclaredType
+import javax.lang.model.type.TypeMirror
 import javax.lang.model.util.Elements
 import javax.tools.JavaCompiler
 import javax.tools.JavaFileObject
@@ -93,12 +99,79 @@ class JspecifyNullabilityResolverSpec extends Specification {
         resolveParamMulti([annotation, holder], 'test.Holder', 'consume', custom) == Nullability.NULLABLE
     }
 
-    private static Nullability resolveParam(
+    // The package-fallback block (getPackageOf) is only reachable at the seam: in a real compile the
+    // param -> method -> type -> package enclosing walk visits the package first, shadowing it. These
+    // stub the javac model directly so the fallback and its declared-type/no-package edges are covered.
+
+    def 'a package-level @NullMarked with no closer annotation resolves NON_NULL'() {
+        def scope = stubScope([])
+        def pkg = stubConstruct([annotationMirror('org.jspecify.annotations.NullMarked')])
+        def elements = Stub(Elements) { getPackageOf(scope) >> pkg }
+        def resolver = new JspecifyNullabilityResolver(NullabilityAnnotations.jspecifyDefaults(), elements)
+
+        expect:
+        resolver.resolve(stubType([]), scope) == Nullability.NON_NULL
+    }
+
+    def 'a package-level @NullUnmarked with no closer annotation resolves UNKNOWN'() {
+        def scope = stubScope([])
+        def pkg = stubConstruct([annotationMirror('org.jspecify.annotations.NullUnmarked')])
+        def elements = Stub(Elements) { getPackageOf(scope) >> pkg }
+        def resolver = new JspecifyNullabilityResolver(NullabilityAnnotations.jspecifyDefaults(), elements)
+
+        expect:
+        resolver.resolve(stubType([]), scope) == Nullability.UNKNOWN
+    }
+
+    def 'an annotation whose type does not resolve to a TypeElement is ignored'() {
+        // a mirror whose annotation element is a non-TypeElement — its FQN is null and it is skipped
+        def nonTypeMirror = Stub(AnnotationMirror) {
+            getAnnotationType() >> Stub(DeclaredType) { asElement() >> Stub(Element) }
+        }
+        def scope = stubScope([])
+        def pkg = stubConstruct([nonTypeMirror])
+        def elements = Stub(Elements) { getPackageOf(scope) >> pkg }
+        def resolver = new JspecifyNullabilityResolver(NullabilityAnnotations.jspecifyDefaults(), elements)
+
+        expect:
+        resolver.resolve(stubType([]), scope) == Nullability.UNKNOWN
+    }
+
+    def 'a scope with no enclosing package resolves UNKNOWN'() {
+        def scope = stubScope([])
+        def elements = Stub(Elements) { getPackageOf(scope) >> null }
+        def resolver = new JspecifyNullabilityResolver(NullabilityAnnotations.jspecifyDefaults(), elements)
+
+        expect:
+        resolver.resolve(stubType([]), scope) == Nullability.UNKNOWN
+    }
+
+    private Element stubScope(final List<AnnotationMirror> mirrors) {
+        Stub(Element) {
+            getAnnotationMirrors() >> mirrors
+            getEnclosingElement() >> null
+        }
+    }
+
+    private TypeMirror stubType(final List<AnnotationMirror> mirrors) {
+        Stub(TypeMirror) { getAnnotationMirrors() >> mirrors }
+    }
+
+    private PackageElement stubConstruct(final List<AnnotationMirror> mirrors) {
+        Stub(PackageElement) { getAnnotationMirrors() >> mirrors }
+    }
+
+    private AnnotationMirror annotationMirror(final String fqn) {
+        def element = Stub(TypeElement) { getQualifiedName() >> Stub(Name) { toString() >> fqn } }
+        Stub(AnnotationMirror) { getAnnotationType() >> Stub(DeclaredType) { asElement() >> element } }
+    }
+
+    private Nullability resolveParam(
             final JavaFileObject src, final String className, final String method, final NullabilityAnnotations cfg) {
         resolveParamMulti([src], className, method, cfg)
     }
 
-    private static Nullability resolveParamMulti(
+    private Nullability resolveParamMulti(
             final List<JavaFileObject> srcs, final String className, final String method, final NullabilityAnnotations cfg) {
         final result = new AtomicReference<Nullability>()
         final Processor processor = new ProbeProcessor(className, method, cfg, result)
@@ -111,7 +184,7 @@ class JspecifyNullabilityResolverSpec extends Specification {
         result.get() ?: { throw new IllegalStateException('resolver did not run') }()
     }
 
-    private static JavaFileObject source(final String name, final String code) {
+    private JavaFileObject source(final String name, final String code) {
         new SimpleJavaFileObject(URI.create('string:///' + name.replace('.', '/') + '.java'),
                 JavaFileObject.Kind.SOURCE) {
             @Override

@@ -1,6 +1,7 @@
 package io.github.joke.percolate.processor.internal.stages.validate
 
 import io.github.joke.percolate.processor.Diagnostics
+import io.github.joke.percolate.processor.MapperContext
 import io.github.joke.percolate.processor.model.MapperMappings
 import io.github.joke.percolate.processor.model.MappingDirective
 import io.github.joke.percolate.processor.model.MethodMappings
@@ -12,6 +13,7 @@ import javax.annotation.processing.Messager
 import javax.lang.model.element.AnnotationMirror
 import javax.lang.model.element.AnnotationValue
 import javax.lang.model.element.ExecutableElement
+import javax.lang.model.element.TypeElement
 import javax.tools.Diagnostic
 
 @Tag('unit')
@@ -90,6 +92,36 @@ class ValidateMappingShapeStageSpec extends Specification {
         then:
         0 * messager.printMessage(*_)
         result.methods[0].directives.size() == 2
+    }
+
+    def 'run is a no-op when the context has no mappings'() {
+        given:
+        def ctx = new MapperContext(Mock(TypeElement))
+
+        when:
+        stage.run(ctx)
+
+        then:
+        0 * messager.printMessage(*_)
+
+        and:
+        ctx.mappings == null
+    }
+
+    def 'run installs the validated mappings, dropping the contradictory directive'() {
+        given:
+        def ctx = new MapperContext(Mock(TypeElement))
+        ctx.mappings = mappings(new MappingDirective('status', 'in.status', 'ACTIVE', null, mirror, targetV, sourceV,
+                constantV, null))
+
+        when:
+        stage.run(ctx)
+
+        then:
+        1 * messager.printMessage(Diagnostic.Kind.ERROR, { it.contains('mutually exclusive') }, method, mirror, constantV)
+
+        and:
+        ctx.mappings.methods[0].directives.empty
     }
 
     private MapperMappings mappings(final MappingDirective... directives) {

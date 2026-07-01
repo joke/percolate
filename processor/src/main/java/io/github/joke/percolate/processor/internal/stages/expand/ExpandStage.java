@@ -86,12 +86,19 @@ public final class ExpandStage implements Stage {
         final var graph = new MapperGraph();
         ctx.setGraph(graph);
         final var resolveCtx = new CompileResolveCtx(elements, types, ctx.getCallableMethods());
-        new Driver(graph, ctx.getGoalSpecs(), resolveCtx).seedAndExpand(shape);
+        new Driver(strategies, projections, resolver, graph, ctx.getGoalSpecs(), resolveCtx).seedAndExpand(shape);
     }
 
-    /** One expansion run over a single graph: holds the work-list and the per-Value visited set. */
-    private final class Driver {
+    /**
+     * One expansion run over a single graph: holds the work-list and the per-Value visited set. Package-visible and
+     * {@code static} so the unit suite drives it directly with constructed strategies and an injected
+     * {@link ResolveCtx} (e.g. a no-compile test harness), asserting on the resulting {@link MapperGraph} — the seam
+     * this engine is unit-tested at (design D5). Production code reaches it only through {@link #run(MapperContext)}.
+     */
+    static final class Driver {
 
+        private final List<ExpansionStrategy> strategies;
+        private final NullabilityResolver resolver;
         private final MapperGraph graph;
         private final Map<Scope, GoalSpec> goalSpecs;
         private final ResolveCtx resolveCtx;
@@ -102,7 +109,15 @@ public final class ExpandStage implements Stage {
         private final Deque<Value> workList = new ArrayDeque<>();
         private final Set<Value> visited = new HashSet<>();
 
-        private Driver(final MapperGraph graph, final Map<Scope, GoalSpec> goalSpecs, final ResolveCtx resolveCtx) {
+        Driver(
+                final List<ExpansionStrategy> strategies,
+                final List<SourceProjection> projections,
+                final NullabilityResolver resolver,
+                final MapperGraph graph,
+                final Map<Scope, GoalSpec> goalSpecs,
+                final ResolveCtx resolveCtx) {
+            this.strategies = strategies;
+            this.resolver = resolver;
             this.graph = graph;
             this.goalSpecs = goalSpecs;
             this.resolveCtx = resolveCtx;
@@ -111,7 +126,7 @@ public final class ExpandStage implements Stage {
         }
 
         /** Self-seeds one return-type demand per abstract method into the empty graph, then drains the work-list. */
-        private void seedAndExpand(final MapperShape shape) {
+        void seedAndExpand(final MapperShape shape) {
             shape.getAbstractMethods().forEach(this::seedReturnRoot);
             while (!workList.isEmpty()) {
                 final var value = workList.poll();

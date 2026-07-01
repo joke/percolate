@@ -6,12 +6,14 @@ import io.github.joke.percolate.spi.Nullability
 import io.github.joke.percolate.spi.Port
 import io.github.joke.percolate.spi.test.TypeUniverse
 import org.jgrapht.Graph
+import spock.lang.Isolated
 import spock.lang.Specification
 import spock.lang.Tag
 
 import javax.lang.model.type.TypeMirror
 
 @Tag('unit')
+@Isolated // bridge: shares the static TypeUniverse javac; serialise until the type-universe redesign (see openspec/notes.md)
 class BipartiteGraphSpec extends Specification {
 
     final MapperGraph graph = new MapperGraph()
@@ -196,6 +198,73 @@ class BipartiteGraphSpec extends Specification {
 
         and: 'no element param-root Value exists until a port reuses it'
         graph.valuesIn(child).noneMatch { it.loc instanceof ElementLocation }
+    }
+
+    def 'scopeView masks out every vertex that lives in another scope'() {
+        final var other = new HarnessScope('other()')
+        final var inScope = graph.valueFor(scope, new SourceLocation(AccessPath.of('a')), TypeUniverse.STRING,
+                Nullability.NON_NULL)
+        final var elsewhere = graph.valueFor(other, new SourceLocation(AccessPath.of('b')), TypeUniverse.STRING,
+                Nullability.NON_NULL)
+
+        when:
+        final var view = graph.scopeView(scope)
+
+        then:
+        view.vertexSet().contains(inScope)
+        !view.vertexSet().contains(elsewhere)
+    }
+
+    // ---- Vertex / edge identity ----------------------------------------------------------------
+
+    def 'a Dep edge is equal only to itself'() {
+        final var dep = Dep.port('p')
+
+        expect:
+        dep == dep
+        dep != Dep.port('p')
+        dep != Dep.output()
+    }
+
+    def 'an Operation vertex is equal only to itself'() {
+        final var first = graph.apply(constructor('a', [port('x', TypeUniverse.STRING)]))
+        final var second = graph.apply(constructor('b', [port('y', TypeUniverse.STRING)]))
+
+        expect:
+        first == first
+        first != second
+    }
+
+    def 'an uninitialised child scope rejects access to its roots until the owning Operation lands'() {
+        final var op = new Operation(0, 'map', Stub(Codegen), 1, false, [], scope, true)
+        final var child = op.childScope.get()
+
+        when:
+        child.returnRoot
+
+        then:
+        thrown(NullPointerException)
+
+        when:
+        child.elementInput
+
+        then:
+        thrown(NullPointerException)
+    }
+
+    def 'initialising an already-landed child scope a second time is rejected'() {
+        final var decl = new ChildScopeDecl(
+                TypeUniverse.INTEGER, Nullability.NON_NULL, TypeUniverse.STRING, Nullability.NON_NULL)
+        final var op = graph.apply(new AddOperation('map', Stub(Codegen), 1, false,
+                [port('src', TypeUniverse.LIST_OF_INT)],
+                target('out', TypeUniverse.LIST_OF_STRING), Optional.of(decl)))
+        final var child = op.childScope.get()
+
+        when: 're-initialising with the roots already minted at landing time'
+        child.initialise(child.returnRoot, child.elementInput)
+
+        then:
+        thrown(IllegalStateException)
     }
 
     // ---- helpers --------------------------------------------------------------------------------

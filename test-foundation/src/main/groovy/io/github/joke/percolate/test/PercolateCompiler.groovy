@@ -10,9 +10,9 @@ import javax.tools.JavaFileObject
 /**
  * World-2 compile harness: runs the real {@link PercolateProcessor} over supplied sources and returns the
  * {@link Compilation}. Strategy-agnostic — it references no strategy module. Whichever strategies are on the
- * running test classpath are what the processor discovers via ServiceLoader: the real builtins in a strategy
- * module, a registered {@link FakeStrategy} in the engine module. Every e2e suite compiles through here rather
- * than re-implementing the {@code Compiler.javac().withProcessors(...)} boilerplate.
+ * running test classpath are what the processor discovers via ServiceLoader — the real builtins in a strategy
+ * module for the feature-e2e layer. Every e2e suite compiles through here rather than re-implementing the
+ * {@code Compiler.javac().withProcessors(...)} boilerplate.
  */
 final class PercolateCompiler {
 

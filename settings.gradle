@@ -9,6 +9,7 @@ pluginManagement {
         id 'net.ltgt.nullaway' version '3.0.0'
         id 'org.danilopianini.cpd' version '4.0.17'
         id 'org.antora' version '1.0.0'
+        id 'info.solidsoft.pitest' version '1.19.0'
     }
 }
 

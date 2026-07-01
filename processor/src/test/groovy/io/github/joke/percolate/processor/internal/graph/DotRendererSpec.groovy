@@ -5,12 +5,14 @@ import io.github.joke.percolate.spi.Codegen
 import io.github.joke.percolate.spi.Nullability
 import io.github.joke.percolate.spi.Port
 import io.github.joke.percolate.spi.test.TypeUniverse
+import spock.lang.Isolated
 import spock.lang.Specification
 import spock.lang.Tag
 
 import javax.lang.model.type.TypeMirror
 
 @Tag('unit')
+@Isolated // bridge: shares the static TypeUniverse javac; serialise until the type-universe redesign (see openspec/notes.md)
 class DotRendererSpec extends Specification {
 
     final MapperGraph graph = new MapperGraph()

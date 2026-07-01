@@ -1,0 +1,99 @@
+package io.github.joke.percolate.processor.internal.stages.generate
+
+import com.palantir.javapoet.CodeBlock
+import io.github.joke.percolate.processor.MapperContext
+import io.github.joke.percolate.processor.test.fixtures.CallableFixtures
+import io.github.joke.percolate.processor.test.fixtures.DirectiveFixtures
+import io.github.joke.percolate.processor.test.fixtures.Human
+import io.github.joke.percolate.processor.test.fixtures.Person
+import io.github.joke.percolate.processor.test.fixtures.PersonMapper
+import io.github.joke.percolate.spi.test.TypeUniverse
+import spock.lang.Isolated
+import spock.lang.Specification
+import spock.lang.Tag
+
+import javax.annotation.processing.Filer
+import javax.lang.model.element.ElementKind
+import javax.lang.model.element.ExecutableElement
+import javax.tools.JavaFileObject
+
+/**
+ * {@link AssembleMapperType} seam, unit-tested directly: it assembles a {@code <Name>Impl} type in the mapper's
+ * package — public final, {@code @Generated}, an empty constructor, and one {@code @Override} per method body — then
+ * writes it via the {@link Filer}. The written source is captured through a stub Filer/Writer. Real mapper types come
+ * from {@link TypeUniverse}, exercising the interface ({@code implements}) vs class ({@code extends}) branch.
+ */
+@Tag('unit')
+@Isolated // bridge: shares the static TypeUniverse javac; serialise until the type-universe redesign (see openspec/notes.md)
+class AssembleMapperTypeSpec extends Specification {
+
+    def writer = new StringWriter()
+    def filer = Mock(Filer) {
+        createSourceFile(_, _) >> Mock(JavaFileObject) { openWriter() >> writer }
+    }
+    def stage = new AssembleMapperType(filer, TypeUniverse.elements())
+
+    def setupSpec() {
+        TypeUniverse.of(Person)
+        TypeUniverse.of(Human)
+        TypeUniverse.of(PersonMapper)
+        TypeUniverse.of(CallableFixtures)
+        TypeUniverse.of(DirectiveFixtures)
+    }
+
+    def 'a void mapper method renders a void return type'() {
+        def ctx = new MapperContext(TypeUniverse.of(DirectiveFixtures))
+        def bodies = [new MethodImpl(method(DirectiveFixtures, 'sink'), CodeBlock.of(''), [] as Set)]
+
+        when:
+        stage.assemble(ctx, bodies)
+
+        then:
+        writer.toString().contains('void sink(')
+    }
+
+    def 'assembles a public final <Name>Impl implementing a @Mapper interface, with a generated annotation'() {
+        given:
+        def ctx = new MapperContext(TypeUniverse.of(PersonMapper))
+        def bodies = [new MethodImpl(method(PersonMapper, 'map'), CodeBlock.of('return null;\n'), [] as Set)]
+
+        when:
+        stage.assemble(ctx, bodies)
+        def source = writer.toString()
+
+        then: 'the impl lives in the mapper package, is public final, generated, and implements the interface'
+        source.contains('package io.github.joke.percolate.processor.test.fixtures;')
+        source.contains('public final class PersonMapperImpl implements PersonMapper')
+        source.contains('@Generated')
+        source.contains('public PersonMapperImpl()')
+
+        and: 'the one method body is emitted as an @Override'
+        source.contains('@Override')
+        source.contains('map(')
+        source.contains('return null;')
+    }
+
+    def 'extends (not implements) when the mapper type is a class'() {
+        given:
+        def ctx = new MapperContext(TypeUniverse.of(CallableFixtures))
+        def bodies = [new MethodImpl(method(CallableFixtures, 'makeHuman'), CodeBlock.of('return null;\n'), [] as Set)]
+
+        when:
+        stage.assemble(ctx, bodies)
+
+        then:
+        writer.toString().contains('class CallableFixturesImpl extends CallableFixtures')
+    }
+
+    def 'the mapper interface is detected by element kind'() {
+        expect:
+        TypeUniverse.of(PersonMapper).kind == ElementKind.INTERFACE
+        TypeUniverse.of(CallableFixtures).kind == ElementKind.CLASS
+    }
+
+    private static ExecutableElement method(final Class<?> type, final String name) {
+        TypeUniverse.of(type).enclosedElements.find {
+            it.kind == ElementKind.METHOD && it.simpleName.toString() == name
+        } as ExecutableElement
+    }
+}
