@@ -2,7 +2,7 @@
 
 ## Purpose
 
-Defines where end-to-end (compile) tests live and how they are written, so test slices match module boundaries. A shared `test-foundation` module provides a strategy-agnostic compile harness consumed by every e2e suite. Each strategy module owns the e2e tests for its own atoms, pulling the engine and the harness into its test classpath. The engine module declares no edge to any strategy module and is tested against a `FakeStrategy` rather than the real builtins, so a strategy regression fails in its owning module instead of surfacing only in a downstream integration project.
+Defines where end-to-end (compile) tests live and how they are written, so test slices match module boundaries. A shared `test-foundation` module provides a strategy-agnostic compile harness consumed by every e2e suite. Each strategy module owns the e2e tests for its own atoms, pulling the engine and the harness into its test classpath. The engine module declares no edge to any strategy module and is unit-tested at its own seams (see `engine-test-quality`) rather than through fakes, so a strategy regression fails in its owning module instead of surfacing only in a downstream integration project.
 
 ## Requirements
 
@@ -36,14 +36,14 @@ End-to-end compile tests SHALL live in the module that owns the strategy under t
 
 ### Requirement: The engine is tested without real strategies
 
-The `processor` module SHALL declare no dependency edge — compile, runtime, or test — on any strategy module. Engine-level end-to-end tests in `processor` SHALL drive code generation with a `FakeStrategy` (a synthetic SPI implementation that emits a known sentinel), registered for the test compilation, and SHALL assert on engine behaviour (weaving, cost selection, descent, diagnostics) rather than on real conversion output.
+The `processor` module SHALL declare no dependency edge — compile, runtime, or test — on any strategy module. The engine SHALL be tested **at its own seams by unit tests** (see the `engine-test-quality` capability), not by compiling a `@Mapper` with a fake strategy. Engine integration / compile-testing specs in `processor` — and the `FakeStrategy` that drove them — SHALL be **removed**; real engine↔strategy integration is covered by the feature-e2e layer, not by fakes in the engine module.
 
 #### Scenario: Processor test classpath is strategy-free
 
 - **WHEN** the resolved test classpath of the `processor` module is inspected
 - **THEN** it contains no strategy module, and no spec asserts strategy-specific output such as `Integer.valueOf` or a builtin container expression
 
-#### Scenario: Engine weaving verified via a sentinel
+#### Scenario: The engine has no fake-driven compile-tests
 
-- **WHEN** a `processor` engine test compiles a mapper with a `FakeStrategy` that emits a sentinel for the demanded type
-- **THEN** the generated implementation places the sentinel in the expected structural position, confirming the engine wove the strategy output correctly without depending on any real strategy
+- **WHEN** the `processor` test suite is inspected
+- **THEN** no spec compiles a `@Mapper` with a `FakeStrategy` to assert engine behaviour, and the `FakeStrategy` harness is no longer present — engine behaviour is asserted by unit tests at the seam

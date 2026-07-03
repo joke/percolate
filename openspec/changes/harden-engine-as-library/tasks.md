@@ -22,4 +22,4 @@
 ## 5. Verification
 
 - [x] 5.1 Run `./gradlew check` and verify it passes: `processor` unit coverage ≥ 95%, the pitest threshold holds, and the ArchUnit module-boundary rules stay green. NEVER continue if there are violations
-- [ ] 5.2 Commit the completed change with `/commit-commands:commit`
+- [x] 5.2 Commit the completed change with `/commit-commands:commit`
