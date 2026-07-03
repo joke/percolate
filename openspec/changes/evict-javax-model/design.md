@@ -189,14 +189,29 @@ after Phase 4. Rollback at any phase = `git revert` (no persisted state, no data
 
 ## Open Questions
 
-- Final names (`TypeRef`, `TypeSpace`, `TypeDecl`, `TestTypes`) — placeholder names; settle at spike PR.
-- **Nested type-use nullness** (`Optional<Set<@Nullable Address>>`): the *outer* nullness axis stays in
-  `Value`/signatures (D2), but per-type-argument marks (read today from nested annotation mirrors by the
-  DOT renderer and the nullness axis derivation) need a model home — likely an optional nullness mark on
-  each type-argument position of a declared `TypeRef`, distinct from the outer axis. Settle at spike;
-  the debug-output delta deliberately says "the model's per-argument nullness data".
-- Package: `io.github.joke.percolate.spi.type` vs flat in `spi` — settle at Phase 1.
-- Whether `reactor`'s type-variable matching needs `VariableRef` bounds in v1 or names suffice — spike
-  answers.
 - Whether root `build.gradle` pitest thresholds (`mutationThreshold` etc.) stay shared or also move
   per-module once multiple modules carry pitest — decide at Phase 4 with real scores in hand.
+
+## Spike Findings (Phase 0, 2026-07-03 — GO)
+
+- **Go.** All four spike targets passed on the first full `:spi:check`: the algebra (29 scenarios incl.
+  the substituting `ArrayList<E>→List<E>→Collection<E>→Iterable<E>` walk, invariance, raw fallback,
+  boxing round-trips), the `StreamMap` port (erasure match, element extraction, `match`/`ground`
+  functor-lift grounding — ~30 lines where the mirror world needs `PortType` + engine unify machinery),
+  the `SelfCallGuard` keying port (signature comparison is plain `equals`, string keys gone), and the
+  `TypeName` emitter (golden-identical to `TypeName.get(mirror)` for declared/parameterised/nested/
+  array/primitive shapes).
+- **Names and package settle as prototyped**: `TypeRef`, `TypeSpace`, `TypeDecl`, `MethodSig` in
+  `io.github.joke.percolate.spi.types`. Scratch code is **promoted in place**; Phase 1 hardens and
+  extends these classes (the package-info drops its SPIKE framing when Phase 2 lands).
+- **`Variable` needs no bounds in v1**: matching is structural one-way unification; names suffice.
+  Bounds would only serve match-time validation the engine does not perform today.
+- **Nested type-use nullness (was an open question)**: not representable in the spike and not needed by
+  it. Decision: keep nullness out of `TypeRef` identity (D2 stands); when Phase 3.3/3.4 ports the DOT
+  renderer and the nullness-axis derivation, carry per-argument marks as a lightweight optional wrapper
+  ref (`TypeRef`-adjacent, excluded from equality) or as signature-side data resolved at the boundary —
+  choose whichever the porting shows is smaller; the delta spec's wording ("the model's per-argument
+  nullness data") accommodates both.
+- **Primitive assignability is identity-only** in the model (javac widens; here widening stays a
+  conversion-strategy concern). Deviation is deliberate and documented on `TypeSpace#isAssignable`;
+  the e2e layer holds the real-semantics line.

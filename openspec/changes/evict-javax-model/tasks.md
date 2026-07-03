@@ -5,11 +5,11 @@ Phases follow design.md D9. Phase 0 is the go/no-go gate; Phase 2 is the atomic 
 
 ## 1. Spike (go/no-go gate)
 
-- [ ] 1.1 Prototype `TypeRef` value hierarchy + minimal `TypeSpace` (sameness, erasure, declared-edge assignability with substitution, boxing table) in a scratch package in `spi`
-- [ ] 1.2 Port ONE container strategy (`ListContainer` or `StreamMap`) + its unit spec to the prototype — validates generics substitution, functor-lift type-variable matching ergonomics, and the nested type-use nullness question (design open question)
-- [ ] 1.3 Port ONE engine stage seam (`SourceCandidates` or `SelfCallGuard`) + its spec to the prototype — validates value-equality keying replacing `toString` keys
-- [ ] 1.4 Prototype `TypeRef → TypeName` emission for the spike's shapes and golden-compare against `TypeName.get(mirror)` output
-- [ ] 1.5 Go/no-go: record spike findings (final names, package, nested-nullness representation, `VariableRef` bounds y/n) in design.md; delete scratch code or promote it
+- [x] 1.1 Prototype `TypeRef` value hierarchy + minimal `TypeSpace` (sameness, erasure, declared-edge assignability with substitution, boxing table) in a scratch package in `spi`
+- [x] 1.2 Port ONE container strategy (`ListContainer` or `StreamMap`) + its unit spec to the prototype — validates generics substitution, functor-lift type-variable matching ergonomics, and the nested type-use nullness question (design open question)
+- [x] 1.3 Port ONE engine stage seam (`SourceCandidates` or `SelfCallGuard`) + its spec to the prototype — validates value-equality keying replacing `toString` keys
+- [x] 1.4 Prototype `TypeRef → TypeName` emission for the spike's shapes and golden-compare against `TypeName.get(mirror)` output
+- [x] 1.5 Go/no-go: record spike findings (final names, package, nested-nullness representation, `VariableRef` bounds y/n) in design.md; delete scratch code or promote it — **GO**, promoted in place (see design.md Spike Findings)
 
 ## 2. Phase 1 — model lands in spi (zero consumers)
 
