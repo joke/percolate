@@ -85,23 +85,34 @@ packaged correctly. It is not a feature-coverage or integration layer.
 ## Sequencing
 
 1. **`harden-engine-as-library`** — pitest spike → unit coverage to 95% → remove engine integration tests.
-2. **`features-as-documentation`** — feature e2e=doc co-located per module; delete/replace the old
+   ✅ DONE, archived 2026-07-03.
+2. **`evict-javax-model`** — own immutable type currency; delete `TypeUniverse`; restore threaded pitest and
+   roll it out to all modules. Runs **before** `features-as-documentation` so the old `strategies-builtin`
+   e2e compile-tests serve as the safety net for the cutover.
+3. **`features-as-documentation`** — feature e2e=doc co-located per module; delete/replace the old
    `strategies-builtin` e2e; distribute pages into modules; central spine only.
 
 ## Open topics
 
-- **Redesign the engine-test type universe (its own change, after `harden-engine-as-library`).** The shared,
-  all-`static` `TypeUniverse` javac singleton (`spi/src/testFixtures`) is **not thread-safe**, so the engine
-  seam tests race it under threaded pitest — non-deterministic, *under-reported* mutation scores (a class
-  swung 9%↔91% across identical clean runs; the race hid ~280 real kills). It has bitten the project
-  repeatedly. **Bridge** (in `harden-engine-as-library`): mark the TypeUniverse-using specs `@Isolated` —
-  serialises them, deterministic, ~zero cost since the unit suite isn't Spock-parallel today. **Real fix:** an
-  immutable, test-only fake `Types`/`Elements` implementing only the javax-model operations the engine calls,
-  with test-controllable type relationships — inherently thread-safe/parallel/fast, no javac "Filling"
-  fragility. No production abstraction needed (the engine already consumes the `Types`/`Elements` interfaces
-  via `ResolveCtx`); the fake is test-only. Engine *logic* is tested against a controlled oracle; real type
-  *semantics* are the feature-e2e layer's job (real compiles). Sequence it **before** writing further engine
-  seam tests.
+- **Evict `javax.lang.model` from engine + SPI (change: `evict-javax-model`, decided 2026-07-03).**
+  Supersedes the earlier "immutable fake `Types`/`Elements`, no production abstraction" plan. The recurring
+  TypeUniverse trouble (races under threaded pitest, javac "Filling X during Y", `@Isolated`, `threads = 1`,
+  `SynchronizedElements`, priming lists) is a symptom; the disease is the *currency*: a `TypeMirror` is a
+  handle into a live javac session, not a value. Production already suffers it — `Value.id()` dedups by
+  `TypeMirror::toString`, same string-keying in `MethodScope`/`SelfCallGuard`, nullability bolted beside the
+  mirror because it can't live in it. **The fix:** an own immutable type model (`TypeRef` + an immutable
+  universe snapshot passed via `ResolveCtx`, never ambient static state) as the sole engine+SPI currency;
+  javax.lang.model dies at the discovery boundary (adapter — discovery already half-is one: `CallableMethods`,
+  `MethodCandidate`, `MappingDirective`); an ArchUnit rule confines javax.lang.model to the adapter so the
+  disease can't creep back. Measured surface is small (~8 `Types` + ~5 `Elements` methods). Type-system
+  fidelity stays deliberately lawful-not-faithful (structural sameness, edge-walk assignability, invariant
+  generics, boxing table) — real Java semantics remain the feature-e2e layer's job. Spike-gated: port one
+  strategy + one stage to a prototype `TypeRef` before committing to the cutover.
+  **Cleanup folded in:** `TypeUniverse`/`HarnessResolveCtx` javac substrate deleted; all 16 `@Isolated`
+  removed; `processor/spock-pitest.groovy` and its `spock.configuration` jvmArg deleted; pitest `threads`
+  back to `availableProcessors()`; `pitestTargetClasses`/`pitestTargetTests` property blocks removed;
+  processor-specific `excludedClasses` moves from root `build.gradle` into `processor/build.gradle`; pitest
+  rolled out to `spi`, `strategies-builtin`, `reactor`, `reactor-blocking`.
 
 ## Scrapped
 
