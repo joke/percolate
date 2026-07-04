@@ -231,6 +231,33 @@ is the true "flip". Same end state and the same ArchUnit confinement (which only
 the only change is that intermediate states compile. Tasks 3.1–3.7 are unchanged as units of work; they
 are committed as green increments rather than a single hunk.
 
+**Amendment (2026-07-04) — `ResolveCtx.types()`/`elements()` are not transitional scaffolding; they are
+permanent, alongside `typeSpace()`.** An attempt to delete `TypeMirror` from `Port`/`OperationSpec`/
+`ChildScopeSpec`/`Demand` entirely (making `TypeRef` the sole currency) was started and reverted after
+discovering it breaks three call sites the design already declared permanently exempt (D7's
+`AssembleMapperType`/`BuildMethodBodies`, D9's `CallableMethods.producing`): all three need a genuinely
+compiler-backed `TypeMirror` reachable from graph state (`BuildMethodBodies`'s hoisted-local declaration
+explicitly reads it "from a graph `Value`"), and once the graph stops carrying one, there is nothing left
+to read. The correct end state is not "delete `javax.lang.model` from the engine" but "`TypeRef` is the
+primary surface strategies and matching logic read; a real `TypeMirror` stays permanently available beside
+it for the enumerated exempt sites." `Port`/`OperationSpec` already carry both (the increment-C/F/K
+bridge fields); `ResolveCtx.types()`/`elements()` stay for the same reason.
+
+**Amendment (2026-07-04) — the `Grounding`/`PortType` collapse, resolved: `Port.template` and
+`ChildScopeSpec`'s element templates become `TypeRef` (deleting `PortType`/`PortTypes`), but `Grounding`
+does not delegate its algorithm to `TypeSpace.match`/`ground`.** `TypeSpace.match` only compares
+`TypeRef`-to-`TypeRef` — it cannot produce the *real* `TypeMirror` a bound variable must carry (needed by
+the same permanently-exempt sites above: a freshly-grounded generic type flowing into a hoisted-local
+declaration must be genuinely compiler-backed, not a structural stand-in). `Grounding` instead runs the
+same shape of unify/ground algorithm directly over (`TypeRef` pattern, real `TypeMirror` source) pairs,
+producing `Map<String, TypeMirror>` bindings (keyed by variable name now, not `PortType.Var`'s index) —
+capturing the real mirror subterm at match time and rebuilding real declared/array types at instantiation
+time via `ctx.elements()`/`ctx.types()`, exactly as before. The win is real but narrower than first framed:
+one fewer parallel type hierarchy (`PortType` folds into the general-purpose `TypeRef`, closing the
+`Port.template`/`ChildScopeSpec` template surface onto the owned model), not a delegation to the pure
+`TypeSpace` algebra, which remains `TypeRef`-to-`TypeRef` only and continues to serve other, non-mirror-
+producing consumers (`Containers.isCollection/isIterable`, `TypeSpaceSpec`/`StreamMapPortSpec`).
+
 ## Risks / Trade-offs
 
 - **[Adapter closure walk misses a reachable type]** → e2e compile-tests exercise every shipped feature

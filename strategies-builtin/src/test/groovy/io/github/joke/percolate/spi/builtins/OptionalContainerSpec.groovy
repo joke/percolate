@@ -4,13 +4,13 @@ import com.palantir.javapoet.CodeBlock
 import io.github.joke.percolate.spi.Containers
 import io.github.joke.percolate.spi.Nullability
 import io.github.joke.percolate.spi.OperationCodegen
-import io.github.joke.percolate.spi.PortType
 import io.github.joke.percolate.spi.ResolveCtx
 import io.github.joke.percolate.spi.ScopeCodegen
 import io.github.joke.percolate.spi.Weights
 import io.github.joke.percolate.spi.builtins.test.Demands
 import io.github.joke.percolate.spi.builtins.test.ResolveCtxBuilder
 import io.github.joke.percolate.spi.test.PrivateTypeUniverse
+import io.github.joke.percolate.spi.types.TypeRef
 import spock.lang.Shared
 import spock.lang.Specification
 import spock.lang.Tag
@@ -56,9 +56,6 @@ class OptionalContainerSpec extends Specification {
     }
 
     def 'an Optional<E> target offers a same-kind functor-lift mapPresence over a type-variable Optional<A> port'() {
-        given:
-        def optionalErasure = ctx.elements().getTypeElement('java.util.Optional')
-
         when:
         def specs = new OptionalContainer().expand(Demands.forTarget(optionalOfString), ctx).toList()
 
@@ -66,9 +63,9 @@ class OptionalContainerSpec extends Specification {
         def mapping = specs.find { it.childScope.present }
         mapping != null
         mapping.codegen instanceof ScopeCodegen
-        mapping.ports[0].template == PortType.app(optionalErasure, [PortType.variable(0)])
+        mapping.ports[0].template == TypeRef.declared('java.util.Optional', TypeRef.variable('V0'))
         def child = mapping.childScope.get()
-        child.elementInTemplate == PortType.variable(0)
+        child.elementInTemplate == TypeRef.variable('V0')
         ctx.types().isSameType(child.elementOut, javac.STRING)
         ctx.types().isSameType(mapping.outputType, optionalOfString)
         !mapping.partial

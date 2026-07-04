@@ -7,13 +7,14 @@ import io.github.joke.percolate.spi.Nullability
 import io.github.joke.percolate.spi.OperationCodegen
 import io.github.joke.percolate.spi.OperationSpec
 import io.github.joke.percolate.spi.Port
-import io.github.joke.percolate.spi.PortType
 import io.github.joke.percolate.spi.ResolveCtx
 import io.github.joke.percolate.spi.ScopeCodegen
 import io.github.joke.percolate.spi.SourceProjection
 import io.github.joke.percolate.spi.Weights
 import io.github.joke.percolate.spi.test.HarnessResolveCtx
 import io.github.joke.percolate.spi.test.PrivateTypeUniverse
+import io.github.joke.percolate.spi.types.TypeRef
+import io.github.joke.percolate.spi.types.TypeRefs
 import spock.lang.Shared
 import spock.lang.Specification
 import spock.lang.Tag
@@ -142,9 +143,9 @@ class GroundingSpec extends Specification {
     def 'nested generics ground at depth and terminate'() {
         given: 'a Set<Set<A>> port matched against a Set<Set<String>> source'
         def setOfSetOfString = ctx.types().getDeclaredType(setElement, setOfString)
-        def nestedTemplate = PortType.app(setElement, [PortType.app(setElement, [PortType.variable(0)])])
+        def nestedTemplate = TypeRef.declared('java.util.Set', TypeRef.declared('java.util.Set', TypeRef.variable('V0')))
         def port = new Port('src', setElement.asType(), Nullability.NON_NULL, nestedTemplate)
-        def child = ChildScopeSpec.lifted(PortType.variable(0), Nullability.NON_NULL, javac.INTEGER,
+        def child = ChildScopeSpec.lifted(TypeRef.variable('V0'), Nullability.NON_NULL, javac.INTEGER,
                 Nullability.NON_NULL)
         def spec = OperationSpec.mapping('map', MAP, Weights.CONTAINER, [port], setOfInteger, Nullability.NON_NULL,
                 child)
@@ -222,7 +223,7 @@ class GroundingSpec extends Specification {
 
     def 'a Concrete template port grounds by isSameType and lands a concrete variable-free spec'() {
         // a template that carries no variable — a Concrete Set<String>
-        def port = new Port('src', setOfString, Nullability.NON_NULL, PortType.concrete(setOfString))
+        def port = new Port('src', setOfString, Nullability.NON_NULL, TypeRefs.of(setOfString))
         def spec = OperationSpec.of('copy', OP, Weights.STEP, [port], setOfString, Nullability.NON_NULL)
 
         when:
@@ -237,8 +238,10 @@ class GroundingSpec extends Specification {
 
     def 'a variable shared across two ports must bind consistently — mixed bindings are pruned'() {
         // two Set<A> ports: A is bound on the first, then re-checked for equality on the second
-        def port0 = new Port('a', setElement.asType(), Nullability.NON_NULL, PortType.app(setElement, [PortType.variable(0)]))
-        def port1 = new Port('b', setElement.asType(), Nullability.NON_NULL, PortType.app(setElement, [PortType.variable(0)]))
+        def port0 = new Port('a', setElement.asType(), Nullability.NON_NULL,
+                TypeRef.declared('java.util.Set', TypeRef.variable('V0')))
+        def port1 = new Port('b', setElement.asType(), Nullability.NON_NULL,
+                TypeRef.declared('java.util.Set', TypeRef.variable('V0')))
         def spec = OperationSpec.of('zip', OP, Weights.STEP, [port0, port1], setOfInteger, Nullability.NON_NULL)
 
         when: 'Set<String> and Set<Integer> are in scope — only the two matching-pair bindings survive'
@@ -252,7 +255,7 @@ class GroundingSpec extends Specification {
 
     def 'an already-concrete port beside a template port passes through grounding unchanged'() {
         def templatePort = new Port('a', setElement.asType(), Nullability.NON_NULL,
-                PortType.app(setElement, [PortType.variable(0)]))
+                TypeRef.declared('java.util.Set', TypeRef.variable('V0')))
         def concretePort = new Port('b', setOfString, Nullability.NON_NULL)
         def spec = OperationSpec.of('merge', OP, Weights.STEP, [templatePort, concretePort], setOfInteger,
                 Nullability.NON_NULL)
@@ -268,7 +271,7 @@ class GroundingSpec extends Specification {
 
     def 'a partial template spec instantiates through the partial path'() {
         def port = new Port('src', setElement.asType(), Nullability.NON_NULL,
-                PortType.app(setElement, [PortType.variable(0)]))
+                TypeRef.declared('java.util.Set', TypeRef.variable('V0')))
         def spec = OperationSpec.ofPartial('firstOrThrow', OP, Weights.STEP, [port], javac.INTEGER,
                 Nullability.NON_NULL)
 
@@ -312,10 +315,10 @@ class GroundingSpec extends Specification {
 
     def 'unification refuses a template nested past the recursion bound'() {
         // a Set<Set<...<A>>> template and a matching Set<Set<...<String>>> source, both nested past MAX_DEPTH
-        def template = PortType.variable(0)
+        TypeRef template = TypeRef.variable('V0')
         def sourceType = javac.STRING as TypeMirror
         40.times {
-            template = PortType.app(setElement, [template])
+            template = TypeRef.declared('java.util.Set', template)
             sourceType = ctx.types().getDeclaredType(setElement, sourceType)
         }
         def port = new Port('deep', setElement.asType(), Nullability.NON_NULL, template)
@@ -328,8 +331,8 @@ class GroundingSpec extends Specification {
     def 'an ungrounded type variable in the child scope fails fast during instantiation'() {
         // the child scope references Var 1, but only Var 0 is ever bound by a port
         def port = new Port('src', setElement.asType(), Nullability.NON_NULL,
-                PortType.app(setElement, [PortType.variable(0)]))
-        def child = ChildScopeSpec.lifted(PortType.variable(1), Nullability.NON_NULL, javac.INTEGER,
+                TypeRef.declared('java.util.Set', TypeRef.variable('V0')))
+        def child = ChildScopeSpec.lifted(TypeRef.variable('V1'), Nullability.NON_NULL, javac.INTEGER,
                 Nullability.NON_NULL)
         def spec = OperationSpec.mapping('map', MAP, Weights.CONTAINER, [port], setOfInteger, Nullability.NON_NULL, child)
 
@@ -347,9 +350,9 @@ class GroundingSpec extends Specification {
 
     /** A functor-lift {@code F<B> ← F<A>} over {@code erasure}: port {@code App(F,[Var 0])}, child {@code A → B}. */
     private static OperationSpec lift(final TypeElement erasure, final TypeMirror output, final TypeMirror elementOut) {
-        def template = PortType.app(erasure, [PortType.variable(0)])
+        def template = TypeRef.declared(erasure.qualifiedName.toString(), TypeRef.variable('V0'))
         def port = new Port('src', erasure.asType(), Nullability.NON_NULL, template)
-        def child = ChildScopeSpec.lifted(PortType.variable(0), Nullability.NON_NULL, elementOut, Nullability.NON_NULL)
+        def child = ChildScopeSpec.lifted(TypeRef.variable('V0'), Nullability.NON_NULL, elementOut, Nullability.NON_NULL)
         OperationSpec.mapping('map', MAP, Weights.CONTAINER, [port], output, Nullability.NON_NULL, child)
     }
 

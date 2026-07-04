@@ -1,13 +1,13 @@
 package io.github.joke.percolate.spi.builtins
 
 import com.palantir.javapoet.CodeBlock
-import io.github.joke.percolate.spi.PortType
 import io.github.joke.percolate.spi.ResolveCtx
 import io.github.joke.percolate.spi.ScopeCodegen
 import io.github.joke.percolate.spi.Weights
 import io.github.joke.percolate.spi.builtins.test.Demands
 import io.github.joke.percolate.spi.builtins.test.ResolveCtxBuilder
 import io.github.joke.percolate.spi.test.PrivateTypeUniverse
+import io.github.joke.percolate.spi.types.TypeRef
 import spock.lang.Shared
 import spock.lang.Specification
 import spock.lang.Tag
@@ -39,9 +39,8 @@ class StreamMapSpec extends Specification {
     }
 
     def 'a Stream<B> demand emits scope-owning map and flatMap over a type-variable Stream<A> port'() {
-        given: 'the expected input port template: an App(Stream, [Var 0])'
-        def streamErasure = ctx.elements().getTypeElement('java.util.stream.Stream')
-        def expectedTemplate = PortType.app(streamErasure, [PortType.variable(0)])
+        given: 'the expected input port template: Stream<V0>'
+        def expectedTemplate = TypeRef.declared('java.util.stream.Stream', TypeRef.variable('V0'))
 
         when:
         def specs = new StreamMap().expand(Demands.forTarget(streamOfString), ctx).toList()
@@ -57,7 +56,7 @@ class StreamMapSpec extends Specification {
         ctx.types().isSameType(map.outputType, streamOfString)
         map.ports[0].name == 'stream'
         map.ports[0].template == expectedTemplate
-        map.childScope.get().elementInTemplate == PortType.variable(0)
+        map.childScope.get().elementInTemplate == TypeRef.variable('V0')
         ((ScopeCodegen) map.codegen).weave(CodeBlock.of('$N', 's'), 'v', CodeBlock.of('$N', 'b'))
                 .toString().contains('.map(')
 
@@ -65,7 +64,7 @@ class StreamMapSpec extends Specification {
         def flatMap = specs.find { ctx.types().isSameType(it.childScope.get().elementOut, streamOfString) }
         flatMap != null
         flatMap.ports[0].template == expectedTemplate
-        flatMap.childScope.get().elementInTemplate == PortType.variable(0)
+        flatMap.childScope.get().elementInTemplate == TypeRef.variable('V0')
         ((ScopeCodegen) flatMap.codegen).weave(CodeBlock.of('$N', 's'), 'v', CodeBlock.of('$N', 'b'))
                 .toString().contains('.flatMap(')
     }
@@ -75,7 +74,7 @@ class StreamMapSpec extends Specification {
         def specs = new StreamMap().expand(Demands.forTarget(streamOfString), ctx).toList()
 
         then: 'every emitted port carries the App template — grounding, not the strategy, supplies the concrete source'
-        specs.every { it.ports[0].template instanceof PortType.App }
+        specs.every { it.ports[0].template instanceof TypeRef.Declared }
     }
 
     def 'declines when the target is not a Stream'() {

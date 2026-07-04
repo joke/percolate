@@ -2,6 +2,7 @@ package io.github.joke.percolate.spi
 
 import com.palantir.javapoet.CodeBlock
 import io.github.joke.percolate.spi.test.PrivateTypeUniverse
+import io.github.joke.percolate.spi.types.TypeRef
 import spock.lang.Shared
 import spock.lang.Specification
 import spock.lang.Tag
@@ -117,10 +118,9 @@ class ContainerSpec extends Specification {
         def mapping = specs.find { it.childScope.present }
         mapping != null
         mapping.codegen instanceof ScopeCodegen
-        mapping.ports[0].template == PortType.app(ctx.elements().getTypeElement('java.util.Optional'),
-                [PortType.variable(0)])
+        mapping.ports[0].template == TypeRef.declared('java.util.Optional', TypeRef.variable('V0'))
         def child = mapping.childScope.get()
-        child.elementInTemplate == PortType.variable(0)
+        child.elementInTemplate == TypeRef.variable('V0')
         ctx.types().isSameType(child.elementOut, javac.STRING)
         ctx.types().isSameType(mapping.outputType, optionalOfString)
         !mapping.partial

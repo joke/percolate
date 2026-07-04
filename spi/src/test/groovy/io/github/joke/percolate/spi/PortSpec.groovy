@@ -24,7 +24,7 @@ class PortSpec extends Specification {
 
     def 'a template port defaults to REUSE_OR_MINT'() {
         expect:
-        new Port('value', javac.STRING, Nullability.NON_NULL, (PortType) null).sourcing == Port.Sourcing.REUSE_OR_MINT
+        new Port('value', javac.STRING, Nullability.NON_NULL, (TypeRef) null).sourcing == Port.Sourcing.REUSE_OR_MINT
     }
 
     def 'Port.reuse builds a REUSE port'() {
@@ -44,26 +44,25 @@ class PortSpec extends Specification {
 
     def 'a null-template port derives typeRef from type, same as a concrete port'() {
         expect:
-        new Port('value', javac.STRING, Nullability.NON_NULL, (PortType) null).typeRef == TypeRefs.of(javac.STRING)
+        new Port('value', javac.STRING, Nullability.NON_NULL, (TypeRef) null).typeRef == TypeRefs.of(javac.STRING)
     }
 
     def 'a concrete template port derives typeRef from the template, not the representative type'() {
-        def template = PortType.concrete(javac.INTEGER)
+        def template = TypeRefs.of(javac.INTEGER)
 
         expect:
         new Port('value', javac.STRING, Nullability.NON_NULL, template).typeRef == TypeRefs.of(javac.INTEGER)
     }
 
     def 'a variable template port derives typeRef as a TypeRef.Variable, not the representative type'() {
-        def template = PortType.variable(0)
+        def template = TypeRef.variable('V0')
 
         expect:
         new Port('value', javac.STRING, Nullability.NON_NULL, template).typeRef == TypeRef.variable('V0')
     }
 
     def 'an app template port derives typeRef as a Declared with the argument shapes preserved'() {
-        def setElement = javac.elements().getTypeElement('java.util.Set')
-        def template = PortType.app(setElement, [PortType.variable(0)])
+        def template = TypeRef.declared('java.util.Set', TypeRef.variable('V0'))
 
         expect:
         new Port('value', javac.STRING, Nullability.NON_NULL, template).typeRef ==

@@ -1,6 +1,7 @@
 package io.github.joke.percolate.spi;
 
 import com.palantir.javapoet.CodeBlock;
+import io.github.joke.percolate.spi.types.TypeRef;
 import java.util.List;
 import java.util.Optional;
 import java.util.stream.Stream;
@@ -152,10 +153,11 @@ public abstract class Container implements ExpansionStrategy, SourceProjection {
                 to,
                 Nullability.NON_NULL)));
         mapPresence().ifPresent(map -> kindErasure(ctx).ifPresent(erasure -> {
-            final var template = PortType.app(erasure, List.of(PortType.variable(0)));
+            final var template = TypeRef.declared(
+                    erasure.getQualifiedName().toString(), TypeRef.variable("V0"));
             final var port = new Port(SOURCE_ROLE, erasure.asType(), Nullability.NON_NULL, template);
-            final var child =
-                    ChildScopeSpec.lifted(PortType.variable(0), Nullability.NON_NULL, elementOut, Nullability.NON_NULL);
+            final var child = ChildScopeSpec.lifted(
+                    TypeRef.variable("V0"), Nullability.NON_NULL, elementOut, Nullability.NON_NULL);
             specs.add(OperationSpec.mapping(
                     "map", map, Weights.CONTAINER, List.of(port), to, Nullability.NON_NULL, child));
         }));
