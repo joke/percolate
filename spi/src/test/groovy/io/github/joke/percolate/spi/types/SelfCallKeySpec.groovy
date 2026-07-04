@@ -19,8 +19,8 @@ class SelfCallKeySpec extends Specification {
     static final TypeRef HUMAN = declared('com.acme.Human')
 
     def 'independently built signatures of the same method are equal'() {
-        def callTarget = new MethodSig('map', [PERSON], HUMAN)
-        def scopeMethod = new MethodSig('map', [declared('com.acme.Person')], declared('com.acme.Human'))
+        def callTarget = MethodSig.of('map', HUMAN, PERSON)
+        def scopeMethod = MethodSig.of('map', declared('com.acme.Human'), declared('com.acme.Person'))
 
         expect:
         callTarget == scopeMethod
@@ -28,27 +28,27 @@ class SelfCallKeySpec extends Specification {
     }
 
     def 'a signature differing in name or parameter types is distinct'() {
-        def method = new MethodSig('map', [PERSON], HUMAN)
+        def method = MethodSig.of('map', HUMAN, PERSON)
 
         expect:
-        method != new MethodSig('convert', [PERSON], HUMAN)
-        method != new MethodSig('map', [HUMAN], HUMAN)
-        method != new MethodSig('map', [PERSON, PERSON], HUMAN)
+        method != MethodSig.of('convert', HUMAN, PERSON)
+        method != MethodSig.of('map', HUMAN, HUMAN)
+        method != MethodSig.of('map', HUMAN, PERSON, PERSON)
     }
 
     def 'signatures key sets and maps directly'() {
-        def parameterRoots = [new MethodSig('map', [PERSON], HUMAN)] as Set
+        def parameterRoots = [MethodSig.of('map', HUMAN, PERSON)] as Set
 
         expect:
-        new MethodSig('map', [PERSON], HUMAN) in parameterRoots
-        !(new MethodSig('map', [HUMAN], HUMAN) in parameterRoots)
+        MethodSig.of('map', HUMAN, PERSON) in parameterRoots
+        !(MethodSig.of('map', HUMAN, HUMAN) in parameterRoots)
     }
 
     def 'the self-call decision is a value comparison'() {
-        def scopeMethod = new MethodSig('map', [PERSON], HUMAN)
-        def selfCall = new MethodSig('map', [PERSON], HUMAN)
-        def delegation = new MethodSig('other', [PERSON], HUMAN)
-        def voidSibling = new MethodSig('map', [PERSON], none())
+        def scopeMethod = MethodSig.of('map', HUMAN, PERSON)
+        def selfCall = MethodSig.of('map', HUMAN, PERSON)
+        def delegation = MethodSig.of('other', HUMAN, PERSON)
+        def voidSibling = MethodSig.of('map', none(), PERSON)
 
         expect:
         selfCall == scopeMethod

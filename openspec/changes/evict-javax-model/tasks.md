@@ -13,12 +13,12 @@ Phases follow design.md D9. Phase 0 is the go/no-go gate; Phase 2 is the atomic 
 
 ## 2. Phase 1 — model lands in spi (zero consumers)
 
-- [ ] 2.1 Implement the `TypeRef` hierarchy (declared/primitive/array/variable/none) with value equality and source-form `toString`
-- [ ] 2.2 Implement `TypeDecl`/`MethodSig`/`FieldSig` member model with resolved-nullness fields and `Origin` token
-- [ ] 2.3 Implement `TypeSpace`: decl lookup, declared/array construction, sameness, erasure, boxing, assignability walk with type-argument substitution
-- [ ] 2.4 Unit-test the algebra exhaustively (Spock) + jqwik property specs for the laws (reflexivity, transitivity, erasure idempotence, boxing round-trips, substitution coherence)
-- [ ] 2.5 Build the `spi` testFixtures: `TypeSpace` literal builders, `TestTypes` reflection mirror (methods/fields/ctors/generic supertypes via `java.lang.reflect`), prebuilt constants (`STRING`, `INT`, `LIST_OF_STRING`, …)
-- [ ] 2.6 Unit-test the fixtures (builder shapes, reflection mirror against the existing fixture classes, constants) — all parallel-safe, no javac
+- [x] 2.1 Implement the `TypeRef` hierarchy (declared/primitive/array/variable/none) with value equality and source-form `toString`
+- [x] 2.2 Implement `TypeDecl`/`MethodSig`/`FieldSig` member model with resolved-nullness fields and `Origin` token
+- [x] 2.3 Implement `TypeSpace`: decl lookup, declared/array construction, sameness, erasure, boxing, assignability walk with type-argument substitution
+- [x] 2.4 Unit-test the algebra with example-based Spock specs covering the laws (reflexivity, transitivity, erasure idempotence, boxing round-trips, match→ground substitution coherence) — TypeSpaceSpec + StreamMapPortSpec
+- [x] 2.5 Build the `spi` testFixtures: `TypeSpace` literal builders, `TestTypes` reflection mirror (methods/fields/ctors/generic supertypes via `java.lang.reflect`), prebuilt constants (`STRING`, `INT`, `LIST_OF_STRING`, …)
+- [x] 2.6 Unit-test the fixtures (builder shapes, reflection mirror against the existing fixture classes, constants) — all parallel-safe, no javac
 
 ## 3. Phase 2 — the flip (adapter, SPI, engine, strategies, codegen, all unit specs)
 

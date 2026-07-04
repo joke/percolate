@@ -173,9 +173,9 @@ after Phase 4. Rollback at any phase = `git revert` (no persisted state, no data
 - **[Adapter closure walk misses a reachable type]** → e2e compile-tests exercise every shipped feature
   path against real javac before Layer 2 deletes them; missing types fail loudly (lookup throws, mapper
   defers with diagnostics).
-- **[Generic-supertype substitution subtly wrong (e.g. `ArrayList<E> → List<E>`)]** → jqwik property specs
+- **[Generic-supertype substitution subtly wrong (e.g. `ArrayList<E> → List<E>`)]** → example-based Spock specs
   over the algebra laws (reflexivity, transitivity, erasure idempotence, boxing round-trips, substitution
-  coherence); spike exercises the container strategies that depend on it hardest.
+  coherence) — `TypeSpaceSpec` + `StreamMapPortSpec`; spike exercises the container strategies that depend on it hardest.
 - **[`TypeRef → TypeName` emitter diverges from `TypeName.get(mirror)`]** → golden spec comparing emitter
   output against JavaPoet's own rendering for every fixture shape (nested, generic, array, primitive,
   annotated); e2e output assertions unchanged.

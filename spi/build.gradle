@@ -19,6 +19,13 @@ dependencies {
     api platform(project(':dependencies'))
     api 'com.palantir.javapoet:javapoet'
 
+    testFixturesAnnotationProcessor platform(project(':dependencies'))
+    testFixturesAnnotationProcessor 'org.projectlombok:lombok'
+
+    testFixturesCompileOnly platform(project(':dependencies'))
+    testFixturesCompileOnly 'org.projectlombok:lombok'
+    testFixturesCompileOnly 'org.jspecify:jspecify'
+
     testFixturesImplementation platform(project(':dependencies'))
     testFixturesImplementation 'org.spockframework:spock-core'
     testFixturesImplementation 'org.apache.groovy:groovy'

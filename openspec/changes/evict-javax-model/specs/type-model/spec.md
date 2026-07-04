@@ -142,13 +142,13 @@ task or hold shared mutable state.
 
 The `TypeSpace` algebra SHALL satisfy documented laws — sameness is an equivalence; assignability is
 reflexive and transitive over declared edges; erasure is idempotent; boxing round-trips — verified by
-property-based specs (jqwik). The algebra SHALL NOT attempt JLS-faithful subtyping (wildcard calculus,
+example-based Spock specs over a spanning set of `TypeRef` shapes. The algebra SHALL NOT attempt JLS-faithful subtyping (wildcard calculus,
 capture conversion); real Java type semantics remain validated by the feature-e2e layer through real
 compiles.
 
-#### Scenario: Laws hold under generated inputs
-- **WHEN** the jqwik property suite generates arbitrary well-formed `TypeSpace` declarations and `TypeRef`s
-- **THEN** reflexivity, transitivity, erasure idempotence, and boxing round-trip properties hold on every sample
+#### Scenario: Laws hold across representative shapes
+- **WHEN** the example specs exercise each `TypeRef` constructor kind (declared, array, primitive, variable; one- and two-argument; nested) and each declared edge in the fixture space
+- **THEN** reflexivity, transitivity, erasure idempotence, boxing round-trip, and match→ground coherence hold on every case
 
 #### Scenario: Wildcards are out of scope
 - **WHEN** the v1 model surface is inspected

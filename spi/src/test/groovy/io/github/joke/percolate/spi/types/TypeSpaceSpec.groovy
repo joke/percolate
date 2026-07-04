@@ -15,9 +15,9 @@ class TypeSpaceSpec extends Specification {
     static final TypeRef INTEGER = declared('java.lang.Integer')
 
     def collectionsSpace = TypeSpace.of(
-            new TypeDecl('java.util.ArrayList', ['E'], [declared('java.util.List', variable('E'))]),
-            new TypeDecl('java.util.List', ['E'], [declared('java.util.Collection', variable('E'))]),
-            new TypeDecl('java.util.Collection', ['E'], [declared('java.lang.Iterable', variable('E'))]))
+            TypeDecl.of('java.util.ArrayList', ['E'], [declared('java.util.List', variable('E'))]),
+            TypeDecl.of('java.util.List', ['E'], [declared('java.util.Collection', variable('E'))]),
+            TypeDecl.of('java.util.Collection', ['E'], [declared('java.lang.Iterable', variable('E'))]))
 
     def 'independently constructed refs are the same type and share a map key'() {
         def first = declared('java.util.List', STRING)
@@ -109,7 +109,7 @@ class TypeSpaceSpec extends Specification {
 
     def 'two snapshots are independent values'() {
         def other = TypeSpace.of(
-                new TypeDecl('java.util.ArrayList', ['E'], []))
+                TypeDecl.of('java.util.ArrayList', ['E'], []))
 
         expect:
         collectionsSpace.isAssignable(declared('java.util.ArrayList', STRING), declared('java.util.List', STRING))
