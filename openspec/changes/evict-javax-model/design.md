@@ -136,6 +136,20 @@ One emitter in codegen: qualified names → `ClassName` (nested-aware via the de
 `ParameterizedTypeName`, arrays/primitives directly, type-use `@Nullable` from the nullness axis exactly as
 today. All 7 JavaPoet sites route through it.
 
+**Amendment (2026-07-04) — the emitter routes only wildcard-free sites; the rest stay on `TypeMirror`
+permanently.** v1's `TypeRef` has no wildcard representation (D3): a wildcard-bearing source type renders its
+upper bound instead, which is silently wrong wherever the output must satisfy Java's exact-match rules — a
+method override signature or a hoisted local's declared type. Measuring the 7 sites: 5 are in
+`AssembleMapperType` (copying the user's abstract method's parameter/return/exception types verbatim into the
+generated override — must be byte-for-byte faithful to the source, wildcards included) and 1 is in
+`BuildMethodBodies` (declaring a hoisted local's type from a graph `Value`, which can carry a wildcard-bearing
+type transitively from a user's accessor). Both stay on `TypeName.get(TypeMirror)` indefinitely — this is
+"faithful mirror of the source" work, not engine currency, so the D6 module-boundary confinement rule (task 4.3)
+exempts `AssembleMapperType` and this one `BuildMethodBodies` site alongside the discovery adapter and
+diagnostics emission. The 7th site (`ConstructorCall`'s `new $T(...)`) is safe by construction — a `new`
+expression can never target a wildcard type — and is the one site actually routed through the emitter.
+Revisit if the model ever grows wildcard support; until then this is the shipped scope of D7.
+
 ### D8 — Test construction: literal builders + a reflection mirror for fixtures
 
 Two fixture paths in `spi` testFixtures (replacing `TypeUniverse`/`HarnessResolveCtx`'s javac substrate):

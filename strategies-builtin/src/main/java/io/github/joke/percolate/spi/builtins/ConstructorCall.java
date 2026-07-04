@@ -5,7 +5,6 @@ import static java.util.stream.Collectors.toUnmodifiableList;
 import static java.util.stream.Collectors.toUnmodifiableSet;
 
 import com.google.auto.service.AutoService;
-import com.palantir.javapoet.ClassName;
 import com.palantir.javapoet.CodeBlock;
 import io.github.joke.percolate.spi.ExpansionStrategy;
 import io.github.joke.percolate.spi.Nullability;
@@ -15,6 +14,8 @@ import io.github.joke.percolate.spi.Port;
 import io.github.joke.percolate.spi.ProduceDemand;
 import io.github.joke.percolate.spi.ResolveCtx;
 import io.github.joke.percolate.spi.Weights;
+import io.github.joke.percolate.spi.types.TypeNames;
+import io.github.joke.percolate.spi.types.TypeRef;
 import java.util.List;
 import java.util.Set;
 import java.util.stream.Stream;
@@ -102,8 +103,12 @@ public final class ConstructorCall implements ExpansionStrategy {
     }
 
     private OperationCodegen buildCodegen(final TypeElement typeElement, final List<String> portNames) {
+        // A bare class name, never carrying type arguments — wildcard-free by construction, so the owned-model
+        // emitter is safe here (design D7 amendment; see TypeNamesSpec for the scope this is limited to).
+        final var typeName = TypeNames.toTypeName(
+                TypeRef.declared(typeElement.getQualifiedName().toString()));
         return inputs -> {
-            final var builder = CodeBlock.builder().add("new $T(", ClassName.get(typeElement));
+            final var builder = CodeBlock.builder().add("new $T(", typeName);
             for (var i = 0; i < portNames.size(); i++) {
                 if (i > 0) {
                     builder.add(", ");

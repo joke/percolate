@@ -8,11 +8,17 @@ import com.palantir.javapoet.TypeVariableName;
 import lombok.experimental.UtilityClass;
 
 /**
- * The {@link TypeRef} → JavaPoet {@link TypeName} emitter (design D7) — replaces {@code TypeName.get(TypeMirror)}
- * as codegen's way into JavaPoet. Its output is golden-compared against JavaPoet's own mirror-based rendering.
+ * The {@link TypeRef} → JavaPoet {@link TypeName} emitter (design D7) — an alternative to
+ * {@code TypeName.get(TypeMirror)} for codegen sites whose type is known wildcard-free by construction. Its
+ * output is golden-compared against JavaPoet's own mirror-based rendering ({@code TypeNamesSpec}).
  *
- * <p>SPIKE scope: {@link ClassName#bestGuess} for declared names (the Phase-3 emitter resolves nesting through
- * the declaration's enclosing chain); no type-use nullability annotations yet.
+ * <p><b>Scope (design D7 amendment):</b> v1's {@link TypeRef} has no wildcard representation (design D3), so this
+ * emitter is <em>not</em> a safe drop-in replacement everywhere {@code TypeName.get(TypeMirror)} appears — a
+ * wildcard-bearing source type would silently render its upper bound, which breaks any site requiring exact JLS
+ * fidelity (a method override signature, a hoisted local's declared type). Those sites stay on
+ * {@code TypeName.get(TypeMirror)} permanently. Nested-class resolution uses {@link ClassName#bestGuess}, which
+ * is correct under the standard Java naming convention (lowercase packages, uppercase classes) but is a
+ * heuristic, not a walk of the real enclosing-element chain; no type-use nullability annotations yet.
  */
 @UtilityClass
 public class TypeNames {
