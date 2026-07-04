@@ -1,6 +1,6 @@
 package io.github.joke.percolate.spi
 
-import io.github.joke.percolate.spi.test.TypeUniverse
+import io.github.joke.percolate.spi.test.PrivateTypeUniverse
 import io.github.joke.percolate.spi.types.TypeRefs
 import spock.lang.Specification
 import spock.lang.Tag
@@ -12,8 +12,9 @@ import javax.lang.model.type.TypeMirror
 class ProduceDemandSpec extends Specification {
 
     def 'targetTypeRef derives from targetType via TypeRefs.of'() {
+        def javac = new PrivateTypeUniverse()
         ProduceDemand demand = [
-                targetType      : { TypeUniverse.STRING },
+                targetType      : { javac.STRING },
                 targetNullness  : { Nullability.NON_NULL },
                 directive       : { Optional.empty() },
                 declaredChildren: { [] as Set },
@@ -22,6 +23,6 @@ class ProduceDemandSpec extends Specification {
         ] as ProduceDemand
 
         expect: 'the default method resolves even for a map-coerced instance that never mentions it'
-        demand.targetTypeRef() == TypeRefs.of(TypeUniverse.STRING)
+        demand.targetTypeRef() == TypeRefs.of(javac.STRING)
     }
 }

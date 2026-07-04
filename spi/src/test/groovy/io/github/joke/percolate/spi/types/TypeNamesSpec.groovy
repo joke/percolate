@@ -1,8 +1,9 @@
 package io.github.joke.percolate.spi.types
 
 import com.palantir.javapoet.TypeName
-import io.github.joke.percolate.spi.test.TypeUniverse
+import io.github.joke.percolate.spi.test.PrivateTypeUniverse
 import io.github.joke.percolate.spi.types.test.fixtures.Outer
+import spock.lang.Shared
 import spock.lang.Specification
 import spock.lang.Tag
 
@@ -13,7 +14,7 @@ import static io.github.joke.percolate.spi.types.TypeRef.variable
 
 /**
  * Golden comparison of the {@code TypeRef → TypeName} emitter against JavaPoet's own mirror-based rendering
- * ({@code TypeName.get(TypeMirror)} over the still-alive {@code TypeUniverse} javac substrate).
+ * ({@code TypeName.get(TypeMirror)} over a private, non-shared {@code PrivateTypeUniverse} javac substrate).
  *
  * <p><b>Scope (change {@code evict-javax-model}, design D7 amendment):</b> the emitter is safe only where the
  * source {@link TypeRef} is guaranteed wildcard-free — v1's model has no wildcard representation (design D3),
@@ -28,18 +29,20 @@ import static io.github.joke.percolate.spi.types.TypeRef.variable
 @Tag('unit')
 class TypeNamesSpec extends Specification {
 
-    static arrayOfString() {
-        TypeUniverse.types().getArrayType(TypeUniverse.STRING)
+    @Shared PrivateTypeUniverse javac = new PrivateTypeUniverse()
+
+    def arrayOfString() {
+        javac.types().getArrayType(javac.STRING)
     }
 
-    static optionalOfSetOfStringRef() {
+    def optionalOfSetOfStringRef() {
         declared('java.util.Optional', declared('java.util.Set', declared('java.lang.String')))
     }
 
-    static optionalOfSetOfStringMirror() {
-        def types = TypeUniverse.types()
-        def setOfString = types.getDeclaredType(TypeUniverse.element('java.util.Set'), TypeUniverse.STRING)
-        types.getDeclaredType(TypeUniverse.element('java.util.Optional'), setOfString)
+    def optionalOfSetOfStringMirror() {
+        def types = javac.types()
+        def setOfString = types.getDeclaredType(javac.element('java.util.Set'), javac.STRING)
+        types.getDeclaredType(javac.element('java.util.Optional'), setOfString)
     }
 
     def 'emitter output matches JavaPoet mirror rendering'() {
@@ -48,11 +51,11 @@ class TypeNamesSpec extends Specification {
 
         where:
         ref                                                | mirror
-        declared('java.lang.String')                       | TypeUniverse.STRING
-        declared('java.lang.Integer')                      | TypeUniverse.INTEGER
-        primitive(PrimitiveKind.INT)                       | TypeUniverse.INT
-        primitive(PrimitiveKind.LONG)                      | TypeUniverse.LONG
-        declared('java.util.List', declared('java.lang.String'))  | TypeUniverse.LIST_OF_STRING
+        declared('java.lang.String')                       | javac.STRING
+        declared('java.lang.Integer')                      | javac.INTEGER
+        primitive(PrimitiveKind.INT)                       | javac.INT
+        primitive(PrimitiveKind.LONG)                      | javac.LONG
+        declared('java.util.List', declared('java.lang.String'))  | javac.LIST_OF_STRING
         array(declared('java.lang.String'))                | arrayOfString()
         optionalOfSetOfStringRef()                         | optionalOfSetOfStringMirror()
     }
@@ -60,7 +63,7 @@ class TypeNamesSpec extends Specification {
     def 'a bare nested class name resolves via bestGuess exactly like ClassName.get(TypeElement)'() {
         expect:
         TypeNames.toTypeName(declared('io.github.joke.percolate.spi.types.test.fixtures.Outer.Inner')).toString() ==
-                TypeName.get(TypeUniverse.of(Outer.Inner).asType()).toString()
+                TypeName.get(javac.of(Outer.Inner).asType()).toString()
     }
 
     def 'a free type variable renders by name'() {

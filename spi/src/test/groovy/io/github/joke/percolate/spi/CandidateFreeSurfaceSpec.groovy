@@ -1,6 +1,6 @@
 package io.github.joke.percolate.spi
 
-import io.github.joke.percolate.spi.test.TypeUniverse
+import io.github.joke.percolate.spi.test.PrivateTypeUniverse
 import spock.lang.Shared
 import spock.lang.Specification
 import spock.lang.Tag
@@ -15,13 +15,14 @@ import javax.lang.model.type.TypeMirror
 @Tag('unit')
 class CandidateFreeSurfaceSpec extends Specification {
 
-    @Shared ResolveCtx ctx = new SimpleResolveCtx()
-    @Shared TypeMirror optionalOfString = TypeUniverse.types().getDeclaredType(
-            TypeUniverse.elements().getTypeElement('java.util.Optional'), TypeUniverse.STRING)
-    @Shared TypeMirror setOfString = TypeUniverse.types().getDeclaredType(
-            TypeUniverse.elements().getTypeElement('java.util.Set'), TypeUniverse.STRING)
-    @Shared TypeMirror streamOfString = TypeUniverse.types().getDeclaredType(
-            TypeUniverse.elements().getTypeElement('java.util.stream.Stream'), TypeUniverse.STRING)
+    @Shared PrivateTypeUniverse javac = new PrivateTypeUniverse()
+    @Shared ResolveCtx ctx = new SimpleResolveCtx(javac)
+    @Shared TypeMirror optionalOfString = javac.types().getDeclaredType(
+            javac.elements().getTypeElement('java.util.Optional'), javac.STRING)
+    @Shared TypeMirror setOfString = javac.types().getDeclaredType(
+            javac.elements().getTypeElement('java.util.Set'), javac.STRING)
+    @Shared TypeMirror streamOfString = javac.types().getDeclaredType(
+            javac.elements().getTypeElement('java.util.stream.Stream'), javac.STRING)
 
     def 'the spi package exposes no CombinatorialMatch mixin'() {
         when:
@@ -49,8 +50,8 @@ class CandidateFreeSurfaceSpec extends Specification {
         Containers.isOptional(type, ctx) == TypeProbe.isType(type, 'java.util.Optional', ctx)
 
         where:
-        type << [optionalOfString, setOfString, streamOfString, TypeUniverse.LIST_OF_STRING, TypeUniverse.STRING,
-                 TypeUniverse.INT]
+        type << [optionalOfString, setOfString, streamOfString, javac.LIST_OF_STRING, javac.STRING,
+                 javac.INT]
     }
 
     def 'Containers.isStream delegates its declared-type check to TypeProbe.isType'() {
@@ -58,8 +59,8 @@ class CandidateFreeSurfaceSpec extends Specification {
         Containers.isStream(type, ctx) == TypeProbe.isType(type, 'java.util.stream.Stream', ctx)
 
         where:
-        type << [streamOfString, optionalOfString, setOfString, TypeUniverse.LIST_OF_STRING, TypeUniverse.STRING,
-                 TypeUniverse.INT]
+        type << [streamOfString, optionalOfString, setOfString, javac.LIST_OF_STRING, javac.STRING,
+                 javac.INT]
     }
 
     def 'Containers.isList delegates its declared-type check to TypeProbe.isType'() {
@@ -67,8 +68,8 @@ class CandidateFreeSurfaceSpec extends Specification {
         Containers.isList(type, ctx) == TypeProbe.isType(type, 'java.util.List', ctx)
 
         where:
-        type << [TypeUniverse.LIST_OF_STRING, setOfString, optionalOfString, streamOfString, TypeUniverse.STRING,
-                 TypeUniverse.INT]
+        type << [javac.LIST_OF_STRING, setOfString, optionalOfString, streamOfString, javac.STRING,
+                 javac.INT]
     }
 
     def 'Containers.isSet delegates its declared-type check to TypeProbe.isType'() {
@@ -76,19 +77,25 @@ class CandidateFreeSurfaceSpec extends Specification {
         Containers.isSet(type, ctx) == TypeProbe.isType(type, 'java.util.Set', ctx)
 
         where:
-        type << [setOfString, TypeUniverse.LIST_OF_STRING, optionalOfString, streamOfString, TypeUniverse.STRING,
-                 TypeUniverse.INT]
+        type << [setOfString, javac.LIST_OF_STRING, optionalOfString, streamOfString, javac.STRING,
+                 javac.INT]
     }
 
     private static final class SimpleResolveCtx implements ResolveCtx {
+        private final PrivateTypeUniverse javac
+
+        SimpleResolveCtx(final PrivateTypeUniverse javac) {
+            this.javac = javac
+        }
+
         @Override
         javax.lang.model.util.Elements elements() {
-            TypeUniverse.elements()
+            javac.elements()
         }
 
         @Override
         javax.lang.model.util.Types types() {
-            TypeUniverse.types()
+            javac.types()
         }
 
         @Override

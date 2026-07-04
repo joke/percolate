@@ -1,6 +1,6 @@
 package io.github.joke.percolate.spi
 
-import io.github.joke.percolate.spi.test.TypeUniverse
+import io.github.joke.percolate.spi.test.PrivateTypeUniverse
 import io.github.joke.percolate.spi.types.TypeDecl
 import io.github.joke.percolate.spi.types.TypeRef
 import io.github.joke.percolate.spi.types.TypeSpace
@@ -24,15 +24,16 @@ class ContainersSpec extends Specification {
     private static final TypeDecl COLLECTION_DECL =
             TypeDecl.of('java.util.Collection', ['E'], [TypeRef.declared('java.lang.Iterable', E)])
 
-    @Shared ResolveCtx ctx = new SimpleResolveCtx()
+    @Shared PrivateTypeUniverse javac = new PrivateTypeUniverse()
+    @Shared ResolveCtx ctx = new SimpleResolveCtx(javac)
     @Shared ResolveCtx typeRefCtx = new TypeSpaceResolveCtx(TypeSpace.of(LIST_DECL, SET_DECL, COLLECTION_DECL))
-    @Shared TypeMirror optionalOfString = TypeUniverse.types().getDeclaredType(
-            TypeUniverse.elements().getTypeElement('java.util.Optional'), TypeUniverse.STRING)
-    @Shared TypeMirror setOfString = TypeUniverse.types().getDeclaredType(
-            TypeUniverse.elements().getTypeElement('java.util.Set'), TypeUniverse.STRING)
-    @Shared TypeMirror stringArray = TypeUniverse.types().getArrayType(TypeUniverse.STRING)
-    @Shared TypeMirror streamOfString = TypeUniverse.types().getDeclaredType(
-            TypeUniverse.elements().getTypeElement('java.util.stream.Stream'), TypeUniverse.STRING)
+    @Shared TypeMirror optionalOfString = javac.types().getDeclaredType(
+            javac.elements().getTypeElement('java.util.Optional'), javac.STRING)
+    @Shared TypeMirror setOfString = javac.types().getDeclaredType(
+            javac.elements().getTypeElement('java.util.Set'), javac.STRING)
+    @Shared TypeMirror stringArray = javac.types().getArrayType(javac.STRING)
+    @Shared TypeMirror streamOfString = javac.types().getDeclaredType(
+            javac.elements().getTypeElement('java.util.stream.Stream'), javac.STRING)
     @Shared TypeRef setOfStringRef = TypeRef.declared('java.util.Set', TestTypes.STRING)
     @Shared TypeRef streamOfStringRef = TypeRef.declared('java.util.stream.Stream', TestTypes.STRING)
     @Shared TypeRef optionalOfStringRef = TypeRef.declared('java.util.Optional', TestTypes.STRING)
@@ -41,75 +42,75 @@ class ContainersSpec extends Specification {
     def 'isOptional recognises Optional<X> and rejects others'() {
         expect:
         Containers.isOptional(optionalOfString, ctx)
-        !Containers.isOptional(TypeUniverse.STRING, ctx)
-        !Containers.isOptional(TypeUniverse.LIST_OF_STRING, ctx)
-        !Containers.isOptional(TypeUniverse.INT, ctx)
+        !Containers.isOptional(javac.STRING, ctx)
+        !Containers.isOptional(javac.LIST_OF_STRING, ctx)
+        !Containers.isOptional(javac.INT, ctx)
     }
 
     def 'isList recognises List<X> and rejects others'() {
         expect:
-        Containers.isList(TypeUniverse.LIST_OF_STRING, ctx)
+        Containers.isList(javac.LIST_OF_STRING, ctx)
         !Containers.isList(setOfString, ctx)
-        !Containers.isList(TypeUniverse.STRING, ctx)
+        !Containers.isList(javac.STRING, ctx)
     }
 
     def 'isSet recognises Set<X> and rejects others'() {
         expect:
         Containers.isSet(setOfString, ctx)
-        !Containers.isSet(TypeUniverse.LIST_OF_STRING, ctx)
-        !Containers.isSet(TypeUniverse.STRING, ctx)
+        !Containers.isSet(javac.LIST_OF_STRING, ctx)
+        !Containers.isSet(javac.STRING, ctx)
     }
 
     def 'isCollection recognises Collection-typed declarations'() {
         expect:
-        Containers.isCollection(TypeUniverse.LIST_OF_STRING, ctx)
+        Containers.isCollection(javac.LIST_OF_STRING, ctx)
         Containers.isCollection(setOfString, ctx)
-        !Containers.isCollection(TypeUniverse.STRING, ctx)
+        !Containers.isCollection(javac.STRING, ctx)
     }
 
     def 'isIterable recognises Iterable subtypes and rejects others'() {
         expect:
-        Containers.isIterable(TypeUniverse.LIST_OF_STRING, ctx)
+        Containers.isIterable(javac.LIST_OF_STRING, ctx)
         Containers.isIterable(setOfString, ctx)
-        !Containers.isIterable(TypeUniverse.STRING, ctx)
-        !Containers.isIterable(TypeUniverse.INT, ctx)
+        !Containers.isIterable(javac.STRING, ctx)
+        !Containers.isIterable(javac.INT, ctx)
     }
 
     def 'isArray recognises array types and rejects others'() {
         expect:
         Containers.isArray(stringArray)
-        !Containers.isArray(TypeUniverse.STRING)
-        !Containers.isArray(TypeUniverse.LIST_OF_STRING)
+        !Containers.isArray(javac.STRING)
+        !Containers.isArray(javac.LIST_OF_STRING)
     }
 
     def 'typeArgument returns the requested generic type argument'() {
         expect:
-        ctx.types().isSameType(Containers.typeArgument(TypeUniverse.LIST_OF_STRING, 0), TypeUniverse.STRING)
-        ctx.types().isSameType(Containers.typeArgument(optionalOfString, 0), TypeUniverse.STRING)
+        ctx.types().isSameType(Containers.typeArgument(javac.LIST_OF_STRING, 0), javac.STRING)
+        ctx.types().isSameType(Containers.typeArgument(optionalOfString, 0), javac.STRING)
     }
 
     def 'typeArgument throws on non-declared types'() {
         when:
-        Containers.typeArgument(TypeUniverse.INT, 0)
+        Containers.typeArgument(javac.INT, 0)
         then:
         thrown(IllegalArgumentException)
     }
 
     def 'typeArgument throws on out-of-bounds index'() {
         when:
-        Containers.typeArgument(TypeUniverse.LIST_OF_STRING, 5)
+        Containers.typeArgument(javac.LIST_OF_STRING, 5)
         then:
         thrown(IndexOutOfBoundsException)
     }
 
     def 'arrayComponentType returns the array element type'() {
         expect:
-        ctx.types().isSameType(Containers.arrayComponentType(stringArray), TypeUniverse.STRING)
+        ctx.types().isSameType(Containers.arrayComponentType(stringArray), javac.STRING)
     }
 
     def 'arrayComponentType throws on non-array types'() {
         when:
-        Containers.arrayComponentType(TypeUniverse.STRING)
+        Containers.arrayComponentType(javac.STRING)
         then:
         thrown(IllegalArgumentException)
     }
@@ -117,16 +118,16 @@ class ContainersSpec extends Specification {
     def 'isStream recognises Stream<X> and rejects others'() {
         expect:
         Containers.isStream(streamOfString, ctx)
-        !Containers.isStream(TypeUniverse.LIST_OF_STRING, ctx)
-        !Containers.isStream(TypeUniverse.STRING, ctx)
-        !Containers.isStream(TypeUniverse.INT, ctx)
+        !Containers.isStream(javac.LIST_OF_STRING, ctx)
+        !Containers.isStream(javac.STRING, ctx)
+        !Containers.isStream(javac.INT, ctx)
     }
 
     def 'isReferenceType accepts declared and array types and rejects primitives'() {
         expect:
-        Containers.isReferenceType(TypeUniverse.STRING)
+        Containers.isReferenceType(javac.STRING)
         Containers.isReferenceType(stringArray)
-        !Containers.isReferenceType(TypeUniverse.INT)
+        !Containers.isReferenceType(javac.INT)
     }
 
     def 'isOptional(TypeRef) recognises Optional<X> and rejects others'() {
@@ -222,14 +223,20 @@ class ContainersSpec extends Specification {
     }
 
     private static final class SimpleResolveCtx implements ResolveCtx {
+        private final PrivateTypeUniverse javac
+
+        SimpleResolveCtx(final PrivateTypeUniverse javac) {
+            this.javac = javac
+        }
+
         @Override
         javax.lang.model.util.Elements elements() {
-            TypeUniverse.elements()
+            javac.elements()
         }
 
         @Override
         javax.lang.model.util.Types types() {
-            TypeUniverse.types()
+            javac.types()
         }
 
         @Override

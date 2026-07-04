@@ -1,7 +1,7 @@
 package io.github.joke.percolate.spi
 
 import com.palantir.javapoet.CodeBlock
-import io.github.joke.percolate.spi.test.TypeUniverse
+import io.github.joke.percolate.spi.test.PrivateTypeUniverse
 import spock.lang.Shared
 import spock.lang.Specification
 import spock.lang.Tag
@@ -18,11 +18,12 @@ import java.util.stream.Stream
 @Tag('unit')
 class ConversionSpec extends Specification {
 
+    @Shared PrivateTypeUniverse javac = new PrivateTypeUniverse()
     @Shared ResolveCtx ctx = ctx()
 
     def 'the base wires each authored conversion into a one-port NON_NULL unary OperationSpec'() {
         when:
-        def specs = new TestConversion().expand(demand(TypeUniverse.INTEGER), ctx).toList()
+        def specs = new TestConversion(javac).expand(demand(javac.INTEGER), ctx).toList()
 
         then:
         specs.size() == 1
@@ -35,15 +36,15 @@ class ConversionSpec extends Specification {
         spec.ports[0].name == 'value'
         spec.ports[0].sourcing == Port.Sourcing.REUSE_OR_MINT
         spec.ports[0].template == null
-        ctx.types().isSameType(spec.ports[0].type, TypeUniverse.STRING)
+        ctx.types().isSameType(spec.ports[0].type, javac.STRING)
         spec.ports[0].nullness == Nullability.NON_NULL
-        ctx.types().isSameType(spec.outputType, TypeUniverse.INTEGER)
+        ctx.types().isSameType(spec.outputType, javac.INTEGER)
         spec.outputNullness == Nullability.NON_NULL
     }
 
     def 'a target the author offers no conversion for yields no spec'() {
         expect:
-        new TestConversion().expand(demand(TypeUniverse.STRING), ctx).toList().empty
+        new TestConversion(javac).expand(demand(javac.STRING), ctx).toList().empty
     }
 
     private static ProduceDemand demand(final TypeMirror target) {
@@ -57,23 +58,29 @@ class ConversionSpec extends Specification {
         ] as ProduceDemand
     }
 
-    private static ResolveCtx ctx() {
+    private ResolveCtx ctx() {
         [
-                elements       : { TypeUniverse.elements() },
-                types          : { TypeUniverse.types() },
+                elements       : { javac.elements() },
+                types          : { javac.types() },
                 callableMethods: { null },
         ] as ResolveCtx
     }
 
     /** Offers a single String→target conversion, but only when the target is Integer. */
     static class TestConversion extends Conversion {
+        private final PrivateTypeUniverse javac
+
+        TestConversion(final PrivateTypeUniverse javac) {
+            this.javac = javac
+        }
+
         @Override
         protected Stream<Step> conversions(final TypeMirror target, final ResolveCtx c) {
-            if (!c.types().isSameType(target, TypeUniverse.INTEGER)) {
+            if (!c.types().isSameType(target, javac.INTEGER)) {
                 return Stream.empty()
             }
             def codegen = { IncomingValues inputs -> CodeBlock.of('$T.valueOf($L)', Integer, inputs.single()) } as OperationCodegen
-            Stream.of(new Step(TypeUniverse.STRING, 'String→Integer', Weights.STEP, codegen))
+            Stream.of(new Step(javac.STRING, 'String→Integer', Weights.STEP, codegen))
         }
     }
 }

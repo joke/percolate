@@ -1,7 +1,7 @@
 package io.github.joke.percolate.spi
 
 import com.palantir.javapoet.CodeBlock
-import io.github.joke.percolate.spi.test.TypeUniverse
+import io.github.joke.percolate.spi.test.PrivateTypeUniverse
 import spock.lang.Shared
 import spock.lang.Specification
 import spock.lang.Tag
@@ -21,12 +21,13 @@ import javax.lang.model.type.TypeMirror
 @Tag('unit')
 class ContainerSpec extends Specification {
 
+    @Shared PrivateTypeUniverse javac = new PrivateTypeUniverse()
     @Shared ResolveCtx ctx = ctx()
-    @Shared TypeMirror listOfString = TypeUniverse.LIST_OF_STRING
-    @Shared TypeMirror listOfInteger = TypeUniverse.LIST_OF_INT
-    @Shared TypeMirror setOfString = decl('java.util.Set', TypeUniverse.STRING)
-    @Shared TypeMirror optionalOfString = decl('java.util.Optional', TypeUniverse.STRING)
-    @Shared TypeMirror streamOfString = decl('java.util.stream.Stream', TypeUniverse.STRING)
+    @Shared TypeMirror listOfString = javac.LIST_OF_STRING
+    @Shared TypeMirror listOfInteger = javac.LIST_OF_INT
+    @Shared TypeMirror setOfString = decl('java.util.Set', javac.STRING)
+    @Shared TypeMirror optionalOfString = decl('java.util.Optional', javac.STRING)
+    @Shared TypeMirror streamOfString = decl('java.util.stream.Stream', javac.STRING)
 
     // ---- kind is emergent ----------------------------------------------------------------------------------
 
@@ -67,7 +68,7 @@ class ContainerSpec extends Specification {
         ctx.types().isSameType(collect.outputType, listOfString)
 
         and: 'a plain single-element wrap String -> List<String>'
-        def wrap = specs.find { ctx.types().isSameType(it.ports[0].type, TypeUniverse.STRING) }
+        def wrap = specs.find { ctx.types().isSameType(it.ports[0].type, javac.STRING) }
         wrap != null
         wrap.childScope.empty
         ctx.types().isSameType(wrap.outputType, listOfString)
@@ -107,7 +108,7 @@ class ContainerSpec extends Specification {
         def specs = new TestWrapper().expand(demand(optionalOfString), ctx).toList()
 
         then: 'a plain wrap String -> Optional<String>, no child scope'
-        def wrap = specs.find { it.childScope.empty && ctx.types().isSameType(it.ports[0].type, TypeUniverse.STRING) }
+        def wrap = specs.find { it.childScope.empty && ctx.types().isSameType(it.ports[0].type, javac.STRING) }
         wrap != null
         wrap.codegen instanceof OperationCodegen
         ctx.types().isSameType(wrap.outputType, optionalOfString)
@@ -120,7 +121,7 @@ class ContainerSpec extends Specification {
                 [PortType.variable(0)])
         def child = mapping.childScope.get()
         child.elementInTemplate == PortType.variable(0)
-        ctx.types().isSameType(child.elementOut, TypeUniverse.STRING)
+        ctx.types().isSameType(child.elementOut, javac.STRING)
         ctx.types().isSameType(mapping.outputType, optionalOfString)
         !mapping.partial
     }
@@ -130,7 +131,7 @@ class ContainerSpec extends Specification {
         def specs = new TestWrapper().expand(demand(streamOfString), ctx).toList()
 
         then: 'the iterate produces Stream<String> from Optional<String> (the wrapper of the stream element)'
-        def iterate = specs.find { ctx.types().isSameType(it.ports[0].type, decl('java.util.Optional', TypeUniverse.STRING)) }
+        def iterate = specs.find { ctx.types().isSameType(it.ports[0].type, decl('java.util.Optional', javac.STRING)) }
         iterate != null
         iterate.childScope.empty
         iterate.codegen instanceof OperationCodegen
@@ -141,7 +142,7 @@ class ContainerSpec extends Specification {
 
     def 'a wrapper unwraps a scalar target, plain and partial, under the demanded nullness'() {
         when:
-        def specs = new TestWrapper().expand(demand(TypeUniverse.STRING, Nullability.NULLABLE), ctx).toList()
+        def specs = new TestWrapper().expand(demand(javac.STRING, Nullability.NULLABLE), ctx).toList()
 
         then:
         specs.size() == 1
@@ -150,7 +151,7 @@ class ContainerSpec extends Specification {
         unwrap.codegen instanceof OperationCodegen
         unwrap.partial
         ctx.types().isSameType(unwrap.ports[0].type, optionalOfString)
-        ctx.types().isSameType(unwrap.outputType, TypeUniverse.STRING)
+        ctx.types().isSameType(unwrap.outputType, javac.STRING)
         unwrap.outputNullness == Nullability.NULLABLE
     }
 
@@ -165,14 +166,14 @@ class ContainerSpec extends Specification {
         ] as ProduceDemand
     }
 
-    private static TypeMirror decl(final String fqn, final TypeMirror arg) {
-        TypeUniverse.types().getDeclaredType(TypeUniverse.elements().getTypeElement(fqn), arg)
+    private TypeMirror decl(final String fqn, final TypeMirror arg) {
+        javac.types().getDeclaredType(javac.elements().getTypeElement(fqn), arg)
     }
 
-    private static ResolveCtx ctx() {
+    private ResolveCtx ctx() {
         [
-                elements       : { TypeUniverse.elements() },
-                types          : { TypeUniverse.types() },
+                elements       : { javac.elements() },
+                types          : { javac.types() },
                 callableMethods: { null },
         ] as ResolveCtx
     }

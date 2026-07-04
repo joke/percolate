@@ -1,6 +1,7 @@
 package io.github.joke.percolate.spi
 
-import io.github.joke.percolate.spi.test.TypeUniverse
+import io.github.joke.percolate.spi.test.PrivateTypeUniverse
+import spock.lang.Shared
 import spock.lang.Specification
 import spock.lang.Tag
 
@@ -9,31 +10,33 @@ import javax.lang.model.type.TypeKind
 @Tag('unit')
 class LiteralCoercionSpec extends Specification {
 
-    def types = TypeUniverse.types()
+    @Shared PrivateTypeUniverse javac = new PrivateTypeUniverse()
+
+    def types = javac.types()
 
     def 'String target coerces to the raw value verbatim'() {
         expect:
-        render(TypeUniverse.STRING, 'hello') == '"hello"'
+        render(javac.STRING, 'hello') == '"hello"'
     }
 
     def 'int coerces to a bare literal'() {
         expect:
-        render(TypeUniverse.INT, '7') == '7'
+        render(javac.INT, '7') == '7'
     }
 
     def 'long renders with the L suffix'() {
         expect:
-        render(TypeUniverse.LONG, '42') == '42L'
+        render(javac.LONG, '42') == '42L'
     }
 
     def 'a wrapper target coerces like its primitive, as a wrapper-typed expression'() {
         expect:
-        render(TypeUniverse.INTEGER, '7') == 'java.lang.Integer.valueOf(7)'
+        render(javac.INTEGER, '7') == 'java.lang.Integer.valueOf(7)'
     }
 
     def 'an out-of-scope (enum) target fails coercion'() {
         expect:
-        LiteralCoercion.coerce('MONDAY', TypeUniverse.DAY_OF_WEEK).empty
+        LiteralCoercion.coerce('MONDAY', javac.DAY_OF_WEEK).empty
     }
 
     def 'char accepts exactly one character'() {
@@ -63,7 +66,7 @@ class LiteralCoercionSpec extends Specification {
 
     def 'the raw string is not whitespace-trimmed'() {
         expect:
-        LiteralCoercion.coerce(' 7', TypeUniverse.INT).empty
+        LiteralCoercion.coerce(' 7', javac.INT).empty
     }
 
     private String render(final type, final String raw) {
