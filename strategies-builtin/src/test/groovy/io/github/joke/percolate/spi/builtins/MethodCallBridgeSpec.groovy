@@ -7,6 +7,8 @@ import io.github.joke.percolate.spi.builtins.test.Demands
 import io.github.joke.percolate.spi.builtins.test.FakeReceiver
 import io.github.joke.percolate.spi.builtins.test.ResolveCtxBuilder
 import io.github.joke.percolate.spi.test.PrivateTypeUniverse
+import io.github.joke.percolate.spi.types.MethodSig
+import io.github.joke.percolate.spi.types.TypeRefs
 import spock.lang.Shared
 import spock.lang.Specification
 import spock.lang.Tag
@@ -115,7 +117,8 @@ class MethodCallBridgeSpec extends Specification {
             throw new IllegalStateException('concat method not found on java.lang.String')
         }
         def fakeReceiver = FakeReceiver.instance()
-        new io.github.joke.percolate.spi.MethodCandidate(concatElement, fakeReceiver)
+        def methodSig = MethodSig.of('concat', TypeRefs.of(javac.STRING), TypeRefs.of(javac.STRING))
+        new io.github.joke.percolate.spi.MethodCandidate(concatElement, fakeReceiver, methodSig)
     }
 
     private io.github.joke.percolate.spi.MethodCandidate createValueOfObjectCandidate() {
@@ -135,6 +138,8 @@ class MethodCallBridgeSpec extends Specification {
             throw new IllegalStateException('valueOf(Object) method not found on java.lang.String')
         }
         def fakeReceiver = FakeReceiver.instance()
-        new io.github.joke.percolate.spi.MethodCandidate(valueOfElement, fakeReceiver)
+        def objectType = javac.element('java.lang.Object').asType()
+        def methodSig = MethodSig.of('valueOf', TypeRefs.of(javac.STRING), TypeRefs.of(objectType))
+        new io.github.joke.percolate.spi.MethodCandidate(valueOfElement, fakeReceiver, methodSig)
     }
 }

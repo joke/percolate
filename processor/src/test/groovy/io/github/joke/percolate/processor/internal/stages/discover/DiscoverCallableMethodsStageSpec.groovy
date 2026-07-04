@@ -1,9 +1,11 @@
 package io.github.joke.percolate.processor.internal.stages.discover
 
 import io.github.joke.percolate.processor.MapperContext
+import io.github.joke.percolate.processor.nullability.NullabilityResolver
 import io.github.joke.percolate.processor.test.fixtures.CallableFixtures
 import io.github.joke.percolate.processor.test.fixtures.Human
 import io.github.joke.percolate.processor.test.fixtures.Person
+import io.github.joke.percolate.spi.Nullability
 import io.github.joke.percolate.spi.ThisReceiver
 import io.github.joke.percolate.spi.test.PrivateTypeUniverse
 import spock.lang.Shared
@@ -20,9 +22,11 @@ import javax.lang.model.type.TypeKind
 @Tag('unit')
 class DiscoverCallableMethodsStageSpec extends Specification {
 
+    static final NullabilityResolver UNKNOWN = { type, scope -> Nullability.UNKNOWN } as NullabilityResolver
+
     @Shared PrivateTypeUniverse javac = new PrivateTypeUniverse()
 
-    DiscoverCallableMethodsStage stage = new DiscoverCallableMethodsStage(javac.elements(), javac.types())
+    DiscoverCallableMethodsStage stage = new DiscoverCallableMethodsStage(javac.elements(), javac.types(), UNKNOWN)
 
     def setupSpec() {
         // prime the fixture + its methods' parameter/return closures single-threaded (see ExpandStageDriverSpec)

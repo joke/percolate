@@ -135,8 +135,11 @@ public final class TypeSpaceAdapter {
         }
     }
 
-    private MethodSig methodSigOf(
-            final TypeElement declaring, final ExecutableElement method, final boolean isConstructor) {
+    /**
+     * Package-visible so {@link DiscoverCallableMethodsStage} can resolve a {@link MethodSig} for one candidate
+     * method directly, without waiting for a full closure walk over its declaring type.
+     */
+    MethodSig methodSigOf(final TypeElement declaring, final ExecutableElement method, final boolean isConstructor) {
         final var parameters =
                 method.getParameters().stream().map(this::paramSigOf).collect(Collectors.toUnmodifiableList());
         final var name = isConstructor ? "<init>" : method.getSimpleName().toString();

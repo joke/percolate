@@ -1,6 +1,8 @@
 package io.github.joke.percolate.spi.builtins.test
 
 import io.github.joke.percolate.spi.test.PrivateTypeUniverse
+import io.github.joke.percolate.spi.types.MethodSig
+import io.github.joke.percolate.spi.types.TypeRefs
 import spock.lang.Shared
 import spock.lang.Specification
 import spock.lang.Tag
@@ -24,7 +26,8 @@ class ResolveCtxBuilderSpec extends Specification {
         given:
         def fakeReceiver = Stub(io.github.joke.percolate.spi.Receiver)
         fakeReceiver.asExpression() >> null
-        def fakeCandidate = new io.github.joke.percolate.spi.MethodCandidate(null, fakeReceiver)
+        def fakeMethodSig = MethodSig.of('fake', TypeRefs.of(javac.STRING))
+        def fakeCandidate = new io.github.joke.percolate.spi.MethodCandidate(null, fakeReceiver, fakeMethodSig)
         def mockMethods = Mock(io.github.joke.percolate.spi.CallableMethods) {
             producing(_) >> fakeCandidate.stream()
         }
