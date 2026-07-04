@@ -65,6 +65,7 @@ public class TypeRefs {
         return extendsBound != null ? of(extendsBound) : TypeRef.declared("java.lang.Object");
     }
 
+    @SuppressWarnings("PMD.UseConcurrentHashMap") // built once, frozen via Map.copyOf, never mutated after
     private Map<TypeKind, PrimitiveKind> primitiveKinds() {
         final Map<TypeKind, PrimitiveKind> kinds = new EnumMap<>(TypeKind.class);
         kinds.put(TypeKind.BOOLEAN, PrimitiveKind.BOOLEAN);

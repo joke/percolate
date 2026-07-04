@@ -37,6 +37,7 @@ import lombok.experimental.UtilityClass;
  * no {@code javax.lang.model}, no compiler session, thread-safe and eager by construction.
  */
 @UtilityClass
+@SuppressWarnings("PMD.TestClassWithoutTestCases") // fixture builder, not a test class despite the name
 public class TestTypes {
 
     private static final Map<Class<?>, PrimitiveKind> PRIMITIVE_KINDS = primitiveKinds();
@@ -187,7 +188,7 @@ public class TestTypes {
         return TypeRef.declared(requireCanonicalName(type), typeParameters);
     }
 
-    private List<ParamSig> parametersOf(final Parameter[] parameters) {
+    private List<ParamSig> parametersOf(final Parameter... parameters) {
         return IntStream.range(0, parameters.length)
                 .mapToObj(i -> parameterSigOf(parameters[i], i))
                 .collect(Collectors.toUnmodifiableList());
@@ -229,6 +230,7 @@ public class TestTypes {
         return canonicalName;
     }
 
+    @SuppressWarnings("PMD.UseConcurrentHashMap") // built once, frozen via Map.copyOf, never mutated after
     private Map<Class<?>, PrimitiveKind> primitiveKinds() {
         final Map<Class<?>, PrimitiveKind> kinds = new HashMap<>();
         kinds.put(boolean.class, PrimitiveKind.BOOLEAN);

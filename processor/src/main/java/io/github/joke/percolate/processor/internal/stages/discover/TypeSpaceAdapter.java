@@ -60,6 +60,7 @@ public final class TypeSpaceAdapter {
     private final NullabilityResolver resolver;
 
     /** The immutable {@link TypeSpace} of the declared-type closure reachable from {@code roots}. */
+    @SuppressWarnings("PMD.UseConcurrentHashMap") // single-threaded per-round closure walk
     public TypeSpace build(final Collection<? extends TypeMirror> roots) {
         final Map<String, TypeDecl> decls = new HashMap<>();
         final Deque<TypeElement> queue = new ArrayDeque<>();
@@ -84,7 +85,13 @@ public final class TypeSpaceAdapter {
             enumerateMembers(element, queue, seen, methods, fields);
         }
         return new TypeDecl(
-                qualifiedName, declKindOf(element.getKind()), typeParameters, superEdges, methods, fields, Origin.none());
+                qualifiedName,
+                declKindOf(element.getKind()),
+                typeParameters,
+                superEdges,
+                methods,
+                fields,
+                Origin.none());
     }
 
     private List<TypeRef> superEdgesOf(
@@ -130,9 +137,8 @@ public final class TypeSpaceAdapter {
 
     private MethodSig methodSigOf(
             final TypeElement declaring, final ExecutableElement method, final boolean isConstructor) {
-        final var parameters = method.getParameters().stream()
-                .map(this::paramSigOf)
-                .collect(Collectors.toUnmodifiableList());
+        final var parameters =
+                method.getParameters().stream().map(this::paramSigOf).collect(Collectors.toUnmodifiableList());
         final var name = isConstructor ? "<init>" : method.getSimpleName().toString();
         final var returnType = isConstructor ? selfRefOf(declaring) : TypeRefs.of(method.getReturnType());
         final var returnNullness =
@@ -173,17 +179,20 @@ public final class TypeSpaceAdapter {
 
     private void enqueue(final TypeMirror type, final Deque<TypeElement> queue, final Set<String> seen) {
         if (type.getKind() == TypeKind.DECLARED) {
-            final var declared = (DeclaredType) type;
-            if (declared.asElement() instanceof TypeElement) {
-                final var element = (TypeElement) declared.asElement();
-                if (seen.add(element.getQualifiedName().toString())) {
-                    queue.add(element);
-                }
-            }
-            declared.getTypeArguments().forEach(arg -> enqueue(arg, queue, seen));
+            enqueueDeclared((DeclaredType) type, queue, seen);
         } else if (type.getKind() == TypeKind.ARRAY) {
             enqueue(((ArrayType) type).getComponentType(), queue, seen);
         }
+    }
+
+    private void enqueueDeclared(final DeclaredType type, final Deque<TypeElement> queue, final Set<String> seen) {
+        if (type.asElement() instanceof TypeElement) {
+            final var element = (TypeElement) type.asElement();
+            if (seen.add(element.getQualifiedName().toString())) {
+                queue.add(element);
+            }
+        }
+        type.getTypeArguments().forEach(arg -> enqueue(arg, queue, seen));
     }
 
     private static Set<MemberFlag> memberFlags(final Element member, final boolean isConstructor) {
