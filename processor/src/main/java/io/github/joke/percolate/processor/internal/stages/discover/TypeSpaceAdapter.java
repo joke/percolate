@@ -1,5 +1,6 @@
 package io.github.joke.percolate.processor.internal.stages.discover;
 
+import io.github.joke.percolate.processor.internal.graph.TypeRefs;
 import io.github.joke.percolate.processor.nullability.NullabilityResolver;
 import io.github.joke.percolate.spi.Nullability;
 import io.github.joke.percolate.spi.types.DeclKind;
@@ -8,7 +9,6 @@ import io.github.joke.percolate.spi.types.MemberFlag;
 import io.github.joke.percolate.spi.types.MethodSig;
 import io.github.joke.percolate.spi.types.Origin;
 import io.github.joke.percolate.spi.types.ParamSig;
-import io.github.joke.percolate.spi.types.PrimitiveKind;
 import io.github.joke.percolate.spi.types.TypeDecl;
 import io.github.joke.percolate.spi.types.TypeRef;
 import io.github.joke.percolate.spi.types.TypeSpace;
@@ -16,7 +16,6 @@ import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Deque;
-import java.util.EnumMap;
 import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -34,8 +33,6 @@ import javax.lang.model.type.ArrayType;
 import javax.lang.model.type.DeclaredType;
 import javax.lang.model.type.TypeKind;
 import javax.lang.model.type.TypeMirror;
-import javax.lang.model.type.TypeVariable;
-import javax.lang.model.type.WildcardType;
 import javax.lang.model.util.ElementFilter;
 import lombok.RequiredArgsConstructor;
 
@@ -44,8 +41,10 @@ import lombok.RequiredArgsConstructor;
  * {@code javax.lang.model} is read into the owned type currency. It materialises the reachable declared-type
  * closure from a mapper's declared surface into an immutable {@link TypeSpace} of {@link TypeDecl}/
  * {@link MethodSig}/{@link FieldSig} values, resolving member nullness at the boundary (where the mirrors are in
- * hand). The walk is eager and cycle-safe (a visited set over qualified names); reached only from the
- * single-threaded annotation-processing round, it is race-free by context and the produced snapshot is immutable.
+ * hand). The pure type→{@link TypeRef} conversion is {@link TypeRefs}; this adapter adds the closure walk, the
+ * member model, and nullness resolution. The walk is eager and cycle-safe (a visited set over qualified names);
+ * reached only from the single-threaded annotation-processing round, it is race-free by context and the produced
+ * snapshot is immutable.
  *
  * <p>JDK types ({@code java.*}/{@code javax.*}) are materialised <b>edge-only</b> — their declared supertype
  * edges and type parameters (which the assignability walk needs) without member enumeration (which no strategy
@@ -57,8 +56,6 @@ import lombok.RequiredArgsConstructor;
  */
 @RequiredArgsConstructor
 public final class TypeSpaceAdapter {
-
-    private static final Map<TypeKind, PrimitiveKind> PRIMITIVE_KINDS = primitiveKinds();
 
     private final NullabilityResolver resolver;
 
@@ -73,31 +70,6 @@ public final class TypeSpaceAdapter {
             decls.put(decl.getQualifiedName(), decl);
         }
         return TypeSpace.of(decls.values().toArray(new TypeDecl[0]));
-    }
-
-    /** The {@link TypeRef} for a {@code javax.lang.model} type — the recursive conversion the walk rests on. */
-    public TypeRef typeRefOf(final TypeMirror type) {
-        final var kind = type.getKind();
-        if (kind == TypeKind.DECLARED) {
-            return declaredRef((DeclaredType) type);
-        }
-        if (kind == TypeKind.ARRAY) {
-            return TypeRef.array(typeRefOf(((ArrayType) type).getComponentType()));
-        }
-        if (kind == TypeKind.TYPEVAR) {
-            return TypeRef.variable(((TypeVariable) type).asElement().getSimpleName().toString());
-        }
-        if (kind == TypeKind.WILDCARD) {
-            return wildcardRef((WildcardType) type);
-        }
-        if (kind == TypeKind.VOID || kind == TypeKind.NONE) {
-            return TypeRef.none();
-        }
-        final var primitive = PRIMITIVE_KINDS.get(kind);
-        if (primitive != null) {
-            return TypeRef.primitive(primitive);
-        }
-        throw new IllegalArgumentException("unsupported type shape (v1 has no wildcards/unions/intersections): " + type);
     }
 
     private TypeDecl declOf(final TypeElement element, final Deque<TypeElement> queue, final Set<String> seen) {
@@ -130,7 +102,7 @@ public final class TypeSpaceAdapter {
             final Set<String> seen) {
         if (supertype.getKind() == TypeKind.DECLARED) {
             enqueue(supertype, queue, seen);
-            edges.add(typeRefOf(supertype));
+            edges.add(TypeRefs.of(supertype));
         }
     }
 
@@ -162,7 +134,7 @@ public final class TypeSpaceAdapter {
                 .map(this::paramSigOf)
                 .collect(Collectors.toUnmodifiableList());
         final var name = isConstructor ? "<init>" : method.getSimpleName().toString();
-        final var returnType = isConstructor ? selfRefOf(declaring) : typeRefOf(method.getReturnType());
+        final var returnType = isConstructor ? selfRefOf(declaring) : TypeRefs.of(method.getReturnType());
         final var returnNullness =
                 isConstructor ? Nullability.NON_NULL : resolver.resolve(method.getReturnType(), method);
         return new MethodSig(
@@ -179,7 +151,7 @@ public final class TypeSpaceAdapter {
         return new FieldSig(
                 field.getSimpleName().toString(),
                 declaring.getQualifiedName().toString(),
-                typeRefOf(field.asType()),
+                TypeRefs.of(field.asType()),
                 resolver.resolve(field.asType(), field),
                 memberFlags(field, false),
                 Origin.none());
@@ -188,19 +160,8 @@ public final class TypeSpaceAdapter {
     private ParamSig paramSigOf(final VariableElement parameter) {
         return new ParamSig(
                 parameter.getSimpleName().toString(),
-                typeRefOf(parameter.asType()),
+                TypeRefs.of(parameter.asType()),
                 resolver.resolve(parameter.asType(), parameter));
-    }
-
-    private TypeRef declaredRef(final DeclaredType type) {
-        final var element = (TypeElement) type.asElement();
-        final var args = type.getTypeArguments().stream().map(this::typeRefOf).collect(Collectors.toUnmodifiableList());
-        return TypeRef.declared(element.getQualifiedName().toString(), args);
-    }
-
-    private TypeRef wildcardRef(final WildcardType wildcard) {
-        final var extendsBound = wildcard.getExtendsBound();
-        return extendsBound != null ? typeRefOf(extendsBound) : TypeRef.declared("java.lang.Object");
     }
 
     private TypeRef selfRefOf(final TypeElement element) {
@@ -261,18 +222,5 @@ public final class TypeSpaceAdapter {
 
     private static boolean isJdk(final String qualifiedName) {
         return qualifiedName.startsWith("java.") || qualifiedName.startsWith("javax.");
-    }
-
-    private static Map<TypeKind, PrimitiveKind> primitiveKinds() {
-        final Map<TypeKind, PrimitiveKind> kinds = new EnumMap<>(TypeKind.class);
-        kinds.put(TypeKind.BOOLEAN, PrimitiveKind.BOOLEAN);
-        kinds.put(TypeKind.BYTE, PrimitiveKind.BYTE);
-        kinds.put(TypeKind.SHORT, PrimitiveKind.SHORT);
-        kinds.put(TypeKind.CHAR, PrimitiveKind.CHAR);
-        kinds.put(TypeKind.INT, PrimitiveKind.INT);
-        kinds.put(TypeKind.LONG, PrimitiveKind.LONG);
-        kinds.put(TypeKind.FLOAT, PrimitiveKind.FLOAT);
-        kinds.put(TypeKind.DOUBLE, PrimitiveKind.DOUBLE);
-        return Map.copyOf(kinds);
     }
 }

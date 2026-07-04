@@ -228,6 +228,6 @@ public final class MapperGraph {
 
     private static String valueKey(
             final Scope scope, final Location location, final TypeMirror type, final Nullability nullness) {
-        return scope.encode() + "::" + location.segment() + "::" + type + "::" + nullness.name();
+        return scope.encode() + "::" + location.segment() + "::" + TypeRefs.of(type) + "::" + nullness.name();
     }
 }

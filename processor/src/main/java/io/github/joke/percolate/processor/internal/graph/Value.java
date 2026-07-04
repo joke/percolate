@@ -51,7 +51,7 @@ public final class Value implements GraphVertex {
     }
 
     private String typeEncode() {
-        return type.map(TypeMirror::toString).orElse(UNKNOWN);
+        return type.map(mirror -> TypeRefs.of(mirror).toString()).orElse(UNKNOWN);
     }
 
     private String nullnessEncode() {
