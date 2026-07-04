@@ -25,8 +25,7 @@ import io.github.joke.percolate.spi.ProduceDemand
 import io.github.joke.percolate.spi.ResolveCtx
 import io.github.joke.percolate.spi.Weights
 import io.github.joke.percolate.spi.test.HarnessResolveCtx
-import io.github.joke.percolate.spi.test.TypeUniverse
-import spock.lang.Isolated
+import io.github.joke.percolate.spi.test.PrivateTypeUniverse
 import spock.lang.Shared
 import spock.lang.Specification
 import spock.lang.Tag
@@ -39,26 +38,26 @@ import java.util.stream.Stream
 
 /**
  * The expansion driver (design D5/D6) seam, unit-tested directly: a constructed {@link MapperShape} (its abstract
- * methods read off a compiled fixture via {@link TypeUniverse}, no {@code @Mapper} compile) is seeded and expanded
- * over a fresh {@link MapperGraph} with stub strategies, and the assertions read the resulting graph structure. The
- * cases isolate each driver path — self-seeding, producer landing, the three {@link Port.Sourcing} modes, the
- * whole-parameter self-call guard, and the directive-pinned forward source descent.
+ * methods read off a compiled fixture via {@link PrivateTypeUniverse}, no {@code @Mapper} compile) is seeded and
+ * expanded over a fresh {@link MapperGraph} with stub strategies, and the assertions read the resulting graph
+ * structure. The cases isolate each driver path — self-seeding, producer landing, the three {@link Port.Sourcing}
+ * modes, the whole-parameter self-call guard, and the directive-pinned forward source descent.
  */
 @Tag('unit')
-@Isolated // shares the static TypeUniverse javac; must not run concurrently with other fixture specs (race → flaky pitest)
 class ExpandStageDriverSpec extends Specification {
 
-    @Shared ResolveCtx resolveCtx = HarnessResolveCtx.create()
+    @Shared PrivateTypeUniverse javac = new PrivateTypeUniverse()
+    @Shared ResolveCtx resolveCtx = new HarnessResolveCtx(javac)
     @Shared JspecifyNullabilityResolver resolver =
-            new JspecifyNullabilityResolver(NullabilityAnnotations.jspecifyDefaults(), TypeUniverse.elements())
+            new JspecifyNullabilityResolver(NullabilityAnnotations.jspecifyDefaults(), javac.elements())
     @Shared OperationCodegen codegen = { inc -> CodeBlock.of('x') } as OperationCodegen
 
-    // Prime the fixture closures single-threaded before any driver run: TypeUniverse fills javac symbols lazily and
-    // of() follows the type's inheritance/nesting graph only, not its methods' parameter/return types — so the
-    // method's Person/Human types must be forced up front or a mid-traversal "Filling X during Y" assertion fires.
-    @Shared TypeElement personType = TypeUniverse.of(Person)
-    @Shared TypeElement humanType = TypeUniverse.of(Human)
-    @Shared TypeElement personMapperType = TypeUniverse.of(PersonMapper)
+    // Prime the fixture closures single-threaded before any driver run: javac fills symbols lazily and of() follows
+    // the type's inheritance/nesting graph only, not its methods' parameter/return types — so the method's
+    // Person/Human types must be forced up front or a mid-traversal "Filling X during Y" assertion fires.
+    @Shared TypeElement personType = javac.of(Person)
+    @Shared TypeElement humanType = javac.of(Human)
+    @Shared TypeElement personMapperType = javac.of(PersonMapper)
 
     // ---- self-seeding -----------------------------------------------------------------------------------------
 
@@ -107,8 +106,8 @@ class ExpandStageDriverSpec extends Specification {
         def method = methodNamed(PersonMapper, 'map')
         def graph = new MapperGraph()
         def producer = OperationSpec.of('new', codegen, Weights.STEP,
-                [Port.subTarget('firstName', TypeUniverse.STRING, Nullability.NON_NULL),
-                 Port.subTarget('lastName', TypeUniverse.STRING, Nullability.NON_NULL)],
+                [Port.subTarget('firstName', javac.STRING, Nullability.NON_NULL),
+                 Port.subTarget('lastName', javac.STRING, Nullability.NON_NULL)],
                 humanType.asType(), Nullability.NON_NULL)
 
         when:
@@ -155,7 +154,7 @@ class ExpandStageDriverSpec extends Specification {
         def method = methodNamed(PersonMapper, 'map')
         def graph = new MapperGraph()
         def producer = OperationSpec.of('copy', codegen, Weights.COPY,
-                [Port.reuse('src', TypeUniverse.INTEGER, Nullability.NON_NULL)],
+                [Port.reuse('src', javac.INTEGER, Nullability.NON_NULL)],
                 humanType.asType(), Nullability.NON_NULL)
 
         when:
@@ -172,7 +171,7 @@ class ExpandStageDriverSpec extends Specification {
         def method = methodNamed(PersonMapper, 'map')
         def graph = new MapperGraph()
         def producer = OperationSpec.of('convert', codegen, Weights.STEP,
-                [new Port('in', TypeUniverse.INTEGER, Nullability.NON_NULL)],
+                [new Port('in', javac.INTEGER, Nullability.NON_NULL)],
                 humanType.asType(), Nullability.NON_NULL)
 
         when:
@@ -182,7 +181,7 @@ class ExpandStageDriverSpec extends Specification {
         then: 'the operation lands; its REUSE_OR_MINT port mints a fresh Integer intermediate at the output location'
         def operation = graph.operations().toList()[0]
         def minted = graph.portSourcesOf(operation).toList()[0]
-        resolveCtx.types().isSameType(minted.type.get(), TypeUniverse.INTEGER)
+        resolveCtx.types().isSameType(minted.type.get(), javac.INTEGER)
         minted.loc instanceof TargetLocation
         minted.loc.path.toString() == ''
         graph.operations().count() == 1
@@ -217,7 +216,7 @@ class ExpandStageDriverSpec extends Specification {
         def graph = new MapperGraph()
         def getter = OperationSpec.of('getFirstName', codegen, Weights.STEP_GETTER,
                 [new Port('self', personType.asType(), Nullability.NON_NULL)],
-                TypeUniverse.STRING, Nullability.NON_NULL)
+                javac.STRING, Nullability.NON_NULL)
         def goalSpecs = [(scope): GoalSpec.from([directive('', param + '.firstName')])]
 
         when:
@@ -265,7 +264,7 @@ class ExpandStageDriverSpec extends Specification {
                 [Port.subTarget('addr', personType.asType(), Nullability.NON_NULL)],
                 humanType.asType(), Nullability.NON_NULL)
         def inner = OperationSpec.of('newAddr', codegen, Weights.STEP,
-                [Port.subTarget('street', TypeUniverse.STRING, Nullability.NON_NULL)],
+                [Port.subTarget('street', javac.STRING, Nullability.NON_NULL)],
                 personType.asType(), Nullability.NON_NULL)
 
         when:
@@ -327,10 +326,10 @@ class ExpandStageDriverSpec extends Specification {
         def graph = new MapperGraph()
         def getter = OperationSpec.of('getFirstName', codegen, Weights.STEP_GETTER,
                 [new Port('self', personType.asType(), Nullability.NON_NULL)],
-                TypeUniverse.STRING, Nullability.NON_NULL)
+                javac.STRING, Nullability.NON_NULL)
         def field = OperationSpec.of('firstNameField', codegen, Weights.STEP_GETTER,
                 [new Port('self', personType.asType(), Nullability.NON_NULL)],
-                TypeUniverse.STRING, Nullability.NON_NULL)
+                javac.STRING, Nullability.NON_NULL)
         def goalSpecs = [(scope): GoalSpec.from([directive('', param + '.firstName')])]
 
         when: 'both accessors read firstName off the parameter — the second reuses the first\'s output Value'
@@ -347,7 +346,7 @@ class ExpandStageDriverSpec extends Specification {
         def method = methodNamed(PersonMapper, 'map')
         def graph = new MapperGraph()
         def producer = OperationSpec.of('new', codegen, Weights.STEP,
-                [Port.subTarget('firstName', TypeUniverse.STRING, Nullability.NON_NULL)],
+                [Port.subTarget('firstName', javac.STRING, Nullability.NON_NULL)],
                 humanType.asType(), Nullability.NON_NULL)
 
         when: 'two strategies offer the identical spec — dedup drops the second signature'
@@ -388,7 +387,7 @@ class ExpandStageDriverSpec extends Specification {
     // ---- helpers ----------------------------------------------------------------------------------------------
 
     private ExpandStage stage() {
-        new ExpandStage([], [], TypeUniverse.types(), TypeUniverse.elements(), resolver)
+        new ExpandStage([], [], javac.types(), javac.elements(), resolver)
     }
 
     /** A producer strategy that offers {@code spec} only for the {@code target} demand, empty for any other. */
@@ -422,7 +421,7 @@ class ExpandStageDriverSpec extends Specification {
     }
 
     private ExecutableElement methodNamed(final Class<?> type, final String name) {
-        TypeUniverse.of(type).enclosedElements.find {
+        javac.of(type).enclosedElements.find {
             it.kind == ElementKind.METHOD && it.simpleName.toString() == name
         } as ExecutableElement
     }

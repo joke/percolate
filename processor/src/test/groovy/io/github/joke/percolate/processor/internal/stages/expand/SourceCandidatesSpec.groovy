@@ -17,8 +17,7 @@ import io.github.joke.percolate.spi.Nullability
 import io.github.joke.percolate.spi.Port
 import io.github.joke.percolate.spi.ResolveCtx
 import io.github.joke.percolate.spi.test.HarnessResolveCtx
-import io.github.joke.percolate.spi.test.TypeUniverse
-import spock.lang.Isolated
+import io.github.joke.percolate.spi.test.PrivateTypeUniverse
 import spock.lang.Shared
 import spock.lang.Specification
 import spock.lang.Tag
@@ -35,13 +34,13 @@ import javax.lang.model.type.TypeMirror
  * else {@code null}), and {@code sourceTypes}.
  */
 @Tag('unit')
-@Isolated // shares the static TypeUniverse javac; must not run concurrently with other fixture specs (race → flaky pitest)
 class SourceCandidatesSpec extends Specification {
 
-    @Shared ResolveCtx resolveCtx = HarnessResolveCtx.create()
+    @Shared PrivateTypeUniverse javac = new PrivateTypeUniverse()
+    @Shared ResolveCtx resolveCtx = new HarnessResolveCtx(javac)
     @Shared JspecifyNullabilityResolver resolver =
-            new JspecifyNullabilityResolver(NullabilityAnnotations.jspecifyDefaults(), TypeUniverse.elements())
-    @Shared TypeElement personType = TypeUniverse.of(Person)
+            new JspecifyNullabilityResolver(NullabilityAnnotations.jspecifyDefaults(), javac.elements())
+    @Shared TypeElement personType = javac.of(Person)
 
     MapperGraph graph = new MapperGraph()
     SourceCandidates candidates = new SourceCandidates(graph, new Applier(), resolver, resolveCtx)
@@ -49,9 +48,9 @@ class SourceCandidatesSpec extends Specification {
 
     def setupSpec() {
         // prime the map method's parameter/return fixture closures single-threaded before any lookup races
-        // (TypeUniverse.of follows inheritance/nesting only, not method signatures — see ExpandStageDriverSpec)
-        TypeUniverse.of(Human)
-        TypeUniverse.of(PersonMapper)
+        // (javac.of follows inheritance/nesting only, not method signatures — see ExpandStageDriverSpec)
+        javac.of(Human)
+        javac.of(PersonMapper)
     }
 
     // ---- matchesPort: same type, non-null source satisfies any nullness ---------------------------------------
@@ -75,7 +74,7 @@ class SourceCandidatesSpec extends Specification {
 
     def 'matchesPort is false for a different type regardless of nullness'() {
         expect:
-        !candidates.matchesPort(value(TypeUniverse.INTEGER, Nullability.NON_NULL),
+        !candidates.matchesPort(value(javac.INTEGER, Nullability.NON_NULL),
                 port(personType.asType(), Nullability.NON_NULL))
     }
 
@@ -91,7 +90,7 @@ class SourceCandidatesSpec extends Specification {
 
     def 'matchingSource ignores a pinned source that does not match, falling back to the parameter input'() {
         given: 'a pinned Integer source cannot feed a Person port'
-        def pinned = value(TypeUniverse.INTEGER, Nullability.NON_NULL)
+        def pinned = value(javac.INTEGER, Nullability.NON_NULL)
 
         when:
         def chosen = candidates.matchingSource(scope, port(personType.asType(), Nullability.NON_NULL), pinned)
@@ -126,21 +125,21 @@ class SourceCandidatesSpec extends Specification {
 
     def 'matchingSource returns null when nothing in scope matches the port'() {
         expect: 'no Integer source and no Integer parameter'
-        candidates.matchingSource(scope, port(TypeUniverse.INTEGER, Nullability.NON_NULL), null) == null
+        candidates.matchingSource(scope, port(javac.INTEGER, Nullability.NON_NULL), null) == null
     }
 
     // ---- sourceTypes ------------------------------------------------------------------------------------------
 
     def 'sourceTypes lists the declared parameter input types plus discovered graph sources'() {
         given:
-        source(access('x', 'y'), TypeUniverse.INTEGER, Nullability.NON_NULL)
+        source(access('x', 'y'), javac.INTEGER, Nullability.NON_NULL)
 
         when:
         def types = candidates.sourceTypes(scope)
 
         then: 'the Person parameter input and the Integer graph source are both present'
         types.any { resolveCtx.types().isSameType(it, personType.asType()) }
-        types.any { resolveCtx.types().isSameType(it, TypeUniverse.INTEGER) }
+        types.any { resolveCtx.types().isSameType(it, javac.INTEGER) }
     }
 
     // ---- helpers ----------------------------------------------------------------------------------------------
@@ -162,7 +161,7 @@ class SourceCandidatesSpec extends Specification {
     }
 
     private ExecutableElement methodNamed(final Class<?> type, final String name) {
-        TypeUniverse.of(type).enclosedElements.find {
+        javac.of(type).enclosedElements.find {
             it.kind == ElementKind.METHOD && it.simpleName.toString() == name
         } as ExecutableElement
     }

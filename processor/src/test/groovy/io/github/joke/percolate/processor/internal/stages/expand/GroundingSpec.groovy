@@ -13,8 +13,7 @@ import io.github.joke.percolate.spi.ScopeCodegen
 import io.github.joke.percolate.spi.SourceProjection
 import io.github.joke.percolate.spi.Weights
 import io.github.joke.percolate.spi.test.HarnessResolveCtx
-import io.github.joke.percolate.spi.test.TypeUniverse
-import spock.lang.Isolated
+import io.github.joke.percolate.spi.test.PrivateTypeUniverse
 import spock.lang.Shared
 import spock.lang.Specification
 import spock.lang.Tag
@@ -31,30 +30,30 @@ import java.util.stream.Stream
  * {@code Stream} identically); a wildcard source argument does not unify (restrict-v1 policy).
  */
 @Tag('unit')
-@Isolated // bridge: shares the static TypeUniverse javac; serialise until the type-universe redesign (see openspec/notes.md)
 class GroundingSpec extends Specification {
 
     private static final ScopeCodegen MAP =
             { operand, var, body -> CodeBlock.of('$L.map($N -> $L)', operand, var, body) } as ScopeCodegen
     private static final OperationCodegen OP = { inputs -> CodeBlock.of('x') } as OperationCodegen
 
-    @Shared ResolveCtx ctx = HarnessResolveCtx.create()
+    @Shared PrivateTypeUniverse javac = new PrivateTypeUniverse()
+    @Shared ResolveCtx ctx = new HarnessResolveCtx(javac)
     @Shared Grounding grounding = new Grounding(ctx, [])
 
-    @Shared TypeElement setElement = TypeUniverse.elements().getTypeElement('java.util.Set')
-    @Shared TypeElement streamElement = TypeUniverse.elements().getTypeElement('java.util.stream.Stream')
+    @Shared TypeElement setElement = javac.elements().getTypeElement('java.util.Set')
+    @Shared TypeElement streamElement = javac.elements().getTypeElement('java.util.stream.Stream')
 
-    @Shared TypeMirror setOfString = decl('java.util.Set', TypeUniverse.STRING)
-    @Shared TypeMirror setOfInteger = decl('java.util.Set', TypeUniverse.INTEGER)
-    @Shared TypeMirror setOfLong = decl('java.util.Set', TypeUniverse.LONG_TYPE)
-    @Shared TypeMirror streamOfString = decl('java.util.stream.Stream', TypeUniverse.STRING)
-    @Shared TypeMirror streamOfInteger = decl('java.util.stream.Stream', TypeUniverse.INTEGER)
+    @Shared TypeMirror setOfString = decl('java.util.Set', javac.STRING)
+    @Shared TypeMirror setOfInteger = decl('java.util.Set', javac.INTEGER)
+    @Shared TypeMirror setOfLong = decl('java.util.Set', javac.LONG_TYPE)
+    @Shared TypeMirror streamOfString = decl('java.util.stream.Stream', javac.STRING)
+    @Shared TypeMirror streamOfInteger = decl('java.util.stream.Stream', javac.INTEGER)
 
     // ---- single match: ground A, substitute across output + child scope --------------------------------------
 
     def 'a Set<A> port grounds A from a Set<String> source and lands a concrete Set<String> -> Set<Integer>'() {
         when:
-        def grounded = grounding.ground(lift(setElement, setOfInteger, TypeUniverse.INTEGER), [setOfString]).toList()
+        def grounded = grounding.ground(lift(setElement, setOfInteger, javac.INTEGER), [setOfString]).toList()
 
         then: 'exactly one concrete instantiation'
         grounded.size() == 1
@@ -69,8 +68,8 @@ class GroundingSpec extends Specification {
         spec.childScope.present
         def child = spec.childScope.get()
         child.elementInTemplate == null
-        ctx.types().isSameType(child.elementIn, TypeUniverse.STRING)
-        ctx.types().isSameType(child.elementOut, TypeUniverse.INTEGER)
+        ctx.types().isSameType(child.elementIn, javac.STRING)
+        ctx.types().isSameType(child.elementOut, javac.INTEGER)
 
         and: 'output and metadata are preserved'
         ctx.types().isSameType(spec.outputType, setOfInteger)
@@ -81,7 +80,7 @@ class GroundingSpec extends Specification {
 
     def 'no grounded spec carries any template — the work-list only ever holds concrete Values'() {
         when:
-        def grounded = grounding.ground(lift(setElement, setOfInteger, TypeUniverse.INTEGER), [setOfString]).toList()
+        def grounded = grounding.ground(lift(setElement, setOfInteger, javac.INTEGER), [setOfString]).toList()
 
         then:
         grounded.every { spec ->
@@ -95,7 +94,7 @@ class GroundingSpec extends Specification {
 
     def 'two unifying sources instantiate one map each — over-emit, no engine-side choice'() {
         when:
-        def grounded = grounding.ground(lift(setElement, setOfInteger, TypeUniverse.INTEGER), [setOfString, setOfLong])
+        def grounded = grounding.ground(lift(setElement, setOfInteger, javac.INTEGER), [setOfString, setOfLong])
                 .toList()
 
         then: 'one concrete map per source'
@@ -110,7 +109,7 @@ class GroundingSpec extends Specification {
 
     def 'a source that does not unify contributes nothing — no bridge is invented'() {
         expect: 'a List source cannot feed a Set<A> port'
-        grounding.ground(lift(setElement, setOfInteger, TypeUniverse.INTEGER), [TypeUniverse.LIST_OF_STRING]).toList()
+        grounding.ground(lift(setElement, setOfInteger, javac.INTEGER), [javac.LIST_OF_STRING]).toList()
                 .empty
     }
 
@@ -118,24 +117,24 @@ class GroundingSpec extends Specification {
 
     def 'the same mechanic grounds a Stream<A> port — it names no container kind'() {
         when:
-        def grounded = grounding.ground(lift(streamElement, streamOfInteger, TypeUniverse.INTEGER), [streamOfString])
+        def grounded = grounding.ground(lift(streamElement, streamOfInteger, javac.INTEGER), [streamOfString])
                 .toList()
 
         then:
         grounded.size() == 1
         ctx.types().isSameType(grounded[0].ports[0].type, streamOfString)
-        ctx.types().isSameType(grounded[0].childScope.get().elementIn, TypeUniverse.STRING)
+        ctx.types().isSameType(grounded[0].childScope.get().elementIn, javac.STRING)
     }
 
     // ---- wildcard/bounded-generic policy: restrict in v1 -----------------------------------------------------
 
     def 'a wildcard source argument does not unify (restrict-v1 policy)'() {
         given:
-        def wildcard = ctx.types().getWildcardType(TypeUniverse.STRING, null)
+        def wildcard = ctx.types().getWildcardType(javac.STRING, null)
         def setOfWildcard = ctx.types().getDeclaredType(setElement, wildcard)
 
         expect:
-        grounding.ground(lift(setElement, setOfInteger, TypeUniverse.INTEGER), [setOfWildcard]).toList().empty
+        grounding.ground(lift(setElement, setOfInteger, javac.INTEGER), [setOfWildcard]).toList().empty
     }
 
     // ---- termination: nested generics bound, grounding deterministic / round-trip-safe -----------------------
@@ -145,7 +144,7 @@ class GroundingSpec extends Specification {
         def setOfSetOfString = ctx.types().getDeclaredType(setElement, setOfString)
         def nestedTemplate = PortType.app(setElement, [PortType.app(setElement, [PortType.variable(0)])])
         def port = new Port('src', setElement.asType(), Nullability.NON_NULL, nestedTemplate)
-        def child = ChildScopeSpec.lifted(PortType.variable(0), Nullability.NON_NULL, TypeUniverse.INTEGER,
+        def child = ChildScopeSpec.lifted(PortType.variable(0), Nullability.NON_NULL, javac.INTEGER,
                 Nullability.NON_NULL)
         def spec = OperationSpec.mapping('map', MAP, Weights.CONTAINER, [port], setOfInteger, Nullability.NON_NULL,
                 child)
@@ -155,13 +154,13 @@ class GroundingSpec extends Specification {
 
         then: 'A grounds to String through two levels of nesting'
         grounded.size() == 1
-        ctx.types().isSameType(grounded[0].childScope.get().elementIn, TypeUniverse.STRING)
+        ctx.types().isSameType(grounded[0].childScope.get().elementIn, javac.STRING)
         ctx.types().isSameType(grounded[0].ports[0].type, setOfSetOfString)
     }
 
     def 'grounding the same spec twice is deterministic (round-trip-safe, no divergence)'() {
         given:
-        def spec = lift(setElement, setOfInteger, TypeUniverse.INTEGER)
+        def spec = lift(setElement, setOfInteger, javac.INTEGER)
 
         when:
         def first = grounding.ground(spec, [setOfString]).toList()
@@ -186,20 +185,20 @@ class GroundingSpec extends Specification {
         def widening = new Grounding(ctx, [listToStream])
 
         when: 'grounding a Stream<A> map against only a List<String> source (no direct Stream source)'
-        def grounded = widening.ground(lift(streamElement, streamOfInteger, TypeUniverse.INTEGER),
-                [TypeUniverse.LIST_OF_STRING]).toList()
+        def grounded = widening.ground(lift(streamElement, streamOfInteger, javac.INTEGER),
+                [javac.LIST_OF_STRING]).toList()
 
         then: 'A grounds to String via the projected Stream<String>; the work-list stays concrete'
         grounded.size() == 1
         ctx.types().isSameType(grounded[0].ports[0].type, streamOfString)
-        ctx.types().isSameType(grounded[0].childScope.get().elementIn, TypeUniverse.STRING)
+        ctx.types().isSameType(grounded[0].childScope.get().elementIn, javac.STRING)
         grounded[0].ports[0].template == null
     }
 
     def 'with no projections registered, grounding falls back to the raw source set (additive)'() {
         expect: 'a List<String> source alone cannot feed a Stream<A> port'
-        new Grounding(ctx, []).ground(lift(streamElement, streamOfInteger, TypeUniverse.INTEGER),
-                [TypeUniverse.LIST_OF_STRING]).toList().empty
+        new Grounding(ctx, []).ground(lift(streamElement, streamOfInteger, javac.INTEGER),
+                [javac.LIST_OF_STRING]).toList().empty
     }
 
     // ---- concrete specs are untouched (additive) -------------------------------------------------------------
@@ -270,7 +269,7 @@ class GroundingSpec extends Specification {
     def 'a partial template spec instantiates through the partial path'() {
         def port = new Port('src', setElement.asType(), Nullability.NON_NULL,
                 PortType.app(setElement, [PortType.variable(0)]))
-        def spec = OperationSpec.ofPartial('firstOrThrow', OP, Weights.STEP, [port], TypeUniverse.INTEGER,
+        def spec = OperationSpec.ofPartial('firstOrThrow', OP, Weights.STEP, [port], javac.INTEGER,
                 Nullability.NON_NULL)
 
         when:
@@ -285,25 +284,25 @@ class GroundingSpec extends Specification {
     // ---- unification edges: non-declared source, arity mismatch, array binding, ungrounded var --------------
 
     def 'an App template does not unify against a non-declared (array) source'() {
-        def arrayOfString = ctx.types().getArrayType(TypeUniverse.STRING)
+        def arrayOfString = ctx.types().getArrayType(javac.STRING)
 
         expect: 'a String[] source is not a DECLARED type, so a Set<A> port cannot unify with it'
-        grounding.ground(lift(setElement, setOfInteger, TypeUniverse.INTEGER), [arrayOfString]).toList().empty
+        grounding.ground(lift(setElement, setOfInteger, javac.INTEGER), [arrayOfString]).toList().empty
     }
 
     def 'an App template does not unify against a raw source of mismatched arity'() {
         def rawSet = ctx.types().erasure(setElement.asType())
 
         expect: 'raw Set has zero type arguments; a Set<A> template expects one, so the arity differs'
-        grounding.ground(lift(setElement, setOfInteger, TypeUniverse.INTEGER), [rawSet]).toList().empty
+        grounding.ground(lift(setElement, setOfInteger, javac.INTEGER), [rawSet]).toList().empty
     }
 
     def 'a type variable grounds to an array argument — an invariant reference type'() {
-        def arrayOfString = ctx.types().getArrayType(TypeUniverse.STRING)
+        def arrayOfString = ctx.types().getArrayType(javac.STRING)
         def setOfStringArray = ctx.types().getDeclaredType(setElement, arrayOfString)
 
         when:
-        def grounded = grounding.ground(lift(setElement, setOfInteger, TypeUniverse.INTEGER), [setOfStringArray]).toList()
+        def grounded = grounding.ground(lift(setElement, setOfInteger, javac.INTEGER), [setOfStringArray]).toList()
 
         then:
         grounded.size() == 1
@@ -314,7 +313,7 @@ class GroundingSpec extends Specification {
     def 'unification refuses a template nested past the recursion bound'() {
         // a Set<Set<...<A>>> template and a matching Set<Set<...<String>>> source, both nested past MAX_DEPTH
         def template = PortType.variable(0)
-        def sourceType = TypeUniverse.STRING as TypeMirror
+        def sourceType = javac.STRING as TypeMirror
         40.times {
             template = PortType.app(setElement, [template])
             sourceType = ctx.types().getDeclaredType(setElement, sourceType)
@@ -330,7 +329,7 @@ class GroundingSpec extends Specification {
         // the child scope references Var 1, but only Var 0 is ever bound by a port
         def port = new Port('src', setElement.asType(), Nullability.NON_NULL,
                 PortType.app(setElement, [PortType.variable(0)]))
-        def child = ChildScopeSpec.lifted(PortType.variable(1), Nullability.NON_NULL, TypeUniverse.INTEGER,
+        def child = ChildScopeSpec.lifted(PortType.variable(1), Nullability.NON_NULL, javac.INTEGER,
                 Nullability.NON_NULL)
         def spec = OperationSpec.mapping('map', MAP, Weights.CONTAINER, [port], setOfInteger, Nullability.NON_NULL, child)
 
@@ -354,7 +353,7 @@ class GroundingSpec extends Specification {
         OperationSpec.mapping('map', MAP, Weights.CONTAINER, [port], output, Nullability.NON_NULL, child)
     }
 
-    private static TypeMirror decl(final String fqn, final TypeMirror arg) {
-        TypeUniverse.types().getDeclaredType(TypeUniverse.elements().getTypeElement(fqn), arg)
+    private TypeMirror decl(final String fqn, final TypeMirror arg) {
+        javac.types().getDeclaredType(javac.elements().getTypeElement(fqn), arg)
     }
 }
