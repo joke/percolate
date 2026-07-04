@@ -1,6 +1,9 @@
 package io.github.joke.percolate.processor.internal.stages.discover
 
+import io.github.joke.percolate.processor.discover.Greeting
 import io.github.joke.percolate.processor.discover.PersonDto
+import io.github.joke.percolate.processor.discover.PersonNode
+import io.github.joke.percolate.processor.discover.Season
 import io.github.joke.percolate.processor.nullability.NullabilityResolver
 import io.github.joke.percolate.spi.Nullability
 import io.github.joke.percolate.spi.test.TypeUniverse
@@ -10,6 +13,7 @@ import io.github.joke.percolate.spi.types.PrimitiveKind
 import spock.lang.Specification
 import spock.lang.Tag
 
+import static io.github.joke.percolate.spi.types.TypeRef.array
 import static io.github.joke.percolate.spi.types.TypeRef.declared
 import static io.github.joke.percolate.spi.types.TypeRef.primitive
 
@@ -69,5 +73,41 @@ class TypeSpaceAdapterSpec extends Specification {
         def constructor = decl.methods.find { it.has(MemberFlag.CONSTRUCTOR) }
         constructor.name == '<init>'
         constructor.parameterTypes() == [declared('java.lang.String'), primitive(PrimitiveKind.INT)]
+    }
+
+    def 'the closure walk is cycle-safe over a self-referencing type and materialises array field types'() {
+        def space = adapter.build([TypeUniverse.of(PersonNode).asType()])
+        def decl = space.decl('io.github.joke.percolate.processor.discover.PersonNode').get()
+
+        expect: 'the self-referencing type is visited once, not walked forever'
+        space.decl('io.github.joke.percolate.processor.discover.PersonNode').present
+
+        and: 'an array field of the type itself is materialised as an array of the declared component'
+        def children = decl.fields.find { it.name == 'children' }
+        children.type == array(declared('io.github.joke.percolate.processor.discover.PersonNode'))
+    }
+
+    def 'mirrors a non-JDK interface\'s static, default, and abstract methods'() {
+        def space = adapter.build([TypeUniverse.of(Greeting).asType()])
+        def decl = space.decl('io.github.joke.percolate.processor.discover.Greeting').get()
+
+        expect:
+        decl.kind == DeclKind.INTERFACE
+
+        and:
+        decl.methods.find { it.name == 'of' }.has(MemberFlag.STATIC)
+
+        and:
+        decl.methods.find { it.name == 'shout' }.has(MemberFlag.DEFAULT)
+
+        and:
+        decl.methods.find { it.name == 'text' }.has(MemberFlag.ABSTRACT)
+    }
+
+    def 'recognises an enum declaration kind'() {
+        def space = adapter.build([TypeUniverse.of(Season).asType()])
+
+        expect:
+        space.decl('io.github.joke.percolate.processor.discover.Season').get().kind == DeclKind.ENUM
     }
 }
