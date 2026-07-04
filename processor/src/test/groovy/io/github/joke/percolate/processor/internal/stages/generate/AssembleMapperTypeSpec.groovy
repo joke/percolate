@@ -7,8 +7,8 @@ import io.github.joke.percolate.processor.test.fixtures.DirectiveFixtures
 import io.github.joke.percolate.processor.test.fixtures.Human
 import io.github.joke.percolate.processor.test.fixtures.Person
 import io.github.joke.percolate.processor.test.fixtures.PersonMapper
-import io.github.joke.percolate.spi.test.TypeUniverse
-import spock.lang.Isolated
+import io.github.joke.percolate.spi.test.PrivateTypeUniverse
+import spock.lang.Shared
 import spock.lang.Specification
 import spock.lang.Tag
 
@@ -21,28 +21,29 @@ import javax.tools.JavaFileObject
  * {@link AssembleMapperType} seam, unit-tested directly: it assembles a {@code <Name>Impl} type in the mapper's
  * package — public final, {@code @Generated}, an empty constructor, and one {@code @Override} per method body — then
  * writes it via the {@link Filer}. The written source is captured through a stub Filer/Writer. Real mapper types come
- * from {@link TypeUniverse}, exercising the interface ({@code implements}) vs class ({@code extends}) branch.
+ * from {@link PrivateTypeUniverse}, exercising the interface ({@code implements}) vs class ({@code extends}) branch.
  */
 @Tag('unit')
-@Isolated // bridge: shares the static TypeUniverse javac; serialise until the type-universe redesign (see openspec/notes.md)
 class AssembleMapperTypeSpec extends Specification {
+
+    @Shared PrivateTypeUniverse javac = new PrivateTypeUniverse()
 
     def writer = new StringWriter()
     def filer = Mock(Filer) {
         createSourceFile(_, _) >> Mock(JavaFileObject) { openWriter() >> writer }
     }
-    def stage = new AssembleMapperType(filer, TypeUniverse.elements())
+    def stage = new AssembleMapperType(filer, javac.elements())
 
     def setupSpec() {
-        TypeUniverse.of(Person)
-        TypeUniverse.of(Human)
-        TypeUniverse.of(PersonMapper)
-        TypeUniverse.of(CallableFixtures)
-        TypeUniverse.of(DirectiveFixtures)
+        javac.of(Person)
+        javac.of(Human)
+        javac.of(PersonMapper)
+        javac.of(CallableFixtures)
+        javac.of(DirectiveFixtures)
     }
 
     def 'a void mapper method renders a void return type'() {
-        def ctx = new MapperContext(TypeUniverse.of(DirectiveFixtures))
+        def ctx = new MapperContext(javac.of(DirectiveFixtures))
         def bodies = [new MethodImpl(method(DirectiveFixtures, 'sink'), CodeBlock.of(''), [] as Set)]
 
         when:
@@ -54,7 +55,7 @@ class AssembleMapperTypeSpec extends Specification {
 
     def 'assembles a public final <Name>Impl implementing a @Mapper interface, with a generated annotation'() {
         given:
-        def ctx = new MapperContext(TypeUniverse.of(PersonMapper))
+        def ctx = new MapperContext(javac.of(PersonMapper))
         def bodies = [new MethodImpl(method(PersonMapper, 'map'), CodeBlock.of('return null;\n'), [] as Set)]
 
         when:
@@ -75,7 +76,7 @@ class AssembleMapperTypeSpec extends Specification {
 
     def 'extends (not implements) when the mapper type is a class'() {
         given:
-        def ctx = new MapperContext(TypeUniverse.of(CallableFixtures))
+        def ctx = new MapperContext(javac.of(CallableFixtures))
         def bodies = [new MethodImpl(method(CallableFixtures, 'makeHuman'), CodeBlock.of('return null;\n'), [] as Set)]
 
         when:
@@ -87,12 +88,12 @@ class AssembleMapperTypeSpec extends Specification {
 
     def 'the mapper interface is detected by element kind'() {
         expect:
-        TypeUniverse.of(PersonMapper).kind == ElementKind.INTERFACE
-        TypeUniverse.of(CallableFixtures).kind == ElementKind.CLASS
+        javac.of(PersonMapper).kind == ElementKind.INTERFACE
+        javac.of(CallableFixtures).kind == ElementKind.CLASS
     }
 
-    private static ExecutableElement method(final Class<?> type, final String name) {
-        TypeUniverse.of(type).enclosedElements.find {
+    private ExecutableElement method(final Class<?> type, final String name) {
+        javac.of(type).enclosedElements.find {
             it.kind == ElementKind.METHOD && it.simpleName.toString() == name
         } as ExecutableElement
     }

@@ -164,6 +164,20 @@ Two fixture paths in `spi` testFixtures (replacing `TypeUniverse`/`HarnessResolv
 Prebuilt constants (`STRING`, `INT`, `LIST_OF_STRING`, …) return as plain values — safe in `where:` blocks
 and across threads by construction.
 
+**Amendment (2026-07-04) — a third fixture path for the 2 specs the D7 amendment exempts permanently.**
+`BuildMethodBodiesSpec` and `AssembleMapperTypeSpec` exercise the real `TypeName.get(TypeMirror)` codegen path
+directly (JavaPoet's real rendering needs a genuinely functional compiler-backed mirror, not a stub — see
+increment D's finding that `TypeRefs.of` NPEs on a mirror only stubbing `toString()`), so they cannot move to
+`TestTypes`/literal `TypeSpace` fixtures like the other 14 of the 16 `@Isolated` specs. `TypeUniverse`'s actual
+hazard was never "real `javax.lang.model`" — it was the single **static** `JavacTask` every spec shared, raced
+by concurrent `Types`/`Elements` calls under threaded pitest. `PrivateTypeUniverse` (`spi` testFixtures) gives
+each of these 2 specs its own fresh, non-shared `JavacTask` (a `@Shared` field, created once per spec class):
+real mirrors, real JavaPoet rendering, but nothing else ever touches the instance, so it cannot race. Both
+specs' `@Isolated` was removed — verified safe because the mechanism is structural (an uncontended resource
+cannot race), not because of an empirical concurrent-execution test (root `build.gradle`'s pitest is still
+single-threaded pending task 5.1, so there is no live thread pool to test against yet). The other 14 specs
+still share the old static `TypeUniverse` and remain `@Isolated` until they migrate per the D8 paths above.
+
 ### D9 — Cutover is atomic at the SPI seam; phases around it
 
 The `ResolveCtx`/`Demand` signature change cannot be half-applied (engine on `TypeRef`, strategies on

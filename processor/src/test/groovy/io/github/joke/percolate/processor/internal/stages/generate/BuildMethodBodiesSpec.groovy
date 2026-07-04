@@ -24,8 +24,8 @@ import io.github.joke.percolate.spi.OperationCodegen
 import io.github.joke.percolate.spi.Port
 import io.github.joke.percolate.spi.ScopeCodegen
 import io.github.joke.percolate.spi.Weights
-import io.github.joke.percolate.spi.test.TypeUniverse
-import spock.lang.Isolated
+import io.github.joke.percolate.spi.test.PrivateTypeUniverse
+import spock.lang.Shared
 import spock.lang.Specification
 import spock.lang.Tag
 
@@ -43,12 +43,13 @@ import javax.lang.model.type.TypeMirror
  * helper pattern, on a {@link MethodScope}).
  */
 @Tag('unit')
-@Isolated // bridge: shares the static TypeUniverse javac; serialise until the type-universe redesign (see openspec/notes.md)
 class BuildMethodBodiesSpec extends Specification {
 
     static final OperationCodegen IDENTITY = { inputs -> inputs.single() } as OperationCodegen
     static final ScopeCodegen MAP =
             { operand, var, body -> CodeBlock.of('$L.map($N -> $L)', operand, var, body) } as ScopeCodegen
+
+    @Shared PrivateTypeUniverse javac = new PrivateTypeUniverse()
 
     def method = Mock(ExecutableElement) {
         getSimpleName() >> Stub(Name) { toString() >> 'map' }
@@ -56,7 +57,7 @@ class BuildMethodBodiesSpec extends Specification {
     }
     MethodScope scope = new MethodScope(method)
     MapperGraph graph = new MapperGraph()
-    Value root = graph.valueFor(scope, new TargetLocation(TargetPath.of('')), TypeUniverse.STRING, Nullability.NON_NULL)
+    Value root = graph.valueFor(scope, new TargetLocation(TargetPath.of('')), javac.STRING, Nullability.NON_NULL)
             .tap { graph.markReturnRoot(it) }
 
     def 'a single-producer return renders inline as the chosen producer expression'() {
@@ -145,11 +146,11 @@ class BuildMethodBodiesSpec extends Specification {
     def 'a container mapping weaves the container codegen around an expression lambda when the child hoists nothing'() {
         // List<String> in -> List<Integer> out; child String -> Integer sources straight from the element
         def g = new MapperGraph()
-        def containerOp = containerMapping(g, TypeUniverse.LIST_OF_INT)
+        def containerOp = containerMapping(g, javac.LIST_OF_INT)
         def child = containerOp.childScope.get()
-        def element = new AddValue(child, new ElementLocation(), TypeUniverse.STRING, Nullability.NON_NULL)
+        def element = new AddValue(child, new ElementLocation(), javac.STRING, Nullability.NON_NULL)
         g.apply(new AddOperation('conv', IDENTITY, 1, false,
-                [new PortBinding(new Port('e', TypeUniverse.STRING, Nullability.NON_NULL), element)],
+                [new PortBinding(new Port('e', javac.STRING, Nullability.NON_NULL), element)],
                 childRoot(child), Optional.empty()))
 
         when:
@@ -163,12 +164,12 @@ class BuildMethodBodiesSpec extends Specification {
 
     /** A scope-owning List<String> -> List<Integer> map operation; its child return root is Integer. */
     private Operation containerMapping(final MapperGraph g, final TypeMirror output) {
-        def sourceIn = new AddValue(scope, new SourceLocation(AccessPath.of('in')), TypeUniverse.LIST_OF_STRING,
+        def sourceIn = new AddValue(scope, new SourceLocation(AccessPath.of('in')), javac.LIST_OF_STRING,
                 Nullability.NON_NULL)
-        def decl = new ChildScopeDecl(TypeUniverse.STRING, Nullability.NON_NULL, TypeUniverse.INTEGER,
+        def decl = new ChildScopeDecl(javac.STRING, Nullability.NON_NULL, javac.INTEGER,
                 Nullability.NON_NULL)
         def op = g.apply(new AddOperation('map', MAP, Weights.CONTAINER, false,
-                [new PortBinding(new Port('src', TypeUniverse.LIST_OF_STRING, Nullability.NON_NULL), sourceIn)],
+                [new PortBinding(new Port('src', javac.LIST_OF_STRING, Nullability.NON_NULL), sourceIn)],
                 new AddValue(scope, new TargetLocation(TargetPath.of('')), output, Nullability.NON_NULL),
                 Optional.of(decl)))
         g.markReturnRoot(g.outputOf(op).get())
@@ -176,7 +177,7 @@ class BuildMethodBodiesSpec extends Specification {
     }
 
     private AddValue childRoot(final ChildScope child) {
-        new AddValue(child, new TargetLocation(TargetPath.of('')), TypeUniverse.INTEGER, Nullability.NON_NULL)
+        new AddValue(child, new TargetLocation(TargetPath.of('')), javac.INTEGER, Nullability.NON_NULL)
     }
 
     private MapperContext containerContext(final MapperGraph g) {
@@ -191,11 +192,11 @@ class BuildMethodBodiesSpec extends Specification {
     }
 
     private Value source(final String slot) {
-        graph.valueFor(scope, new SourceLocation(AccessPath.of(slot)), TypeUniverse.STRING, Nullability.NON_NULL)
+        graph.valueFor(scope, new SourceLocation(AccessPath.of(slot)), javac.STRING, Nullability.NON_NULL)
     }
 
     private Value intermediate(final String slot) {
-        graph.valueFor(scope, new TargetLocation(TargetPath.of(slot)), TypeUniverse.STRING, Nullability.NON_NULL)
+        graph.valueFor(scope, new TargetLocation(TargetPath.of(slot)), javac.STRING, Nullability.NON_NULL)
     }
 
     private Operation operation(final Value out, final List<Value> portSources, final Codegen codegen) {
