@@ -15,8 +15,8 @@ import io.github.joke.percolate.processor.internal.graph.Value
 import io.github.joke.percolate.spi.Nullability
 import io.github.joke.percolate.spi.OperationCodegen
 import io.github.joke.percolate.spi.Port
-import io.github.joke.percolate.spi.test.TypeUniverse
-import spock.lang.Isolated
+import io.github.joke.percolate.spi.test.PrivateTypeUniverse
+import spock.lang.Shared
 import spock.lang.Specification
 import spock.lang.Tag
 
@@ -29,10 +29,11 @@ import javax.lang.model.element.Name
  * in-plan port. Name allocation (slot name, empty-slot fallback, lambda type name) is exercised on the resulting plan.
  */
 @Tag('unit')
-@Isolated // bridge: shares the static TypeUniverse javac; serialise until the type-universe redesign (see openspec/notes.md)
 class HoistPlanSpec extends Specification {
 
     static final OperationCodegen OP = { inputs -> CodeBlock.of('x') } as OperationCodegen
+
+    @Shared PrivateTypeUniverse javac = new PrivateTypeUniverse()
 
     def method = Mock(ExecutableElement) {
         getSimpleName() >> Stub(Name) { toString() >> 'map' }
@@ -112,22 +113,22 @@ class HoistPlanSpec extends Specification {
         def hoist = HoistPlan.forMethod(graph, ExtractedPlan.extract(graph), target(''), [])
 
         expect:
-        hoist.lambdaName(TypeUniverse.STRING) == 'string'
+        hoist.lambdaName(javac.STRING) == 'string'
     }
 
     def 'a lambda parameter over a non-declared element type falls back to element'() {
         def hoist = HoistPlan.forMethod(graph, ExtractedPlan.extract(graph), target(''), [])
 
         expect:
-        hoist.lambdaName(TypeUniverse.INT) == 'element'
+        hoist.lambdaName(javac.INT) == 'element'
     }
 
     private Value target(final String slot) {
-        graph.valueFor(scope, new TargetLocation(TargetPath.of(slot)), TypeUniverse.STRING, Nullability.NON_NULL)
+        graph.valueFor(scope, new TargetLocation(TargetPath.of(slot)), javac.STRING, Nullability.NON_NULL)
     }
 
     private Value source(final String slot) {
-        graph.valueFor(scope, new SourceLocation(AccessPath.of(slot)), TypeUniverse.STRING, Nullability.NON_NULL)
+        graph.valueFor(scope, new SourceLocation(AccessPath.of(slot)), javac.STRING, Nullability.NON_NULL)
     }
 
     private void operation(final Value out, final List<Value> portSources) {

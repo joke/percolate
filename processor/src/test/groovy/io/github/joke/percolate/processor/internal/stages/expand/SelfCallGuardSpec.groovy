@@ -16,8 +16,7 @@ import io.github.joke.percolate.spi.OperationCodegen
 import io.github.joke.percolate.spi.OperationSpec
 import io.github.joke.percolate.spi.Port
 import io.github.joke.percolate.spi.Weights
-import io.github.joke.percolate.spi.test.TypeUniverse
-import spock.lang.Isolated
+import io.github.joke.percolate.spi.test.PrivateTypeUniverse
 import spock.lang.Shared
 import spock.lang.Specification
 import spock.lang.Tag
@@ -33,12 +32,12 @@ import javax.lang.model.element.TypeElement
  * whether a bound port is that method's parameter-root {@code LEAF}); each case isolates one branch of {@code refuses}.
  */
 @Tag('unit')
-@Isolated // shares the static TypeUniverse javac; must not run concurrently with other fixture specs (race → flaky pitest)
 class SelfCallGuardSpec extends Specification {
 
-    @Shared TypeElement personType = TypeUniverse.of(Person)
-    @Shared TypeElement humanType = TypeUniverse.of(Human)
-    @Shared TypeElement personMapperType = TypeUniverse.of(PersonMapper)
+    @Shared PrivateTypeUniverse javac = new PrivateTypeUniverse()
+    @Shared TypeElement personType = javac.of(Person)
+    @Shared TypeElement humanType = javac.of(Human)
+    @Shared TypeElement personMapperType = javac.of(PersonMapper)
     @Shared OperationCodegen codegen = { inc -> CodeBlock.of('x') } as OperationCodegen
 
     SelfCallGuard guard = new SelfCallGuard()
@@ -110,7 +109,7 @@ class SelfCallGuardSpec extends Specification {
     }
 
     private ExecutableElement methodNamed(final Class<?> type, final String name) {
-        TypeUniverse.of(type).enclosedElements.find {
+        javac.of(type).enclosedElements.find {
             it.kind == ElementKind.METHOD && it.simpleName.toString() == name
         } as ExecutableElement
     }

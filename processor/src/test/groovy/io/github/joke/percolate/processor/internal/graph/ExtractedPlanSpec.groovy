@@ -4,26 +4,27 @@ import io.github.joke.percolate.processor.test.HarnessScope
 import io.github.joke.percolate.spi.Codegen
 import io.github.joke.percolate.spi.Nullability
 import io.github.joke.percolate.spi.Port
-import io.github.joke.percolate.spi.test.TypeUniverse
-import spock.lang.Isolated
+import io.github.joke.percolate.spi.test.PrivateTypeUniverse
+import spock.lang.Shared
 import spock.lang.Specification
 import spock.lang.Tag
 
 import javax.lang.model.type.TypeMirror
 
 @Tag('unit')
-@Isolated // bridge: shares the static TypeUniverse javac; serialise until the type-universe redesign (see openspec/notes.md)
 class ExtractedPlanSpec extends Specification {
+
+    @Shared PrivateTypeUniverse javac = new PrivateTypeUniverse()
 
     final MapperGraph graph = new MapperGraph()
     final Scope scope = new HarnessScope('m()')
     // Extraction roots at the graph's seeded return roots, so the harness root must be marked like the driver does.
-    final Value root = graph.valueFor(scope, new TargetLocation(TargetPath.of('')), TypeUniverse.STRING, Nullability.NON_NULL)
+    final Value root = graph.valueFor(scope, new TargetLocation(TargetPath.of('')), javac.STRING, Nullability.NON_NULL)
             .tap { graph.markReturnRoot(it) }
 
     def 'an OR resolves to the cheapest producer'() {
         given:
-        final var param = source('p', TypeUniverse.STRING)
+        final var param = source('p', javac.STRING)
         final var cheap = produce(root, 1, [param])
         produce(root, 5, [param])
 
@@ -36,8 +37,8 @@ class ExtractedPlanSpec extends Specification {
 
     def 'an UNSAT producer never participates, regardless of weight'() {
         given:
-        final var param = source('p', TypeUniverse.STRING)
-        final var starved = graph.valueFor(scope, new TargetLocation(TargetPath.of('missing')), TypeUniverse.STRING, Nullability.NON_NULL)
+        final var param = source('p', javac.STRING)
+        final var starved = graph.valueFor(scope, new TargetLocation(TargetPath.of('missing')), javac.STRING, Nullability.NON_NULL)
         final var satExpensive = produce(root, 9, [param])
         produce(root, 1, [starved]) // cheaper but UNSAT (its port has no producer)
 
@@ -50,12 +51,12 @@ class ExtractedPlanSpec extends Specification {
 
     def 'Operation cost sums over all ports (not the minimum over one)'() {
         given: 'a two-port producer whose ports each cost 3 (sum 6), versus a one-port producer costing 5'
-        final var pa = source('a', TypeUniverse.STRING)
-        final var pb = source('b', TypeUniverse.STRING)
-        final var ia = intermediate('ia', TypeUniverse.STRING, 3, [pa])
-        final var ib = intermediate('ib', TypeUniverse.STRING, 3, [pb])
+        final var pa = source('a', javac.STRING)
+        final var pb = source('b', javac.STRING)
+        final var ia = intermediate('ia', javac.STRING, 3, [pa])
+        final var ib = intermediate('ib', javac.STRING, 3, [pb])
         produce(root, 0, [ia, ib]) // weight 0 + 3 + 3 = 6 (min-over-ports would be 3)
-        final var ic = intermediate('ic', TypeUniverse.STRING, 1, [pa])
+        final var ic = intermediate('ic', javac.STRING, 1, [pa])
         final var single = produce(root, 4, [ic]) // weight 4 + 1 = 5
 
         when:
@@ -67,7 +68,7 @@ class ExtractedPlanSpec extends Specification {
 
     def 'equal-cost producers select deterministically and stably'() {
         given:
-        final var param = source('p', TypeUniverse.STRING)
+        final var param = source('p', javac.STRING)
         produce(root, 1, [param])
         produce(root, 1, [param])
 
@@ -81,7 +82,7 @@ class ExtractedPlanSpec extends Specification {
 
     def 'the losing producer subgraph remains in the underlying graph, unselected'() {
         given:
-        final var param = source('p', TypeUniverse.STRING)
+        final var param = source('p', javac.STRING)
         produce(root, 1, [param])
         final var loser = produce(root, 5, [param])
 
@@ -95,7 +96,7 @@ class ExtractedPlanSpec extends Specification {
 
     def 'a total producer is preferred over a cheaper partial one (totality dominates cost)'() {
         given:
-        final var param = source('p', TypeUniverse.STRING)
+        final var param = source('p', javac.STRING)
         producePartial(root, 1, [param]) // cheaper, but may throw on a valid input
         final var total = produce(root, 9, [param]) // pricier, but never throws
 
@@ -108,7 +109,7 @@ class ExtractedPlanSpec extends Specification {
 
     def 'a partial producer is chosen only as the sole producer'() {
         given:
-        final var param = source('p', TypeUniverse.STRING)
+        final var param = source('p', javac.STRING)
         final var only = producePartial(root, 1, [param])
 
         when:
@@ -120,10 +121,10 @@ class ExtractedPlanSpec extends Specification {
 
     def 'totality dominance counts partials transitively through ports, before cost'() {
         given: 'two total heads for root: one fed through a partial intermediate (cheap), one all-total (pricier)'
-        final var pa = source('a', TypeUniverse.STRING)
-        final var pb = source('b', TypeUniverse.STRING)
-        final var viaPartial = intermediatePartial('ip', TypeUniverse.STRING, 0, [pa])
-        final var viaTotal = intermediate('it', TypeUniverse.STRING, 8, [pb])
+        final var pa = source('a', javac.STRING)
+        final var pb = source('b', javac.STRING)
+        final var viaPartial = intermediatePartial('ip', javac.STRING, 0, [pa])
+        final var viaTotal = intermediate('it', javac.STRING, 8, [pb])
         produce(root, 0, [viaPartial]) // total head, but one partial in its subtree
         final var allTotal = produce(root, 0, [viaTotal]) // zero partials, but costs more
 
@@ -136,9 +137,9 @@ class ExtractedPlanSpec extends Specification {
 
     def 'reachability is derived from cost: a value reachable from a supply root is reachable, an orphan is not'() {
         given:
-        final var param = source('p', TypeUniverse.STRING)
+        final var param = source('p', javac.STRING)
         produce(root, 1, [param])
-        final var orphan = graph.valueFor(scope, new TargetLocation(TargetPath.of('orphan')), TypeUniverse.STRING, Nullability.NON_NULL)
+        final var orphan = graph.valueFor(scope, new TargetLocation(TargetPath.of('orphan')), javac.STRING, Nullability.NON_NULL)
 
         when:
         final var plan = extract()
@@ -151,9 +152,9 @@ class ExtractedPlanSpec extends Specification {
 
     def 'a producerless multi-segment ACCESS source value is unreachable, not a vacuous base case'() {
         given: 'a single-segment param (LEAF) and an orphan multi-segment source value (ACCESS) with no accessor producer'
-        final var param = source('p', TypeUniverse.STRING)
+        final var param = source('p', javac.STRING)
         final var orphanAccess = graph.valueFor(
-                scope, new SourceLocation(new AccessPath(['p', 'addr'])), TypeUniverse.STRING, Nullability.NON_NULL)
+                scope, new SourceLocation(new AccessPath(['p', 'addr'])), javac.STRING, Nullability.NON_NULL)
 
         when:
         final var plan = extract()
@@ -165,8 +166,8 @@ class ExtractedPlanSpec extends Specification {
 
     def 'a zero-weight cycle is unreachable (well-foundedness: no value is reachable through its own cycle)'() {
         given: 'a and b each produced only from the other, with weight 0 and no supply root feeding the cycle'
-        final var a = graph.valueFor(scope, new TargetLocation(TargetPath.of('a')), TypeUniverse.STRING, Nullability.NON_NULL)
-        final var b = graph.valueFor(scope, new TargetLocation(TargetPath.of('b')), TypeUniverse.STRING, Nullability.NON_NULL)
+        final var a = graph.valueFor(scope, new TargetLocation(TargetPath.of('a')), javac.STRING, Nullability.NON_NULL)
+        final var b = graph.valueFor(scope, new TargetLocation(TargetPath.of('b')), javac.STRING, Nullability.NON_NULL)
         operation(a, 0, false, [b])
         operation(b, 0, false, [a])
 
@@ -180,11 +181,11 @@ class ExtractedPlanSpec extends Specification {
 
     def 'a scope-owning operation is unreachable when its child return-root has no producer'() {
         given: 'a scope-owning producer of root whose outer port is reachable but whose child return-root is never produced'
-        final var param = source('p', TypeUniverse.STRING)
+        final var param = source('p', javac.STRING)
         graph.apply(new AddOperation('map', Stub(Codegen), 0, false,
                 [new PortBinding(new Port('p0', param.type.get(), param.nullness.get()), av(param))],
                 av(root),
-                Optional.of(new ChildScopeDecl(TypeUniverse.STRING, Nullability.NON_NULL, TypeUniverse.STRING, Nullability.NON_NULL))))
+                Optional.of(new ChildScopeDecl(javac.STRING, Nullability.NON_NULL, javac.STRING, Nullability.NON_NULL))))
 
         when:
         final var plan = extract()

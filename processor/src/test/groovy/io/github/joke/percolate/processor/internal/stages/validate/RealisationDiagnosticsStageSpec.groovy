@@ -17,8 +17,8 @@ import io.github.joke.percolate.spi.Nullability
 import io.github.joke.percolate.spi.OperationCodegen
 import io.github.joke.percolate.spi.Port
 import io.github.joke.percolate.spi.Weights
-import io.github.joke.percolate.spi.test.TypeUniverse
-import spock.lang.Isolated
+import io.github.joke.percolate.spi.test.PrivateTypeUniverse
+import spock.lang.Shared
 import spock.lang.Specification
 import spock.lang.Subject
 import spock.lang.Tag
@@ -34,8 +34,9 @@ import javax.lang.model.element.TypeElement
  * errors (a targeted diagnostic already explains it).
  */
 @Tag('unit')
-@Isolated // bridge: shares the static TypeUniverse javac; serialise until the type-universe redesign (see openspec/notes.md)
 class RealisationDiagnosticsStageSpec extends Specification {
+
+    @Shared PrivateTypeUniverse javac = new PrivateTypeUniverse()
 
     def method = Mock(ExecutableElement) {
         getSimpleName() >> Stub(Name) { toString() >> 'map' }
@@ -51,7 +52,7 @@ class RealisationDiagnosticsStageSpec extends Specification {
         given:
         diagnostics.hasErrorsFor(_) >> false
         def graph = new MapperGraph()
-        def root = graph.apply(new AddValue(scope, root(), TypeUniverse.STRING, Nullability.NON_NULL))
+        def root = graph.apply(new AddValue(scope, root(), javac.STRING, Nullability.NON_NULL))
         graph.markReturnRoot(root)
         def ctx = context(graph)
 
@@ -68,10 +69,10 @@ class RealisationDiagnosticsStageSpec extends Specification {
         given:
         diagnostics.hasErrorsFor(_) >> false
         def graph = new MapperGraph()
-        def child = new AddValue(scope, new TargetLocation(new TargetPath(['x'])), TypeUniverse.STRING, Nullability.NON_NULL)
+        def child = new AddValue(scope, new TargetLocation(new TargetPath(['x'])), javac.STRING, Nullability.NON_NULL)
         def operation = graph.apply(new AddOperation('build', { CodeBlock.of('x') } as OperationCodegen, Weights.STEP,
-                false, [new PortBinding(new Port('x', TypeUniverse.STRING, Nullability.NON_NULL), child)],
-                new AddValue(scope, root(), TypeUniverse.STRING, Nullability.NON_NULL), Optional.empty()))
+                false, [new PortBinding(new Port('x', javac.STRING, Nullability.NON_NULL), child)],
+                new AddValue(scope, root(), javac.STRING, Nullability.NON_NULL), Optional.empty()))
         graph.markReturnRoot(graph.outputOf(operation).get())
         def ctx = context(graph)
 
@@ -87,7 +88,7 @@ class RealisationDiagnosticsStageSpec extends Specification {
         given:
         diagnostics.hasErrorsFor(mapperType) >> true
         def graph = new MapperGraph()
-        graph.markReturnRoot(graph.apply(new AddValue(scope, root(), TypeUniverse.STRING, Nullability.NON_NULL)))
+        graph.markReturnRoot(graph.apply(new AddValue(scope, root(), javac.STRING, Nullability.NON_NULL)))
 
         when:
         def ctx = context(graph)
@@ -113,7 +114,7 @@ class RealisationDiagnosticsStageSpec extends Specification {
         diagnostics.hasErrorsFor(_) >> false
         def graph = new MapperGraph()
         def operation = graph.apply(new AddOperation('supply', { CodeBlock.of('x') } as OperationCodegen, Weights.STEP,
-                false, [], new AddValue(scope, root(), TypeUniverse.STRING, Nullability.NON_NULL), Optional.empty()))
+                false, [], new AddValue(scope, root(), javac.STRING, Nullability.NON_NULL), Optional.empty()))
         graph.markReturnRoot(graph.outputOf(operation).get())
         def ctx = context(graph)
 
@@ -128,15 +129,15 @@ class RealisationDiagnosticsStageSpec extends Specification {
         // a producer whose reachable leaf port is skipped for the unreachable multi-segment ACCESS port
         diagnostics.hasErrorsFor(_) >> false
         def graph = new MapperGraph()
-        def leaf = new AddValue(scope, new SourceLocation(new AccessPath(['in'])), TypeUniverse.STRING,
+        def leaf = new AddValue(scope, new SourceLocation(new AccessPath(['in'])), javac.STRING,
                 Nullability.NON_NULL)
-        def access = new AddValue(scope, new SourceLocation(new AccessPath(['in', 'missing'])), TypeUniverse.STRING,
+        def access = new AddValue(scope, new SourceLocation(new AccessPath(['in', 'missing'])), javac.STRING,
                 Nullability.NON_NULL)
         def operation = graph.apply(new AddOperation('build', { CodeBlock.of('x') } as OperationCodegen, Weights.STEP,
                 false,
-                [new PortBinding(new Port('a', TypeUniverse.STRING, Nullability.NON_NULL), leaf),
-                 new PortBinding(new Port('b', TypeUniverse.STRING, Nullability.NON_NULL), access)],
-                new AddValue(scope, root(), TypeUniverse.STRING, Nullability.NON_NULL), Optional.empty()))
+                [new PortBinding(new Port('a', javac.STRING, Nullability.NON_NULL), leaf),
+                 new PortBinding(new Port('b', javac.STRING, Nullability.NON_NULL), access)],
+                new AddValue(scope, root(), javac.STRING, Nullability.NON_NULL), Optional.empty()))
         graph.markReturnRoot(graph.outputOf(operation).get())
         def ctx = context(graph)
 
@@ -151,10 +152,10 @@ class RealisationDiagnosticsStageSpec extends Specification {
         // a scope-owning operation with no unsatisfied port — its child return-root is what is unreachable
         diagnostics.hasErrorsFor(_) >> false
         def graph = new MapperGraph()
-        def childScope = new ChildScopeDecl(TypeUniverse.STRING, Nullability.NON_NULL, TypeUniverse.STRING,
+        def childScope = new ChildScopeDecl(javac.STRING, Nullability.NON_NULL, javac.STRING,
                 Nullability.NON_NULL)
         def operation = graph.apply(new AddOperation('map', { CodeBlock.of('x') } as OperationCodegen, Weights.STEP,
-                false, [], new AddValue(scope, root(), TypeUniverse.LIST_OF_STRING, Nullability.NON_NULL),
+                false, [], new AddValue(scope, root(), javac.LIST_OF_STRING, Nullability.NON_NULL),
                 Optional.of(childScope)))
         graph.markReturnRoot(graph.outputOf(operation).get())
         def ctx = context(graph)
@@ -170,14 +171,14 @@ class RealisationDiagnosticsStageSpec extends Specification {
         // root <- opA(port p -> child); child <- opB(port q -> root): a 2-cycle, both unreachable
         diagnostics.hasErrorsFor(_) >> false
         def graph = new MapperGraph()
-        def rootAdd = new AddValue(scope, root(), TypeUniverse.STRING, Nullability.NON_NULL)
-        def childAdd = new AddValue(scope, new TargetLocation(new TargetPath(['b'])), TypeUniverse.STRING,
+        def rootAdd = new AddValue(scope, root(), javac.STRING, Nullability.NON_NULL)
+        def childAdd = new AddValue(scope, new TargetLocation(new TargetPath(['b'])), javac.STRING,
                 Nullability.NON_NULL)
         def opA = graph.apply(new AddOperation('a', { CodeBlock.of('x') } as OperationCodegen, Weights.STEP, false,
-                [new PortBinding(new Port('p', TypeUniverse.STRING, Nullability.NON_NULL), childAdd)], rootAdd,
+                [new PortBinding(new Port('p', javac.STRING, Nullability.NON_NULL), childAdd)], rootAdd,
                 Optional.empty()))
         graph.apply(new AddOperation('b', { CodeBlock.of('x') } as OperationCodegen, Weights.STEP, false,
-                [new PortBinding(new Port('q', TypeUniverse.STRING, Nullability.NON_NULL), rootAdd)], childAdd,
+                [new PortBinding(new Port('q', javac.STRING, Nullability.NON_NULL), rootAdd)], childAdd,
                 Optional.empty()))
         graph.markReturnRoot(graph.outputOf(opA).get())
         def ctx = context(graph)
