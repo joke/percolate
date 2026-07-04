@@ -22,7 +22,7 @@ Phases follow design.md D9. Phase 0 is the go/no-go gate; Phase 2 is the atomic 
 
 ## 3. Phase 2 — the flip (adapter, SPI, engine, strategies, codegen, all unit specs)
 
-- [ ] 3.1 Build the discovery adapter: eager cycle-safe closure walk materialising `TypeSpace` + model values from `javax.lang.model`; populate the `Origin` registry
+- [x] 3.1 Build the discovery adapter (`TypeSpaceAdapter`): eager cycle-safe closure walk materialising `TypeSpace` + model values from `javax.lang.model` (JDK types edge-only), member nullness resolved at the boundary; tested against real javac. Bridge: `ResolveCtx.typeSpace()` added alongside `types()`/`elements()`. Deferred — `Origin` registry stubbed to `Origin.none()` (until diagnostics migrate) and production `ResolveCtx` wiring lands with the first consumer increment
 - [ ] 3.2 Flip the SPI signatures: `ResolveCtx.typeSpace()`, `Demand`/`OperationSpec`/`CallableMethods`/`MethodCandidate`/`Containers`/`TypeProbe`/`Port` et al. to `TypeRef`/`MethodSig`; move callable nullability resolution to the adapter (resolved data on `MethodSig`)
 - [ ] 3.3 Port the engine internals: `Value` (`TypeRef` + value-equality dedup), `MethodScope`/`SelfCallGuard` (drop `toString` keys), `ExpandStage` driver, grounding/matching, validate + dump stages (DOT rendering from the model walk)
 - [ ] 3.4 Implement the `TypeRef → TypeName` emitter and route all 7 JavaPoet sites through it (incl. type-use `@Nullable` emission); golden spec vs JavaPoet rendering

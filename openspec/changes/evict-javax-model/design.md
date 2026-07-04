@@ -168,6 +168,19 @@ flowchart TD
 Gates: e2e compile-tests + `percolate-smoke` green after Phases 2–4; pitest ratchets hold in `processor`
 after Phase 4. Rollback at any phase = `git revert` (no persisted state, no data migration).
 
+**Amendment (2026-07-04) — Phase 2 lands via a transitional bridge, not one hunk.** Measuring the flip
+surface (84 production files carrying `javax.lang.model` + 94 specs on `TypeUniverse`) showed it is a
+*semantic* rewrite — the `Grounding`/`PortType` collapse into `TypeSpace.match`/`ground`, and a multi-site
+nullness relocation (`Demand.nullnessOf` callers in `Accessor`/`ConstructorCall`/`MethodCallBridge` move
+onto adapter-resolved `MethodSig`/`ParamSig` nullness) — not the "mechanical signature-following" this
+section assumed. An all-or-nothing hunk of that size is unverifiable. Phase 2 therefore lands
+incrementally: `ResolveCtx` exposes `typeSpace()` **alongside** the existing `types()`/`elements()` (the
+adapter sits at the boundary and holds both), consumers migrate subsystem by subsystem with the e2e +
+smoke suites green at every commit, and the `javax.lang.model` accessors are deleted last — that deletion
+is the true "flip". Same end state and the same ArchUnit confinement (which only switches on in Phase 3);
+the only change is that intermediate states compile. Tasks 3.1–3.7 are unchanged as units of work; they
+are committed as green increments rather than a single hunk.
+
 ## Risks / Trade-offs
 
 - **[Adapter closure walk misses a reachable type]** → e2e compile-tests exercise every shipped feature

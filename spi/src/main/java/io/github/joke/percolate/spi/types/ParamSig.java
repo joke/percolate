@@ -5,8 +5,7 @@ import lombok.Value;
 
 /**
  * A method parameter's model signature: name, type, and <b>resolved</b> nullness. Nullness is data resolved
- * once at the discovery boundary (where the {@code NullabilityResolver} has the real mirrors in hand) — never
- * re-derived downstream.
+ * once at the discovery boundary (where the real mirrors are in hand) — never re-derived downstream.
  */
 @Value
 public class ParamSig {
