@@ -150,6 +150,15 @@ diagnostics emission. The 7th site (`ConstructorCall`'s `new $T(...)`) is safe b
 expression can never target a wildcard type — and is the one site actually routed through the emitter.
 Revisit if the model ever grows wildcard support; until then this is the shipped scope of D7.
 
+**Amendment (2026-07-04) — `CallableMethods.producing` is a third permanent exemption, by the same reasoning.**
+Measured before building anything: it has exactly one production caller (`MethodCallBridge`) and one
+implementer (`DiscoverCallableMethodsStage`). Its filter is `Types.isAssignable(m.getReturnType(), outputType)`
+— genuine JLS assignability (boxing, inheritance, interfaces) over real candidate methods, the same
+faithful-not-lawful territory as D7's `AssembleMapperType` exemption. A `TypeSpace`-backed `producing(TypeRef)`
+overload would be actively unsafe to ever adopt (it could silently miss or wrongly admit a real candidate), so
+none was built. `CallableMethods` stays on `javax.lang.model.util.Types` permanently, alongside
+`AssembleMapperType` and `BuildMethodBodies`'s local-decl site.
+
 ### D8 — Test construction: literal builders + a reflection mirror for fixtures
 
 Two fixture paths in `spi` testFixtures (replacing `TypeUniverse`/`HarnessResolveCtx`'s javac substrate):
