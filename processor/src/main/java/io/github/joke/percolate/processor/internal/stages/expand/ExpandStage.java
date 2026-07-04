@@ -18,6 +18,7 @@ import io.github.joke.percolate.processor.internal.graph.TargetLocation;
 import io.github.joke.percolate.processor.internal.graph.TargetPath;
 import io.github.joke.percolate.processor.internal.graph.Value;
 import io.github.joke.percolate.processor.internal.stages.Stage;
+import io.github.joke.percolate.processor.internal.stages.discover.TypeSpaceAdapter;
 import io.github.joke.percolate.processor.model.GoalSpec;
 import io.github.joke.percolate.processor.model.MapperShape;
 import io.github.joke.percolate.processor.model.MappingDirective;
@@ -85,8 +86,24 @@ public final class ExpandStage implements Stage {
         }
         final var graph = new MapperGraph();
         ctx.setGraph(graph);
-        final var resolveCtx = new CompileResolveCtx(elements, types, ctx.getCallableMethods());
+        final var typeSpace = new TypeSpaceAdapter(resolver).build(rootTypes(shape));
+        final var resolveCtx = new CompileResolveCtx(elements, types, ctx.getCallableMethods(), typeSpace);
         new Driver(strategies, projections, resolver, graph, ctx.getGoalSpecs(), resolveCtx).seedAndExpand(shape);
+    }
+
+    /**
+     * The mapper's declared surface — its own type plus each abstract method's return and parameter types — as the
+     * roots of the discovery adapter's closure walk (design D6). The walk materialises the transitive member closure
+     * reachable from these into the {@code TypeSpace} snapshot.
+     */
+    private static List<TypeMirror> rootTypes(final MapperShape shape) {
+        final List<TypeMirror> roots = new ArrayList<>();
+        roots.add(shape.getType().asType());
+        for (final var method : shape.getAbstractMethods()) {
+            roots.add(method.getReturnType());
+            method.getParameters().forEach(parameter -> roots.add(parameter.asType()));
+        }
+        return roots;
     }
 
     /**
