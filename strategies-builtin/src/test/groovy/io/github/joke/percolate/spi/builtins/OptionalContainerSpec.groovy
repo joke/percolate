@@ -10,7 +10,7 @@ import io.github.joke.percolate.spi.ScopeCodegen
 import io.github.joke.percolate.spi.Weights
 import io.github.joke.percolate.spi.builtins.test.Demands
 import io.github.joke.percolate.spi.builtins.test.ResolveCtxBuilder
-import io.github.joke.percolate.spi.test.TypeUniverse
+import io.github.joke.percolate.spi.test.PrivateTypeUniverse
 import spock.lang.Shared
 import spock.lang.Specification
 import spock.lang.Tag
@@ -28,15 +28,16 @@ import javax.lang.model.type.TypeMirror
 @Tag('unit')
 class OptionalContainerSpec extends Specification {
 
-    @Shared ResolveCtx ctx = new ResolveCtxBuilder().build()
+    @Shared PrivateTypeUniverse javac = new PrivateTypeUniverse()
+    @Shared ResolveCtx ctx = new ResolveCtxBuilder(javac).build()
     @Shared TypeMirror optionalOfString
     @Shared TypeMirror streamOfString
 
     def setupSpec() {
-        def optional = TypeUniverse.elements().getTypeElement('java.util.Optional')
-        optionalOfString = TypeUniverse.types().getDeclaredType(optional, TypeUniverse.STRING)
-        streamOfString = TypeUniverse.types().getDeclaredType(
-                TypeUniverse.elements().getTypeElement('java.util.stream.Stream'), TypeUniverse.STRING)
+        def optional = javac.elements().getTypeElement('java.util.Optional')
+        optionalOfString = javac.types().getDeclaredType(optional, javac.STRING)
+        streamOfString = javac.types().getDeclaredType(
+                javac.elements().getTypeElement('java.util.stream.Stream'), javac.STRING)
         Containers.isOptional(optionalOfString, ctx)
     }
 
@@ -45,7 +46,7 @@ class OptionalContainerSpec extends Specification {
         def specs = new OptionalContainer().expand(Demands.forTarget(optionalOfString), ctx).toList()
 
         then:
-        def wrap = specs.find { it.childScope.empty && ctx.types().isSameType(it.ports[0].type, TypeUniverse.STRING) }
+        def wrap = specs.find { it.childScope.empty && ctx.types().isSameType(it.ports[0].type, javac.STRING) }
         wrap != null
         wrap.codegen instanceof OperationCodegen
         wrap.weight == Weights.CONTAINER
@@ -68,7 +69,7 @@ class OptionalContainerSpec extends Specification {
         mapping.ports[0].template == PortType.app(optionalErasure, [PortType.variable(0)])
         def child = mapping.childScope.get()
         child.elementInTemplate == PortType.variable(0)
-        ctx.types().isSameType(child.elementOut, TypeUniverse.STRING)
+        ctx.types().isSameType(child.elementOut, javac.STRING)
         ctx.types().isSameType(mapping.outputType, optionalOfString)
         !mapping.partial
         new OptionalContainer().mapPresence().get().weave(CodeBlock.of('$N', 'o'), 'v', CodeBlock.of('$N', 'b'))
@@ -90,7 +91,7 @@ class OptionalContainerSpec extends Specification {
 
     def 'a scalar target offers a plain partial unwrap from Optional<scalar> under the demanded nullness'() {
         when:
-        def demand = Demands.forTarget(TypeUniverse.STRING, Nullability.NULLABLE)
+        def demand = Demands.forTarget(javac.STRING, Nullability.NULLABLE)
         def specs = new OptionalContainer().expand(demand, ctx).toList()
 
         then:
@@ -100,7 +101,7 @@ class OptionalContainerSpec extends Specification {
         unwrap.codegen instanceof OperationCodegen
         unwrap.partial
         ctx.types().isSameType(unwrap.ports[0].type, optionalOfString)
-        ctx.types().isSameType(unwrap.outputType, TypeUniverse.STRING)
+        ctx.types().isSameType(unwrap.outputType, javac.STRING)
         unwrap.outputNullness == Nullability.NULLABLE
         new OptionalContainer().unwrap().get().render(CodeBlock.of('$N', 'o'), Nullability.NULLABLE).toString().contains('orElse(null)')
         new OptionalContainer().unwrap().get().render(CodeBlock.of('$N', 'o'), Nullability.NON_NULL).toString().contains('orElseThrow')

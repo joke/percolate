@@ -5,18 +5,20 @@ import io.github.joke.percolate.spi.OperationCodegen
 import io.github.joke.percolate.spi.Weights
 import io.github.joke.percolate.spi.builtins.test.Demands
 import io.github.joke.percolate.spi.builtins.test.ResolveCtxBuilder
-import io.github.joke.percolate.spi.test.TypeUniverse
+import io.github.joke.percolate.spi.test.PrivateTypeUniverse
+import spock.lang.Shared
 import spock.lang.Specification
 import spock.lang.Tag
 
 @Tag('unit')
 class GetterPathResolverSpec extends Specification {
 
-    def ctx = new ResolveCtxBuilder().build()
+    @Shared PrivateTypeUniverse javac = new PrivateTypeUniverse()
+    @Shared def ctx = new ResolveCtxBuilder(javac).build()
 
     def 'matches a getX accessor as a unary operation typed to the return type'() {
         given:
-        def personBean = TypeUniverse.of(io.github.joke.percolate.spi.builtins.fixtures.PersonBean).asType()
+        def personBean = javac.of(io.github.joke.percolate.spi.builtins.fixtures.PersonBean).asType()
 
         when:
         def specs = new GetterPathResolver().descend(Demands.descend(personBean, 'name'), ctx).toList()
@@ -29,13 +31,13 @@ class GetterPathResolverSpec extends Specification {
         spec.weight == Weights.STEP_GETTER
         spec.ports.size() == 1
         ctx.types().isSameType(spec.ports[0].type, personBean)
-        ctx.types().isSameType(spec.outputType, TypeUniverse.STRING)
+        ctx.types().isSameType(spec.outputType, javac.STRING)
         spec.outputNullness == Nullability.NON_NULL
     }
 
     def 'types the produced value through the demand nullness oracle'() {
         given:
-        def personBean = TypeUniverse.of(io.github.joke.percolate.spi.builtins.fixtures.PersonBean).asType()
+        def personBean = javac.of(io.github.joke.percolate.spi.builtins.fixtures.PersonBean).asType()
 
         when:
         def specs = new GetterPathResolver().descend(Demands.descend(personBean, 'name', Nullability.NULLABLE), ctx).toList()
@@ -47,7 +49,7 @@ class GetterPathResolverSpec extends Specification {
 
     def 'matches an isX accessor for a boolean-returning method'() {
         given:
-        def booleanBean = TypeUniverse.of(io.github.joke.percolate.spi.builtins.fixtures.BooleanBean).asType()
+        def booleanBean = javac.of(io.github.joke.percolate.spi.builtins.fixtures.BooleanBean).asType()
 
         when:
         def specs = new GetterPathResolver().descend(Demands.descend(booleanBean, 'flag'), ctx).toList()
@@ -60,7 +62,7 @@ class GetterPathResolverSpec extends Specification {
 
     def 'rejects parameterized overloads when no zero-arg getter exists'() {
         given:
-        def overloaded = TypeUniverse.of(io.github.joke.percolate.spi.builtins.fixtures.OverloadedGetter).asType()
+        def overloaded = javac.of(io.github.joke.percolate.spi.builtins.fixtures.OverloadedGetter).asType()
 
         expect:
         new GetterPathResolver().descend(Demands.descend(overloaded, 'name'), ctx).toList().empty
@@ -68,7 +70,7 @@ class GetterPathResolverSpec extends Specification {
 
     def 'ignores methods declared on java.lang.Object'() {
         given:
-        def objectType = TypeUniverse.element('java.lang.Object').asType()
+        def objectType = javac.element('java.lang.Object').asType()
 
         expect:
         new GetterPathResolver().descend(Demands.descend(objectType, 'class'), ctx).toList().empty
@@ -76,6 +78,6 @@ class GetterPathResolverSpec extends Specification {
 
     def 'returns empty for non-declared parent types'() {
         expect:
-        new GetterPathResolver().descend(Demands.descend(TypeUniverse.INT, 'length'), ctx).toList().empty
+        new GetterPathResolver().descend(Demands.descend(javac.INT, 'length'), ctx).toList().empty
     }
 }

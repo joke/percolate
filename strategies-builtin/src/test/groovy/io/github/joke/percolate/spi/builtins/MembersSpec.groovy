@@ -1,7 +1,8 @@
 package io.github.joke.percolate.spi.builtins
 
 import io.github.joke.percolate.spi.builtins.test.ResolveCtxBuilder
-import io.github.joke.percolate.spi.test.TypeUniverse
+import io.github.joke.percolate.spi.test.PrivateTypeUniverse
+import spock.lang.Shared
 import spock.lang.Specification
 import spock.lang.Tag
 
@@ -10,10 +11,12 @@ import javax.lang.model.element.ElementKind
 @Tag('unit')
 class MembersSpec extends Specification {
 
+    @Shared PrivateTypeUniverse javac = new PrivateTypeUniverse()
+
     def 'declaredMembersOf enumerates accessible members of the type'() {
         given:
-        def ctx = new ResolveCtxBuilder().build()
-        def typeElement = TypeUniverse.of(io.github.joke.percolate.spi.builtins.fixtures.PersonBean)
+        def ctx = new ResolveCtxBuilder(javac).build()
+        def typeElement = javac.of(io.github.joke.percolate.spi.builtins.fixtures.PersonBean)
 
         when:
         def memberNames = []
@@ -26,8 +29,8 @@ class MembersSpec extends Specification {
 
     def 'isInObjectClass distinguishes Object methods from declared-type methods'() {
         given:
-        def ctx = new ResolveCtxBuilder().build()
-        def typeElement = TypeUniverse.of(io.github.joke.percolate.spi.builtins.fixtures.PersonBean)
+        def ctx = new ResolveCtxBuilder(javac).build()
+        def typeElement = javac.of(io.github.joke.percolate.spi.builtins.fixtures.PersonBean)
         def members = []
         Members.declaredMembersOf(typeElement, ctx).each { members << it }
 

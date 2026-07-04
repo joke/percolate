@@ -1,20 +1,23 @@
 package io.github.joke.percolate.spi.builtins.test
 
-import io.github.joke.percolate.spi.test.TypeUniverse
+import io.github.joke.percolate.spi.test.PrivateTypeUniverse
+import spock.lang.Shared
 import spock.lang.Specification
 import spock.lang.Tag
 
 @Tag('unit')
 class ResolveCtxBuilderSpec extends Specification {
 
-    def 'default builder produces a HarnessResolveCtx-equivalent ctx'() {
+    @Shared PrivateTypeUniverse javac = new PrivateTypeUniverse()
+
+    def 'a builder over a PrivateTypeUniverse produces a ctx backed by its types/elements'() {
         given:
-        def ctx = new ResolveCtxBuilder().build()
+        def ctx = new ResolveCtxBuilder(javac).build()
 
         expect:
-        ctx.types() == TypeUniverse.types()
-        ctx.elements() == TypeUniverse.elements()
-        ctx.callableMethods().producing(TypeUniverse.STRING).toList().empty
+        ctx.types() == javac.types()
+        ctx.elements() == javac.elements()
+        ctx.callableMethods().producing(javac.STRING).toList().empty
     }
 
     def 'builder withCallableMethods override is honoured'() {
@@ -27,10 +30,10 @@ class ResolveCtxBuilderSpec extends Specification {
         }
 
         when:
-        def ctx = new ResolveCtxBuilder().withCallableMethods(mockMethods).build()
+        def ctx = new ResolveCtxBuilder(javac).withCallableMethods(mockMethods).build()
 
         then:
         ctx.callableMethods() == mockMethods
-        ctx.callableMethods().producing(TypeUniverse.STRING).toList().size() == 1
+        ctx.callableMethods().producing(javac.STRING).toList().size() == 1
     }
 }

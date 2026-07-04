@@ -6,7 +6,8 @@ import io.github.joke.percolate.spi.Port
 import io.github.joke.percolate.spi.Weights
 import io.github.joke.percolate.spi.builtins.test.Demands
 import io.github.joke.percolate.spi.builtins.test.ResolveCtxBuilder
-import io.github.joke.percolate.spi.test.TypeUniverse
+import io.github.joke.percolate.spi.test.PrivateTypeUniverse
+import spock.lang.Shared
 import spock.lang.Specification
 import spock.lang.Tag
 
@@ -18,16 +19,17 @@ import javax.lang.model.type.TypeMirror
 @Tag('unit')
 class ConstructorCallSpec extends Specification {
 
-    def ctx = new ResolveCtxBuilder().build()
+    @Shared PrivateTypeUniverse javac = new PrivateTypeUniverse()
+    @Shared def ctx = new ResolveCtxBuilder(javac).build()
 
     def 'emits no operation when the target type is not DECLARED'() {
         expect:
-        new ConstructorCall().expand(Demands.forTarget(TypeUniverse.INT), ctx).toList().empty
+        new ConstructorCall().expand(Demands.forTarget(javac.INT), ctx).toList().empty
     }
 
     def 'emits a multi-port assembly operation over the constructor parameters when the goal spec matches'() {
         given:
-        def personRecord = TypeUniverse.of(io.github.joke.percolate.spi.builtins.fixtures.PersonRecord).asType()
+        def personRecord = javac.of(io.github.joke.percolate.spi.builtins.fixtures.PersonRecord).asType()
         def declared = constructorParamNames(personRecord)
 
         when:
@@ -49,12 +51,12 @@ class ConstructorCallSpec extends Specification {
         // Every assembly port is a structural sub-target: the engine mints a child demand at the child location.
         spec.ports.every { it.sourcing == Port.Sourcing.SUBTARGET }
         spec.ports[0].type.kind == TypeKind.INT
-        ctx.types().isSameType(spec.ports[1].type, TypeUniverse.STRING)
+        ctx.types().isSameType(spec.ports[1].type, javac.STRING)
     }
 
     def 'binds ports in constructor-parameter order for PersonByFieldOrder'() {
         given:
-        def personByFieldOrder = TypeUniverse.of(io.github.joke.percolate.spi.builtins.fixtures.PersonByFieldOrder).asType()
+        def personByFieldOrder = javac.of(io.github.joke.percolate.spi.builtins.fixtures.PersonByFieldOrder).asType()
         def declared = constructorParamNames(personByFieldOrder)
 
         when:
@@ -64,19 +66,19 @@ class ConstructorCallSpec extends Specification {
         specs.size() == 1
         specs[0].ports.size() == 2
         specs[0].ports[0].type.kind == TypeKind.INT
-        ctx.types().isSameType(specs[0].ports[1].type, TypeUniverse.STRING)
+        ctx.types().isSameType(specs[0].ports[1].type, javac.STRING)
     }
 
     def 'rejects a constructor whose parameters do not match the declared-children goal spec'() {
         given:
-        def personRecord = TypeUniverse.of(io.github.joke.percolate.spi.builtins.fixtures.PersonRecord).asType()
+        def personRecord = javac.of(io.github.joke.percolate.spi.builtins.fixtures.PersonRecord).asType()
 
         expect:
         new ConstructorCall().expand(Demands.assembling(personRecord, ['nonexistent'] as Set), ctx).toList().empty
     }
 
-    private static Set<String> constructorParamNames(final TypeMirror type) {
-        def element = TypeUniverse.types().asElement(type)
+    private Set<String> constructorParamNames(final TypeMirror type) {
+        def element = javac.types().asElement(type)
         def ctor = element.enclosedElements.find { it.kind == ElementKind.CONSTRUCTOR } as ExecutableElement
         ctor.parameters.collect { it.simpleName.toString() } as Set
     }

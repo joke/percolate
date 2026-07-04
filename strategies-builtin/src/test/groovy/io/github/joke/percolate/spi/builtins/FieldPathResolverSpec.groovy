@@ -5,15 +5,17 @@ import io.github.joke.percolate.spi.OperationCodegen
 import io.github.joke.percolate.spi.Weights
 import io.github.joke.percolate.spi.builtins.test.Demands
 import io.github.joke.percolate.spi.builtins.test.ResolveCtxBuilder
-import io.github.joke.percolate.spi.test.TypeUniverse
+import io.github.joke.percolate.spi.test.PrivateTypeUniverse
+import spock.lang.Shared
 import spock.lang.Specification
 import spock.lang.Tag
 
 @Tag('unit')
 class FieldPathResolverSpec extends Specification {
 
-    def ctx = new ResolveCtxBuilder().build()
-    def box = TypeUniverse.of(io.github.joke.percolate.spi.builtins.fixtures.BoxFixture).asType()
+    @Shared PrivateTypeUniverse javac = new PrivateTypeUniverse()
+    @Shared def ctx = new ResolveCtxBuilder(javac).build()
+    @Shared def box = javac.of(io.github.joke.percolate.spi.builtins.fixtures.BoxFixture).asType()
 
     def 'matches a public, non-static field as a unary accessor operation typed to the field type'() {
         when:
@@ -28,7 +30,7 @@ class FieldPathResolverSpec extends Specification {
         spec.ports.size() == 1
         spec.ports[0].name == 'value'
         ctx.types().isSameType(spec.ports[0].type, box)
-        ctx.types().isSameType(spec.outputType, TypeUniverse.STRING)
+        ctx.types().isSameType(spec.outputType, javac.STRING)
         spec.outputNullness == Nullability.NON_NULL
     }
 

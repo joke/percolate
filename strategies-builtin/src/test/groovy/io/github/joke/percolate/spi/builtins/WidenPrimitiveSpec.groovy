@@ -4,7 +4,8 @@ import io.github.joke.percolate.spi.Nullability
 import io.github.joke.percolate.spi.Weights
 import io.github.joke.percolate.spi.builtins.test.Demands
 import io.github.joke.percolate.spi.builtins.test.ResolveCtxBuilder
-import io.github.joke.percolate.spi.test.TypeUniverse
+import io.github.joke.percolate.spi.test.PrivateTypeUniverse
+import spock.lang.Shared
 import spock.lang.Specification
 import spock.lang.Tag
 
@@ -13,28 +14,29 @@ import javax.lang.model.type.TypeKind
 @Tag('unit')
 class WidenPrimitiveSpec extends Specification {
 
-    def ctx = new ResolveCtxBuilder().build()
-    def types = TypeUniverse.types()
+    @Shared PrivateTypeUniverse javac = new PrivateTypeUniverse()
+    @Shared def ctx = new ResolveCtxBuilder(javac).build()
+    @Shared def types = javac.types()
     def doubleType = types.getPrimitiveType(TypeKind.DOUBLE)
     def booleanType = types.getPrimitiveType(TypeKind.BOOLEAN)
 
     def 'widens a numeric target from each strictly-narrower primitive, one unary operation each'() {
         when:
-        def specs = new WidenPrimitive().expand(Demands.forTarget(TypeUniverse.LONG), ctx).toList()
+        def specs = new WidenPrimitive().expand(Demands.forTarget(javac.LONG), ctx).toList()
 
         then:
         specs.size() == 4
         specs.every { it.weight == Weights.STEP }
         specs.every { it.childScope.empty }
         specs.every { it.ports.size() == 1 && it.ports[0].name == 'value' && it.ports[0].nullness == Nullability.NON_NULL }
-        specs.every { types.isSameType(it.outputType, TypeUniverse.LONG) && it.outputNullness == Nullability.NON_NULL }
+        specs.every { types.isSameType(it.outputType, javac.LONG) && it.outputNullness == Nullability.NON_NULL }
         (specs.collect { it.ports[0].type.kind } as Set) ==
                 ([TypeKind.BYTE, TypeKind.SHORT, TypeKind.CHAR, TypeKind.INT] as Set)
     }
 
     def 'each widening carries a typed label using the glyph arrow'() {
         when:
-        def specs = new WidenPrimitive().expand(Demands.forTarget(TypeUniverse.LONG), ctx).toList()
+        def specs = new WidenPrimitive().expand(Demands.forTarget(javac.LONG), ctx).toList()
 
         then:
         (specs*.label as Set) == ['byte→long', 'short→long', 'char→long', 'int→long'] as Set
@@ -50,7 +52,7 @@ class WidenPrimitiveSpec extends Specification {
 
     def 'does not widen from a wider source (no narrowing)'() {
         when:
-        def specs = new WidenPrimitive().expand(Demands.forTarget(TypeUniverse.INT), ctx).toList()
+        def specs = new WidenPrimitive().expand(Demands.forTarget(javac.INT), ctx).toList()
 
         then:
         specs.every { it.ports[0].type.kind != TypeKind.LONG }
@@ -65,6 +67,6 @@ class WidenPrimitiveSpec extends Specification {
 
     def 'returns empty for a wrapper/reference target'() {
         expect:
-        new WidenPrimitive().expand(Demands.forTarget(TypeUniverse.INTEGER), ctx).toList().empty
+        new WidenPrimitive().expand(Demands.forTarget(javac.INTEGER), ctx).toList().empty
     }
 }

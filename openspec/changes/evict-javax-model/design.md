@@ -187,6 +187,19 @@ cannot race), not because of an empirical concurrent-execution test (root `build
 single-threaded pending task 5.1, so there is no live thread pool to test against yet). The other 14 specs
 still share the old static `TypeUniverse` and remain `@Isolated` until they migrate per the D8 paths above.
 
+**Amendment (2026-07-04) — "an uncontended resource cannot race" required the instance to actually be
+uncontended; task 3.6's `strategies-builtin` migration reused `PrivateTypeUniverse` far more broadly (one
+`@Shared` instance driving many feature methods per spec, ~19 specs) than the 2 specs it was designed for,
+and the developer's real Spock environment (`~/.spock/SpockConfig.groovy` sets `runner.parallel.enabled
+true`, which `strategies-builtin/build.gradle`'s test-task system properties do not actually override) runs
+those feature methods concurrently. `PrivateTypeUniverse`'s cache/completion state was plain
+`HashMap`/`HashSet` with no lock, unlike `TypeUniverse`'s synchronized lookup + `SynchronizedElements`
+wrapper — so real concurrent use produced `ConcurrentModificationException`. Fixed by giving
+`PrivateTypeUniverse` the same two guards, scoped to the instance instead of the class: the lookup is
+serialized on `this`, and `elements()` returns a `SynchronizedElements`-equivalent wrapper. This makes the
+"cannot race" property actually hold under real concurrent execution rather than depending on execution
+happening to stay single-threaded — the correct posture given Phase 4 turns on real thread pools.
+
 ### D9 — Cutover is atomic at the SPI seam; phases around it
 
 The `ResolveCtx`/`Demand` signature change cannot be half-applied (engine on `TypeRef`, strategies on

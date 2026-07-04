@@ -8,7 +8,7 @@ import io.github.joke.percolate.spi.ResolveCtx
 import io.github.joke.percolate.spi.Weights
 import io.github.joke.percolate.spi.builtins.test.Demands
 import io.github.joke.percolate.spi.builtins.test.ResolveCtxBuilder
-import io.github.joke.percolate.spi.test.TypeUniverse
+import io.github.joke.percolate.spi.test.PrivateTypeUniverse
 import spock.lang.Shared
 import spock.lang.Specification
 import spock.lang.Tag
@@ -18,19 +18,20 @@ import javax.lang.model.type.TypeMirror
 @Tag('unit')
 class ListContainerSpec extends Specification {
 
-    @Shared ResolveCtx ctx = new ResolveCtxBuilder().build()
+    @Shared PrivateTypeUniverse javac = new PrivateTypeUniverse()
+    @Shared ResolveCtx ctx = new ResolveCtxBuilder(javac).build()
     @Shared TypeMirror listOfString
     @Shared TypeMirror setOfString
     @Shared TypeMirror streamOfString
 
     def setupSpec() {
         ['java.lang.Iterable', 'java.util.Collection', 'java.util.SequencedCollection',
-         'java.util.List', 'java.util.Set'].each { TypeUniverse.elements().getTypeElement(it) }
-        listOfString = TypeUniverse.LIST_OF_STRING
-        setOfString = TypeUniverse.types().getDeclaredType(
-                TypeUniverse.elements().getTypeElement('java.util.Set'), TypeUniverse.STRING)
-        streamOfString = TypeUniverse.types().getDeclaredType(
-                TypeUniverse.elements().getTypeElement('java.util.stream.Stream'), TypeUniverse.STRING)
+         'java.util.List', 'java.util.Set'].each { javac.elements().getTypeElement(it) }
+        listOfString = javac.LIST_OF_STRING
+        setOfString = javac.types().getDeclaredType(
+                javac.elements().getTypeElement('java.util.Set'), javac.STRING)
+        streamOfString = javac.types().getDeclaredType(
+                javac.elements().getTypeElement('java.util.stream.Stream'), javac.STRING)
         Containers.isList(listOfString, ctx)
     }
 
@@ -62,7 +63,7 @@ class ListContainerSpec extends Specification {
         new ListContainer().collect().get().render(CodeBlock.of('$N', 's')).toString().contains('toList()')
 
         and: 'a plain single-element wrap String -> List<String>, no child scope'
-        def wrap = specs.find { ctx.types().isSameType(it.ports[0].type, TypeUniverse.STRING) }
+        def wrap = specs.find { ctx.types().isSameType(it.ports[0].type, javac.STRING) }
         wrap != null
         wrap.childScope.empty
         wrap.codegen instanceof OperationCodegen

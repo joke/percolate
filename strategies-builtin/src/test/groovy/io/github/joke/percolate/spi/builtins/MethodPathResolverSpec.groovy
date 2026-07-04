@@ -5,18 +5,20 @@ import io.github.joke.percolate.spi.OperationCodegen
 import io.github.joke.percolate.spi.Weights
 import io.github.joke.percolate.spi.builtins.test.Demands
 import io.github.joke.percolate.spi.builtins.test.ResolveCtxBuilder
-import io.github.joke.percolate.spi.test.TypeUniverse
+import io.github.joke.percolate.spi.test.PrivateTypeUniverse
+import spock.lang.Shared
 import spock.lang.Specification
 import spock.lang.Tag
 
 @Tag('unit')
 class MethodPathResolverSpec extends Specification {
 
-    def ctx = new ResolveCtxBuilder().build()
+    @Shared PrivateTypeUniverse javac = new PrivateTypeUniverse()
+    @Shared def ctx = new ResolveCtxBuilder(javac).build()
 
     def 'matches a canonical record accessor as a unary operation typed to the return type'() {
         given:
-        def point = TypeUniverse.of(io.github.joke.percolate.spi.builtins.fixtures.Point).asType()
+        def point = javac.of(io.github.joke.percolate.spi.builtins.fixtures.Point).asType()
 
         when:
         def specs = new MethodPathResolver().descend(Demands.descend(point, 'x'), ctx).toList()
@@ -35,20 +37,20 @@ class MethodPathResolverSpec extends Specification {
 
     def 'matches a non-record fluent-style accessor'() {
         given:
-        def address = TypeUniverse.of(io.github.joke.percolate.spi.builtins.fixtures.AddressFluent).asType()
+        def address = javac.of(io.github.joke.percolate.spi.builtins.fixtures.AddressFluent).asType()
 
         when:
         def specs = new MethodPathResolver().descend(Demands.descend(address, 'street'), ctx).toList()
 
         then:
         specs.size() == 1
-        ctx.types().isSameType(specs[0].outputType, TypeUniverse.STRING)
+        ctx.types().isSameType(specs[0].outputType, javac.STRING)
         specs[0].weight == Weights.STEP_METHOD
     }
 
     def 'rejects parameterised methods of the same name'() {
         given:
-        def overloaded = TypeUniverse.of(io.github.joke.percolate.spi.builtins.fixtures.OverloadedGetter).asType()
+        def overloaded = javac.of(io.github.joke.percolate.spi.builtins.fixtures.OverloadedGetter).asType()
 
         expect:
         new MethodPathResolver().descend(Demands.descend(overloaded, 'getName'), ctx).toList().empty
@@ -56,7 +58,7 @@ class MethodPathResolverSpec extends Specification {
 
     def 'ignores methods declared on java.lang.Object'() {
         given:
-        def objectType = TypeUniverse.element('java.lang.Object').asType()
+        def objectType = javac.element('java.lang.Object').asType()
 
         expect:
         new MethodPathResolver().descend(Demands.descend(objectType, 'toString'), ctx).toList().empty
@@ -64,6 +66,6 @@ class MethodPathResolverSpec extends Specification {
 
     def 'returns empty for non-declared parent types'() {
         expect:
-        new MethodPathResolver().descend(Demands.descend(TypeUniverse.INT, 'length'), ctx).toList().empty
+        new MethodPathResolver().descend(Demands.descend(javac.INT, 'length'), ctx).toList().empty
     }
 }

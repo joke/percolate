@@ -1,6 +1,7 @@
 package io.github.joke.percolate.spi.builtins.test
 
-import io.github.joke.percolate.spi.test.TypeUniverse
+import io.github.joke.percolate.spi.test.PrivateTypeUniverse
+import spock.lang.Shared
 import spock.lang.Specification
 import spock.lang.Tag
 
@@ -10,33 +11,35 @@ import javax.lang.model.type.DeclaredType
 @Tag('unit')
 class FixtureTypeSmokeSpec extends Specification {
 
-    def 'TypeUniverse resolves PersonRecord fixture'() {
+    @Shared PrivateTypeUniverse javac = new PrivateTypeUniverse()
+
+    def 'resolves PersonRecord fixture'() {
         expect:
-        def element = TypeUniverse.of(io.github.joke.percolate.spi.builtins.fixtures.PersonRecord)
+        def element = javac.of(io.github.joke.percolate.spi.builtins.fixtures.PersonRecord)
         element != null
         element instanceof TypeElement
         element.asType() instanceof DeclaredType
     }
 
-    def 'TypeUniverse resolves PersonBean fixture'() {
+    def 'resolves PersonBean fixture'() {
         expect:
-        def element = TypeUniverse.of(io.github.joke.percolate.spi.builtins.fixtures.PersonBean)
+        def element = javac.of(io.github.joke.percolate.spi.builtins.fixtures.PersonBean)
         element != null
         element instanceof TypeElement
         element.asType() instanceof DeclaredType
     }
 
-    def 'TypeUniverse resolves BooleanBean fixture'() {
+    def 'resolves BooleanBean fixture'() {
         expect:
-        def element = TypeUniverse.of(io.github.joke.percolate.spi.builtins.fixtures.BooleanBean)
+        def element = javac.of(io.github.joke.percolate.spi.builtins.fixtures.BooleanBean)
         element != null
         element instanceof TypeElement
         element.asType() instanceof DeclaredType
     }
 
-    def 'TypeUniverse resolves PersonByFieldOrder fixture'() {
+    def 'resolves PersonByFieldOrder fixture'() {
         expect:
-        def element = TypeUniverse.of(io.github.joke.percolate.spi.builtins.fixtures.PersonByFieldOrder)
+        def element = javac.of(io.github.joke.percolate.spi.builtins.fixtures.PersonByFieldOrder)
         element != null
         element instanceof TypeElement
         element.asType() instanceof DeclaredType

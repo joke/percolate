@@ -2,6 +2,13 @@ package io.github.joke.percolate.spi.test
 
 import com.sun.source.util.JavacTask
 
+import javax.lang.model.element.AnnotationMirror
+import javax.lang.model.element.AnnotationValue
+import javax.lang.model.element.Element
+import javax.lang.model.element.ExecutableElement
+import javax.lang.model.element.ModuleElement
+import javax.lang.model.element.Name
+import javax.lang.model.element.PackageElement
 import javax.lang.model.element.TypeElement
 import javax.lang.model.type.DeclaredType
 import javax.lang.model.type.TypeKind
@@ -10,6 +17,7 @@ import javax.lang.model.util.Elements
 import javax.lang.model.util.Types
 import javax.tools.JavaCompiler
 import javax.tools.ToolProvider
+import java.util.concurrent.ConcurrentHashMap
 
 /**
  * A private, non-shared javac substrate — one fresh {@link JavacTask} per instance, never a static singleton.
@@ -22,17 +30,20 @@ import javax.tools.ToolProvider
  * therefore cannot become mirror-free — they will always need a real compiler-backed {@link TypeMirror} to
  * exercise the real rendering path they test.
  *
- * <p>{@link TypeUniverse}'s actual hazard was never "real {@code javax.lang.model}" — it was the single
- * <b>static</b> {@link JavacTask} every spec shared, raced by concurrent {@code Types}/{@code Elements} calls
- * under threaded pitest. An instance nobody else touches cannot race: a spec that needs real mirrors gets its
- * own {@code PrivateTypeUniverse} (typically a {@code @Shared} field, created once per spec class), never
- * shared with any other spec, so no synchronization and no cross-spec symbol-table contention are needed.
+ * <p>Unlike {@link TypeUniverse}'s <b>static</b> {@link JavacTask} shared by every spec in the JVM, each instance
+ * here is exclusive to one spec class (typically a {@code @Shared} field, created once per spec class) — no
+ * cross-spec symbol-table contention. But a single spec class routinely drives its own instance from several
+ * feature methods, and javac's lazy symbol completion is not reentrant-safe under real concurrent execution
+ * (Spock's parallel runner, or a threaded pitest minion): the same synchronized-lookup and
+ * {@code SynchronizedElements} guard {@link TypeUniverse} uses is required here too, just keyed per-instance
+ * instead of per-class.
  */
 final class PrivateTypeUniverse {
 
     private final Types typeUtils
     private final Elements elementUtils
-    private final Map<String, TypeElement> elementCache = [:]
+    private final Elements synchronizedElements
+    private final Map<String, TypeElement> elementCache = new ConcurrentHashMap<>()
     private final Set<String> completed = [] as Set
 
     final TypeMirror INT
@@ -48,6 +59,7 @@ final class PrivateTypeUniverse {
         final JavacTask task = createTask()
         typeUtils = task.types
         elementUtils = task.elements
+        synchronizedElements = new SynchronizedElements(elementUtils)
         primeJdkQuirks()
 
         INT = typeUtils.getPrimitiveType(TypeKind.INT)
@@ -65,17 +77,25 @@ final class PrivateTypeUniverse {
     }
 
     Elements elements() {
-        elementUtils
+        synchronizedElements
     }
 
+    /**
+     * A single spec class routinely drives one {@code PrivateTypeUniverse} from several feature methods; under
+     * Spock's parallel runner (or a threaded pitest minion) those calls can overlap. javac's lazy symbol
+     * completion is not reentrant-safe, so the whole lookup — cache check plus the completion walk it triggers —
+     * is serialized on this instance, mirroring {@link TypeUniverse#lookup}.
+     */
     TypeElement element(final String qualifiedName) {
-        elementCache.computeIfAbsent(qualifiedName) { name ->
-            final found = elementUtils.getTypeElement(name)
-            if (found == null) {
-                throw new NullPointerException("type not found on classpath: ${name}")
+        synchronized (this) {
+            elementCache.computeIfAbsent(qualifiedName) { name ->
+                final found = elementUtils.getTypeElement(name)
+                if (found == null) {
+                    throw new NullPointerException("type not found on classpath: ${name}")
+                }
+                completeClosure(found)
+                found
             }
-            completeClosure(found)
-            found
         }
     }
 
@@ -149,6 +169,103 @@ final class PrivateTypeUniverse {
     private void completeSupertype(final TypeMirror supertype) {
         if (supertype instanceof DeclaredType) {
             completeClosure((TypeElement) ((DeclaredType) supertype).asElement())
+        }
+    }
+
+    /** Instance-scoped mirror of {@link TypeUniverse.SynchronizedElements}, guarding on the outer instance. */
+    private final class SynchronizedElements implements Elements {
+        private final Elements delegate
+
+        SynchronizedElements(final Elements d) {
+            this.delegate = d
+        }
+
+        TypeElement getTypeElement(final CharSequence qualifiedName) {
+            synchronized (PrivateTypeUniverse.this) { delegate.getTypeElement(qualifiedName) }
+        }
+
+        List<? extends Element> getAllMembers(final TypeElement classElement) {
+            synchronized (PrivateTypeUniverse.this) { delegate.getAllMembers(classElement) }
+        }
+
+        List<? extends Element> getEnclosedElements(final Element element) {
+            synchronized (PrivateTypeUniverse.this) { delegate.getEnclosedElements(element) }
+        }
+
+        Set<? extends PackageElement> getPackages() {
+            delegate.packages()
+        }
+
+        PackageElement getPackageElement(final CharSequence qualifiedName) {
+            delegate.getPackageElement(qualifiedName)
+        }
+
+        Name getName(final CharSequence sequence) {
+            delegate.getName(sequence)
+        }
+
+        boolean isFunctionalInterface(final TypeElement typeElement) {
+            delegate.isFunctionalInterface(typeElement)
+        }
+
+        void printElements(final Writer writer, final Element... elements) {
+            delegate.printElements(writer, elements)
+        }
+
+        Element getNoElement() {
+            delegate.noElement()
+        }
+
+        boolean hides(final Element hiding, final Element hidden) {
+            delegate.hides(hiding, hidden)
+        }
+
+        boolean overrides(final ExecutableElement method, final ExecutableElement overriden, final TypeElement type) {
+            delegate.overrides(method, overriden, type)
+        }
+
+        String getConstantExpression(final Object value) {
+            delegate.getConstantExpression(value)
+        }
+
+        ModuleElement getModuleElement(final CharSequence moduleName) {
+            delegate.getModuleElement(moduleName)
+        }
+
+        Element getBinaryElement(final TypeElement classElement, final CharSequence flatName) {
+            delegate.getBinaryElement(classElement, flatName)
+        }
+
+        Element getElement(final DeclaredType declaredType, final TypeElement... typeParameters) {
+            delegate.getElement(declaredType, typeParameters)
+        }
+
+        Element getUnknownModuleElement(final String moduleName) {
+            delegate.getUnknownModuleElement(moduleName)
+        }
+
+        Map<? extends AnnotationMirror, ? extends AnnotationValue> getElementValuesWithDefaults(final AnnotationMirror annotation) {
+            synchronized (PrivateTypeUniverse.this) { delegate.getElementValuesWithDefaults(annotation) }
+        }
+
+        String getDocComment(final Element element) {
+            synchronized (PrivateTypeUniverse.this) { delegate.getDocComment(element) }
+        }
+
+        boolean isDeprecated(final Element element) {
+            synchronized (PrivateTypeUniverse.this) { delegate.isDeprecated(element) }
+        }
+
+        Name getBinaryName(final TypeElement typeElement) {
+            synchronized (PrivateTypeUniverse.this) { delegate.getBinaryName(typeElement) }
+        }
+
+        PackageElement getPackageOf(final Element element) {
+            synchronized (PrivateTypeUniverse.this) { delegate.getPackageOf(element) }
+        }
+
+        List<? extends AnnotationMirror> getAllAnnotationMirrors(final Element element) {
+            synchronized (PrivateTypeUniverse.this) { delegate.getAllAnnotationMirrors(element) }
         }
     }
 }

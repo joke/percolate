@@ -7,7 +7,7 @@ import io.github.joke.percolate.spi.ScopeCodegen
 import io.github.joke.percolate.spi.Weights
 import io.github.joke.percolate.spi.builtins.test.Demands
 import io.github.joke.percolate.spi.builtins.test.ResolveCtxBuilder
-import io.github.joke.percolate.spi.test.TypeUniverse
+import io.github.joke.percolate.spi.test.PrivateTypeUniverse
 import spock.lang.Shared
 import spock.lang.Specification
 import spock.lang.Tag
@@ -24,17 +24,18 @@ import javax.lang.model.type.TypeMirror
 @Tag('unit')
 class StreamMapSpec extends Specification {
 
-    @Shared ResolveCtx ctx = new ResolveCtxBuilder().build()
+    @Shared PrivateTypeUniverse javac = new PrivateTypeUniverse()
+    @Shared ResolveCtx ctx = new ResolveCtxBuilder(javac).build()
     @Shared TypeMirror listOfString
     @Shared TypeMirror streamOfString
 
     def setupSpec() {
         ['java.lang.Iterable', 'java.util.Collection', 'java.util.SequencedCollection', 'java.util.List'].each {
-            TypeUniverse.elements().getTypeElement(it)
+            javac.elements().getTypeElement(it)
         }
-        listOfString = TypeUniverse.LIST_OF_STRING
-        streamOfString = TypeUniverse.types().getDeclaredType(
-                TypeUniverse.elements().getTypeElement('java.util.stream.Stream'), TypeUniverse.STRING)
+        listOfString = javac.LIST_OF_STRING
+        streamOfString = javac.types().getDeclaredType(
+                javac.elements().getTypeElement('java.util.stream.Stream'), javac.STRING)
     }
 
     def 'a Stream<B> demand emits scope-owning map and flatMap over a type-variable Stream<A> port'() {
@@ -49,7 +50,7 @@ class StreamMapSpec extends Specification {
         specs.size() == 2
 
         and: 'map: child A -> String (B from the target) over the type-variable Stream<A> port'
-        def map = specs.find { ctx.types().isSameType(it.childScope.get().elementOut, TypeUniverse.STRING) }
+        def map = specs.find { ctx.types().isSameType(it.childScope.get().elementOut, javac.STRING) }
         map != null
         map.codegen instanceof ScopeCodegen
         map.weight == Weights.CONTAINER

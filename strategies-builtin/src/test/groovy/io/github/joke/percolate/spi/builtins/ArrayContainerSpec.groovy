@@ -6,7 +6,7 @@ import io.github.joke.percolate.spi.ResolveCtx
 import io.github.joke.percolate.spi.Weights
 import io.github.joke.percolate.spi.builtins.test.Demands
 import io.github.joke.percolate.spi.builtins.test.ResolveCtxBuilder
-import io.github.joke.percolate.spi.test.TypeUniverse
+import io.github.joke.percolate.spi.test.PrivateTypeUniverse
 import spock.lang.Shared
 import spock.lang.Specification
 import spock.lang.Tag
@@ -16,14 +16,15 @@ import javax.lang.model.type.TypeMirror
 @Tag('unit')
 class ArrayContainerSpec extends Specification {
 
-    @Shared ResolveCtx ctx = new ResolveCtxBuilder().build()
+    @Shared PrivateTypeUniverse javac = new PrivateTypeUniverse()
+    @Shared ResolveCtx ctx = new ResolveCtxBuilder(javac).build()
     @Shared TypeMirror stringArray
     @Shared TypeMirror streamOfString
 
     def setupSpec() {
-        stringArray = TypeUniverse.types().getArrayType(TypeUniverse.STRING)
-        streamOfString = TypeUniverse.types().getDeclaredType(
-                TypeUniverse.elements().getTypeElement('java.util.stream.Stream'), TypeUniverse.STRING)
+        stringArray = javac.types().getArrayType(javac.STRING)
+        streamOfString = javac.types().getDeclaredType(
+                javac.elements().getTypeElement('java.util.stream.Stream'), javac.STRING)
     }
 
     def 'iterates an array into a Stream via Arrays.stream, a plain operation with no child scope'() {
@@ -57,6 +58,6 @@ class ArrayContainerSpec extends Specification {
 
     def 'declines a target that is neither an array nor a Stream'() {
         expect:
-        new ArrayContainer().expand(Demands.forTarget(TypeUniverse.STRING), ctx).toList().empty
+        new ArrayContainer().expand(Demands.forTarget(javac.STRING), ctx).toList().empty
     }
 }
