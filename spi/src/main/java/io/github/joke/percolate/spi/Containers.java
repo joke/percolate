@@ -1,11 +1,17 @@
 package io.github.joke.percolate.spi;
 
+import io.github.joke.percolate.spi.types.TypeRef;
 import javax.lang.model.type.ArrayType;
 import javax.lang.model.type.DeclaredType;
 import javax.lang.model.type.TypeKind;
 import javax.lang.model.type.TypeMirror;
 import lombok.experimental.UtilityClass;
 
+/**
+ * Each {@link TypeMirror}-based predicate has a {@link TypeRef}-based counterpart backed by
+ * {@link io.github.joke.percolate.spi.types.TypeSpace} (change {@code evict-javax-model}, design D9 transitional
+ * bridge) — additive, so both surfaces coexist until callers migrate off mirrors.
+ */
 @UtilityClass
 public class Containers {
 
@@ -81,5 +87,69 @@ public class Containers {
 
     private boolean isDeclaredTypeErasureMatch(final TypeMirror t, final String fqn, final ResolveCtx ctx) {
         return TypeProbe.isType(t, fqn, ctx);
+    }
+
+    public boolean isOptional(final TypeRef t, final ResolveCtx ctx) {
+        return isDeclaredTypeErasureMatch(t, "java.util.Optional", ctx);
+    }
+
+    public boolean isStream(final TypeRef t, final ResolveCtx ctx) {
+        return isDeclaredTypeErasureMatch(t, "java.util.stream.Stream", ctx);
+    }
+
+    /** Whether {@code type} is a reference type — i.e. usable as a generic type argument (not a primitive). */
+    public boolean isReferenceType(final TypeRef type) {
+        return type instanceof TypeRef.Declared || type instanceof TypeRef.Array || type instanceof TypeRef.Variable;
+    }
+
+    public boolean isList(final TypeRef t, final ResolveCtx ctx) {
+        return isDeclaredTypeErasureMatch(t, "java.util.List", ctx);
+    }
+
+    public boolean isSet(final TypeRef t, final ResolveCtx ctx) {
+        return isDeclaredTypeErasureMatch(t, "java.util.Set", ctx);
+    }
+
+    public boolean isCollection(final TypeRef t, final ResolveCtx ctx) {
+        return isAssignableToDeclared(t, "java.util.Collection", ctx);
+    }
+
+    public boolean isIterable(final TypeRef t, final ResolveCtx ctx) {
+        return isAssignableToDeclared(t, "java.lang.Iterable", ctx);
+    }
+
+    public boolean isArray(final TypeRef t) {
+        return t instanceof TypeRef.Array;
+    }
+
+    public TypeRef typeArgument(final TypeRef declaredType, final int index) {
+        if (!(declaredType instanceof TypeRef.Declared)) {
+            throw new IllegalArgumentException("Not a declared type: " + declaredType);
+        }
+        final var args = ((TypeRef.Declared) declaredType).getArgs();
+        if (index < 0 || index >= args.size()) {
+            throw new IndexOutOfBoundsException(
+                    "Index " + index + " out of bounds for type arguments of " + declaredType);
+        }
+        return args.get(index);
+    }
+
+    public TypeRef arrayComponentType(final TypeRef arrayType) {
+        if (!(arrayType instanceof TypeRef.Array)) {
+            throw new IllegalArgumentException("Not an array type: " + arrayType);
+        }
+        return ((TypeRef.Array) arrayType).getComponent();
+    }
+
+    private boolean isDeclaredTypeErasureMatch(final TypeRef t, final String fqn, final ResolveCtx ctx) {
+        return TypeProbe.isType(t, fqn, ctx);
+    }
+
+    private boolean isAssignableToDeclared(final TypeRef t, final String fqn, final ResolveCtx ctx) {
+        if (!(t instanceof TypeRef.Declared)) {
+            return false;
+        }
+        final var typeSpace = ctx.typeSpace();
+        return typeSpace.isAssignable(typeSpace.erasure(t), TypeRef.declared(fqn));
     }
 }

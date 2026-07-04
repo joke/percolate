@@ -182,9 +182,8 @@ public class TestTypes {
     }
 
     private TypeRef selfTypeOf(final Class<?> type) {
-        final var typeParameters = typeParametersOf(type).stream()
-                .map(TypeRef::variable)
-                .collect(Collectors.toUnmodifiableList());
+        final var typeParameters =
+                typeParametersOf(type).stream().map(TypeRef::variable).collect(Collectors.toUnmodifiableList());
         return TypeRef.declared(requireCanonicalName(type), typeParameters);
     }
 
