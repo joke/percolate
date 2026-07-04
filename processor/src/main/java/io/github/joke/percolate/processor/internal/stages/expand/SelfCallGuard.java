@@ -7,6 +7,7 @@ import io.github.joke.percolate.processor.internal.graph.PortBinding;
 import io.github.joke.percolate.processor.internal.graph.Scope;
 import io.github.joke.percolate.processor.internal.graph.SourceLocation;
 import io.github.joke.percolate.spi.OperationSpec;
+import io.github.joke.percolate.spi.types.TypeRefs;
 import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -51,7 +52,7 @@ final class SelfCallGuard {
 
     private static String signature(final ExecutableElement method) {
         final var params = method.getParameters().stream()
-                .map(parameter -> parameter.asType().toString())
+                .map(parameter -> TypeRefs.of(parameter.asType()).toString())
                 .collect(Collectors.joining(","));
         return method.getSimpleName() + "(" + params + ")";
     }

@@ -220,7 +220,7 @@ class BuildMethodBodiesSpec extends Specification {
     private VariableElement param(final String paramName) {
         Mock(VariableElement) {
             getSimpleName() >> Stub(Name) { toString() >> paramName }
-            asType() >> Mock(TypeMirror)
+            asType() >> javac.STRING
         }
     }
 }

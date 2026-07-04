@@ -1,6 +1,7 @@
 package io.github.joke.percolate.processor.internal.graph;
 
 import io.github.joke.percolate.spi.Nullability;
+import io.github.joke.percolate.spi.types.TypeRefs;
 import java.util.Optional;
 import java.util.function.BiFunction;
 import java.util.stream.Stream;
@@ -17,7 +18,7 @@ public class MethodScope implements Scope {
     public String encode() {
         final var name = method.getSimpleName().toString();
         final var paramTypes = method.getParameters().stream()
-                .map(p -> p.asType().toString())
+                .map(p -> TypeRefs.of(p.asType()).toString())
                 .collect(java.util.stream.Collectors.joining(","));
         return name + "(" + paramTypes + ")";
     }
