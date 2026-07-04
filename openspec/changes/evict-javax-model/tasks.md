@@ -33,7 +33,7 @@ Phases follow design.md D9. Phase 0 is the go/no-go gate; Phase 2 is the atomic 
 ## 4. Phase 3 — demolition and confinement
 
 - [ ] 4.1 Delete `TypeUniverse` and the javac substrate of `HarnessResolveCtx` (with `SynchronizedElements`, `completeClosure`, priming lists); delete `TypeUniverseSpec`
-- [ ] 4.2 Remove `@Isolated` from all 16 specs — **2 of 16 done** (`BuildMethodBodiesSpec`, `AssembleMapperTypeSpec`, via `PrivateTypeUniverse`; see design.md D8 amendment 2026-07-04); remaining 14 still share the static `TypeUniverse`, migrate per D8's literal/reflection fixture paths
+- [ ] 4.2 Remove `@Isolated` from all 16 specs — **13 of 16 done** via `PrivateTypeUniverse` (see design.md D8 amendment 2026-07-04): `BuildMethodBodiesSpec`, `AssembleMapperTypeSpec`, `BipartiteGraphSpec`, `DotRendererSpec`, `ExtractedPlanSpec`, `MapperStepSpec`, `DiscoverAbstractMethodsStageSpec`, `DiscoverCallableMethodsStageSpec`, `DiscoverMappingsStageSpec`, `HoistPlanSpec`, `SelfCallGuardSpec`, `RealisationDiagnosticsStageSpec`, `ValidateConstantDefaultLegalityStageSpec`. Remaining 3 — `SourceCandidatesSpec`, `ExpandStageDriverSpec`, `GroundingSpec` — use `HarnessResolveCtx`, itself still bound to the shared static `TypeUniverse`; need a `PrivateTypeUniverse`-backed `HarnessResolveCtx` variant (or literal/reflection fixtures per D8) to clear
 - [ ] 4.3 Add the ArchUnit rule: `javax.lang.model` imports confined to the boundary packages (adapter/discovery, processor entry points, nullability resolver, diagnostics); fix any stragglers it finds
 - [ ] 4.4 Update `openspec/notes.md` open-topics entry to SHIPPED state
 
