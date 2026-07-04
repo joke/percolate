@@ -1,6 +1,9 @@
 package io.github.joke.percolate.spi;
 
+import io.github.joke.percolate.spi.types.TypeRef;
+import io.github.joke.percolate.spi.types.TypeRefs;
 import javax.lang.model.type.TypeMirror;
+import lombok.AccessLevel;
 import lombok.AllArgsConstructor;
 import lombok.Value;
 import org.jspecify.annotations.Nullable;
@@ -16,13 +19,20 @@ import org.jspecify.annotations.Nullable;
  * concrete source and instantiating one concrete port per match. For a template port {@link #type} holds only a
  * representative shape (the template's erasure) and is never used to source the port; grounding replaces it.
  *
+ * <p>{@link #typeRef} is the owned-model counterpart of {@link #type} (change {@code evict-javax-model}, design D9
+ * transitional bridge): derived automatically, never supplied by a caller. For a concrete port it is
+ * {@link TypeRefs#of}({@link #type}); for a template port it is {@link PortTypes#toTypeRef}({@link #template}) —
+ * the faithful structural shape (variables embedded in place), not just the template's representative erasure. No
+ * engine code reads it yet; it exists so a future grounding pass can match/ground through {@code TypeSpace} instead
+ * of the hand-rolled {@code PortType} unifier.
+ *
  * <p>Each port declares an explicit {@link Sourcing} mode telling the engine how to bind its feeding value, so the
  * driver dispatches on a declared fact rather than reconstructing intent from a name-match or a boolean. The
  * three-argument and template constructors default to {@link Sourcing#REUSE_OR_MINT}; {@link #reuse} and
  * {@link #subTarget} build the other two modes.
  */
 @Value
-@AllArgsConstructor
+@AllArgsConstructor(access = AccessLevel.PRIVATE)
 public class Port {
 
     String name;
@@ -36,6 +46,9 @@ public class Port {
     /** How the engine binds this port's feeding value — a declared fact, never reconstructed from a name-match. */
     Sourcing sourcing;
 
+    /** The owned-model counterpart of {@link #type} — see the class doc; always derived, never supplied directly. */
+    TypeRef typeRef;
+
     /** A concrete port whose {@link #type} fully determines the feeding value (no type variable), {@code REUSE_OR_MINT}. */
     public Port(final String name, final TypeMirror type, final Nullability nullness) {
         this(name, type, nullness, null, Sourcing.REUSE_OR_MINT);
@@ -45,6 +58,22 @@ public class Port {
     public Port(
             final String name, final TypeMirror type, final Nullability nullness, final @Nullable PortType template) {
         this(name, type, nullness, template, Sourcing.REUSE_OR_MINT);
+    }
+
+    /** Builds a port with an explicit {@link Sourcing}, deriving {@link #typeRef} from {@code template} or {@code type}. */
+    public Port(
+            final String name,
+            final TypeMirror type,
+            final Nullability nullness,
+            final @Nullable PortType template,
+            final Sourcing sourcing) {
+        this(
+                name,
+                type,
+                nullness,
+                template,
+                sourcing,
+                template == null ? TypeRefs.of(type) : PortTypes.toTypeRef(template));
     }
 
     /** A concrete {@link Sourcing#REUSE} port: bound to an in-scope source or the operation does not apply (never minted). */

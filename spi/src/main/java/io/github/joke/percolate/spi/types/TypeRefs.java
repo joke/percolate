@@ -1,7 +1,5 @@
-package io.github.joke.percolate.processor.internal.graph;
+package io.github.joke.percolate.spi.types;
 
-import io.github.joke.percolate.spi.types.PrimitiveKind;
-import io.github.joke.percolate.spi.types.TypeRef;
 import java.util.EnumMap;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -15,11 +13,12 @@ import javax.lang.model.type.WildcardType;
 import lombok.experimental.UtilityClass;
 
 /**
- * The pure {@code javax.lang.model} type → owned {@link TypeRef} conversion (change {@code evict-javax-model}):
- * a stateless structural mapping shared by the discovery adapter (materialising the {@code TypeSpace}) and the
- * graph's {@code Value} identity/dedup key, which now render through the model rather than raw
- * {@code TypeMirror.toString()}. Because {@link TypeRef#toString()} reproduces the Java source form, the graph's
- * keys are preserved across the switch. v1 has no wildcard representation — a wildcard argument renders as its
+ * The pure {@code javax.lang.model} type → owned {@link TypeRef} conversion (change {@code evict-javax-model}): a
+ * stateless structural mapping needing nothing but the mirror itself — no {@code ResolveCtx}, no compiler session
+ * state — so any caller holding a {@link TypeMirror} (the discovery adapter, the graph's identity keying, or an
+ * SPI strategy handed one via {@code Demand}) can derive its {@link TypeRef} directly. Because
+ * {@link TypeRef#toString()} reproduces the Java source form, callers that keyed on {@code TypeMirror.toString()}
+ * keep the same keys across the switch. v1 has no wildcard representation — a wildcard argument renders as its
  * upper bound ({@code ? extends X → X}, bare {@code ? → java.lang.Object}), matching the lawful-not-faithful
  * algebra.
  */
@@ -38,7 +37,8 @@ public class TypeRefs {
             return TypeRef.array(of(((ArrayType) type).getComponentType()));
         }
         if (kind == TypeKind.TYPEVAR) {
-            return TypeRef.variable(((TypeVariable) type).asElement().getSimpleName().toString());
+            return TypeRef.variable(
+                    ((TypeVariable) type).asElement().getSimpleName().toString());
         }
         if (kind == TypeKind.WILDCARD) {
             return wildcardRef((WildcardType) type);
@@ -50,7 +50,8 @@ public class TypeRefs {
         if (primitive != null) {
             return TypeRef.primitive(primitive);
         }
-        throw new IllegalArgumentException("unsupported type shape (v1 has no wildcards/unions/intersections): " + type);
+        throw new IllegalArgumentException(
+                "unsupported type shape (v1 has no wildcards/unions/intersections): " + type);
     }
 
     private TypeRef declaredRef(final DeclaredType type) {

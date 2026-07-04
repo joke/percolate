@@ -1,6 +1,5 @@
 package io.github.joke.percolate.processor.internal.stages.discover;
 
-import io.github.joke.percolate.processor.internal.graph.TypeRefs;
 import io.github.joke.percolate.processor.nullability.NullabilityResolver;
 import io.github.joke.percolate.spi.Nullability;
 import io.github.joke.percolate.spi.types.DeclKind;
@@ -11,6 +10,7 @@ import io.github.joke.percolate.spi.types.Origin;
 import io.github.joke.percolate.spi.types.ParamSig;
 import io.github.joke.percolate.spi.types.TypeDecl;
 import io.github.joke.percolate.spi.types.TypeRef;
+import io.github.joke.percolate.spi.types.TypeRefs;
 import io.github.joke.percolate.spi.types.TypeSpace;
 import java.util.ArrayDeque;
 import java.util.ArrayList;

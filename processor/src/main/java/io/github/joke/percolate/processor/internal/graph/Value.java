@@ -1,6 +1,7 @@
 package io.github.joke.percolate.processor.internal.graph;
 
 import io.github.joke.percolate.spi.Nullability;
+import io.github.joke.percolate.spi.types.TypeRefs;
 import java.util.Optional;
 import javax.lang.model.type.TypeMirror;
 import lombok.Getter;

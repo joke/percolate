@@ -1,6 +1,8 @@
 package io.github.joke.percolate.spi
 
 import io.github.joke.percolate.spi.test.TypeUniverse
+import io.github.joke.percolate.spi.types.TypeRef
+import io.github.joke.percolate.spi.types.TypeRefs
 import spock.lang.Specification
 import spock.lang.Tag
 
@@ -30,5 +32,44 @@ class PortSpec extends Specification {
     def 'Port.subTarget builds a SUBTARGET port'() {
         expect:
         Port.subTarget('value', TypeUniverse.STRING, Nullability.NON_NULL).sourcing == Port.Sourcing.SUBTARGET
+    }
+
+    def 'a concrete port derives typeRef from type'() {
+        expect:
+        new Port('value', TypeUniverse.STRING, Nullability.NON_NULL).typeRef == TypeRefs.of(TypeUniverse.STRING)
+    }
+
+    def 'a null-template port derives typeRef from type, same as a concrete port'() {
+        expect:
+        new Port('value', TypeUniverse.STRING, Nullability.NON_NULL, (PortType) null).typeRef == TypeRefs.of(TypeUniverse.STRING)
+    }
+
+    def 'a concrete template port derives typeRef from the template, not the representative type'() {
+        def template = PortType.concrete(TypeUniverse.INTEGER)
+
+        expect:
+        new Port('value', TypeUniverse.STRING, Nullability.NON_NULL, template).typeRef == TypeRefs.of(TypeUniverse.INTEGER)
+    }
+
+    def 'a variable template port derives typeRef as a TypeRef.Variable, not the representative type'() {
+        def template = PortType.variable(0)
+
+        expect:
+        new Port('value', TypeUniverse.STRING, Nullability.NON_NULL, template).typeRef == TypeRef.variable('V0')
+    }
+
+    def 'an app template port derives typeRef as a Declared with the argument shapes preserved'() {
+        def setElement = TypeUniverse.elements().getTypeElement('java.util.Set')
+        def template = PortType.app(setElement, [PortType.variable(0)])
+
+        expect:
+        new Port('value', TypeUniverse.STRING, Nullability.NON_NULL, template).typeRef ==
+                TypeRef.declared('java.util.Set', TypeRef.variable('V0'))
+    }
+
+    def 'Port.reuse and Port.subTarget also derive typeRef from type'() {
+        expect:
+        Port.reuse('value', TypeUniverse.STRING, Nullability.NON_NULL).typeRef == TypeRefs.of(TypeUniverse.STRING)
+        Port.subTarget('value', TypeUniverse.STRING, Nullability.NON_NULL).typeRef == TypeRefs.of(TypeUniverse.STRING)
     }
 }
