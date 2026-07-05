@@ -127,52 +127,98 @@ Every built-in strategy (`ConstructorCall`, `DirectAssign`, `MethodCallBridge`, 
 - **THEN** it emits one `OperationSpec` of weight `Weights.NOOP` with a single reuse-only port carrying the demanded type and nullness
 - **AND** the driver binds an in-scope same-type source to that port, or the operation does not apply
 
-### Requirement: ResolveCtx exposes Types, Elements, callableMethods
+### Requirement: ResolveCtx is the narrow type-query seam
 
-The percolate-spi module SHALL define an interface `io.github.joke.percolate.spi.ResolveCtx` with
-exactly these methods:
+The percolate-spi module SHALL define `io.github.joke.percolate.spi.ResolveCtx` as a single narrow,
+mockable **type-query seam**: beyond `callableMethods()`, it exposes the purpose-built type and
+member-reflection questions the engine and strategies actually ask — realised as ~35 methods, not the
+originally-measured ~13, once type-algebra (`isSameType`/`isAssignable`/`erasure`/`isPrimitive`/`isArray`/
+`isDeclared`/`typeArgument`/`typeArgumentCount`/`arrayComponent`/`declaredType`/`arrayType`/`boxed`/
+`unboxed`/`simpleName`/`qualifiedName`/…), higher-level container/type predicates (`isList`/`isSet`/
+`isOptional`/`isStream`/`isCollection`/`isIterable`/`isEnum`/`isReferenceType`/`isType`/`typeElementNamed`),
+and member reflection (`membersOf`/`isField`/`isMethod`/`isConstructor`/`isPrivate`/`isStatic`/
+`superclassOf`) are all counted. It SHALL NOT expose `typeSpace()`, `mapperType()`, or `currentMethod()`,
+nor any owned type-value model, nor any reference to `MapperGraph`, `Edge`, `Node`, `EdgeKind`,
+`MapperStep`, or any other type from `processor.graph` or `processor.stages.*`.
 
-```java
-public interface ResolveCtx {
-    Types types();
-    Elements elements();
-    @Nullable CallableMethods callableMethods();
-}
-```
+`ResolveCtx` SHALL still declare `types()`/`elements()` — this is a **deliberate, transitional exception**,
+not an oversight: the real-javac-backed `strategies-builtin` fixtures (`PrivateTypeUniverse`,
+`ResolveCtxBuilder`) construct a `ResolveCtx` directly over a `Types`/`Elements` pair for the specs not yet
+rewritten against a mocked `ResolveCtx` (deferred to `features-as-documentation`). Engine and strategy
+*production* code SHALL NOT call `types()`/`elements()` directly — every type question routes through the
+seam methods above instead — and the architecture suite confines the accessors' own
+`javax.lang.model.util` imports to the `ResolveCtx` interface plus the enumerated boundary packages (see
+`module-boundaries`).
 
-The interface SHALL NOT expose `mapperType()` or `currentMethod()` — they were dead in production
-strategy code (only `callableMethods()` is read, by `MethodCallBridge`) and `currentMethod()` was a
-footgun under whole-graph expansion (there is no single current method). The interface SHALL NOT
-expose any reference to `MapperGraph`, `Edge`, `Node`, `EdgeKind`, `MapperStep`, or any other type
-from `processor.graph` or `processor.stages.*`. A strategy author SHALL be able to write a complete
-strategy by importing only `io.github.joke.percolate.spi.*`, `javax.lang.model.*`,
-`com.palantir.javapoet.*`, and JDK types.
+A method that returns a type SHALL return another opaque token (see "TypeMirror is an opaque pass-through
+token"). `callableMethods()` SHALL return the per-mapper index produced by the discovery stage. The
+`ResolveCtx` SHALL be constructed **per mapper**, binding its `callableMethods` at construction time; the
+processor SHALL NOT use a `ThreadLocal` to back any accessor.
 
-`callableMethods()` SHALL return the per-mapper index produced by `DiscoverCallableMethodsStage`. The
-`ResolveCtx` SHALL be constructed **per mapper**, binding its `callableMethods` at construction time;
-the processor SHALL NOT use a `ThreadLocal` to back any `ResolveCtx` accessor.
+The production implementation (`CompileResolveCtx`) SHALL be the **only** engine-side type code that
+touches real javac to answer a seam question — it delegates each seam method to `Types`/`Elements`. A
+strategy author SHALL be able to write a complete strategy by importing only
+`io.github.joke.percolate.spi.*`, `com.palantir.javapoet.*`, and JDK types — **no `javax.lang.model` import
+is needed to ask a type question** (though a strategy MAY still hold a `TypeMirror`/`Element` value as an
+opaque token without importing `Types`/`Elements`).
 
-#### Scenario: ResolveCtx provides Types
-- **WHEN** `resolveCtx.types()` is invoked
-- **THEN** it returns the `javax.lang.model.util.Types` instance from the active `ProcessingEnvironment`
+#### Scenario: The seam answers a type question without exposing Types or Elements to callers
+- **WHEN** a strategy calls `ctx.isSameType(a, b)` or `ctx.typeArgumentCount(t)`
+- **THEN** the seam returns the answer (a `boolean`, an `int`, or another opaque token) without the caller
+  needing to call `types()`/`elements()` itself
 
-#### Scenario: ResolveCtx provides Elements
-- **WHEN** `resolveCtx.elements()` is invoked
-- **THEN** it returns the `javax.lang.model.util.Elements` instance from the active `ProcessingEnvironment`
-
-#### Scenario: ResolveCtx provides the callable-method index
-- **WHEN** `resolveCtx.callableMethods()` is invoked
-- **THEN** it returns the `CallableMethods` instance produced by `DiscoverCallableMethodsStage` for the
-  current mapper
-
-#### Scenario: Retired ResolveCtx accessors do not exist
+#### Scenario: types()/elements() remain, but only as a transitional strategies-builtin bridge
 - **WHEN** the `ResolveCtx` interface is inspected
-- **THEN** it declares no `mapperType()` and no `currentMethod()` method
+- **THEN** it still declares `types()` and `elements()`, and it declares no `typeSpace()`, `mapperType()`,
+  or `currentMethod()` method, and no method returning a `processor.graph` or `processor.stages.*` type
+- **AND** no engine or strategy production class other than `CompileResolveCtx` calls `types()`/`elements()`
+  directly to answer a type question
+
+#### Scenario: A type-returning question yields an opaque token
+- **WHEN** a strategy calls `ctx.typeArgument(t, 0)` on a declared `List<String>` token
+- **THEN** it receives a `TypeMirror` token it passes back to the seam or to codegen emission, without interrogating it directly
+
+#### Scenario: The seam provides the callable-method index
+- **WHEN** `resolveCtx.callableMethods()` is invoked
+- **THEN** it returns the `CallableMethods` instance produced by the discovery stage for the current mapper
+
+#### Scenario: Only the production impl touches javac to answer a seam question
+- **WHEN** the source of `CompileResolveCtx` is inspected
+- **THEN** each seam method delegates to `Types`/`Elements`
+- **AND** no other engine or strategy class imports `javax.lang.model.util` to answer a type question
 
 #### Scenario: No ThreadLocal backs ResolveCtx
 - **WHEN** the `ProcessorModule` source is inspected
 - **THEN** no `ThreadLocal` is used to supply any `ResolveCtx` value; `callableMethods` is bound when
   the per-mapper `ResolveCtx` is constructed
+
+### Requirement: TypeMirror is an opaque pass-through token
+
+Engine and strategy code SHALL treat every `javax.lang.model.type.TypeMirror` (and `Element`) it handles as
+an **opaque pass-through token**: it MAY hold one, store it in an `OperationSpec`/`Port`, and hand it back to
+the `ResolveCtx` seam or to codegen emission, but SHALL NOT invoke a `TypeMirror`/`Element` method on it
+(`getKind`, `getTypeArguments`, a cast to `DeclaredType`, …) and SHALL NOT call `Types`/`Elements` directly.
+Consequently a unit test's mocked `ResolveCtx` never stubs a method **on** a `TypeMirror`; the mirror is a
+never-stubbed opaque token, exactly as `ValidateNoDuplicateTargetsStageSpec` treats the `javax.lang.model`
+values it passes through.
+
+This is the default, not an absolute: design (`type-query-seam`) documents a small number of deliberate,
+narrow exceptions that read `.getKind()`/cast a `TypeMirror` or `Element` directly with zero
+`Types`/`Elements` involvement — `LiteralCoercion` (a static utility with no `ResolveCtx` in reach), the
+debug-only `Labels`/`DotRenderer` (cosmetic label formatting, never the basis of a behavioural decision),
+and two engine `Stage`s that structurally cannot reach a `ResolveCtx` (`ValidateSourceParametersStage`,
+`ValidateConstantDefaultLegalityStage`, since `ResolveCtx` is constructed per-mapper inside `ExpandStage.run`
+and unavailable to arbitrary stages). These carry no real-compiler burden and are unit-tested the same
+mock-free way `ValidateNoDuplicateTargetsStageSpec` already does.
+
+#### Scenario: Engine and strategy code ask the seam, not the mirror
+- **WHEN** a strategy or engine stage needs a type fact about a `TypeMirror` it holds
+- **THEN** it calls a `ResolveCtx` seam method, and never calls a method on the `TypeMirror` or casts it to a `javax.lang.model` subtype
+- **UNLESS** it is one of the documented single-hop exceptions (`LiteralCoercion`, `Labels`/`DotRenderer`, `ValidateSourceParametersStage`, `ValidateConstantDefaultLegalityStage`)
+
+#### Scenario: A mocked ResolveCtx passes mirrors as never-stubbed tokens
+- **WHEN** a unit test drives a strategy or stage with a mocked `ResolveCtx`
+- **THEN** the `TypeMirror` values handed in are plain tokens with no stubbed interactions, and the test stubs only seam methods
 
 ### Requirement: Strategy registration via ServiceLoader and AutoService
 
@@ -362,13 +408,30 @@ accessor SHALL NOT re-demand a shallower `SourceLocation` (no backward parent re
   from the landed `address` parent, with no re-demand of `SourceLocation[p, address]` and no eager whole-path
   materialization
 
-### Requirement: TypeProbe type-introspection helper
+### Requirement: TypeProbe and Containers forward to the ResolveCtx seam
 
-The `percolate-spi` module SHALL ship a public utility `io.github.joke.percolate.spi.TypeProbe` exposing the general type-introspection primitives every strategy otherwise re-rolls: `asTypeElement(TypeMirror)`, `isType(TypeMirror, fqn)`, `isEnum(TypeMirror)`, and `simpleName(TypeMirror)`. `TypeProbe` SHALL hold only general primitives; the container-flavoured `Containers` helper SHALL delegate its declared-type checks to it without duplicating the FQN-match logic.
+The `percolate-spi` module SHALL ship two public utilities forwarding onto the `ResolveCtx` type-query seam
+(kept as source-compatible surfaces; new call sites SHOULD prefer the `ResolveCtx` methods directly):
+`io.github.joke.percolate.spi.TypeProbe` (`asTypeElement`, `isType`, `isEnum`, `simpleName` — each taking a
+`ResolveCtx` and delegating to it) and `io.github.joke.percolate.spi.Containers` (`isOptional`/`isStream`/
+`isList`/`isSet`/`isCollection`/`isIterable`, each delegating to the corresponding `ResolveCtx` method).
+Neither SHALL hold its own FQN/erasure-match logic or any direct `javax.lang.model` type/element/mirror
+interrogation — every higher-level question is answered by the seam. Four purely-syntactic `Containers`
+accessors — `isArray(TypeMirror)`, `isReferenceType(TypeMirror)`, `typeArgument(TypeMirror, int)`, and
+`arrayComponentType(TypeMirror)` — never needed a compiler-backed `ResolveCtx` and keep their original
+no-`ResolveCtx` shape, operating on the `TypeMirror`'s own structural shape (`getKind()`, casts) directly.
 
-#### Scenario: Containers delegates to TypeProbe
-- **WHEN** `Containers.isOptional`/`isStream`/`isList`/`isSet` resolve a type
-- **THEN** the FQN/erasure match is performed by `TypeProbe.isType`, not re-implemented in `Containers`
+#### Scenario: Containers delegates directly to the seam
+- **WHEN** `Containers.isOptional`/`isStream`/`isList`/`isSet`/`isCollection`/`isIterable` resolve a type
+- **THEN** each calls the identically-named `ResolveCtx` method directly (not `TypeProbe.isType`); no FQN/erasure-match logic is re-implemented in `Containers`
+
+#### Scenario: TypeProbe delegates directly to the seam
+- **WHEN** `TypeProbe.asTypeElement`/`isType`/`isEnum`/`simpleName` are called
+- **THEN** each calls the identically-named `ResolveCtx` method with the same arguments
+
+#### Scenario: The four ctx-free Containers accessors need no ResolveCtx
+- **WHEN** `Containers.isArray`, `isReferenceType`, `typeArgument`, or `arrayComponentType` is called
+- **THEN** it operates on the `TypeMirror`'s own `getKind()`/structural shape with no `ResolveCtx` parameter
 
 ### Requirement: Two strategy questions, both candidate-free and myopic
 

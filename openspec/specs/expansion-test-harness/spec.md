@@ -1,7 +1,7 @@
 # expansion-test-harness Specification
 
 ## Purpose
-This spec defines the test infrastructure for the expansion engine: the `assembleExpansionPipeline` factory that wires an `ExpandStage`, the shared `TypeUniverse` / `HarnessResolveCtx` SPI test fixtures used for isolated strategy tests, and the module-location invariant that keeps engine-bound test helpers in the processor module and type-system fixtures in `percolate-spi`'s `testFixtures`. Engine tests drive the stage directly through the factory (compiling fixtures with `com.google.testing.compile`) and assert over the bipartite `MapperGraph` / extracted plan; there is no standalone `ExpansionHarness`/`ExpansionResult`/`ExpansionAssertions` façade.
+This spec defines the test infrastructure for the expansion engine: the `assembleExpansionPipeline` factory that wires an `ExpandStage`, the `ResolveCtx` type-query seam that `processor` and `spi` unit specs mock or fake instead of standing up a shared javac substrate (change `type-query-seam`), the narrowed-scope `TypeUniverse` fixture kept only for the `strategies-builtin` specs not yet rewritten, and the module-location invariant that keeps engine-bound test helpers in the processor module. Engine tests drive the stage directly through the factory (compiling fixtures with `com.google.testing.compile`) and assert over the bipartite `MapperGraph` / extracted plan; there is no standalone `ExpansionHarness`/`ExpansionResult`/`ExpansionAssertions` façade.
 
 ## Requirements
 
@@ -41,6 +41,31 @@ directly against `ServiceLoader` in `percolate-strategies-builtin`'s `BuiltinSer
 - **THEN** it obtains it via `ProcessorModule.assembleExpansionPipeline(...)`
 - **AND** no other path constructs `ExpandStage` in test code
 
+### Requirement: Unit tests mock the ResolveCtx seam
+
+Every `processor` and `spi` unit spec (`@Tag('unit')`) SHALL exercise its subject against a **mocked or
+faked `ResolveCtx`** — a Spock `Mock()` stubbing only the seam questions its subject asks, or (for a
+handful of specs pinning the seam's own default-method composition or an algorithm as complex as
+`Grounding`'s structural unification: `ResolveCtxSpec`, `ContainerSpec`, `GroundingSpec`) a hand-written,
+javac-free `FakeResolveCtx`/`FakeType` answering every seam question structurally. Either way, any
+`javax.lang.model` value is passed through as a **never-stubbed opaque token** — the
+`ValidateNoDuplicateTargetsStageSpec` pattern. There SHALL be **no javac in the unit path**: a unit spec
+SHALL NOT construct a `JavacTask`, compile a `@Mapper`, or stand up any shared type substrate, so the suite
+is parallel-safe by construction. Specs SHALL be **example-based Spock** (`where:` tables for algebra/laws);
+**jqwik SHALL NOT be used**.
+
+Most rewritten specs stub only the 1-2 seam questions their subject asks (e.g. `ListContainerSeamSpec`,
+`SourceCandidatesSpec`, `AccessorSpec`); the small number pinning the seam's own composition necessarily
+stub more, through the `FakeResolveCtx` substrate rather than a strict `Mock()`.
+
+#### Scenario: A rewritten unit spec mocks or fakes the seam and adds no javac
+- **WHEN** a rewritten `processor` or `spi` unit spec drives its subject
+- **THEN** it constructs `ResolveCtx ctx = Mock()` (stubbing only the seam questions the subject asks) or a `FakeResolveCtx`, and never constructs a `JavacTask` or compiles a `@Mapper`
+
+#### Scenario: Unit specs are example-based Spock
+- **WHEN** the rewritten unit specs are inspected
+- **THEN** no spec imports `net.jqwik`; property-shaped cases are covered by `where:` tables
+
 ### Requirement: TypeUniverse fixture
 
 The class `io.github.joke.percolate.spi.test.TypeUniverse` in `spi/src/testFixtures/groovy/` (Groovy source, published via `percolate-spi`'s `testFixtures` configuration) SHALL expose a fixed set of `javax.lang.model.type.TypeMirror` instances backed by a single, JVM-lifetime `com.sun.source.util.JavacTask` held in a `static final` field. The task SHALL be obtained via `ToolProvider.getSystemJavaCompiler().getTask(...)` with no writer, no file manager, no diagnostic listener, no classes, and no compilation units — passing only an options list of `['-cp', <java.class.path>]` so the test JVM's classpath types resolve — and cast to `com.sun.source.util.JavacTask`. The fixture SHALL NOT call `task.parse()`, `task.analyze()`, or `task.call()`; bootstrap class resolution happens lazily inside `Elements.getTypeElement(...)`. The fixture SHALL NOT use `com.google.testing.compile` for type sourcing.
@@ -49,7 +74,15 @@ The set SHALL include at minimum: `int`, `long`, the primitive wrapper types `In
 
 `TypeUniverse` SHALL initialise javac at most once per JVM (modulo separate class loaders). Test classes SHALL access `TypeUniverse` through `static` fields initialised on first reference.
 
-Consumers (the `processor` module's algebraic specs, the `strategies-builtin` module's per-strategy specs, and any third-party strategy author) SHALL access `TypeUniverse` by declaring `testImplementation testFixtures(project(':spi'))` (or the equivalent published-coordinate dependency).
+**Narrowed scope (change `type-query-seam`):** neither `processor` nor `spi` unit specs consume
+`TypeUniverse` any longer — both mock or fake the `ResolveCtx` seam instead (see "Unit tests mock the
+ResolveCtx seam"). `TypeUniverse` remains **only** as the substrate for the `strategies-builtin` specs not
+yet rewritten against a mocked `ResolveCtx` (deferred to `features-as-documentation`); deleting it is
+gated on that rewrite, not this change, since removing it now would break `strategies-builtin`'s build.
+
+Consumers (the `strategies-builtin` module's per-strategy specs still on the shared substrate, and any
+third-party strategy author testing against it) SHALL access `TypeUniverse` by declaring
+`testImplementation testFixtures(project(':spi'))` (or the equivalent published-coordinate dependency).
 
 #### Scenario: Universe types share an Elements
 - **WHEN** `TypeUniverse.STRING` and `TypeUniverse.INTEGER` are obtained
@@ -66,48 +99,39 @@ Consumers (the `processor` module's algebraic specs, the `strategies-builtin` mo
 - **AND** it never invokes `task.parse()`, `task.analyze()`, or `task.call()`
 - **AND** the `JavacTask` is held in a field whose lifetime equals the JVM's so that captured `TypeMirror` instances remain valid
 
-#### Scenario: TypeUniverse is consumable from outside the processor module
-- **WHEN** any Gradle module declares `testImplementation testFixtures(project(':spi'))`
-- **THEN** `io.github.joke.percolate.spi.test.TypeUniverse` resolves from its tests' compile classpath
-- **AND** the produced `TypeMirror` instances are interoperable across modules (same singleton task)
+#### Scenario: No processor or spi unit spec consumes TypeUniverse
+- **WHEN** the `processor` and `spi` modules' `@Tag('unit')` specs are inspected
+- **THEN** none of them imports `io.github.joke.percolate.spi.test.TypeUniverse`; only `strategies-builtin` specs deferred to `features-as-documentation` still do
 
-### Requirement: HarnessResolveCtx fixture
+### Requirement: Engine unit tests mock the seam; no shared type-system fixture module
 
-The class `io.github.joke.percolate.spi.test.HarnessResolveCtx` in `spi/src/testFixtures/groovy/` (Groovy source, published via `percolate-spi`'s `testFixtures` configuration) SHALL provide a `ResolveCtx` implementation suitable for testing strategy implementations in isolation. It SHALL expose a static `create()` factory method that returns a `ResolveCtx` backed by `TypeUniverse`'s `Types` and `Elements` instances.
+Every `processor` and `spi` unit test SHALL exercise its subject against a mocked or faked `ResolveCtx`
+(see "Unit tests mock the ResolveCtx seam"), needing no shared **javac** type-system fixture. No published
+Gradle module SHALL exist whose sole purpose is to host engine-test infrastructure. `spi` SHALL export no
+`testFixtures` type whose purpose is a shared javac substrate **for the `processor`/`spi` unit path**
+specifically — `HarnessResolveCtx` (which existed only to hand strategy specs a `ResolveCtx` backed by
+`TypeUniverse`'s real `Types`/`Elements`) is deleted, having no remaining consumer once `processor` and
+`spi` went mock-only. `TypeUniverse` itself is **not** deleted (see its own requirement above): it remains
+a `testFixtures` export, scoped down to serve only the `strategies-builtin` specs not yet rewritten.
 
-Consumers SHALL access `HarnessResolveCtx` by declaring `testImplementation testFixtures(project(':spi'))`.
-
-#### Scenario: HarnessResolveCtx provides Types and Elements from the shared universe
-- **WHEN** `HarnessResolveCtx.create()` is invoked
-- **THEN** the returned `ResolveCtx`'s `types()` and `elements()` return the same instances used by `TypeUniverse`
-
-#### Scenario: HarnessResolveCtx is consumable from outside the processor module
-- **WHEN** any Gradle module declares `testImplementation testFixtures(project(':spi'))`
-- **THEN** `io.github.joke.percolate.spi.test.HarnessResolveCtx` resolves from its tests' compile classpath
-
-### Requirement: Engine tests live in `processor/src/test/`; type-system fixtures live in `spi` testFixtures
-
-Every test that exercises `ExpandStage` or the discover stages SHALL live in the `processor` module's test sources (`processor/src/test/groovy/`). No published Gradle module SHALL exist whose sole purpose is to host engine-test infrastructure.
-
-Engine-specific helpers — `HarnessScope`, `TestFiler`, and the Java `fixtures` (`Human`, `Person`, `PersonMapper`) — SHALL be co-located with the tests under `processor/src/test/` (Groovy or Java sources). These helpers depend on engine internals (`MapperContext`, `Diagnostics`, `ProcessorModule`, `MapperGraph`, `Scope`) and therefore cannot move out of the processor module.
-
-Type-system fixtures — `TypeUniverse`, `HarnessResolveCtx` — SHALL live in `spi/src/testFixtures/groovy/io/github/joke/percolate/spi/test/` and be published via `percolate-spi`'s `testFixtures` configuration. These fixtures depend only on JDK + SPI types, so any SPI consumer (the `processor` module, the `strategies-builtin` module, third-party strategy modules) can consume them by declaring `testImplementation testFixtures(project(':spi'))`.
+Engine-bound helpers that a **compile-based** engine/e2e test still needs (`HarnessScope`, `TestFiler`, and the
+Java `fixtures`) MAY remain co-located under `processor/src/test/` because they depend on engine internals
+(`MapperContext`, `Diagnostics`, `ProcessorModule`, `MapperGraph`, `Scope`); they SHALL NOT be exported by any
+other module. The e2e/doc compile tests continue to exercise the seam's real-javac implementation
+(`CompileResolveCtx`) end-to-end.
 
 #### Scenario: No separate test-support module
 - **WHEN** `settings.gradle` is inspected
 - **THEN** it does NOT include any module whose sole purpose is to host test infrastructure for the expansion engine
 
-#### Scenario: Engine-bound helpers live next to engine tests
-- **WHEN** the source tree is inspected
-- **THEN** `processor/src/test/` contains `HarnessScope`, `TestFiler`, and the Java `fixtures` package the engine tests require
-- **AND** these classes are not exported by any other module
+#### Scenario: HarnessResolveCtx is gone; TypeUniverse remains for strategies-builtin only
+- **WHEN** `spi`'s `testFixtures` are inspected
+- **THEN** `io.github.joke.percolate.spi.test.HarnessResolveCtx` does not exist
+- **AND** `io.github.joke.percolate.spi.test.TypeUniverse` still exists, consumed only by `strategies-builtin` specs deferred to `features-as-documentation`
 
-#### Scenario: Type-system fixtures live in spi testFixtures
+#### Scenario: Compile-bound engine helpers stay next to the engine tests
 - **WHEN** the source tree is inspected
-- **THEN** `spi/src/testFixtures/groovy/io/github/joke/percolate/spi/test/` contains `TypeUniverse` and `HarnessResolveCtx` (Groovy sources)
-- **AND** `processor/src/test/groovy/` does NOT contain duplicate copies of either class
-- **AND** `processor`'s `build.gradle` declares `testImplementation testFixtures(project(':spi'))`
-- **AND** `strategies-builtin`'s `build.gradle` declares `testImplementation testFixtures(project(':spi'))`
+- **THEN** any `HarnessScope`, `TestFiler`, or Java `fixtures` a compile-based engine/e2e test needs live under `processor/src/test/` and are exported by no other module
 
 ### Requirement: Tests assert over the bipartite surface directly
 

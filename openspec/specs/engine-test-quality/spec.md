@@ -32,6 +32,12 @@ integration suite is excluded, where pitest is slow). pitest SHALL run with **al
 upward as the unit suite grows. Coverage and mutation score are complementary gates: line/branch coverage
 proves code is exercised, mutation score proves the assertions are meaningful.
 
+Because the rewritten unit suite mocks the `ResolveCtx` seam (see `expansion-test-harness`) and stands up
+**no javac**, pitest SHALL run **threaded** (`threads = availableProcessors()`) with **no `@Isolated`**,
+**no `threads = 1`**, and **no `spock-pitest.groovy`** serialised-minion configuration, and with no
+`pitestTargetClasses` / `pitestTargetTests` race workaround. The mutation run SHALL be **deterministic**:
+two runs with cleared pitest history SHALL produce the same mutation score.
+
 #### Scenario: pitest runs on the unit suite under check
 - **WHEN** `./gradlew check` runs
 - **THEN** pitest mutates the `processor` engine and runs the unit suite against the mutants, failing the
@@ -41,6 +47,42 @@ proves code is exercised, mutation score proves the assertions are meaningful.
 - **WHEN** the pitest configuration is inspected
 - **THEN** it targets the unit test task and excludes the integration test task, with all mutators and
   incremental analysis enabled
+
+#### Scenario: pitest runs threaded and deterministic
+- **WHEN** the `processor` pitest configuration is inspected
+- **THEN** it declares `threads = availableProcessors()` and carries no `@Isolated`, no `threads = 1`, no
+  `spock-pitest.groovy`, and no `pitestTargetClasses`/`pitestTargetTests` workaround
+- **AND** two runs of the unit suite under pitest with cleared history produce identical mutation scores
+
+### Requirement: The spi module is mutation-tested under threaded pitest
+
+The `spi` module's unit suite SHALL be mutation-tested with pitest — the acceptance oracle that its
+rewritten-from-scratch specs actually cover the code (pitest never ran on `spi` before this). pitest SHALL
+run **threaded** (`threads = availableProcessors()`) with all mutators and incremental analysis enabled,
+with **no `@Isolated`**, **no `threads = 1`**, and **no `spock-pitest.groovy`** serialisation, because the
+`spi` unit suite mocks or fakes the `ResolveCtx` seam and stands up no javac. A mutation-score **ratchet
+floor** SHALL be wired into `check` (via the shared root pitest block, overridden per-module where a
+module's measured score differs).
+
+Unlike `processor`'s, `spi`'s pitest run is **not** byte-identical across cleared-history runs: plain
+JUnit execution of the suite is 100% reproducible, but the mutation-kill/test-strength numbers vary run to
+run (observed range: 16-26% killed, 24-40% test strength, with line coverage stable at 70-73%) even with
+incremental analysis disabled and `threads = 1` — this rules out both a stale-history artifact and a
+minion-thread race as the cause. The variance is attributed to pitest's own test-to-mutant attribution when
+several tests cover the same line with differing assertion strength, not a shared-substrate race. The
+ratchet floor is set with margin below the observed worst case so `check` does not flap.
+
+#### Scenario: pitest runs on the spi unit suite under check
+- **WHEN** `./gradlew check` runs
+- **THEN** pitest mutates `spi` and runs its unit suite against the mutants, failing the build if the
+  mutation score falls below the ratchet floor
+
+#### Scenario: spi pitest is threaded, with a floor that tolerates measured run-to-run variance
+- **WHEN** the `spi` pitest configuration is inspected
+- **THEN** it declares `threads = availableProcessors()` with all mutators and incremental analysis, and
+  carries no `@Isolated`, no `threads = 1`, and no `spock-pitest.groovy`
+- **AND** repeated cleared-history runs stay above the configured ratchet floor, though the exact mutation
+  score may vary run to run
 
 ### Requirement: The engine carries no test-time strategy or fake dependency
 
