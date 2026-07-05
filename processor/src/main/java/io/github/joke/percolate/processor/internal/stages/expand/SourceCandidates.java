@@ -92,7 +92,7 @@ final class SourceCandidates {
     /** Whether a source of {@code (type, nullness)} can feed {@code port}: same type, non-null satisfies any. */
     private boolean matches(final TypeMirror sourceType, final Nullability sourceNullness, final Port port) {
         final var nullnessClash = port.getNullness() == Nullability.NON_NULL && sourceNullness == Nullability.NULLABLE;
-        return !nullnessClash && resolveCtx.types().isSameType(sourceType, port.getType());
+        return !nullnessClash && resolveCtx.isSameType(sourceType, port.getType());
     }
 
     private TypeMirror type(final Value value) {

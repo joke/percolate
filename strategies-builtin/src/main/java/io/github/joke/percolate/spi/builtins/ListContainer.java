@@ -18,7 +18,7 @@ public final class ListContainer extends CollectionContainer {
 
     @Override
     protected boolean matches(final TypeMirror type, final ResolveCtx ctx) {
-        return Containers.isList(type, ctx);
+        return ctx.isList(type);
     }
 
     @Override

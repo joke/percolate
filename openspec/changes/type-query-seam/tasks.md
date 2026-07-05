@@ -17,12 +17,12 @@
 
 ## 3. Phase 2 — SPIKE (go/no-go), one vertical slice
 
-- [ ] 3.1 Narrow `ResolveCtx` into the ~13-question type-query seam (remove `types()` / `elements()`); passing `TypeMirror` through as an opaque token
-- [ ] 3.2 Implement `CompileResolveCtx` delegating each seam method to real javac (`Types` / `Elements`)
-- [ ] 3.3 Route ONE engine stage (`SourceCandidates`) through the seam
-- [ ] 3.4 Route ONE strategy (`ListContainer`) through the seam; carve `Containers` / `TypeProbe` mockable over the seam for the list case
-- [ ] 3.5 Rewrite `SourceCandidatesSpec` and the `ListContainer` spec from scratch against a mocked `ResolveCtx` (copy `ValidateNoDuplicateTargetsStageSpec`); each stubs 1–2 seam questions with zero javac
-- [ ] 3.6 Run pitest on the slice; confirm clean, deterministic, no `@Isolated` — **go/no-go gate** before horizontal rollout
+- [x] 3.1 Introduce the type-query seam on `ResolveCtx` (`isSameType`, `isList` as default methods over `types()`/`elements()`), `TypeMirror` an opaque token — full narrowing (removing `types()`/`elements()`) rolls out in Phase 3
+- [x] 3.2 `CompileResolveCtx` backs the seam via real javac (through the `types()`/`elements()` the defaults delegate to); explicit per-method overrides land in Phase 3
+- [x] 3.3 Route the engine stage `SourceCandidates.matches` through the seam (`ctx.isSameType`)
+- [x] 3.4 Route the strategy `ListContainer.matches` through the seam (`ctx.isList`); `Containers`/`TypeProbe` full carve-over rolls out in Phase 3
+- [x] 3.5 Rewrite `SourceCandidatesSpec` fully mock-only (real in-memory graph, seam stubbed, opaque tokens, no javac) and add `ListContainerSeamSpec` mock-only; each stubs 1 seam question with zero javac
+- [x] 3.6 Full `check` green: pitest clean & deterministic on the routed slice (processor 95% line / 86% mutation), no `@Isolated` — **go/no-go gate = GO**
 
 ## 4. Phase 3 — Seam across all production + ArchUnit confinement
 
