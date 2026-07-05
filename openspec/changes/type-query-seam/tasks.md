@@ -1,9 +1,9 @@
 ## 1. Phase 0 — Scaffold & withdraw
 
-- [ ] 1.1 Create the change via `opsx:new` and generate proposal/design/specs/tasks (this artifact set)
-- [ ] 1.2 Record the supersession: mark `evict-javax-model` withdrawn in `openspec/notes.md` open-topics, pointing to `type-query-seam`
-- [ ] 1.3 Strike the last jqwik reference from the live `openspec/specs/expansion-test-harness/spec.md`; confirm `grep -ri jqwik openspec/specs/` shows no standing jqwik mandate
-- [ ] 1.4 Confirm the `project_evict_javax_model` and `project_typeuniverse_concurrency` memories record the pivot to this change
+- [x] 1.1 Create the change via `opsx:new` and generate proposal/design/specs/tasks (this artifact set)
+- [x] 1.2 Record the supersession: mark `evict-javax-model` withdrawn in `openspec/notes.md` open-topics, pointing to `type-query-seam`
+- [x] 1.3 Strike the last jqwik reference from the live `openspec/specs/expansion-test-harness/spec.md`; confirm `grep -ri jqwik openspec/specs/` shows no standing jqwik mandate
+- [x] 1.4 Confirm the `project_evict_javax_model` and `project_typeuniverse_concurrency` memories record the pivot to this change
 
 ## 2. Phase 1 — Revert the owned model to the javax-native baseline
 

@@ -86,15 +86,24 @@ packaged correctly. It is not a feature-coverage or integration layer.
 
 1. **`harden-engine-as-library`** — pitest spike → unit coverage to 95% → remove engine integration tests.
    ✅ DONE, archived 2026-07-03.
-2. **`evict-javax-model`** — own immutable type currency; delete `TypeUniverse`; restore threaded pitest and
-   roll it out to all modules. Runs **before** `features-as-documentation` so the old `strategies-builtin`
-   e2e compile-tests serve as the safety net for the cutover.
+2. **`type-query-seam`** (supersedes `evict-javax-model`) — narrow the ~13-question type-query seam onto
+   `ResolveCtx` (`TypeMirror` kept as an opaque token, no owned value model); revert the abandoned owned
+   model; rewrite `processor`+`spi` unit specs mock-only; delete `TypeUniverse`; restore threaded pitest.
+   Runs **before** `features-as-documentation` so the old `strategies-builtin` e2e compile-tests serve as the
+   safety net for the cutover.
 3. **`features-as-documentation`** — feature e2e=doc co-located per module; delete/replace the old
    `strategies-builtin` e2e; distribute pages into modules; central spine only.
 
 ## Open topics
 
 - **Evict `javax.lang.model` from engine + SPI (change: `evict-javax-model`, decided 2026-07-03).**
+  **WITHDRAWN 2026-07-04 — superseded by `type-query-seam`.** The owned-`TypeRef`-currency approach proved
+  unreachable (codegen needs genuinely compiler-backed mirrors → three permanent exemptions → dual currency
+  forever), and its real win — a per-spec javac (`PrivateTypeUniverse`) — only relabelled the substrate rather
+  than removing javac from the unit path. `type-query-seam` keeps `TypeMirror` as the currency and instead
+  narrows a mockable ~13-question type-query seam onto `ResolveCtx`, so unit tests mock 1–2 questions instead
+  of a compiler. The cleanup folded in below (delete `TypeUniverse`, restore threaded pitest, ArchUnit
+  confinement) carries over to `type-query-seam`. Historical rationale retained for context:
   Supersedes the earlier "immutable fake `Types`/`Elements`, no production abstraction" plan. The recurring
   TypeUniverse trouble (races under threaded pitest, javac "Filling X during Y", `@Isolated`, `threads = 1`,
   `SynchronizedElements`, priming lists) is a symptom; the disease is the *currency*: a `TypeMirror` is a
