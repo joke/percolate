@@ -1,14 +1,12 @@
 package io.github.joke.percolate.processor.internal.stages.discover
 
 import io.github.joke.percolate.processor.MapperContext
-import io.github.joke.percolate.processor.nullability.NullabilityResolver
 import io.github.joke.percolate.processor.test.fixtures.CallableFixtures
 import io.github.joke.percolate.processor.test.fixtures.Human
 import io.github.joke.percolate.processor.test.fixtures.Person
-import io.github.joke.percolate.spi.Nullability
 import io.github.joke.percolate.spi.ThisReceiver
-import io.github.joke.percolate.spi.test.PrivateTypeUniverse
-import spock.lang.Shared
+import io.github.joke.percolate.spi.test.TypeUniverse
+import spock.lang.Isolated
 import spock.lang.Specification
 import spock.lang.Tag
 
@@ -20,28 +18,25 @@ import javax.lang.model.type.TypeKind
  * candidates whose return type is assignable to the demanded output, each carrying the {@link ThisReceiver}.
  */
 @Tag('unit')
+@Isolated // bridge: shares the static TypeUniverse javac; serialise until the type-universe redesign (see openspec/notes.md)
 class DiscoverCallableMethodsStageSpec extends Specification {
 
-    static final NullabilityResolver UNKNOWN = { type, scope -> Nullability.UNKNOWN } as NullabilityResolver
-
-    @Shared PrivateTypeUniverse javac = new PrivateTypeUniverse()
-
-    DiscoverCallableMethodsStage stage = new DiscoverCallableMethodsStage(javac.elements(), javac.types(), UNKNOWN)
+    DiscoverCallableMethodsStage stage = new DiscoverCallableMethodsStage(TypeUniverse.elements(), TypeUniverse.types())
 
     def setupSpec() {
         // prime the fixture + its methods' parameter/return closures single-threaded (see ExpandStageDriverSpec)
-        javac.of(Person)
-        javac.of(Human)
-        javac.of(CallableFixtures)
+        TypeUniverse.of(Person)
+        TypeUniverse.of(Human)
+        TypeUniverse.of(CallableFixtures)
     }
 
     def 'run indexes only single-parameter methods; producing returns Human-assignable candidates with a this-receiver'() {
         given:
-        def ctx = new MapperContext(javac.of(CallableFixtures))
+        def ctx = new MapperContext(TypeUniverse.of(CallableFixtures))
 
         when:
         stage.run(ctx)
-        def candidates = ctx.callableMethods.producing(javac.of(Human).asType()).toList()
+        def candidates = ctx.callableMethods.producing(TypeUniverse.of(Human).asType()).toList()
 
         then: 'only makeHuman(Person) qualifies — noArg (zero-param) and pair (two-param) are excluded'
         candidates.collect { it.method.simpleName.toString() } == ['makeHuman']
@@ -52,24 +47,24 @@ class DiscoverCallableMethodsStageSpec extends Specification {
 
     def 'producing filters by assignable return type'() {
         given:
-        def ctx = new MapperContext(javac.of(CallableFixtures))
+        def ctx = new MapperContext(TypeUniverse.of(CallableFixtures))
 
         when:
         stage.run(ctx)
 
         then: 'a String demand returns describe(Person), not the Human producers'
-        ctx.callableMethods.producing(javac.of(String).asType()).toList()
+        ctx.callableMethods.producing(TypeUniverse.of(String).asType()).toList()
                 .collect { it.method.simpleName.toString() } == ['describe']
     }
 
     def 'Object methods are excluded even though equals(Object) is single-parameter'() {
         given:
-        def ctx = new MapperContext(javac.of(CallableFixtures))
+        def ctx = new MapperContext(TypeUniverse.of(CallableFixtures))
 
         when:
         stage.run(ctx)
 
         then: 'no fixture method returns boolean, so a non-empty result here would mean equals(Object) leaked in'
-        ctx.callableMethods.producing(javac.types().getPrimitiveType(TypeKind.BOOLEAN)).toList().empty
+        ctx.callableMethods.producing(TypeUniverse.types().getPrimitiveType(TypeKind.BOOLEAN)).toList().empty
     }
 }

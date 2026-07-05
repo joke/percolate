@@ -10,9 +10,12 @@ import javax.lang.model.util.Types
 import java.util.stream.Stream
 
 /**
- * A {@link ResolveCtx} backed by a private, non-shared javac substrate (change {@code evict-javax-model}, design
- * D8 amendment): each spec constructs its own instance over its own {@link PrivateTypeUniverse}, so nothing races
- * — see {@link PrivateTypeUniverse}'s own doc for why the sharing, not the realness, was the hazard.
+ * A {@link ResolveCtx} over a chosen javac substrate. Constructed either over a private, non-shared
+ * {@link PrivateTypeUniverse} (one per spec, so nothing races — see {@link PrivateTypeUniverse}'s doc for why the
+ * <em>sharing</em>, not the realness, was the hazard) or, via {@link #create()}, over the shared static
+ * {@link TypeUniverse} so a spec whose type literals come from {@code TypeUniverse} shares the same substrate.
+ * Kept transitionally under the {@code type-query-seam} change until the {@code processor}/{@code spi} specs that
+ * use it move to a mocked {@code ResolveCtx}.
  */
 final class HarnessResolveCtx implements ResolveCtx {
 
@@ -23,20 +26,30 @@ final class HarnessResolveCtx implements ResolveCtx {
         }
     }
 
-    private final PrivateTypeUniverse javac
+    private final Types types
+    private final Elements elements
 
     HarnessResolveCtx(final PrivateTypeUniverse javac) {
-        this.javac = javac
+        this(javac.types(), javac.elements())
+    }
+
+    HarnessResolveCtx(final Types types, final Elements elements) {
+        this.types = types
+        this.elements = elements
+    }
+
+    static HarnessResolveCtx create() {
+        new HarnessResolveCtx(TypeUniverse.types(), TypeUniverse.elements())
     }
 
     @Override
     Types types() {
-        javac.types()
+        types
     }
 
     @Override
     Elements elements() {
-        javac.elements()
+        elements
     }
 
     @Override

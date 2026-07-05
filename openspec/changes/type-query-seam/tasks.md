@@ -7,13 +7,13 @@
 
 ## 2. Phase 1 — Revert the owned model to the javax-native baseline
 
-- [ ] 2.1 Delete the owned `spi …/types` package (`TypeRef`, `TypeSpace`, `TypeDecl`, `MethodSig`, `FieldSig`, `ParamSig`, `DeclKind`, `MemberFlag`, `Origin`, `TypeRefs`, `TypeNames`) and `spi …/test/TestTypes`
-- [ ] 2.2 Delete `processor …/discover/TypeSpaceAdapter`
-- [ ] 2.3 Un-dual-type `Port` / `OperationSpec` / `Demand`: drop the `typeRef` / `outputTypeRef` / `targetTypeRef` fields, restoring the `TypeMirror`-native shape
-- [ ] 2.4 Restore `PortType` / `PortTypes` and the pre-fold `Grounding`
-- [ ] 2.5 Restore `TypeMirror`-keyed `Value.id()` / `MapperGraph.valueKey` / `MethodScope` / `SelfCallGuard`, and remove the transitional `ResolveCtx.typeSpace()` bridge
-- [ ] 2.6 Keep `PrivateTypeUniverse` and the `strategies-builtin` PrivateTypeUniverse migrations intact (do NOT revert them); keep the neutral PMD/spotless/coverage cleanups
-- [ ] 2.7 Gate: full build green on the restored javax-native baseline
+- [x] 2.1 Delete the owned `spi …/types` package (`TypeRef`, `TypeSpace`, `TypeDecl`, `MethodSig`, `FieldSig`, `ParamSig`, `DeclKind`, `MemberFlag`, `Origin`, `TypeRefs`, `TypeNames`) and `spi …/test/TestTypes`
+- [x] 2.2 Delete `processor …/discover/TypeSpaceAdapter`
+- [x] 2.3 Un-dual-type `Port` / `OperationSpec` / `Demand`: drop the `typeRef` / `outputTypeRef` / `targetTypeRef` fields, restoring the `TypeMirror`-native shape
+- [x] 2.4 Restore `PortType` and the pre-fold `Grounding`
+- [x] 2.5 Restore `TypeMirror`-keyed `Value.id()` / `MapperGraph.valueKey` / `MethodScope` / `SelfCallGuard`, and remove the transitional `ResolveCtx.typeSpace()` bridge
+- [x] 2.6 Keep `PrivateTypeUniverse` and the non-owned-model `strategies-builtin` PrivateTypeUniverse migrations intact; owned-model-coupled specs reverted to their `main` baseline (rewritten later in Phases 4–5 / #3), with `HarnessResolveCtx`/`ResolveCtxBuilder` carrying both substrate modes transitionally
+- [x] 2.7 Gate: full `check` green on the restored javax-native baseline (tests + pitest 95% line / 86% mutation + PMD/spotless/coverage)
 
 ## 3. Phase 2 — SPIKE (go/no-go), one vertical slice
 

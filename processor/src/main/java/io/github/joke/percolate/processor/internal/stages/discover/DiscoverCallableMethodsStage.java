@@ -7,7 +7,6 @@ import static java.util.stream.Collectors.toUnmodifiableList;
 
 import io.github.joke.percolate.processor.MapperContext;
 import io.github.joke.percolate.processor.internal.stages.Stage;
-import io.github.joke.percolate.processor.nullability.NullabilityResolver;
 import io.github.joke.percolate.spi.CallableMethods;
 import io.github.joke.percolate.spi.MethodCandidate;
 import io.github.joke.percolate.spi.ThisReceiver;
@@ -32,7 +31,6 @@ public final class DiscoverCallableMethodsStage implements Stage {
 
     private final Elements elements;
     private final Types types;
-    private final NullabilityResolver resolver;
 
     @Override
     public void run(final MapperContext ctx) {
@@ -51,7 +49,7 @@ public final class DiscoverCallableMethodsStage implements Stage {
                 .collect(toCollection(HashSet::new))
                 .stream()
                 .collect(groupingBy(m -> m.getReturnType().toString(), ConcurrentHashMap::new, toList()));
-        return new IndexCallableMethods(indexByReturnType, types, new TypeSpaceAdapter(resolver));
+        return new IndexCallableMethods(indexByReturnType, types);
     }
 
     private boolean isInObjectClass(final ExecutableElement method) {
@@ -64,15 +62,10 @@ public final class DiscoverCallableMethodsStage implements Stage {
     private static final class IndexCallableMethods implements CallableMethods {
         private final Map<String, List<ExecutableElement>> indexByReturnType;
         private final Types types;
-        private final TypeSpaceAdapter adapter;
 
-        private IndexCallableMethods(
-                final Map<String, List<ExecutableElement>> indexByReturnType,
-                final Types types,
-                final TypeSpaceAdapter adapter) {
+        private IndexCallableMethods(final Map<String, List<ExecutableElement>> indexByReturnType, final Types types) {
             this.indexByReturnType = indexByReturnType;
             this.types = types;
-            this.adapter = adapter;
         }
 
         @Override
@@ -80,17 +73,9 @@ public final class DiscoverCallableMethodsStage implements Stage {
             return indexByReturnType.values().stream()
                     .flatMap(List::stream)
                     .filter(m -> types.isAssignable(m.getReturnType(), outputType))
-                    .map(m -> new MethodCandidate(m, ThisReceiver.INSTANCE, methodSigOf(m)))
+                    .map(m -> new MethodCandidate(m, ThisReceiver.INSTANCE))
                     .collect(toUnmodifiableList())
                     .stream();
-        }
-
-        private io.github.joke.percolate.spi.types.MethodSig methodSigOf(final ExecutableElement method) {
-            final var enclosing = method.getEnclosingElement();
-            if (!(enclosing instanceof TypeElement)) {
-                throw new IllegalStateException("a discovered method has no enclosing type: " + method);
-            }
-            return adapter.methodSigOf((TypeElement) enclosing, method, false);
         }
     }
 }

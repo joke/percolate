@@ -8,11 +8,11 @@ import io.github.joke.percolate.spi.ExpansionStrategy;
 import io.github.joke.percolate.spi.Nullability;
 import io.github.joke.percolate.spi.OperationSpec;
 import io.github.joke.percolate.spi.Port;
+import io.github.joke.percolate.spi.PortType;
 import io.github.joke.percolate.spi.ProduceDemand;
 import io.github.joke.percolate.spi.ResolveCtx;
 import io.github.joke.percolate.spi.ScopeCodegen;
 import io.github.joke.percolate.spi.Weights;
-import io.github.joke.percolate.spi.types.TypeRef;
 import java.util.List;
 import java.util.stream.Stream;
 import lombok.NoArgsConstructor;
@@ -20,8 +20,8 @@ import lombok.NoArgsConstructor;
 /**
  * The generic, kind-free element transform over a {@code Stream<T>} (design D3/D7) — a <b>functor lift</b>: given a
  * demand for {@code Stream<B>} it offers two scope-owning operations whose input port is the type-variable
- * {@code Stream<A>} (a {@link TypeRef.Declared} application over a {@link TypeRef.Variable}) and whose child scope is
- * the per-element plan:
+ * {@code Stream<A>} (a {@link PortType#app App} over {@link PortType#variable Var 0}) and whose child scope is the
+ * per-element plan:
  *
  * <ul>
  *   <li><b>map</b> ({@code Stream<A> → Stream<B>}, child {@code A → B}) — {@code stream.map(a -> …)};</li>
@@ -57,13 +57,12 @@ public final class StreamMap implements ExpansionStrategy {
             return Stream.empty();
         }
         final var elementOut = Containers.typeArgument(to, 0);
-        final var template = TypeRef.declared(
-                streamErasure.getQualifiedName().toString(), TypeRef.variable("V0"));
+        final var template = PortType.app(streamErasure, List.of(PortType.variable(0)));
         final var ports = List.of(new Port(SOURCE_ROLE, streamErasure.asType(), Nullability.NON_NULL, template));
         final var mapChild =
-                ChildScopeSpec.lifted(TypeRef.variable("V0"), Nullability.NON_NULL, elementOut, Nullability.NON_NULL);
+                ChildScopeSpec.lifted(PortType.variable(0), Nullability.NON_NULL, elementOut, Nullability.NON_NULL);
         final var flatMapChild =
-                ChildScopeSpec.lifted(TypeRef.variable("V0"), Nullability.NON_NULL, to, Nullability.NON_NULL);
+                ChildScopeSpec.lifted(PortType.variable(0), Nullability.NON_NULL, to, Nullability.NON_NULL);
         return Stream.of(
                 OperationSpec.mapping("map", MAP, Weights.CONTAINER, ports, to, Nullability.NON_NULL, mapChild),
                 OperationSpec.mapping(

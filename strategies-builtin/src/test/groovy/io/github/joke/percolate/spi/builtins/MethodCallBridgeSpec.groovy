@@ -6,10 +6,7 @@ import io.github.joke.percolate.spi.Weights
 import io.github.joke.percolate.spi.builtins.test.Demands
 import io.github.joke.percolate.spi.builtins.test.FakeReceiver
 import io.github.joke.percolate.spi.builtins.test.ResolveCtxBuilder
-import io.github.joke.percolate.spi.test.PrivateTypeUniverse
-import io.github.joke.percolate.spi.types.MethodSig
-import io.github.joke.percolate.spi.types.TypeRefs
-import spock.lang.Shared
+import io.github.joke.percolate.spi.test.TypeUniverse
 import spock.lang.Specification
 import spock.lang.Tag
 
@@ -20,25 +17,24 @@ import java.util.stream.Stream
 @Tag('unit')
 class MethodCallBridgeSpec extends Specification {
 
-    @Shared PrivateTypeUniverse javac = new PrivateTypeUniverse()
-    @Shared def types = javac.types()
+    def types = TypeUniverse.types()
 
     def 'returns empty when callableMethods is null'() {
         given:
-        def ctx = new ResolveCtxBuilder(javac)
+        def ctx = new ResolveCtxBuilder()
                 .withCallableMethods(null)
                 .build()
 
         expect:
-        new MethodCallBridge().expand(Demands.forTarget(javac.STRING), ctx).toList().empty
+        new MethodCallBridge().expand(Demands.forTarget(TypeUniverse.STRING), ctx).toList().empty
     }
 
     def 'returns empty when callableMethods produces an empty stream'() {
         given:
-        def ctx = new ResolveCtxBuilder(javac).build()
+        def ctx = new ResolveCtxBuilder().build()
 
         expect:
-        new MethodCallBridge().expand(Demands.forTarget(javac.STRING), ctx).toList().empty
+        new MethodCallBridge().expand(Demands.forTarget(TypeUniverse.STRING), ctx).toList().empty
     }
 
     def 'emits a one-port call operation when CallableMethods provides a matching candidate'() {
@@ -47,7 +43,7 @@ class MethodCallBridgeSpec extends Specification {
         def ctx = candidateCtx(candidate)
 
         when:
-        def specs = new MethodCallBridge().expand(Demands.forTarget(javac.STRING), ctx).toList()
+        def specs = new MethodCallBridge().expand(Demands.forTarget(TypeUniverse.STRING), ctx).toList()
 
         then:
         specs.size() == 1
@@ -56,7 +52,7 @@ class MethodCallBridgeSpec extends Specification {
         spec.codegen instanceof OperationCodegen
         spec.ports.size() == 1
         spec.weight >= Weights.METHOD
-        types.isSameType(spec.outputType, javac.STRING)
+        types.isSameType(spec.outputType, TypeUniverse.STRING)
         spec.outputNullness == Nullability.NON_NULL
     }
 
@@ -66,7 +62,7 @@ class MethodCallBridgeSpec extends Specification {
         def ctx = candidateCtx(candidate)
 
         when:
-        def specs = new MethodCallBridge().expand(Demands.forTarget(javac.STRING), ctx).toList()
+        def specs = new MethodCallBridge().expand(Demands.forTarget(TypeUniverse.STRING), ctx).toList()
 
         then:
         specs.size() == 1
@@ -82,15 +78,15 @@ class MethodCallBridgeSpec extends Specification {
         when:
         // valueOf(Object) returns String; the parameter type is irrelevant to weight, which is driven only by
         // the return→target distance (0 here), so weight is METHOD.
-        def specs = new MethodCallBridge().expand(Demands.forTarget(javac.STRING), ctx).toList()
+        def specs = new MethodCallBridge().expand(Demands.forTarget(TypeUniverse.STRING), ctx).toList()
 
         then:
         specs.size() == 1
         specs[0].weight == Weights.METHOD
     }
 
-    private io.github.joke.percolate.spi.ResolveCtx candidateCtx(final candidate) {
-        new ResolveCtxBuilder(javac)
+    private static io.github.joke.percolate.spi.ResolveCtx candidateCtx(final candidate) {
+        new ResolveCtxBuilder()
                 .withCallableMethods(new io.github.joke.percolate.spi.CallableMethods() {
                     @Override
                     Stream<io.github.joke.percolate.spi.MethodCandidate> producing(final javax.lang.model.type.TypeMirror outputType) {
@@ -100,15 +96,15 @@ class MethodCallBridgeSpec extends Specification {
                 .build()
     }
 
-    private io.github.joke.percolate.spi.MethodCandidate createExactMatchCandidate() {
-        def concatElement = javac.element('java.lang.String').enclosedElements.stream()
+    private static io.github.joke.percolate.spi.MethodCandidate createExactMatchCandidate() {
+        def concatElement = TypeUniverse.element('java.lang.String').enclosedElements.stream()
                 .filter { it.simpleName.toString() == 'concat' }
                 .filter { it instanceof ExecutableElement }
                 .map(ExecutableElement.&cast)
                 .filter { it.parameters.size() == 1 }
                 .filter {
                     def paramType = it.parameters.get(0).asType()
-                    def elem = javac.types().asElement(paramType)
+                    def elem = TypeUniverse.types().asElement(paramType)
                     elem instanceof TypeElement && ((TypeElement) elem).qualifiedName.contentEquals('java.lang.String')
                 }
                 .findFirst()
@@ -117,19 +113,18 @@ class MethodCallBridgeSpec extends Specification {
             throw new IllegalStateException('concat method not found on java.lang.String')
         }
         def fakeReceiver = FakeReceiver.instance()
-        def methodSig = MethodSig.of('concat', TypeRefs.of(javac.STRING), TypeRefs.of(javac.STRING))
-        new io.github.joke.percolate.spi.MethodCandidate(concatElement, fakeReceiver, methodSig)
+        new io.github.joke.percolate.spi.MethodCandidate(concatElement, fakeReceiver)
     }
 
-    private io.github.joke.percolate.spi.MethodCandidate createValueOfObjectCandidate() {
-        def valueOfElement = javac.element('java.lang.String').enclosedElements.stream()
+    private static io.github.joke.percolate.spi.MethodCandidate createValueOfObjectCandidate() {
+        def valueOfElement = TypeUniverse.element('java.lang.String').enclosedElements.stream()
                 .filter { it.simpleName.toString() == 'valueOf' }
                 .filter { it instanceof ExecutableElement }
                 .map(ExecutableElement.&cast)
                 .filter { it.parameters.size() == 1 }
                 .filter {
                     def paramType = it.parameters.get(0).asType()
-                    def elem = javac.types().asElement(paramType)
+                    def elem = TypeUniverse.types().asElement(paramType)
                     elem instanceof TypeElement && ((TypeElement) elem).qualifiedName.contentEquals('java.lang.Object')
                 }
                 .findFirst()
@@ -138,8 +133,6 @@ class MethodCallBridgeSpec extends Specification {
             throw new IllegalStateException('valueOf(Object) method not found on java.lang.String')
         }
         def fakeReceiver = FakeReceiver.instance()
-        def objectType = javac.element('java.lang.Object').asType()
-        def methodSig = MethodSig.of('valueOf', TypeRefs.of(javac.STRING), TypeRefs.of(objectType))
-        new io.github.joke.percolate.spi.MethodCandidate(valueOfElement, fakeReceiver, methodSig)
+        new io.github.joke.percolate.spi.MethodCandidate(valueOfElement, fakeReceiver)
     }
 }

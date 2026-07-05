@@ -5,16 +5,15 @@ import static java.util.stream.Collectors.toUnmodifiableList;
 import io.github.joke.percolate.spi.ChildScopeSpec;
 import io.github.joke.percolate.spi.OperationSpec;
 import io.github.joke.percolate.spi.Port;
+import io.github.joke.percolate.spi.PortType;
 import io.github.joke.percolate.spi.ResolveCtx;
 import io.github.joke.percolate.spi.SourceProjection;
-import io.github.joke.percolate.spi.types.TypeRef;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.stream.Stream;
-import javax.lang.model.type.ArrayType;
 import javax.lang.model.type.DeclaredType;
 import javax.lang.model.type.TypeKind;
 import javax.lang.model.type.TypeMirror;
@@ -24,27 +23,17 @@ import org.jspecify.annotations.Nullable;
 /**
  * Grounding-by-match (design D2/D5, change {@code target-driven-engine} §§ 2.2–2.4): the engine's generic,
  * SPI-agnostic mechanic for sourcing a type-variable {@link Port}. An {@link OperationSpec} with no type-variable
- * port passes through unchanged (the concrete path is untouched); a spec carrying a {@link TypeRef} template port is
- * grounded by <b>unifying</b> the template's shape against the in-scope concrete source types, binding each embedded
- * {@link TypeRef.Variable} to the <b>real</b> {@link TypeMirror} subterm it matched, and <b>instantiating</b> one
- * fully-concrete spec per consistent binding — substituting the bindings across the spec's ports and child scope.
- * When several sources match, every match is instantiated (over-emit); the engine applies no preference (D1) and
- * lets cost extraction prune the unreachable ones.
+ * port passes through unchanged (the concrete path is untouched); a spec carrying a {@link PortType} template is
+ * grounded by <b>unifying</b> each template port against the in-scope concrete source types, binding the variable to
+ * each match, and <b>instantiating</b> one fully-concrete spec per consistent binding — substituting the bindings
+ * across the spec's ports and child scope. When several sources match, every match is instantiated (over-emit); the
+ * engine applies no preference (D1) and lets cost extraction prune the unreachable ones.
  *
  * <p>The unification is purely structural: it knows {@code isSameType}/{@code erasure}/type-argument shape and names
  * no container or conversion kind. It never produces an abstract type — a variable is grounded to a concrete source
  * subterm before any {@code Value} is demanded, so the work-list stays concrete (graph-expansion invariant). Per the
  * spike's wildcard policy (§ 1.4) a variable matches only an invariant reference argument (a {@code DECLARED} or
  * {@code ARRAY} type); a wildcard/type-variable argument does not unify, so no producer is invented (D4).
- *
- * <p><b>Why this walks {@code TypeMirror}s directly rather than delegating to {@code TypeSpace.match}/{@code ground}
- * (change {@code evict-javax-model}, design D9 amendment):</b> a bound variable's value must be a <em>genuinely
- * compiler-backed</em> {@link TypeMirror}, never a structural stand-in — {@code AssembleMapperType}'s override
- * signatures and {@code BuildMethodBodies}'s hoisted-local declarations (both permanently exempt from the owned
- * model, design D7) read the grounded type straight off the landed {@code Port}/{@code Value}, and a
- * {@code TypeSpace}-only grounding could not produce one. {@code TypeSpace.match}/{@code ground} remain the pure
- * {@link TypeRef}-to-{@link TypeRef} algebra other consumers use; here the same shape of algorithm runs over
- * ({@link TypeRef} pattern, real {@link TypeMirror} source) pairs instead, extracting real bindings as it matches.
  */
 @RequiredArgsConstructor
 final class Grounding {
@@ -70,7 +59,7 @@ final class Grounding {
             return Stream.of(spec);
         }
         final var matchSet = widen(sources);
-        final var bindingSets = new ArrayList<Map<String, TypeMirror>>();
+        final var bindingSets = new ArrayList<Map<Integer, TypeMirror>>();
         assign(templatePorts, 0, matchSet, new HashMap<>(), bindingSets);
         return bindingSets.stream().map(bindings -> instantiate(spec, bindings));
     }
@@ -94,8 +83,8 @@ final class Grounding {
             final List<Port> ports,
             final int index,
             final List<TypeMirror> sources,
-            final Map<String, TypeMirror> current,
-            final List<Map<String, TypeMirror>> out) {
+            final Map<Integer, TypeMirror> current,
+            final List<Map<Integer, TypeMirror>> out) {
         if (index == ports.size()) {
             out.add(new HashMap<>(current));
             return;
@@ -109,56 +98,48 @@ final class Grounding {
         }
     }
 
-    // ---- unification (match a TypeRef template against a real source TypeMirror, capturing real bindings) -----
+    // ---- unification (match a template against a concrete source, binding variables) ----------------------
 
     private boolean unify(
-            final TypeRef template, final TypeMirror source, final Map<String, TypeMirror> bindings, final int depth) {
+            final PortType template,
+            final TypeMirror source,
+            final Map<Integer, TypeMirror> bindings,
+            final int depth) {
         if (depth > MAX_DEPTH) {
             return false;
         }
-        if (template instanceof TypeRef.Variable) {
-            return bindVariable(((TypeRef.Variable) template).getName(), source, bindings);
+        if (template instanceof PortType.Concrete) {
+            return ctx.types().isSameType(((PortType.Concrete) template).getType(), source);
         }
-        if (template instanceof TypeRef.Declared) {
-            return unifyDeclared((TypeRef.Declared) template, source, bindings, depth);
+        if (template instanceof PortType.Var) {
+            return bindVariable(((PortType.Var) template).getIndex(), source, bindings);
         }
-        if (template instanceof TypeRef.Array) {
-            return source.getKind() == TypeKind.ARRAY
-                    && unify(
-                            ((TypeRef.Array) template).getComponent(),
-                            ((ArrayType) source).getComponentType(),
-                            bindings,
-                            depth + 1);
-        }
-        return false;
+        return template instanceof PortType.App && unifyApp((PortType.App) template, source, bindings, depth);
     }
 
-    private boolean bindVariable(final String name, final TypeMirror source, final Map<String, TypeMirror> bindings) {
+    private boolean bindVariable(final int index, final TypeMirror source, final Map<Integer, TypeMirror> bindings) {
         if (!isGroundable(source)) {
             return false;
         }
-        final var existing = bindings.get(name);
+        final var existing = bindings.get(index);
         if (existing != null) {
             return ctx.types().isSameType(existing, source);
         }
-        bindings.put(name, source);
+        bindings.put(index, source);
         return true;
     }
 
-    private boolean unifyDeclared(
-            final TypeRef.Declared template,
+    private boolean unifyApp(
+            final PortType.App template,
             final TypeMirror source,
-            final Map<String, TypeMirror> bindings,
+            final Map<Integer, TypeMirror> bindings,
             final int depth) {
         if (source.getKind() != TypeKind.DECLARED) {
             return false;
         }
-        final var erasureElement = ctx.elements().getTypeElement(template.getQualifiedName());
-        if (erasureElement == null) {
-            return false;
-        }
         final var types = ctx.types();
-        if (!types.isSameType(types.erasure(source), types.erasure(erasureElement.asType()))) {
+        if (!types.isSameType(
+                types.erasure(source), types.erasure(template.getErasure().asType()))) {
             return false;
         }
         final var args = ((DeclaredType) source).getTypeArguments();
@@ -180,9 +161,9 @@ final class Grounding {
         return kind == TypeKind.DECLARED || kind == TypeKind.ARRAY;
     }
 
-    // ---- instantiation (substitute the real bindings to build a fully-concrete, compiler-backed spec) ---------
+    // ---- instantiation (substitute the bindings to build a fully-concrete spec) ---------------------------
 
-    private OperationSpec instantiate(final OperationSpec spec, final Map<String, TypeMirror> bindings) {
+    private OperationSpec instantiate(final OperationSpec spec, final Map<Integer, TypeMirror> bindings) {
         final var ports =
                 spec.getPorts().stream().map(port -> groundPort(port, bindings)).collect(toUnmodifiableList());
         final var childScope = spec.getChildScope().map(child -> groundChild(child, bindings));
@@ -214,7 +195,7 @@ final class Grounding {
                 spec.getOutputNullness());
     }
 
-    private Port groundPort(final Port port, final Map<String, TypeMirror> bindings) {
+    private Port groundPort(final Port port, final Map<Integer, TypeMirror> bindings) {
         final var template = port.getTemplate();
         if (template == null) {
             return port;
@@ -223,39 +204,34 @@ final class Grounding {
         return new Port(port.getName(), ground(template, bindings), port.getNullness(), null, port.getSourcing());
     }
 
-    private ChildScopeSpec groundChild(final ChildScopeSpec child, final Map<String, TypeMirror> bindings) {
+    private ChildScopeSpec groundChild(final ChildScopeSpec child, final Map<Integer, TypeMirror> bindings) {
         final var elementIn = groundOr(child.getElementInTemplate(), child.getElementIn(), bindings);
         final var elementOut = groundOr(child.getElementOutTemplate(), child.getElementOut(), bindings);
         return new ChildScopeSpec(elementIn, child.getElementInNullness(), elementOut, child.getElementOutNullness());
     }
 
     private TypeMirror groundOr(
-            final @Nullable TypeRef template, final TypeMirror concrete, final Map<String, TypeMirror> bindings) {
+            final @Nullable PortType template, final TypeMirror concrete, final Map<Integer, TypeMirror> bindings) {
         return template == null ? concrete : ground(template, bindings);
     }
 
-    private TypeMirror ground(final TypeRef template, final Map<String, TypeMirror> bindings) {
-        if (template instanceof TypeRef.Variable) {
-            final var bound = bindings.get(((TypeRef.Variable) template).getName());
+    private TypeMirror ground(final PortType template, final Map<Integer, TypeMirror> bindings) {
+        if (template instanceof PortType.Concrete) {
+            return ((PortType.Concrete) template).getType();
+        }
+        if (template instanceof PortType.Var) {
+            final var bound = bindings.get(((PortType.Var) template).getIndex());
             if (bound == null) {
                 throw new IllegalStateException("Ungrounded type variable while instantiating: " + template);
             }
             return bound;
         }
-        if (template instanceof TypeRef.Declared) {
-            final var declared = (TypeRef.Declared) template;
-            final var erasureElement =
-                    Objects.requireNonNull(ctx.elements().getTypeElement(declared.getQualifiedName()));
-            if (declared.getArgs().isEmpty()) {
-                return erasureElement.asType();
-            }
+        if (template instanceof PortType.App) {
+            final var app = (PortType.App) template;
             final var args =
-                    declared.getArgs().stream().map(arg -> ground(arg, bindings)).toArray(TypeMirror[]::new);
-            return ctx.types().getDeclaredType(erasureElement, args);
+                    app.getArgs().stream().map(arg -> ground(arg, bindings)).toArray(TypeMirror[]::new);
+            return ctx.types().getDeclaredType(app.getErasure(), args);
         }
-        if (template instanceof TypeRef.Array) {
-            return ctx.types().getArrayType(ground(((TypeRef.Array) template).getComponent(), bindings));
-        }
-        throw new IllegalStateException("Unknown template shape: " + template);
+        throw new IllegalStateException("Unknown PortType: " + template);
     }
 }

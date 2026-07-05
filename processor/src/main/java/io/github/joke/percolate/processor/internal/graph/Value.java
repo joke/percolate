@@ -1,7 +1,6 @@
 package io.github.joke.percolate.processor.internal.graph;
 
 import io.github.joke.percolate.spi.Nullability;
-import io.github.joke.percolate.spi.types.TypeRefs;
 import java.util.Optional;
 import javax.lang.model.type.TypeMirror;
 import lombok.Getter;
@@ -52,7 +51,7 @@ public final class Value implements GraphVertex {
     }
 
     private String typeEncode() {
-        return type.map(mirror -> TypeRefs.of(mirror).toString()).orElse(UNKNOWN);
+        return type.map(TypeMirror::toString).orElse(UNKNOWN);
     }
 
     private String nullnessEncode() {

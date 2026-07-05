@@ -8,12 +8,12 @@ import io.github.joke.percolate.spi.ExpansionStrategy;
 import io.github.joke.percolate.spi.Nullability;
 import io.github.joke.percolate.spi.OperationSpec;
 import io.github.joke.percolate.spi.Port;
+import io.github.joke.percolate.spi.PortType;
 import io.github.joke.percolate.spi.ProduceDemand;
 import io.github.joke.percolate.spi.ResolveCtx;
 import io.github.joke.percolate.spi.ScopeCodegen;
 import io.github.joke.percolate.spi.TypeProbe;
 import io.github.joke.percolate.spi.Weights;
-import io.github.joke.percolate.spi.types.TypeRef;
 import java.util.List;
 import java.util.stream.Stream;
 import lombok.NoArgsConstructor;
@@ -55,12 +55,12 @@ public final class FluxMap implements ExpansionStrategy {
             return Stream.empty();
         }
         final var elementOut = Containers.typeArgument(to, 0);
-        final var template = TypeRef.declared(FLUX, TypeRef.variable("V0"));
+        final var template = PortType.app(fluxErasure, List.of(PortType.variable(0)));
         final var ports = List.of(new Port(SOURCE_ROLE, fluxErasure.asType(), Nullability.NON_NULL, template));
         final var mapChild =
-                ChildScopeSpec.lifted(TypeRef.variable("V0"), Nullability.NON_NULL, elementOut, Nullability.NON_NULL);
+                ChildScopeSpec.lifted(PortType.variable(0), Nullability.NON_NULL, elementOut, Nullability.NON_NULL);
         final var flatMapChild =
-                ChildScopeSpec.lifted(TypeRef.variable("V0"), Nullability.NON_NULL, to, Nullability.NON_NULL);
+                ChildScopeSpec.lifted(PortType.variable(0), Nullability.NON_NULL, to, Nullability.NON_NULL);
         return Stream.of(
                 OperationSpec.mapping("map", MAP, Weights.CONTAINER, ports, to, Nullability.NON_NULL, mapChild),
                 OperationSpec.mapping(

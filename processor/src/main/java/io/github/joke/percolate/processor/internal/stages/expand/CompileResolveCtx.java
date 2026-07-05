@@ -2,7 +2,6 @@ package io.github.joke.percolate.processor.internal.stages.expand;
 
 import io.github.joke.percolate.spi.CallableMethods;
 import io.github.joke.percolate.spi.ResolveCtx;
-import io.github.joke.percolate.spi.types.TypeSpace;
 import javax.lang.model.util.Elements;
 import javax.lang.model.util.Types;
 import lombok.RequiredArgsConstructor;
@@ -21,7 +20,6 @@ final class CompileResolveCtx implements ResolveCtx {
     private final Elements elemElements;
     private final Types elemTypes;
     private final @Nullable CallableMethods elemCallableMethods;
-    private final TypeSpace elemTypeSpace;
 
     @Override
     public Types types() {
@@ -36,10 +34,5 @@ final class CompileResolveCtx implements ResolveCtx {
     @Override
     public @Nullable CallableMethods callableMethods() {
         return elemCallableMethods;
-    }
-
-    @Override
-    public TypeSpace typeSpace() {
-        return elemTypeSpace;
     }
 }

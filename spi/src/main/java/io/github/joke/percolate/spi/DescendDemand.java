@@ -1,7 +1,5 @@
 package io.github.joke.percolate.spi;
 
-import io.github.joke.percolate.spi.types.TypeRef;
-import io.github.joke.percolate.spi.types.TypeRefs;
 import javax.lang.model.type.TypeMirror;
 
 /**
@@ -15,16 +13,6 @@ public interface DescendDemand extends Demand {
 
     /** The concrete parent type the accessor reads its segment off. */
     TypeMirror parentType();
-
-    /**
-     * The owned-model counterpart of {@link #parentType} (change {@code evict-javax-model}, design D9 transitional
-     * bridge): {@link TypeRefs#of}({@link #parentType()}), derived automatically — no implementer overrides this.
-     * Not safe for a site requiring exact JLS fidelity (design D7 amendment: v1's {@link TypeRef} has no wildcard
-     * representation); fine for structural matching against {@code TypeSpace}.
-     */
-    default TypeRef parentTypeRef() {
-        return TypeRefs.of(parentType());
-    }
 
     /** The nullness of the parent value being descended. */
     Nullability parentNullness();

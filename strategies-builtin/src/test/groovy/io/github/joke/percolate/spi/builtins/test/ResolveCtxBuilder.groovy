@@ -4,6 +4,7 @@ import io.github.joke.percolate.spi.CallableMethods
 import io.github.joke.percolate.spi.MethodCandidate
 import io.github.joke.percolate.spi.ResolveCtx
 import io.github.joke.percolate.spi.test.PrivateTypeUniverse
+import io.github.joke.percolate.spi.test.TypeUniverse
 
 import javax.lang.model.type.TypeMirror
 import javax.lang.model.util.Elements
@@ -15,6 +16,10 @@ final class ResolveCtxBuilder {
     private Types types
     private Elements elements
     private CallableMethods callableMethods
+
+    ResolveCtxBuilder() {
+        this(TypeUniverse.types(), TypeUniverse.elements())
+    }
 
     ResolveCtxBuilder(final PrivateTypeUniverse javac) {
         this(javac.types(), javac.elements())

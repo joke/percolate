@@ -1,6 +1,5 @@
 package io.github.joke.percolate.spi;
 
-import io.github.joke.percolate.spi.types.TypeRef;
 import javax.lang.model.type.TypeMirror;
 import lombok.AllArgsConstructor;
 import lombok.Value;
@@ -28,11 +27,11 @@ public class ChildScopeSpec {
 
     /** The variable shape of the element-in type, or {@code null} when it is concrete. */
     @Nullable
-    TypeRef elementInTemplate;
+    PortType elementInTemplate;
 
     /** The variable shape of the element-out type, or {@code null} when it is concrete. */
     @Nullable
-    TypeRef elementOutTemplate;
+    PortType elementOutTemplate;
 
     /** A concrete child scope (both element types fully known). */
     public ChildScopeSpec(
@@ -49,7 +48,7 @@ public class ChildScopeSpec {
      * {@code elementOut} as a representative placeholder; grounding overwrites it with the matched element type.
      */
     public static ChildScopeSpec lifted(
-            final TypeRef elementInTemplate,
+            final PortType elementInTemplate,
             final Nullability elementInNullness,
             final TypeMirror elementOut,
             final Nullability elementOutNullness) {

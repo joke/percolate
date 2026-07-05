@@ -1,7 +1,5 @@
 package io.github.joke.percolate.spi;
 
-import io.github.joke.percolate.spi.types.TypeRef;
-import io.github.joke.percolate.spi.types.TypeRefs;
 import java.util.Optional;
 import java.util.Set;
 import javax.lang.model.type.TypeMirror;
@@ -22,16 +20,6 @@ public interface ProduceDemand extends Demand {
 
     /** The type the strategy is being asked to produce. */
     TypeMirror targetType();
-
-    /**
-     * The owned-model counterpart of {@link #targetType} (change {@code evict-javax-model}, design D9 transitional
-     * bridge): {@link TypeRefs#of}({@link #targetType()}), derived automatically — no implementer overrides this.
-     * Not safe for a site requiring exact JLS fidelity (design D7 amendment: v1's {@link TypeRef} has no wildcard
-     * representation); fine for structural matching against {@code TypeSpace}.
-     */
-    default TypeRef targetTypeRef() {
-        return TypeRefs.of(targetType());
-    }
 
     /** The nullness the strategy is being asked to produce — part of the demanded Value's identity. */
     Nullability targetNullness();

@@ -22,13 +22,12 @@ import java.util.concurrent.ConcurrentHashMap
 /**
  * A private, non-shared javac substrate — one fresh {@link JavacTask} per instance, never a static singleton.
  *
- * <p>Some codegen sites are permanently exempt from the owned {@code TypeRef} model (change
- * {@code evict-javax-model}, design D7 amendment): {@code AssembleMapperType}'s override-signature construction
- * and {@code BuildMethodBodies}'s hoisted-local declaration must render a <em>real</em> {@link TypeMirror} via
- * JavaPoet's {@code TypeName.get(TypeMirror)} for exact JLS fidelity. Their specs (unlike the other 14 of the 16
- * {@code @Isolated} specs, which migrate to {@code TestTypes}/literal {@code TypeSpace} fixtures per design D8)
- * therefore cannot become mirror-free — they will always need a real compiler-backed {@link TypeMirror} to
- * exercise the real rendering path they test.
+ * <p>Some codegen sites genuinely need a real compiler-backed {@link TypeMirror}: {@code AssembleMapperType}'s
+ * override-signature construction and {@code BuildMethodBodies}'s hoisted-local declaration render via JavaPoet's
+ * {@code TypeName.get(TypeMirror)} for exact JLS fidelity, so their specs will always need a real javac substrate
+ * rather than a mocked type-query seam. Under the {@code type-query-seam} change this fixture is kept
+ * transitionally for those specs (and the strategy specs deferred to {@code features-as-documentation}); the
+ * {@code processor}/{@code spi} unit specs move to a mocked {@code ResolveCtx} instead.
  *
  * <p>Unlike {@link TypeUniverse}'s <b>static</b> {@link JavacTask} shared by every spec in the JVM, each instance
  * here is exclusive to one spec class (typically a {@code @Shared} field, created once per spec class) — no

@@ -1,42 +1,36 @@
 package io.github.joke.percolate.spi.builtins.test
 
-import io.github.joke.percolate.spi.test.PrivateTypeUniverse
-import io.github.joke.percolate.spi.types.MethodSig
-import io.github.joke.percolate.spi.types.TypeRefs
-import spock.lang.Shared
+import io.github.joke.percolate.spi.test.TypeUniverse
 import spock.lang.Specification
 import spock.lang.Tag
 
 @Tag('unit')
 class ResolveCtxBuilderSpec extends Specification {
 
-    @Shared PrivateTypeUniverse javac = new PrivateTypeUniverse()
-
-    def 'a builder over a PrivateTypeUniverse produces a ctx backed by its types/elements'() {
+    def 'default builder produces a HarnessResolveCtx-equivalent ctx'() {
         given:
-        def ctx = new ResolveCtxBuilder(javac).build()
+        def ctx = new ResolveCtxBuilder().build()
 
         expect:
-        ctx.types() == javac.types()
-        ctx.elements() == javac.elements()
-        ctx.callableMethods().producing(javac.STRING).toList().empty
+        ctx.types() == TypeUniverse.types()
+        ctx.elements() == TypeUniverse.elements()
+        ctx.callableMethods().producing(TypeUniverse.STRING).toList().empty
     }
 
     def 'builder withCallableMethods override is honoured'() {
         given:
         def fakeReceiver = Stub(io.github.joke.percolate.spi.Receiver)
         fakeReceiver.asExpression() >> null
-        def fakeMethodSig = MethodSig.of('fake', TypeRefs.of(javac.STRING))
-        def fakeCandidate = new io.github.joke.percolate.spi.MethodCandidate(null, fakeReceiver, fakeMethodSig)
+        def fakeCandidate = new io.github.joke.percolate.spi.MethodCandidate(null, fakeReceiver)
         def mockMethods = Mock(io.github.joke.percolate.spi.CallableMethods) {
             producing(_) >> fakeCandidate.stream()
         }
 
         when:
-        def ctx = new ResolveCtxBuilder(javac).withCallableMethods(mockMethods).build()
+        def ctx = new ResolveCtxBuilder().withCallableMethods(mockMethods).build()
 
         then:
         ctx.callableMethods() == mockMethods
-        ctx.callableMethods().producing(javac.STRING).toList().size() == 1
+        ctx.callableMethods().producing(TypeUniverse.STRING).toList().size() == 1
     }
 }

@@ -1,13 +1,13 @@
 package io.github.joke.percolate.spi.builtins
 
 import com.palantir.javapoet.CodeBlock
+import io.github.joke.percolate.spi.PortType
 import io.github.joke.percolate.spi.ResolveCtx
 import io.github.joke.percolate.spi.ScopeCodegen
 import io.github.joke.percolate.spi.Weights
 import io.github.joke.percolate.spi.builtins.test.Demands
 import io.github.joke.percolate.spi.builtins.test.ResolveCtxBuilder
-import io.github.joke.percolate.spi.test.PrivateTypeUniverse
-import io.github.joke.percolate.spi.types.TypeRef
+import io.github.joke.percolate.spi.test.TypeUniverse
 import spock.lang.Shared
 import spock.lang.Specification
 import spock.lang.Tag
@@ -24,23 +24,23 @@ import javax.lang.model.type.TypeMirror
 @Tag('unit')
 class StreamMapSpec extends Specification {
 
-    @Shared PrivateTypeUniverse javac = new PrivateTypeUniverse()
-    @Shared ResolveCtx ctx = new ResolveCtxBuilder(javac).build()
+    @Shared ResolveCtx ctx = new ResolveCtxBuilder().build()
     @Shared TypeMirror listOfString
     @Shared TypeMirror streamOfString
 
     def setupSpec() {
         ['java.lang.Iterable', 'java.util.Collection', 'java.util.SequencedCollection', 'java.util.List'].each {
-            javac.elements().getTypeElement(it)
+            TypeUniverse.elements().getTypeElement(it)
         }
-        listOfString = javac.LIST_OF_STRING
-        streamOfString = javac.types().getDeclaredType(
-                javac.elements().getTypeElement('java.util.stream.Stream'), javac.STRING)
+        listOfString = TypeUniverse.LIST_OF_STRING
+        streamOfString = TypeUniverse.types().getDeclaredType(
+                TypeUniverse.elements().getTypeElement('java.util.stream.Stream'), TypeUniverse.STRING)
     }
 
     def 'a Stream<B> demand emits scope-owning map and flatMap over a type-variable Stream<A> port'() {
-        given: 'the expected input port template: Stream<V0>'
-        def expectedTemplate = TypeRef.declared('java.util.stream.Stream', TypeRef.variable('V0'))
+        given: 'the expected input port template: an App(Stream, [Var 0])'
+        def streamErasure = ctx.elements().getTypeElement('java.util.stream.Stream')
+        def expectedTemplate = PortType.app(streamErasure, [PortType.variable(0)])
 
         when:
         def specs = new StreamMap().expand(Demands.forTarget(streamOfString), ctx).toList()
@@ -49,14 +49,14 @@ class StreamMapSpec extends Specification {
         specs.size() == 2
 
         and: 'map: child A -> String (B from the target) over the type-variable Stream<A> port'
-        def map = specs.find { ctx.types().isSameType(it.childScope.get().elementOut, javac.STRING) }
+        def map = specs.find { ctx.types().isSameType(it.childScope.get().elementOut, TypeUniverse.STRING) }
         map != null
         map.codegen instanceof ScopeCodegen
         map.weight == Weights.CONTAINER
         ctx.types().isSameType(map.outputType, streamOfString)
         map.ports[0].name == 'stream'
         map.ports[0].template == expectedTemplate
-        map.childScope.get().elementInTemplate == TypeRef.variable('V0')
+        map.childScope.get().elementInTemplate == PortType.variable(0)
         ((ScopeCodegen) map.codegen).weave(CodeBlock.of('$N', 's'), 'v', CodeBlock.of('$N', 'b'))
                 .toString().contains('.map(')
 
@@ -64,7 +64,7 @@ class StreamMapSpec extends Specification {
         def flatMap = specs.find { ctx.types().isSameType(it.childScope.get().elementOut, streamOfString) }
         flatMap != null
         flatMap.ports[0].template == expectedTemplate
-        flatMap.childScope.get().elementInTemplate == TypeRef.variable('V0')
+        flatMap.childScope.get().elementInTemplate == PortType.variable(0)
         ((ScopeCodegen) flatMap.codegen).weave(CodeBlock.of('$N', 's'), 'v', CodeBlock.of('$N', 'b'))
                 .toString().contains('.flatMap(')
     }
@@ -74,7 +74,7 @@ class StreamMapSpec extends Specification {
         def specs = new StreamMap().expand(Demands.forTarget(streamOfString), ctx).toList()
 
         then: 'every emitted port carries the App template — grounding, not the strategy, supplies the concrete source'
-        specs.every { it.ports[0].template instanceof TypeRef.Declared }
+        specs.every { it.ports[0].template instanceof PortType.App }
     }
 
     def 'declines when the target is not a Stream'() {
