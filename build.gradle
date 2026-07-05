@@ -121,38 +121,21 @@ subprojects { project ->
             enableDefaultIncrementalAnalysis = true
             includedGroups = ['unit']
             timestampedReports = false
-            threads = (project.findProperty('pitestThreads') ?: 1) as int
-            if (project.findProperty('pitestTargetClasses')) {
-                targetClasses = project.findProperty('pitestTargetClasses').split(',') as List
-            }
-            if (project.findProperty('pitestTargetTests')) {
-                targetTests = project.findProperty('pitestTargetTests').split(',') as List
-            }
-            // pitest's minion JVMs do not inherit the Test task's parallel-disabling system properties and would
-            // otherwise read the developer's global ~/.spock config (parallel + optimizeRunOrder on). The engine
-            // seam specs share a static, non-thread-safe TypeUniverse javac, so a parallel minion deadlocks a spec
-            // ("suite not green") and corrupts ~/.spock/RunHistory. Point Spock at a serialised project-local
-            // config for the minions. Single-threaded pitest too (below), so the mutation gate is deterministic.
-            jvmArgs = [
-                    '-XX:+EnableDynamicAgentLoading',
-                    "-Dspock.configuration=${project.file('spock-pitest.groovy').absolutePath}".toString(),
-            ]
-            // Task 4.3 (harden-engine-as-library): keep the mutable set to engine logic — drop generated Dagger
-            // wiring and the pure debug/rendering classes that are also excluded from the jacoco 0.95 branch gate,
-            // so both gates measure the same surface.
-            excludedClasses = [
-                    'io.github.joke.percolate.processor.Dagger*',
-                    'io.github.joke.percolate.processor.internal.stages.dump.*',
-                    'io.github.joke.percolate.processor.internal.graph.DotRenderer',
-            ]
-            // Mutation guards (change: harden-engine-as-library). Ratchet FLOORS — deliberately set below the
-            // current measured score (killed ~90%, strength ~90% once the seam tests landed and Dagger/debug are
-            // excluded) so the build fails on a regression but main is never red. failWhenNoMutations catches a
-            // misconfigured run that mutates nothing.
+            // Threaded by default (change type-query-seam, task 5.3): the mocked/faked-only unit suites carry no
+            // shared, non-thread-safe javac substrate, so a parallel minion run is deterministic. A module that
+            // still shares one (e.g. strategies-builtin's TypeUniverse, until its own rewrite) can override this
+            // per-module with -PpitestThreads=1 rather than serialising everyone through the shared root block.
+            threads = (project.findProperty('pitestThreads') ?: Runtime.runtime.availableProcessors()) as int
+            jvmArgs = ['-XX:+EnableDynamicAgentLoading']
+            // Mutation guards (change: harden-engine-as-library; ratcheted for type-query-seam task 5.4 — processor's
+            // unit specs are now mock/fake-only, no shared-static javac, deterministic across two cleared-history
+            // threaded runs: 95% line coverage, 85% killed, 89% test strength). Ratchet FLOORS — deliberately set
+            // below the current measured score so the build fails on a regression but main is never red.
+            // failWhenNoMutations catches a misconfigured run that mutates nothing.
             failWhenNoMutations = true
-            mutationThreshold = 80
-            coverageThreshold = 90
-            testStrengthThreshold = 85
+            mutationThreshold = 83
+            coverageThreshold = 92
+            testStrengthThreshold = 87
         }
         dependencies {
             pitest 'org.pitest:pitest-history-plugin:0.0.1'

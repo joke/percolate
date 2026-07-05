@@ -17,7 +17,6 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.stream.Stream;
-import javax.lang.model.element.TypeElement;
 import javax.lang.model.type.TypeMirror;
 import lombok.NoArgsConstructor;
 
@@ -50,7 +49,7 @@ public final class MethodCallBridge implements ExpansionStrategy {
                 .filter(candidate -> {
                     final var method = candidate.getMethod();
                     return method.getParameters().size() == SINGLE_PARAM_COUNT
-                            && ctx.types().isAssignable(method.getReturnType(), targetType);
+                            && ctx.isAssignable(method.getReturnType(), targetType);
                 })
                 .map(candidate -> buildSpec(candidate, targetType, demand, ctx));
     }
@@ -85,17 +84,17 @@ public final class MethodCallBridge implements ExpansionStrategy {
     }
 
     private int subtypeDistance(final TypeMirror from, final TypeMirror to, final ResolveCtx ctx) {
-        if (ctx.types().isSameType(from, to)) {
+        if (ctx.isSameType(from, to)) {
             return 0;
         }
-        if (!ctx.types().isAssignable(from, to)) {
+        if (!ctx.isAssignable(from, to)) {
             return 0;
         }
         return bfsDistance(from, to, ctx);
     }
 
     private int bfsDistance(final TypeMirror start, final TypeMirror target, final ResolveCtx ctx) {
-        if (ctx.types().isSameType(start, target)) {
+        if (ctx.isSameType(start, target)) {
             return 0;
         }
         final Set<String> visited = new HashSet<>();
@@ -104,12 +103,11 @@ public final class MethodCallBridge implements ExpansionStrategy {
         visited.add(start.toString());
         while (!queue.isEmpty()) {
             final var current = queue.remove(0);
-            final var elem = ctx.types().asElement(current.type);
-            if (!(elem instanceof TypeElement)) {
+            if (!ctx.isDeclared(current.type)) {
                 continue;
             }
-            final var directSupertype = ((TypeElement) elem).getSuperclass();
-            if (directSupertype == null) {
+            final var directSupertype = ctx.superclassOf(current.type);
+            if (!ctx.isDeclared(directSupertype)) {
                 continue;
             }
             final var supKey = directSupertype.toString();
@@ -117,7 +115,7 @@ public final class MethodCallBridge implements ExpansionStrategy {
                 continue;
             }
             visited.add(supKey);
-            if (ctx.types().isSameType(directSupertype, target)) {
+            if (ctx.isSameType(directSupertype, target)) {
                 return current.depth + 1;
             }
             queue.add(new Pair(directSupertype, current.depth + 1));

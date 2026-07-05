@@ -3,6 +3,7 @@ plugins {
     id 'groovy'
     id 'java-test-fixtures'
     id 'maven-publish'
+    id 'info.solidsoft.pitest'
 }
 
 dependencies {
@@ -40,13 +41,30 @@ dependencies {
     testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
 }
 
-// TypeUniverse hosts a single shared JavacTask. Concurrent calls into javac
-// internals (Types.isAssignable, Symbol.complete) trigger re-entrancy
-// assertions like "Filling X during Y" on Java 21+ runtimes — SynchronizedElements
-// only guards a subset of calls. Keep all test methods on one thread, same as
-// strategies-builtin already does.
-tasks.withType(Test).configureEach {
-    maxParallelForks = 1
-    systemProperty 'junit.jupiter.execution.parallel.enabled', 'false'
-    systemProperty 'spock.parallel.threads', '0'
+// The serialised-execution workaround for the shared TypeUniverse JavacTask race is gone (change type-query-seam,
+// Phase 5): every spi unit spec now drives a mocked/faked ResolveCtx (TypeUniverseSpec — the fixture's own
+// self-test — is the sole remaining unit spec touching the shared substrate, and Spock does not run a spec's own
+// feature methods concurrently by default), so threaded pitest is safe without maxParallelForks/parallel-disable.
+
+// Module-specific pitest thresholds (change type-query-seam, task 6.3) — pitest had never run on spi before this
+// phase, so these are a first-measurement ratchet floor, not parity with processor's (that bar came from a full
+// unit-spec rewrite across every class over several iterations; this phase rewrote the 8 real-javac specs plus a
+// few small new ones for previously-untested pure forwarders — SourceProjection/OperationSpec/ChildScopeSpec/
+// PortType/Weights/Nullability/DocTags were already covered or out of this phase's scope).
+//
+// Measured across several cleared-history runs: line coverage held stable at 72% once builds were clean; the
+// mutation-kill/test-strength numbers varied run to run (16-26% killed, 24-40% test strength) even with
+// `enableDefaultIncrementalAnalysis` off and `threads = 1` — ruling out both incremental-analysis staleness and
+// minion-thread races as the cause (JUnit pass/fail itself is 100% reproducible: 8/8 identical `test` runs). The
+// residual variance is PIT's own test-to-mutant attribution when several tests cover the same line with differing
+// assertion strength (a real spike stub with `1 * ctx.method(...)` kills more than a bare `expect:` on a return
+// value) — not a shared-substrate race like the one this change eliminates elsewhere. Floors set with margin below
+// the observed worst case; tightening them further is follow-up work (strengthen assertions; investigate the PIT
+// attribution variance directly), not blocking for this phase.
+pluginManager.withPlugin('info.solidsoft.pitest') {
+    pitest {
+        mutationThreshold = 10
+        coverageThreshold = 60
+        testStrengthThreshold = 15
+    }
 }

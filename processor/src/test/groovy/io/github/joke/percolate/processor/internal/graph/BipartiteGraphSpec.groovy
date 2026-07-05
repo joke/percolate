@@ -1,12 +1,11 @@
 package io.github.joke.percolate.processor.internal.graph
 
+import io.github.joke.percolate.processor.test.FakeType
 import io.github.joke.percolate.processor.test.HarnessScope
 import io.github.joke.percolate.spi.Codegen
 import io.github.joke.percolate.spi.Nullability
 import io.github.joke.percolate.spi.Port
-import io.github.joke.percolate.spi.test.PrivateTypeUniverse
 import org.jgrapht.Graph
-import spock.lang.Shared
 import spock.lang.Specification
 import spock.lang.Tag
 
@@ -15,7 +14,12 @@ import javax.lang.model.type.TypeMirror
 @Tag('unit')
 class BipartiteGraphSpec extends Specification {
 
-    @Shared PrivateTypeUniverse javac = new PrivateTypeUniverse()
+    static final TypeMirror STRING = FakeType.declared('String')
+    static final TypeMirror INT = FakeType.declared('int')
+    static final TypeMirror INTEGER = FakeType.declared('Integer')
+    static final TypeMirror LONG = FakeType.declared('long')
+    static final TypeMirror LIST_OF_INT = FakeType.declared('List', INTEGER)
+    static final TypeMirror LIST_OF_STRING = FakeType.declared('List', STRING)
 
     final MapperGraph graph = new MapperGraph()
     final Scope scope = new HarnessScope('m()')
@@ -27,8 +31,8 @@ class BipartiteGraphSpec extends Specification {
         final var loc = new SourceLocation(AccessPath.of('street'))
 
         when:
-        final var first = graph.valueFor(scope, loc, javac.STRING, Nullability.NON_NULL)
-        final var second = graph.valueFor(scope, loc, javac.STRING, Nullability.NON_NULL)
+        final var first = graph.valueFor(scope, loc, STRING, Nullability.NON_NULL)
+        final var second = graph.valueFor(scope, loc, STRING, Nullability.NON_NULL)
 
         then:
         first.is(second)
@@ -39,8 +43,8 @@ class BipartiteGraphSpec extends Specification {
         final var loc = new SourceLocation(AccessPath.of('number'))
 
         expect:
-        !graph.valueFor(scope, loc, javac.INT, Nullability.NON_NULL)
-                .is(graph.valueFor(scope, loc, javac.LONG, Nullability.NON_NULL))
+        !graph.valueFor(scope, loc, INT, Nullability.NON_NULL)
+                .is(graph.valueFor(scope, loc, LONG, Nullability.NON_NULL))
     }
 
     def 'nullness-divergent demands at one location are distinct Values'() {
@@ -48,8 +52,8 @@ class BipartiteGraphSpec extends Specification {
         final var loc = new SourceLocation(AccessPath.of('name'))
 
         expect:
-        !graph.valueFor(scope, loc, javac.STRING, Nullability.NON_NULL)
-                .is(graph.valueFor(scope, loc, javac.STRING, Nullability.NULLABLE))
+        !graph.valueFor(scope, loc, STRING, Nullability.NON_NULL)
+                .is(graph.valueFor(scope, loc, STRING, Nullability.NULLABLE))
     }
 
     // ---- Write-once typing ----------------------------------------------------------------------
@@ -59,20 +63,20 @@ class BipartiteGraphSpec extends Specification {
         final var value = new Value(new SourceLocation(AccessPath.of('x')), scope, Optional.empty(), Optional.empty())
 
         when:
-        value.setTyping(javac.STRING, Nullability.NON_NULL)
+        value.setTyping(STRING, Nullability.NON_NULL)
 
         then:
-        value.type.get() == javac.STRING
+        value.type.get() == STRING
         value.nullness.get() == Nullability.NON_NULL
     }
 
     def 'typing an already-typed Value is rejected'() {
         given:
         final var value = new Value(new SourceLocation(AccessPath.of('x')), scope, Optional.empty(), Optional.empty())
-        value.setTyping(javac.STRING, Nullability.NON_NULL)
+        value.setTyping(STRING, Nullability.NON_NULL)
 
         when:
-        value.setTyping(javac.INTEGER, Nullability.NULLABLE)
+        value.setTyping(INTEGER, Nullability.NULLABLE)
 
         then:
         thrown(IllegalStateException)
@@ -82,10 +86,10 @@ class BipartiteGraphSpec extends Specification {
         given:
         final var value = new Value(
                 new SourceLocation(AccessPath.of('x')), scope,
-                Optional.of(javac.STRING), Optional.of(Nullability.NON_NULL))
+                Optional.of(STRING), Optional.of(Nullability.NON_NULL))
 
         when:
-        value.setTyping(javac.STRING, Nullability.NON_NULL)
+        value.setTyping(STRING, Nullability.NON_NULL)
 
         then:
         thrown(IllegalStateException)
@@ -95,7 +99,7 @@ class BipartiteGraphSpec extends Specification {
 
     def 'AddOperation lands the Operation with one output edge and one inbound edge per port'() {
         given:
-        final var op = graph.apply(constructor('addr', [port('number', javac.INT), port('street', javac.STRING)]))
+        final var op = graph.apply(constructor('addr', [port('number', INT), port('street', STRING)]))
         final var view = graph.bipartiteView()
 
         expect:
@@ -106,7 +110,7 @@ class BipartiteGraphSpec extends Specification {
 
     def 'a landed Operation carries the spec label and exposes no strategy FQN'() {
         given:
-        final var op = graph.apply(constructor('addr', [port('street', javac.STRING)]))
+        final var op = graph.apply(constructor('addr', [port('street', STRING)]))
 
         expect:
         op.label == 'new addr'
@@ -125,11 +129,11 @@ class BipartiteGraphSpec extends Specification {
 
     def 'one Value feeding two ports yields two distinct port-labelled edges'() {
         given:
-        final var x = leaf('x', javac.INT)
+        final var x = leaf('x', INT)
         final var op = graph.apply(new AddOperation('new Range', Stub(Codegen), 1, false,
-                [new PortBinding(new Port('low', javac.INT, Nullability.NON_NULL), x),
-                 new PortBinding(new Port('high', javac.INT, Nullability.NON_NULL), x)],
-                target('range', javac.STRING), Optional.empty()))
+                [new PortBinding(new Port('low', INT, Nullability.NON_NULL), x),
+                 new PortBinding(new Port('high', INT, Nullability.NON_NULL), x)],
+                target('range', STRING), Optional.empty()))
         final var view = graph.bipartiteView()
 
         when:
@@ -146,11 +150,11 @@ class BipartiteGraphSpec extends Specification {
     def 'overloaded constructors share a type-identical street Value but split on a divergent number'() {
         given:
         final var c1 = graph.apply(new AddOperation('C1', Stub(Codegen), 1, false,
-                [port('number', javac.INT), port('street', javac.STRING)],
-                target('addr', javac.STRING), Optional.empty()))
+                [port('number', INT), port('street', STRING)],
+                target('addr', STRING), Optional.empty()))
         final var c2 = graph.apply(new AddOperation('C2', Stub(Codegen), 2, false,
-                [port('number', javac.LONG), port('street', javac.STRING)],
-                target('addr', javac.STRING), Optional.empty()))
+                [port('number', LONG), port('street', STRING)],
+                target('addr', STRING), Optional.empty()))
         final var view = graph.bipartiteView()
 
         expect: 'the equal-typed street port is one shared Value, the divergent number ports are distinct'
@@ -167,9 +171,9 @@ class BipartiteGraphSpec extends Specification {
         given:
         final var other = new HarnessScope('other()')
         final var crossing = new AddOperation('cross', Stub(Codegen), 1, false,
-                [new PortBinding(new Port('p', javac.STRING, Nullability.NON_NULL),
-                        new AddValue(other, new SourceLocation(AccessPath.of('p')), javac.STRING, Nullability.NON_NULL))],
-                target('out', javac.STRING), Optional.empty())
+                [new PortBinding(new Port('p', STRING, Nullability.NON_NULL),
+                        new AddValue(other, new SourceLocation(AccessPath.of('p')), STRING, Nullability.NON_NULL))],
+                target('out', STRING), Optional.empty())
 
         when:
         graph.apply(crossing)
@@ -181,19 +185,19 @@ class BipartiteGraphSpec extends Specification {
     def 'a scope-owning Operation mints its child return-root eagerly and declares its element input lazily'() {
         given:
         final var decl = new ChildScopeDecl(
-                javac.INTEGER, Nullability.NON_NULL, javac.STRING, Nullability.NON_NULL)
+                INTEGER, Nullability.NON_NULL, STRING, Nullability.NON_NULL)
         final var op = graph.apply(new AddOperation('map', Stub(Codegen), 1, false,
-                [port('src', javac.LIST_OF_INT)],
-                target('out', javac.LIST_OF_STRING), Optional.of(decl)))
+                [port('src', LIST_OF_INT)],
+                target('out', LIST_OF_STRING), Optional.of(decl)))
         final var child = op.childScope.get()
 
         expect: 'the return-root Value is minted eagerly inside the child scope'
         op.childScope.present
-        child.returnRoot.type.get() == javac.STRING
+        child.returnRoot.type.get() == STRING
         child.returnRoot.scope.is(child)
 
         and: 'the element input is declared (type INTEGER at an ElementLocation), not minted as a Value'
-        child.elementInput.type == javac.INTEGER
+        child.elementInput.type == INTEGER
         child.elementInput.nullness == Nullability.NON_NULL
         child.elementInput.location instanceof ElementLocation
 
@@ -203,9 +207,9 @@ class BipartiteGraphSpec extends Specification {
 
     def 'scopeView masks out every vertex that lives in another scope'() {
         final var other = new HarnessScope('other()')
-        final var inScope = graph.valueFor(scope, new SourceLocation(AccessPath.of('a')), javac.STRING,
+        final var inScope = graph.valueFor(scope, new SourceLocation(AccessPath.of('a')), STRING,
                 Nullability.NON_NULL)
-        final var elsewhere = graph.valueFor(other, new SourceLocation(AccessPath.of('b')), javac.STRING,
+        final var elsewhere = graph.valueFor(other, new SourceLocation(AccessPath.of('b')), STRING,
                 Nullability.NON_NULL)
 
         when:
@@ -228,8 +232,8 @@ class BipartiteGraphSpec extends Specification {
     }
 
     def 'an Operation vertex is equal only to itself'() {
-        final var first = graph.apply(constructor('a', [port('x', javac.STRING)]))
-        final var second = graph.apply(constructor('b', [port('y', javac.STRING)]))
+        final var first = graph.apply(constructor('a', [port('x', STRING)]))
+        final var second = graph.apply(constructor('b', [port('y', STRING)]))
 
         expect:
         first == first
@@ -255,10 +259,10 @@ class BipartiteGraphSpec extends Specification {
 
     def 'initialising an already-landed child scope a second time is rejected'() {
         final var decl = new ChildScopeDecl(
-                javac.INTEGER, Nullability.NON_NULL, javac.STRING, Nullability.NON_NULL)
+                INTEGER, Nullability.NON_NULL, STRING, Nullability.NON_NULL)
         final var op = graph.apply(new AddOperation('map', Stub(Codegen), 1, false,
-                [port('src', javac.LIST_OF_INT)],
-                target('out', javac.LIST_OF_STRING), Optional.of(decl)))
+                [port('src', LIST_OF_INT)],
+                target('out', LIST_OF_STRING), Optional.of(decl)))
         final var child = op.childScope.get()
 
         when: 're-initialising with the roots already minted at landing time'
@@ -292,6 +296,6 @@ class BipartiteGraphSpec extends Specification {
 
     private AddOperation constructor(final String outputSlot, final List<PortBinding> ports) {
         new AddOperation('new ' + outputSlot, Stub(Codegen), 1, false, ports,
-                target(outputSlot, javac.STRING), Optional.empty())
+                target(outputSlot, STRING), Optional.empty())
     }
 }

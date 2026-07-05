@@ -2,7 +2,6 @@ package io.github.joke.percolate.spi.builtins;
 
 import com.google.auto.service.AutoService;
 import com.palantir.javapoet.CodeBlock;
-import io.github.joke.percolate.spi.Containers;
 import io.github.joke.percolate.spi.ExpansionStrategy;
 import io.github.joke.percolate.spi.ResolveCtx;
 import io.github.joke.percolate.spi.SourceProjection;
@@ -24,12 +23,12 @@ public final class ArrayContainer extends StreamContainer {
 
     @Override
     protected boolean matches(final TypeMirror type, final ResolveCtx ctx) {
-        return Containers.isArray(type);
+        return ctx.isArray(type);
     }
 
     @Override
-    protected TypeMirror element(final TypeMirror type) {
-        return Containers.arrayComponentType(type);
+    protected TypeMirror element(final TypeMirror type, final ResolveCtx ctx) {
+        return ctx.arrayComponent(type);
     }
 
     @Override
@@ -39,7 +38,7 @@ public final class ArrayContainer extends StreamContainer {
 
     @Override
     protected Optional<TypeMirror> containerOf(final TypeMirror element, final ResolveCtx ctx) {
-        return Optional.of(ctx.types().getArrayType(element));
+        return Optional.of(ctx.arrayType(element));
     }
 
     @Override

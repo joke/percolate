@@ -27,7 +27,8 @@ public abstract class Accessor implements ExpansionStrategy {
 
     @Override
     public final Stream<OperationSpec> descend(final DescendDemand demand, final ResolveCtx ctx) {
-        return TypeProbe.asTypeElement(demand.parentType(), ctx)
+        return ctx
+                .asTypeElement(demand.parentType())
                 .flatMap(parent -> accessor(parent, demand.segment(), ctx))
                 .map(step -> toSpec(step, demand))
                 .stream();

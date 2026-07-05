@@ -47,17 +47,6 @@ dependencies {
     testRuntimeOnly 'org.mockito:mockito-junit-jupiter'
 }
 
-// The engine seam tests share TypeUniverse's single static JavacTask (spi test-fixtures). javac is not thread-safe,
-// so the user's global ~/.spock parallel execution races it (non-deterministic results) and the concurrent
-// optimizeRunOrder writes corrupt ~/.spock/RunHistory. Keep all test methods on one thread, exactly as spi /
-// strategies-builtin / reactor already do. (pitest runs its own JVM and is bridged with @Isolated specs until the
-// type-universe redesign — see openspec/notes.md.)
-tasks.withType(Test).configureEach {
-    maxParallelForks = 1
-    systemProperty 'junit.jupiter.execution.parallel.enabled', 'false'
-    systemProperty 'spock.parallel.threads', '0'
-}
-
 // Task 3.2 (harden-engine-as-library): narrow, individually-justified jacoco exclusions for the classes where 95%
 // branch coverage is not honestly reachable — pure debug/rendering and generated wiring with no engine decision
 // logic. Applied to BOTH the report and the verification gate so the 0.95 bar measures engine logic only. Each:
@@ -76,4 +65,18 @@ tasks.withType(JacocoReport).configureEach {
 }
 tasks.withType(JacocoCoverageVerification).configureEach {
     classDirectories.setFrom(classDirectories.files.collect { fileTree(dir: it, exclude: jacocoExcludes) })
+}
+
+// Module-specific pitest exclusions (change: type-query-seam, task 5.3) — moved out of the shared root block so
+// root carries no module-specific class names (a `spi` pitest rollout would otherwise inherit processor's
+// exclusions). Mirrors the jacoco exclusions above: generated Dagger wiring and pure debug/rendering, no engine
+// decision logic to mutate.
+pluginManager.withPlugin('info.solidsoft.pitest') {
+    pitest {
+        excludedClasses = [
+                'io.github.joke.percolate.processor.Dagger*',
+                'io.github.joke.percolate.processor.internal.stages.dump.*',
+                'io.github.joke.percolate.processor.internal.graph.DotRenderer',
+        ]
+    }
 }

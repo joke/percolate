@@ -18,11 +18,8 @@ import io.github.joke.percolate.spi.Weights;
 import java.util.List;
 import java.util.Set;
 import java.util.stream.Stream;
-import javax.lang.model.element.ElementKind;
 import javax.lang.model.element.ExecutableElement;
-import javax.lang.model.element.Modifier;
 import javax.lang.model.element.TypeElement;
-import javax.lang.model.type.TypeKind;
 import javax.lang.model.type.TypeMirror;
 import lombok.NoArgsConstructor;
 import org.jspecify.annotations.Nullable;
@@ -53,21 +50,17 @@ public final class ConstructorCall implements ExpansionStrategy {
             // satisfy it (no silent sourcing). Assembly fires only for a target level with declared children.
             return Stream.empty();
         }
-        return typeElement.getEnclosedElements().stream()
-                .filter(e -> e.getKind() == ElementKind.CONSTRUCTOR)
+        return ctx.membersOf(typeElement)
+                .filter(ctx::isConstructor)
                 .map(ExecutableElement.class::cast)
-                .filter(ctor -> !ctor.getModifiers().contains(Modifier.PRIVATE))
+                .filter(ctor -> !ctx.isPrivate(ctor))
                 .filter(ctor -> parameterNames(ctor).equals(declared))
                 .map(ctor -> buildSpec(ctor, typeElement, targetType, demand));
     }
 
     @Nullable
     private TypeElement resolveTypeElement(final TypeMirror targetType, final ResolveCtx ctx) {
-        if (targetType.getKind() != TypeKind.DECLARED) {
-            return null;
-        }
-        final var element = ctx.types().asElement(targetType);
-        return element instanceof TypeElement ? (TypeElement) element : null;
+        return ctx.asTypeElement(targetType).orElse(null);
     }
 
     private static Set<String> parameterNames(final ExecutableElement ctor) {

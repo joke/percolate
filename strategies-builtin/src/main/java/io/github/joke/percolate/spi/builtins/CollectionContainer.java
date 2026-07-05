@@ -22,7 +22,7 @@ abstract class CollectionContainer extends StreamContainer {
 
     @Override
     protected Optional<TypeElement> kindErasure(final ResolveCtx ctx) {
-        return Optional.ofNullable(ctx.elements().getTypeElement(factoryType().getCanonicalName()));
+        return Optional.ofNullable(ctx.typeElementNamed(factoryType().getCanonicalName()));
     }
 
     @Override

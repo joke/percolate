@@ -5,8 +5,6 @@ import java.util.List;
 import java.util.Optional;
 import java.util.stream.Stream;
 import javax.lang.model.element.TypeElement;
-import javax.lang.model.type.DeclaredType;
-import javax.lang.model.type.TypeKind;
 import javax.lang.model.type.TypeMirror;
 
 /**
@@ -59,7 +57,7 @@ public abstract class Container implements ExpansionStrategy, SourceProjection {
     protected abstract boolean matches(TypeMirror type, ResolveCtx ctx);
 
     /** The element type of a {@code type} of this container's kind. */
-    protected abstract TypeMirror element(TypeMirror type);
+    protected abstract TypeMirror element(TypeMirror type, ResolveCtx ctx);
 
     /** This kind's declared erasure ({@code List}/{@code Set}/{@code Optional}/{@code Flux}…); empty for arrays. */
     protected abstract Optional<TypeElement> kindErasure(ResolveCtx ctx);
@@ -69,10 +67,10 @@ public abstract class Container implements ExpansionStrategy, SourceProjection {
 
     /** Build this container's kind over {@code element}, or empty when not formable (e.g. a primitive element). */
     protected Optional<TypeMirror> containerOf(final TypeMirror element, final ResolveCtx ctx) {
-        if (!Containers.isReferenceType(element)) {
+        if (!ctx.isReferenceType(element)) {
             return Optional.empty();
         }
-        return kindErasure(ctx).map(erasure -> ctx.types().getDeclaredType(erasure, element));
+        return kindErasure(ctx).map(erasure -> ctx.declaredType(erasure, element));
     }
 
     /** Open an element stream over this container ({@code Cont<E> → Intermediate<E>}); empty when not supported. */
@@ -131,11 +129,11 @@ public abstract class Container implements ExpansionStrategy, SourceProjection {
         if (iterate().isEmpty() || !matches(source, ctx)) {
             return Stream.empty();
         }
-        return intermediateOf(element(source), ctx).stream();
+        return intermediateOf(element(source, ctx), ctx).stream();
     }
 
     private void produceMyKind(final TypeMirror to, final ResolveCtx ctx, final Stream.Builder<OperationSpec> specs) {
-        final var elementOut = element(to);
+        final var elementOut = element(to, ctx);
         collect().ifPresent(close -> intermediateOf(elementOut, ctx)
                 .ifPresent(intermediate -> specs.add(OperationSpec.of(
                         "collect",
@@ -162,7 +160,7 @@ public abstract class Container implements ExpansionStrategy, SourceProjection {
     }
 
     private void iterateInto(final TypeMirror to, final ResolveCtx ctx, final Stream.Builder<OperationSpec> specs) {
-        iterate().ifPresent(open -> containerOf(intermediateElement(to), ctx)
+        iterate().ifPresent(open -> containerOf(intermediateElement(to, ctx), ctx)
                 .ifPresent(source -> specs.add(OperationSpec.of(
                         "iterate",
                         unary(open),
@@ -194,23 +192,20 @@ public abstract class Container implements ExpansionStrategy, SourceProjection {
     // ---- intermediate derivation (from the author-declared intermediateErasure; names no kind) ----------------
 
     private boolean isIntermediate(final TypeMirror type, final ResolveCtx ctx) {
-        if (type.getKind() != TypeKind.DECLARED) {
-            return false;
-        }
-        final var types = ctx.types();
-        return types.isSameType(
-                types.erasure(type), types.erasure(intermediateErasure(ctx).asType()));
+        return ctx.isDeclared(type)
+                && ctx.isSameType(
+                        ctx.erasure(type), ctx.erasure(intermediateErasure(ctx).asType()));
     }
 
-    private static TypeMirror intermediateElement(final TypeMirror intermediate) {
-        return ((DeclaredType) intermediate).getTypeArguments().get(0);
+    private static TypeMirror intermediateElement(final TypeMirror intermediate, final ResolveCtx ctx) {
+        return ctx.typeArgument(intermediate, 0);
     }
 
     private Optional<TypeMirror> intermediateOf(final TypeMirror element, final ResolveCtx ctx) {
-        if (!Containers.isReferenceType(element)) {
+        if (!ctx.isReferenceType(element)) {
             return Optional.empty();
         }
-        return Optional.of(ctx.types().getDeclaredType(intermediateErasure(ctx), element));
+        return Optional.of(ctx.declaredType(intermediateErasure(ctx), element));
     }
 
     private static OperationCodegen unary(final UnarySnippet snippet) {

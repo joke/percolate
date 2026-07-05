@@ -9,7 +9,6 @@ import io.github.joke.percolate.spi.ResolveCtx;
 import io.github.joke.percolate.spi.Weights;
 import java.util.Optional;
 import javax.lang.model.element.Element;
-import javax.lang.model.element.ElementKind;
 import javax.lang.model.element.ExecutableElement;
 import javax.lang.model.element.TypeElement;
 import lombok.NoArgsConstructor;
@@ -27,13 +26,10 @@ public final class MethodPathResolver extends Accessor {
 
     @Override
     protected Optional<Step> accessor(final TypeElement parent, final String segment, final ResolveCtx ctx) {
-        for (final var member : Members.declaredMembersOf(parent, ctx)) {
-            final var method = matchAccessor(member, segment);
-            if (method.isPresent()) {
-                return Optional.of(step(method.get(), segment));
-            }
-        }
-        return Optional.empty();
+        return Members.declaredMembersOf(parent, ctx)
+                .flatMap(member -> matchAccessor(member, segment, ctx).stream())
+                .findFirst()
+                .map(method -> step(method, segment));
     }
 
     private static Step step(final ExecutableElement method, final String segment) {
@@ -41,8 +37,9 @@ public final class MethodPathResolver extends Accessor {
         return new Step(method.getReturnType(), method, segment + "()", Weights.STEP_METHOD, codegen);
     }
 
-    private Optional<ExecutableElement> matchAccessor(final Element member, final String segment) {
-        if (member.getKind() != ElementKind.METHOD) {
+    private Optional<ExecutableElement> matchAccessor(
+            final Element member, final String segment, final ResolveCtx ctx) {
+        if (!ctx.isMethod(member)) {
             return Optional.empty();
         }
         final var method = (ExecutableElement) member;

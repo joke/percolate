@@ -145,7 +145,49 @@ Gates: e2e/doc compiles + `percolate-smoke` green after Phases 1–5; pitest det
 
 ## Open Questions
 
-- Whether `Containers`/`TypeProbe` fold *onto* `ResolveCtx` or stay as separate injectable instances the mock
-  returns — decided by the spike on the 1–2-stub criterion.
+- ~~Whether `Containers`/`TypeProbe` fold *onto* `ResolveCtx` or stay as separate injectable instances the mock
+  returns~~ — **resolved in Phase 3**: every predicate folds onto `ResolveCtx` as a mockable default method;
+  `Containers`/`TypeProbe` survive only as thin, source-compatible static forwarders (`Containers.isList(t, ctx)`
+  → `ctx.isList(t)`) for existing callers, with two exceptions kept ctx-free because they never needed compiler
+  backing: `Containers.isArray(t)`/`isReferenceType(t)`/`typeArgument(t,i)`/`arrayComponentType(t)` keep their
+  original no-`ResolveCtx` signature and body (pure `TypeMirror` token navigation, not seam questions).
 - Whether the `spi` pitest ratchet floor and thresholds live in `spi/build.gradle` or the shared root block —
   decided at Phase 5 with real scores in hand.
+
+### Phase 3 addendum — the realised seam surface and confinement scope
+
+The audited surface came out larger than the D3 sketch (~13 questions) once two things were counted precisely:
+
+- **Element/member reflection** (`Elements.getAllMembers`, `ElementKind`/`Modifier` checks, `getEnclosedElements`,
+  a hand-rolled supertype-BFS in `MethodCallBridge`) showed up throughout the Accessor-family strategies and
+  `ConstructorCall`/`MethodCallBridge` — structurally the same disease as the Types/TypeMirror algebra, just over
+  `Element`/`TypeElement` instead of `TypeMirror`. Decision: **fold it into the seam** (not a second boundary
+  exemption), landing `membersOf`, `isField`/`isMethod`/`isConstructor`, `isPrivate`/`isStatic`, and `superclassOf`
+  alongside the type-algebra methods. `Element`/`TypeElement`/`ExecutableElement`/`VariableElement` remain opaque
+  pass-through tokens exactly like `TypeMirror` — held and passed as parameters, never cast or `.getKind()`-probed
+  outside the seam.
+- **`ResolveCtx`'s realised method count is ~35**, not ~13: the 13 type-algebra questions, plus `kind(t)` (a raw
+  `TypeKind` escape hatch for lattice/table-keyed code — `WidenPrimitive`'s widening lattice, `PrimitiveWrapperConversion`'s
+  unbox-accessor map), plus the higher-level predicates (`isList`/`isSet`/`isOptional`/`isStream`/`isCollection`/
+  `isIterable`/`isEnum`/`isReferenceType`/`isType`, `typeElementNamed`), plus the member-reflection set above.
+  `isCollection`/`isIterable` resolve their named supertype (`java.util.Collection`/`java.lang.Iterable`) via
+  `typeElementNamed` + `isAssignable` rather than needing a dedicated "assignable-to-name" method — no seam
+  addition beyond `typeElementNamed`, which the exact-erasure predicates (`isList`/`isSet`/`isOptional`/`isStream`)
+  already needed.
+- **What stayed out of the seam, deliberately**: three pure single-hop `TypeMirror`/`Element` token-navigation call
+  sites — `LiteralCoercion` (a static utility with no `ResolveCtx` in reach, called from a `Stage` that has none
+  either), `Labels`/`DotRenderer` (debug-graph/label formatting, cosmetic only, "never the basis of a behavioural
+  decision" per their own javadoc) — plus two engine `Stage`s that structurally cannot reach a `ResolveCtx`
+  (`ValidateSourceParametersStage`, `ValidateConstantDefaultLegalityStage` — `ResolveCtx` is constructed per-mapper
+  inside `ExpandStage.run`, not available to arbitrary stages). These call `.getKind()`/cast/`.asElement()` directly
+  on an already-opaque token with zero `Types`/`Elements` involvement — the same shape `ValidateNoDuplicateTargetsStageSpec`
+  already mocks without javac, so they carry no real-compiler burden today and needed no seam routing.
+- **ArchUnit confinement, realised**: rather than a blanket "no `javax.lang.model` outside boundary" ban (which
+  would also outlaw holding `TypeMirror`/`TypeElement` tokens everywhere, breaking the opaque-token design), the
+  rule bans `javax.lang.model.util.Types`/`Elements` — the two compiler-service classes — everywhere except: the
+  bare `io.github.joke.percolate.processor` package (the Dagger wiring — `ProcessorModule`/`MapperStep` and their
+  generated `*_Factory`/`DaggerProcessorComponent` siblings, which mention `Types`/`Elements` in constructor/field
+  types purely as DI plumbing), `internal.stages.expand` (seam impl), `internal.stages.discover` (discovery
+  adapter), `internal.stages.generate` (codegen emission), `nullability` (the nullability resolver), and the
+  `ResolveCtx` interface itself (declares `types()`/`elements()`, kept as a transitional bridge until Phases 4–5
+  remove them). See `ModuleBoundariesSpec.groovy`'s confinement rule.

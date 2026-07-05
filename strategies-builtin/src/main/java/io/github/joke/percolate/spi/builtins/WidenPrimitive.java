@@ -37,7 +37,7 @@ public final class WidenPrimitive extends Conversion {
 
     @Override
     protected Stream<Step> conversions(final TypeMirror target, final ResolveCtx ctx) {
-        final @Nullable Set<TypeKind> narrower = WIDENS_FROM.get(target.getKind());
+        final @Nullable Set<TypeKind> narrower = WIDENS_FROM.get(ctx.kind(target));
         if (narrower == null) {
             return Stream.empty();
         }
@@ -45,7 +45,7 @@ public final class WidenPrimitive extends Conversion {
     }
 
     private static Step wideningStep(final TypeKind from, final TypeMirror target, final ResolveCtx ctx) {
-        final TypeMirror inputType = ctx.types().getPrimitiveType(from);
+        final TypeMirror inputType = ctx.primitiveType(from);
         final OperationCodegen codegen = inputs -> CodeBlock.of("($T) $L", target, inputs.single());
         return new Step(inputType, Labels.conversion(inputType, target), Weights.STEP, codegen);
     }

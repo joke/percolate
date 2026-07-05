@@ -3,7 +3,6 @@ package io.github.joke.percolate.spi.builtins;
 import com.google.auto.service.AutoService;
 import com.palantir.javapoet.CodeBlock;
 import io.github.joke.percolate.spi.ChildScopeSpec;
-import io.github.joke.percolate.spi.Containers;
 import io.github.joke.percolate.spi.ExpansionStrategy;
 import io.github.joke.percolate.spi.Nullability;
 import io.github.joke.percolate.spi.OperationSpec;
@@ -49,14 +48,14 @@ public final class StreamMap implements ExpansionStrategy {
     @Override
     public Stream<OperationSpec> expand(final ProduceDemand demand, final ResolveCtx ctx) {
         final var to = demand.targetType();
-        if (!Containers.isStream(to, ctx)) {
+        if (!ctx.isStream(to)) {
             return Stream.empty();
         }
-        final var streamErasure = ctx.elements().getTypeElement("java.util.stream.Stream");
+        final var streamErasure = ctx.typeElementNamed("java.util.stream.Stream");
         if (streamErasure == null) {
             return Stream.empty();
         }
-        final var elementOut = Containers.typeArgument(to, 0);
+        final var elementOut = ctx.typeArgument(to, 0);
         final var template = PortType.app(streamErasure, List.of(PortType.variable(0)));
         final var ports = List.of(new Port(SOURCE_ROLE, streamErasure.asType(), Nullability.NON_NULL, template));
         final var mapChild =

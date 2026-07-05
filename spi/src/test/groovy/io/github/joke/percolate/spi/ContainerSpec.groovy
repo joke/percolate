@@ -1,7 +1,8 @@
 package io.github.joke.percolate.spi
 
 import com.palantir.javapoet.CodeBlock
-import io.github.joke.percolate.spi.test.TypeUniverse
+import io.github.joke.percolate.spi.test.FakeResolveCtx
+import io.github.joke.percolate.spi.test.FakeType
 import spock.lang.Shared
 import spock.lang.Specification
 import spock.lang.Tag
@@ -17,16 +18,39 @@ import javax.lang.model.type.TypeMirror
  * presence wrapper does not (supplying {@code wrap}/{@code unwrap}/{@code mapPresence} instead). The per-element
  * transform over the intermediate lives in the generic stream strategy, so no plain operation here carries a child
  * scope — only a wrapper's same-kind {@code mapPresence}, emitted as a type-variable functor lift.
+ *
+ * <p>Unit-tested mock-only over the {@link ResolveCtx} type-query seam (change {@code type-query-seam}): a
+ * {@link FakeResolveCtx} answers every seam question structurally over {@link FakeType} — no javac, no shared
+ * static substrate, parallel-safe by construction (no {@code @Isolated}).
  */
 @Tag('unit')
 class ContainerSpec extends Specification {
 
-    @Shared ResolveCtx ctx = ctx()
-    @Shared TypeMirror listOfString = TypeUniverse.LIST_OF_STRING
-    @Shared TypeMirror listOfInteger = TypeUniverse.LIST_OF_INT
-    @Shared TypeMirror setOfString = decl('java.util.Set', TypeUniverse.STRING)
-    @Shared TypeMirror optionalOfString = decl('java.util.Optional', TypeUniverse.STRING)
-    @Shared TypeMirror streamOfString = decl('java.util.stream.Stream', TypeUniverse.STRING)
+    @Shared TypeElement listElement = Stub(TypeElement)
+    @Shared TypeElement optionalElement = Stub(TypeElement)
+    @Shared TypeElement streamElement = Stub(TypeElement)
+    @Shared TypeElement setElement = Stub(TypeElement)
+    @Shared TypeElement stringElement = Stub(TypeElement)
+    @Shared TypeElement integerElement = Stub(TypeElement)
+
+    @Shared ResolveCtx ctx = new FakeResolveCtx()
+
+    @Shared TypeMirror STRING = FakeType.declared(stringElement)
+    @Shared TypeMirror INTEGER = FakeType.declared(integerElement)
+    @Shared TypeMirror listOfString = FakeType.declared(listElement, STRING)
+    @Shared TypeMirror listOfInteger = FakeType.declared(listElement, INTEGER)
+    @Shared TypeMirror setOfString = FakeType.declared(setElement, STRING)
+    @Shared TypeMirror optionalOfString = FakeType.declared(optionalElement, STRING)
+    @Shared TypeMirror streamOfString = FakeType.declared(streamElement, STRING)
+
+    def setupSpec() {
+        listElement.asType() >> FakeType.declared(listElement)
+        optionalElement.asType() >> FakeType.declared(optionalElement)
+        streamElement.asType() >> FakeType.declared(streamElement)
+        ctx.named('java.util.List', listElement)
+        ctx.named('java.util.Optional', optionalElement)
+        ctx.named('java.util.stream.Stream', streamElement)
+    }
 
     // ---- kind is emergent ----------------------------------------------------------------------------------
 
@@ -50,8 +74,8 @@ class ContainerSpec extends Specification {
         iterate.childScope.empty
         iterate.codegen instanceof OperationCodegen
         iterate.weight == Weights.CONTAINER
-        ctx.types().isSameType(iterate.ports[0].type, listOfString)
-        ctx.types().isSameType(iterate.outputType, streamOfString)
+        ctx.isSameType(iterate.ports[0].type, listOfString)
+        ctx.isSameType(iterate.outputType, streamOfString)
         !iterate.partial
     }
 
@@ -60,17 +84,17 @@ class ContainerSpec extends Specification {
         def specs = new TestSeq().expand(demand(listOfString), ctx).toList()
 
         then: 'a plain collect Stream<String> -> List<String>'
-        def collect = specs.find { ctx.types().isSameType(it.ports[0].type, streamOfString) }
+        def collect = specs.find { ctx.isSameType(it.ports[0].type, streamOfString) }
         collect != null
         collect.childScope.empty
         collect.codegen instanceof OperationCodegen
-        ctx.types().isSameType(collect.outputType, listOfString)
+        ctx.isSameType(collect.outputType, listOfString)
 
         and: 'a plain single-element wrap String -> List<String>'
-        def wrap = specs.find { ctx.types().isSameType(it.ports[0].type, TypeUniverse.STRING) }
+        def wrap = specs.find { ctx.isSameType(it.ports[0].type, STRING) }
         wrap != null
         wrap.childScope.empty
-        ctx.types().isSameType(wrap.outputType, listOfString)
+        ctx.isSameType(wrap.outputType, listOfString)
 
         and: 'nothing carries a child scope (no fused element mapping)'
         specs.every { it.childScope.empty }
@@ -91,8 +115,8 @@ class ContainerSpec extends Specification {
 
         then:
         specs.size() == 1
-        ctx.types().isSameType(specs[0].ports[0].type, streamOfString)
-        ctx.types().isSameType(specs[0].outputType, listOfString)
+        ctx.isSameType(specs[0].ports[0].type, streamOfString)
+        ctx.isSameType(specs[0].outputType, listOfString)
     }
 
     def 'a sequence declines a target that is neither its kind nor its intermediate'() {
@@ -107,21 +131,20 @@ class ContainerSpec extends Specification {
         def specs = new TestWrapper().expand(demand(optionalOfString), ctx).toList()
 
         then: 'a plain wrap String -> Optional<String>, no child scope'
-        def wrap = specs.find { it.childScope.empty && ctx.types().isSameType(it.ports[0].type, TypeUniverse.STRING) }
+        def wrap = specs.find { it.childScope.empty && ctx.isSameType(it.ports[0].type, STRING) }
         wrap != null
         wrap.codegen instanceof OperationCodegen
-        ctx.types().isSameType(wrap.outputType, optionalOfString)
+        ctx.isSameType(wrap.outputType, optionalOfString)
 
         and: 'a scope-owning functor-lift mapPresence Optional<A> -> Optional<String> over a type-variable port'
         def mapping = specs.find { it.childScope.present }
         mapping != null
         mapping.codegen instanceof ScopeCodegen
-        mapping.ports[0].template == PortType.app(ctx.elements().getTypeElement('java.util.Optional'),
-                [PortType.variable(0)])
+        mapping.ports[0].template == PortType.app(optionalElement, [PortType.variable(0)])
         def child = mapping.childScope.get()
         child.elementInTemplate == PortType.variable(0)
-        ctx.types().isSameType(child.elementOut, TypeUniverse.STRING)
-        ctx.types().isSameType(mapping.outputType, optionalOfString)
+        ctx.isSameType(child.elementOut, STRING)
+        ctx.isSameType(mapping.outputType, optionalOfString)
         !mapping.partial
     }
 
@@ -130,18 +153,18 @@ class ContainerSpec extends Specification {
         def specs = new TestWrapper().expand(demand(streamOfString), ctx).toList()
 
         then: 'the iterate produces Stream<String> from Optional<String> (the wrapper of the stream element)'
-        def iterate = specs.find { ctx.types().isSameType(it.ports[0].type, decl('java.util.Optional', TypeUniverse.STRING)) }
+        def iterate = specs.find { ctx.isSameType(it.ports[0].type, optionalOfString) }
         iterate != null
         iterate.childScope.empty
         iterate.codegen instanceof OperationCodegen
-        ctx.types().isSameType(iterate.outputType, streamOfString)
+        ctx.isSameType(iterate.outputType, streamOfString)
         !iterate.partial
         specs.every { !it.childScope.present }
     }
 
     def 'a wrapper unwraps a scalar target, plain and partial, under the demanded nullness'() {
         when:
-        def specs = new TestWrapper().expand(demand(TypeUniverse.STRING, Nullability.NULLABLE), ctx).toList()
+        def specs = new TestWrapper().expand(demand(STRING, Nullability.NULLABLE), ctx).toList()
 
         then:
         specs.size() == 1
@@ -149,8 +172,8 @@ class ContainerSpec extends Specification {
         unwrap.childScope.empty
         unwrap.codegen instanceof OperationCodegen
         unwrap.partial
-        ctx.types().isSameType(unwrap.ports[0].type, optionalOfString)
-        ctx.types().isSameType(unwrap.outputType, TypeUniverse.STRING)
+        ctx.isSameType(unwrap.ports[0].type, optionalOfString)
+        ctx.isSameType(unwrap.outputType, STRING)
         unwrap.outputNullness == Nullability.NULLABLE
     }
 
@@ -163,18 +186,6 @@ class ContainerSpec extends Specification {
                 bindingName     : { '' },
                 nullnessOf      : { TypeMirror t, Element s -> Nullability.NON_NULL },
         ] as ProduceDemand
-    }
-
-    private static TypeMirror decl(final String fqn, final TypeMirror arg) {
-        TypeUniverse.types().getDeclaredType(TypeUniverse.elements().getTypeElement(fqn), arg)
-    }
-
-    private static ResolveCtx ctx() {
-        [
-                elements       : { TypeUniverse.elements() },
-                types          : { TypeUniverse.types() },
-                callableMethods: { null },
-        ] as ResolveCtx
     }
 
     /** A List-shaped sequence: matches List, element is its first type argument, optionally has a List.of wrap. */
@@ -205,18 +216,18 @@ class ContainerSpec extends Specification {
         }
 
         @Override
-        protected TypeMirror element(final TypeMirror type) {
+        protected TypeMirror element(final TypeMirror type, final ResolveCtx c) {
             Containers.typeArgument(type, 0)
         }
 
         @Override
         protected Optional<TypeElement> kindErasure(final ResolveCtx c) {
-            Optional.ofNullable(c.elements().getTypeElement('java.util.List'))
+            Optional.ofNullable(c.typeElementNamed('java.util.List'))
         }
 
         @Override
         protected TypeElement intermediateErasure(final ResolveCtx c) {
-            c.elements().getTypeElement('java.util.stream.Stream')
+            c.typeElementNamed('java.util.stream.Stream')
         }
     }
 
@@ -253,18 +264,18 @@ class ContainerSpec extends Specification {
         }
 
         @Override
-        protected TypeMirror element(final TypeMirror type) {
+        protected TypeMirror element(final TypeMirror type, final ResolveCtx c) {
             Containers.typeArgument(type, 0)
         }
 
         @Override
         protected Optional<TypeElement> kindErasure(final ResolveCtx c) {
-            Optional.ofNullable(c.elements().getTypeElement('java.util.Optional'))
+            Optional.ofNullable(c.typeElementNamed('java.util.Optional'))
         }
 
         @Override
         protected TypeElement intermediateErasure(final ResolveCtx c) {
-            c.elements().getTypeElement('java.util.stream.Stream')
+            c.typeElementNamed('java.util.stream.Stream')
         }
     }
 }

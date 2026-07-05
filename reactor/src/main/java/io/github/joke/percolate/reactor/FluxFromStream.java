@@ -2,7 +2,6 @@ package io.github.joke.percolate.reactor;
 
 import com.google.auto.service.AutoService;
 import com.palantir.javapoet.CodeBlock;
-import io.github.joke.percolate.spi.Containers;
 import io.github.joke.percolate.spi.ExpansionStrategy;
 import io.github.joke.percolate.spi.Nullability;
 import io.github.joke.percolate.spi.OperationCodegen;
@@ -10,7 +9,6 @@ import io.github.joke.percolate.spi.OperationSpec;
 import io.github.joke.percolate.spi.Port;
 import io.github.joke.percolate.spi.ProduceDemand;
 import io.github.joke.percolate.spi.ResolveCtx;
-import io.github.joke.percolate.spi.TypeProbe;
 import io.github.joke.percolate.spi.Weights;
 import java.util.List;
 import java.util.stream.Stream;
@@ -31,10 +29,10 @@ public final class FluxFromStream implements ExpansionStrategy {
     @Override
     public Stream<OperationSpec> expand(final ProduceDemand demand, final ResolveCtx ctx) {
         final var to = demand.targetType();
-        if (!TypeProbe.isType(to, Reactors.FLUX, ctx)) {
+        if (!ctx.isType(to, Reactors.FLUX)) {
             return Stream.empty();
         }
-        return Reactors.declared(ctx, "java.util.stream.Stream", Containers.typeArgument(to, 0))
+        return Reactors.declared(ctx, "java.util.stream.Stream", ctx.typeArgument(to, 0))
                 .map(stream -> OperationSpec.of(
                         "fromStream",
                         (OperationCodegen) inputs -> CodeBlock.of("$T.fromStream($L)", Flux.class, inputs.single()),

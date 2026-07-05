@@ -9,8 +9,6 @@ import io.github.joke.percolate.spi.ResolveCtx;
 import io.github.joke.percolate.spi.Weights;
 import java.util.Optional;
 import javax.lang.model.element.Element;
-import javax.lang.model.element.ElementKind;
-import javax.lang.model.element.Modifier;
 import javax.lang.model.element.TypeElement;
 import javax.lang.model.element.VariableElement;
 import lombok.NoArgsConstructor;
@@ -27,13 +25,10 @@ public final class FieldPathResolver extends Accessor {
 
     @Override
     protected Optional<Step> accessor(final TypeElement parent, final String segment, final ResolveCtx ctx) {
-        for (final var member : Members.declaredMembersOf(parent, ctx)) {
-            final var field = matchField(member, segment);
-            if (field.isPresent()) {
-                return Optional.of(step(field.get(), segment));
-            }
-        }
-        return Optional.empty();
+        return Members.declaredMembersOf(parent, ctx)
+                .flatMap(member -> matchField(member, segment, ctx).stream())
+                .findFirst()
+                .map(field -> step(field, segment));
     }
 
     private static Step step(final VariableElement field, final String segment) {
@@ -41,15 +36,14 @@ public final class FieldPathResolver extends Accessor {
         return new Step(field.asType(), field, "." + segment, Weights.STEP_FIELD, codegen);
     }
 
-    private Optional<VariableElement> matchField(final Element member, final String segment) {
-        if (member.getKind() != ElementKind.FIELD) {
+    private Optional<VariableElement> matchField(final Element member, final String segment, final ResolveCtx ctx) {
+        if (!ctx.isField(member)) {
             return Optional.empty();
         }
         if (!member.getSimpleName().contentEquals(segment)) {
             return Optional.empty();
         }
-        final var modifiers = member.getModifiers();
-        if (modifiers.contains(Modifier.PRIVATE) || modifiers.contains(Modifier.STATIC)) {
+        if (ctx.isPrivate(member) || ctx.isStatic(member)) {
             return Optional.empty();
         }
         return Optional.of((VariableElement) member);

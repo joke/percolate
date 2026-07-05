@@ -7,44 +7,44 @@ import io.github.joke.percolate.processor.internal.graph.MethodScope
 import io.github.joke.percolate.processor.internal.graph.PortBinding
 import io.github.joke.percolate.processor.internal.graph.Scope
 import io.github.joke.percolate.processor.internal.graph.SourceLocation
+import io.github.joke.percolate.processor.test.FakeElements
+import io.github.joke.percolate.processor.test.FakeType
 import io.github.joke.percolate.processor.test.HarnessScope
-import io.github.joke.percolate.processor.test.fixtures.Human
-import io.github.joke.percolate.processor.test.fixtures.Person
-import io.github.joke.percolate.processor.test.fixtures.PersonMapper
 import io.github.joke.percolate.spi.Nullability
 import io.github.joke.percolate.spi.OperationCodegen
 import io.github.joke.percolate.spi.OperationSpec
 import io.github.joke.percolate.spi.Port
 import io.github.joke.percolate.spi.Weights
-import io.github.joke.percolate.spi.test.PrivateTypeUniverse
 import spock.lang.Shared
 import spock.lang.Specification
 import spock.lang.Tag
 
-import javax.lang.model.element.ElementKind
 import javax.lang.model.element.ExecutableElement
-import javax.lang.model.element.TypeElement
+import javax.lang.model.type.TypeMirror
 
 /**
  * {@link SelfCallGuard} seam, unit-tested directly: a method may not be landed calling its own method on its own
  * <b>whole parameter</b> ({@code this.m(param)}) — a degenerate infinite recursion the cost model cannot reject. The
  * guard is purely structural (compares the spec's neutral call-target signature to the enclosing method and checks
  * whether a bound port is that method's parameter-root {@code LEAF}); each case isolates one branch of {@code refuses}.
+ *
+ * <p>Unit-tested mock-only (change {@code type-query-seam}): {@link FakeElements} stand in for the compiled
+ * {@code ExecutableElement}s — the guard only ever reads their name/parameters/return type, never a {@code Types}/
+ * {@code Elements} lookup, so no javac is needed.
  */
 @Tag('unit')
 class SelfCallGuardSpec extends Specification {
 
-    @Shared PrivateTypeUniverse javac = new PrivateTypeUniverse()
-    @Shared TypeElement personType = javac.of(Person)
-    @Shared TypeElement humanType = javac.of(Human)
-    @Shared TypeElement personMapperType = javac.of(PersonMapper)
+    @Shared TypeMirror personType = FakeType.declared('Person')
+    @Shared TypeMirror humanType = FakeType.declared('Human')
+    @Shared TypeMirror stringType = FakeType.declared('String')
     @Shared OperationCodegen codegen = { inc -> CodeBlock.of('x') } as OperationCodegen
 
     SelfCallGuard guard = new SelfCallGuard()
 
     def 'refuses a same-signature call target bound to its own whole-parameter root'() {
         given:
-        def method = methodNamed(PersonMapper, 'map')
+        def method = mapMethod()
         def scope = new MethodScope(method)
 
         expect:
@@ -53,7 +53,7 @@ class SelfCallGuardSpec extends Specification {
 
     def 'does not refuse when the scope is not a method scope (a child/element scope cannot self-recur)'() {
         given:
-        def method = methodNamed(PersonMapper, 'map')
+        def method = mapMethod()
 
         expect: 'the self-call shape is identical, but a non-MethodScope short-circuits the guard'
         !guard.refuses(new HarnessScope('element'), call('map', method),
@@ -62,11 +62,11 @@ class SelfCallGuardSpec extends Specification {
 
     def 'does not refuse a producer that records no call target'() {
         given:
-        def method = methodNamed(PersonMapper, 'map')
+        def method = mapMethod()
         def scope = new MethodScope(method)
         def producer = OperationSpec.of('new', codegen, Weights.STEP,
-                [Port.reuse('arg', personType.asType(), Nullability.NON_NULL)],
-                humanType.asType(), Nullability.NON_NULL)
+                [Port.reuse('arg', personType, Nullability.NON_NULL)],
+                humanType, Nullability.NON_NULL)
 
         expect:
         !guard.refuses(scope, producer, [bind(scope, paramRoot(method))])
@@ -74,18 +74,19 @@ class SelfCallGuardSpec extends Specification {
 
     def 'does not refuse delegation to a different-signature method'() {
         given:
-        def method = methodNamed(PersonMapper, 'map')
+        def method = mapMethod()
         def scope = new MethodScope(method)
+        def getFirstName = FakeElements.method('getFirstName', stringType)
 
         expect: 'getFirstName() and map(Person) differ in signature — not a self-call'
-        !guard.refuses(scope, call('getFirstName', methodNamed(Person, 'getFirstName')), [bind(scope, paramRoot(method))])
+        !guard.refuses(scope, call('getFirstName', getFirstName), [bind(scope, paramRoot(method))])
     }
 
     def 'does not refuse a self-call bound to a sub-part of the parameter (an ACCESS source), not the whole parameter'() {
         given:
-        def method = methodNamed(PersonMapper, 'map')
+        def method = mapMethod()
         def scope = new MethodScope(method)
-        def subPart = new SourceLocation(new AccessPath([method.parameters[0].simpleName.toString(), 'firstName']))
+        def subPart = new SourceLocation(new AccessPath(['person', 'firstName']))
 
         expect:
         !guard.refuses(scope, call('map', method), [bind(scope, subPart)])
@@ -93,24 +94,22 @@ class SelfCallGuardSpec extends Specification {
 
     // ---- helpers ----------------------------------------------------------------------------------------------
 
-    private OperationSpec call(final String label, final ExecutableElement target) {
-        OperationSpec.callOf(label, codegen, Weights.METHOD,
-                [Port.reuse('arg', personType.asType(), Nullability.NON_NULL)],
-                humanType.asType(), Nullability.NON_NULL, target)
-    }
-
-    private SourceLocation paramRoot(final ExecutableElement method) {
+    private static SourceLocation paramRoot(final ExecutableElement method) {
         new SourceLocation(AccessPath.of(method.parameters[0].simpleName.toString()))
     }
 
-    private PortBinding bind(final Scope scope, final SourceLocation location) {
-        new PortBinding(Port.reuse('arg', personType.asType(), Nullability.NON_NULL),
-                new AddValue(scope, location, personType.asType(), Nullability.NON_NULL))
+    private ExecutableElement mapMethod() {
+        FakeElements.method('map', humanType, FakeElements.param('person', personType))
     }
 
-    private ExecutableElement methodNamed(final Class<?> type, final String name) {
-        javac.of(type).enclosedElements.find {
-            it.kind == ElementKind.METHOD && it.simpleName.toString() == name
-        } as ExecutableElement
+    private OperationSpec call(final String label, final ExecutableElement target) {
+        OperationSpec.callOf(label, codegen, Weights.METHOD,
+                [Port.reuse('arg', personType, Nullability.NON_NULL)],
+                humanType, Nullability.NON_NULL, target)
+    }
+
+    private PortBinding bind(final Scope scope, final SourceLocation location) {
+        new PortBinding(Port.reuse('arg', personType, Nullability.NON_NULL),
+                new AddValue(scope, location, personType, Nullability.NON_NULL))
     }
 }

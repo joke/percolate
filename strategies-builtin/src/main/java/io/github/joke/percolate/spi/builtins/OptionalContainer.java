@@ -2,7 +2,6 @@ package io.github.joke.percolate.spi.builtins;
 
 import com.google.auto.service.AutoService;
 import com.palantir.javapoet.CodeBlock;
-import io.github.joke.percolate.spi.Containers;
 import io.github.joke.percolate.spi.ExpansionStrategy;
 import io.github.joke.percolate.spi.Nullability;
 import io.github.joke.percolate.spi.ResolveCtx;
@@ -25,17 +24,17 @@ public final class OptionalContainer extends StreamContainer {
 
     @Override
     protected boolean matches(final TypeMirror type, final ResolveCtx ctx) {
-        return Containers.isOptional(type, ctx);
+        return ctx.isOptional(type);
     }
 
     @Override
-    protected TypeMirror element(final TypeMirror type) {
-        return Containers.typeArgument(type, 0);
+    protected TypeMirror element(final TypeMirror type, final ResolveCtx ctx) {
+        return ctx.typeArgument(type, 0);
     }
 
     @Override
     protected Optional<TypeElement> kindErasure(final ResolveCtx ctx) {
-        return Optional.ofNullable(ctx.elements().getTypeElement("java.util.Optional"));
+        return Optional.ofNullable(ctx.typeElementNamed("java.util.Optional"));
     }
 
     @Override

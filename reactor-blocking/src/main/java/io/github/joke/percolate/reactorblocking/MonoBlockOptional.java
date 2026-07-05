@@ -2,7 +2,6 @@ package io.github.joke.percolate.reactorblocking;
 
 import com.google.auto.service.AutoService;
 import com.palantir.javapoet.CodeBlock;
-import io.github.joke.percolate.spi.Containers;
 import io.github.joke.percolate.spi.ExpansionStrategy;
 import io.github.joke.percolate.spi.Nullability;
 import io.github.joke.percolate.spi.OperationCodegen;
@@ -35,10 +34,10 @@ public final class MonoBlockOptional implements ExpansionStrategy, SourceProject
     @Override
     public Stream<OperationSpec> expand(final ProduceDemand demand, final ResolveCtx ctx) {
         final var to = demand.targetType();
-        if (!Containers.isOptional(to, ctx)) {
+        if (!ctx.isOptional(to)) {
             return Stream.empty();
         }
-        return Blockings.declared(ctx, Blockings.MONO, Containers.typeArgument(to, 0))
+        return Blockings.declared(ctx, Blockings.MONO, ctx.typeArgument(to, 0))
                 .map(mono -> OperationSpec.of(
                         "blockOptional",
                         (OperationCodegen) inputs -> CodeBlock.of("$L.blockOptional()", inputs.single()),

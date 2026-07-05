@@ -16,6 +16,9 @@ For testing strategies against the same type substrate the built-ins use:
 testImplementation testFixtures(project(':spi'))
 ```
 
-This exposes `TypeUniverse` and `HarnessResolveCtx` in `io.github.joke.percolate.spi.test`.
+This exposes `TypeUniverse` and `PrivateTypeUniverse` in `io.github.joke.percolate.spi.test` — real, javac-backed
+`ResolveCtx` substrates kept transitionally for the `strategies-builtin` specs not yet rewritten against a mocked
+`ResolveCtx` (change `type-query-seam`). New unit specs should prefer `ResolveCtx ctx = Mock()` (or, for
+algorithm-heavy specs, a hand-written javac-free fake) over either.
 
 From this change forward, `percolate-spi` is a published contract. Changes to it are either non-breaking additions or breaking version bumps.

@@ -15,11 +15,12 @@ import io.github.joke.percolate.processor.internal.graph.TargetPath
 import io.github.joke.percolate.processor.model.MapperMappings
 import io.github.joke.percolate.processor.model.MappingDirective
 import io.github.joke.percolate.processor.model.MethodMappings
+import io.github.joke.percolate.processor.test.FakeElements
+import io.github.joke.percolate.processor.test.FakeType
 import io.github.joke.percolate.spi.Nullability
 import io.github.joke.percolate.spi.OperationCodegen
 import io.github.joke.percolate.spi.Port
 import io.github.joke.percolate.spi.Weights
-import io.github.joke.percolate.spi.test.PrivateTypeUniverse
 import spock.lang.Shared
 import spock.lang.Specification
 import spock.lang.Subject
@@ -29,8 +30,8 @@ import javax.annotation.processing.Messager
 import javax.lang.model.element.AnnotationMirror
 import javax.lang.model.element.AnnotationValue
 import javax.lang.model.element.ExecutableElement
-import javax.lang.model.element.Name
 import javax.lang.model.element.TypeElement
+import javax.lang.model.type.TypeKind
 import javax.lang.model.type.TypeMirror
 import javax.tools.Diagnostic
 
@@ -38,12 +39,18 @@ import javax.tools.Diagnostic
  * {@link ValidateConstantDefaultLegalityStage} seam, unit-tested directly: against the resolved target type (read off
  * a constructed {@link MapperGraph}) it diagnoses a constant/default that cannot be coerced, and a {@code defaultValue}
  * whose source can never be absent (a {@code NON_NULL} non-{@code Optional} reference or a primitive). Driven through
- * {@code run} with a hand-built graph + mappings; the target/source types come from {@link PrivateTypeUniverse}.
+ * {@code run} with a hand-built graph + mappings.
+ *
+ * <p>Unit-tested mock-only (change {@code type-query-seam}): the stage never reaches a {@code ResolveCtx} (it is
+ * constructed per-mapper only inside {@code ExpandStage}), so its {@code TypeMirror}/{@code Element} navigation is
+ * single-hop and a {@link FakeType} token stands in for the compiled type without javac.
  */
 @Tag('unit')
 class ValidateConstantDefaultLegalityStageSpec extends Specification {
 
-    @Shared PrivateTypeUniverse javac = new PrivateTypeUniverse()
+    @Shared TypeMirror INT = FakeType.marker(TypeKind.INT)
+    @Shared TypeMirror STRING = FakeType.declared('java.lang.String')
+    @Shared TypeMirror DAY_OF_WEEK = FakeType.declared('DayOfWeek')
 
     def messager = Mock(Messager)
     def diagnostics = new Diagnostics(messager)
@@ -51,7 +58,7 @@ class ValidateConstantDefaultLegalityStageSpec extends Specification {
     def stage = new ValidateConstantDefaultLegalityStage(diagnostics)
 
     def method = Mock(ExecutableElement) {
-        getSimpleName() >> Stub(Name) { toString() >> 'map' }
+        getSimpleName() >> FakeElements.name('map')
         getParameters() >> []
     }
     def mirror = Mock(AnnotationMirror)
@@ -61,7 +68,7 @@ class ValidateConstantDefaultLegalityStageSpec extends Specification {
 
     def 'a constant that cannot be coerced to the target type is diagnosed at the constant value'() {
         given:
-        def ctx = context(returnRoot(javac.INT, Nullability.NON_NULL),
+        def ctx = context(returnRoot(INT, Nullability.NON_NULL),
                 new MappingDirective('', null, 'abc', null, mirror, value(), null, constantValue, null))
 
         when:
@@ -74,7 +81,7 @@ class ValidateConstantDefaultLegalityStageSpec extends Specification {
 
     def 'a constant that coerces to the target type passes with no diagnostic'() {
         given:
-        def ctx = context(returnRoot(javac.INT, Nullability.NON_NULL),
+        def ctx = context(returnRoot(INT, Nullability.NON_NULL),
                 new MappingDirective('', null, '42', null, mirror, value(), null, constantValue, null))
 
         when:
@@ -87,8 +94,8 @@ class ValidateConstantDefaultLegalityStageSpec extends Specification {
     def 'a defaultValue whose NON_NULL non-Optional source can never be absent is a dead default'() {
         given:
         def graph = new MapperGraph()
-        graph.apply(new AddValue(scope, root(), javac.STRING, Nullability.NON_NULL))
-        graph.apply(new AddValue(scope, source('in'), javac.STRING, Nullability.NON_NULL))
+        graph.apply(new AddValue(scope, root(), STRING, Nullability.NON_NULL))
+        graph.apply(new AddValue(scope, source('in'), STRING, Nullability.NON_NULL))
         def ctx = context(graph,
                 new MappingDirective('', 'in', null, 'fallback', mirror, value(), value(), null, defaultValue))
 
@@ -102,8 +109,8 @@ class ValidateConstantDefaultLegalityStageSpec extends Specification {
     def 'a defaultValue with a NULLABLE source is live — no diagnostic'() {
         given:
         def graph = new MapperGraph()
-        graph.apply(new AddValue(scope, root(), javac.STRING, Nullability.NON_NULL))
-        graph.apply(new AddValue(scope, source('in'), javac.STRING, Nullability.NULLABLE))
+        graph.apply(new AddValue(scope, root(), STRING, Nullability.NON_NULL))
+        graph.apply(new AddValue(scope, source('in'), STRING, Nullability.NULLABLE))
         def ctx = context(graph,
                 new MappingDirective('', 'in', null, 'fallback', mirror, value(), value(), null, defaultValue))
 
@@ -116,7 +123,7 @@ class ValidateConstantDefaultLegalityStageSpec extends Specification {
 
     def 'a directive with neither a constant nor a defaultValue is not checked'() {
         given:
-        def ctx = context(returnRoot(javac.STRING, Nullability.NON_NULL),
+        def ctx = context(returnRoot(STRING, Nullability.NON_NULL),
                 new MappingDirective('', 'in', null, null, mirror, value(), value(), null, null))
 
         when:
@@ -128,7 +135,7 @@ class ValidateConstantDefaultLegalityStageSpec extends Specification {
 
     def 'nothing is checked when the context has no mappings'() {
         def ctx = new MapperContext(Mock(TypeElement))
-        ctx.graph = returnRoot(javac.INT, Nullability.NON_NULL)
+        ctx.graph = returnRoot(INT, Nullability.NON_NULL)
 
         when:
         stage.run(ctx)
@@ -162,7 +169,7 @@ class ValidateConstantDefaultLegalityStageSpec extends Specification {
     }
 
     def 'a defaultValue that cannot be coerced to the target type is diagnosed at the default value'() {
-        def ctx = context(returnRoot(javac.INT, Nullability.NON_NULL),
+        def ctx = context(returnRoot(INT, Nullability.NON_NULL),
                 new MappingDirective('', null, null, 'abc', mirror, value(), null, null, defaultValue))
 
         when:
@@ -174,7 +181,7 @@ class ValidateConstantDefaultLegalityStageSpec extends Specification {
     }
 
     def 'a defaultValue with no source and a coercible value passes with no diagnostic'() {
-        def ctx = context(returnRoot(javac.STRING, Nullability.NON_NULL),
+        def ctx = context(returnRoot(STRING, Nullability.NON_NULL),
                 new MappingDirective('', null, null, 'fallback', mirror, value(), null, null, defaultValue))
 
         when:
@@ -186,8 +193,8 @@ class ValidateConstantDefaultLegalityStageSpec extends Specification {
 
     def 'a defaultValue whose source is a primitive can never fire — a dead default'() {
         def graph = new MapperGraph()
-        graph.apply(new AddValue(scope, root(), javac.STRING, Nullability.NON_NULL))
-        graph.apply(new AddValue(scope, source('in'), javac.INT, Nullability.NON_NULL))
+        graph.apply(new AddValue(scope, root(), STRING, Nullability.NON_NULL))
+        graph.apply(new AddValue(scope, source('in'), INT, Nullability.NON_NULL))
         def ctx = context(graph,
                 new MappingDirective('', 'in', null, 'fallback', mirror, value(), value(), null, defaultValue))
 
@@ -199,10 +206,9 @@ class ValidateConstantDefaultLegalityStageSpec extends Specification {
     }
 
     def 'a defaultValue whose NON_NULL Optional source is live — Optional can be empty, no diagnostic'() {
-        def optionalOfString = javac.types().getDeclaredType(javac.element('java.util.Optional'),
-                javac.STRING)
+        def optionalOfString = FakeType.declared('java.util.Optional', STRING)
         def graph = new MapperGraph()
-        graph.apply(new AddValue(scope, root(), javac.STRING, Nullability.NON_NULL))
+        graph.apply(new AddValue(scope, root(), STRING, Nullability.NON_NULL))
         graph.apply(new AddValue(scope, source('in'), optionalOfString, Nullability.NON_NULL))
         def ctx = context(graph,
                 new MappingDirective('', 'in', null, 'fallback', mirror, value(), value(), null, defaultValue))
@@ -216,9 +222,9 @@ class ValidateConstantDefaultLegalityStageSpec extends Specification {
 
     def 'a defaultValue whose NON_NULL array source can never be absent is a dead default'() {
         // an array is a non-Optional reference type, exercising the non-DeclaredType branch of isOptional
-        def arrayOfString = javac.types().getArrayType(javac.STRING)
+        def arrayOfString = FakeType.array(STRING)
         def graph = new MapperGraph()
-        graph.apply(new AddValue(scope, root(), javac.STRING, Nullability.NON_NULL))
+        graph.apply(new AddValue(scope, root(), STRING, Nullability.NON_NULL))
         graph.apply(new AddValue(scope, source('in'), arrayOfString, Nullability.NON_NULL))
         def ctx = context(graph,
                 new MappingDirective('', 'in', null, 'fallback', mirror, value(), value(), null, defaultValue))
@@ -256,7 +262,7 @@ class ValidateConstantDefaultLegalityStageSpec extends Specification {
     }
 
     def 'a coercion failure to a declared target type names the simple type name'() {
-        def ctx = context(returnRoot(javac.DAY_OF_WEEK, Nullability.NON_NULL),
+        def ctx = context(returnRoot(DAY_OF_WEEK, Nullability.NON_NULL),
                 new MappingDirective('', null, 'NOTADAY', null, mirror, value(), null, constantValue, null))
 
         when:
@@ -269,10 +275,10 @@ class ValidateConstantDefaultLegalityStageSpec extends Specification {
 
     private MapperGraph nestedIntChildGraph() {
         def graph = new MapperGraph()
-        def child = new AddValue(scope, new TargetLocation(new TargetPath(['x'])), javac.INT, Nullability.NON_NULL)
+        def child = new AddValue(scope, new TargetLocation(new TargetPath(['x'])), INT, Nullability.NON_NULL)
         graph.apply(new AddOperation('build', { CodeBlock.of('build') } as OperationCodegen, Weights.STEP, false,
-                [new PortBinding(new Port('x', javac.INT, Nullability.NON_NULL), child)],
-                new AddValue(scope, root(), javac.STRING, Nullability.NON_NULL), Optional.empty()))
+                [new PortBinding(new Port('x', INT, Nullability.NON_NULL), child)],
+                new AddValue(scope, root(), STRING, Nullability.NON_NULL), Optional.empty()))
         graph
     }
 

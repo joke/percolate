@@ -2,7 +2,6 @@ package io.github.joke.percolate.reactorblocking;
 
 import com.google.auto.service.AutoService;
 import com.palantir.javapoet.CodeBlock;
-import io.github.joke.percolate.spi.Containers;
 import io.github.joke.percolate.spi.ExpansionStrategy;
 import io.github.joke.percolate.spi.Nullability;
 import io.github.joke.percolate.spi.OperationCodegen;
@@ -36,10 +35,10 @@ public final class FluxToStream implements ExpansionStrategy, SourceProjection {
     @Override
     public Stream<OperationSpec> expand(final ProduceDemand demand, final ResolveCtx ctx) {
         final var to = demand.targetType();
-        if (!Containers.isStream(to, ctx)) {
+        if (!ctx.isStream(to)) {
             return Stream.empty();
         }
-        return Blockings.declared(ctx, Blockings.FLUX, Containers.typeArgument(to, 0))
+        return Blockings.declared(ctx, Blockings.FLUX, ctx.typeArgument(to, 0))
                 .map(flux -> OperationSpec.of(
                         "toStream",
                         (OperationCodegen) inputs -> CodeBlock.of("$L.toStream()", inputs.single()),

@@ -1,0 +1,256 @@
+package io.github.joke.percolate.processor.test
+
+import javax.lang.model.element.AnnotationMirror
+import javax.lang.model.element.AnnotationValue
+import javax.lang.model.element.Element
+import javax.lang.model.element.ElementKind
+import javax.lang.model.element.ElementVisitor
+import javax.lang.model.element.ExecutableElement
+import javax.lang.model.element.Modifier
+import javax.lang.model.element.Name
+import javax.lang.model.element.NestingKind
+import javax.lang.model.element.TypeElement
+import javax.lang.model.element.TypeParameterElement
+import javax.lang.model.element.VariableElement
+import javax.lang.model.type.TypeMirror
+
+/**
+ * Javac-free {@link ExecutableElement}/{@link VariableElement}/{@link Name} stand-ins for engine specs that need a
+ * "method with these parameters, returning this type" without compiling a fixture — the driver/guard/scope code
+ * under test only ever calls {@code getSimpleName()}/{@code getParameters()}/{@code asType()}/{@code getReturnType()}
+ * on them (never a {@code Types}/{@code Elements} lookup), so a hand-built stand-in is exact, not an approximation.
+ */
+class FakeElements {
+
+    static Name name(final String value) {
+        new FakeName(value)
+    }
+
+    static VariableElement param(final String paramName, final TypeMirror type) {
+        new FakeVariableElement(name(paramName), type)
+    }
+
+    static ExecutableElement method(final String methodName, final TypeMirror returnType, final VariableElement... params) {
+        new FakeExecutableElement(name(methodName), returnType, params.toList())
+    }
+
+    /**
+     * A minimal {@link TypeElement} exposing only {@code getSimpleName()}/{@code getQualifiedName()} — enough for
+     * {@code DeclaredType.asElement()} and simple FQN-sentinel checks (e.g. {@code isOptional}'s
+     * {@code getQualifiedName().contentEquals("java.util.Optional")}). Both names return the same string; callers
+     * that need a real simple-vs-qualified distinction should pass whichever form their assertion actually reads.
+     */
+    static TypeElement simpleElement(final String elementName) {
+        new SimpleElement(name(elementName))
+    }
+
+    private static final class SimpleElement extends UnsupportedElement implements TypeElement {
+        private final Name elementName
+
+        SimpleElement(final Name elementName) {
+            this.elementName = elementName
+        }
+
+        @Override
+        Name getSimpleName() {
+            elementName
+        }
+
+        @Override
+        Name getQualifiedName() {
+            elementName
+        }
+
+        @Override
+        NestingKind getNestingKind() {
+            NestingKind.TOP_LEVEL
+        }
+
+        final TypeMirror superclass = null
+
+        @Override
+        List<? extends TypeMirror> getInterfaces() {
+            []
+        }
+
+        @Override
+        List<? extends TypeParameterElement> getTypeParameters() {
+            []
+        }
+
+        @Override
+        ElementKind getKind() {
+            ElementKind.CLASS
+        }
+
+        @Override
+        String toString() {
+            elementName.toString()
+        }
+    }
+
+    private static final class FakeName implements Name {
+        private final String value
+
+        FakeName(final String value) {
+            this.value = value
+        }
+
+        @Override
+        boolean contentEquals(final CharSequence other) {
+            value.contentEquals(other)
+        }
+
+        @Override
+        int length() {
+            value.length()
+        }
+
+        @Override
+        char charAt(final int index) {
+            value.charAt(index)
+        }
+
+        @Override
+        CharSequence subSequence(final int start, final int end) {
+            value.subSequence(start, end)
+        }
+
+        @Override
+        String toString() {
+            value
+        }
+    }
+
+    private static abstract class UnsupportedElement implements Element {
+        @Override
+        TypeMirror asType() {
+            throw new UnsupportedOperationException()
+        }
+
+        @Override
+        ElementKind getKind() {
+            throw new UnsupportedOperationException()
+        }
+
+        @Override
+        Set<Modifier> getModifiers() {
+            throw new UnsupportedOperationException()
+        }
+
+        @Override
+        Name getSimpleName() {
+            throw new UnsupportedOperationException()
+        }
+
+        @Override
+        Element getEnclosingElement() {
+            throw new UnsupportedOperationException()
+        }
+
+        @Override
+        List<? extends Element> getEnclosedElements() {
+            throw new UnsupportedOperationException()
+        }
+
+        @Override
+        List<? extends AnnotationMirror> getAnnotationMirrors() {
+            []
+        }
+
+        @Override
+        def <A extends java.lang.annotation.Annotation> A getAnnotation(final Class<A> annotationType) {
+            null
+        }
+
+        @Override
+        def <R, P> R accept(final ElementVisitor<R, P> v, final P p) {
+            null
+        }
+
+        @Override
+        def <A extends java.lang.annotation.Annotation> A[] getAnnotationsByType(final Class<A> annotationType) {
+            (A[]) []
+        }
+    }
+
+    private static final class FakeVariableElement extends UnsupportedElement implements VariableElement {
+        private final Name paramName
+        private final TypeMirror type
+        final Object constantValue = null
+
+        FakeVariableElement(final Name paramName, final TypeMirror type) {
+            this.paramName = paramName
+            this.type = type
+        }
+
+        @Override
+        Name getSimpleName() {
+            paramName
+        }
+
+        @Override
+        TypeMirror asType() {
+            type
+        }
+
+        @Override
+        String toString() {
+            paramName.toString()
+        }
+    }
+
+    private static final class FakeExecutableElement extends UnsupportedElement implements ExecutableElement {
+        private final Name methodName
+        private final TypeMirror returnType
+        private final List<VariableElement> params
+        final AnnotationValue defaultValue = null
+        final TypeMirror receiverType = null
+
+        FakeExecutableElement(final Name methodName, final TypeMirror returnType, final List<VariableElement> params) {
+            this.methodName = methodName
+            this.returnType = returnType
+            this.params = params
+        }
+
+        @Override
+        Name getSimpleName() {
+            methodName
+        }
+
+        @Override
+        TypeMirror getReturnType() {
+            returnType
+        }
+
+        @Override
+        List<? extends VariableElement> getParameters() {
+            params
+        }
+
+        @Override
+        List<? extends TypeParameterElement> getTypeParameters() {
+            []
+        }
+
+        @Override
+        List<? extends TypeMirror> getThrownTypes() {
+            []
+        }
+
+        @Override
+        boolean isDefault() {
+            false
+        }
+
+        @Override
+        boolean isVarArgs() {
+            false
+        }
+
+        @Override
+        String toString() {
+            methodName.toString() + '(' + params*.asType().join(',') + ')'
+        }
+    }
+}

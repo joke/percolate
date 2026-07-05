@@ -14,8 +14,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.stream.Stream;
-import javax.lang.model.type.DeclaredType;
-import javax.lang.model.type.TypeKind;
 import javax.lang.model.type.TypeMirror;
 import lombok.RequiredArgsConstructor;
 import org.jspecify.annotations.Nullable;
@@ -109,7 +107,7 @@ final class Grounding {
             return false;
         }
         if (template instanceof PortType.Concrete) {
-            return ctx.types().isSameType(((PortType.Concrete) template).getType(), source);
+            return ctx.isSameType(((PortType.Concrete) template).getType(), source);
         }
         if (template instanceof PortType.Var) {
             return bindVariable(((PortType.Var) template).getIndex(), source, bindings);
@@ -123,7 +121,7 @@ final class Grounding {
         }
         final var existing = bindings.get(index);
         if (existing != null) {
-            return ctx.types().isSameType(existing, source);
+            return ctx.isSameType(existing, source);
         }
         bindings.put(index, source);
         return true;
@@ -134,21 +132,19 @@ final class Grounding {
             final TypeMirror source,
             final Map<Integer, TypeMirror> bindings,
             final int depth) {
-        if (source.getKind() != TypeKind.DECLARED) {
+        if (!ctx.isDeclared(source)) {
             return false;
         }
-        final var types = ctx.types();
-        if (!types.isSameType(
-                types.erasure(source), types.erasure(template.getErasure().asType()))) {
+        if (!ctx.isSameType(
+                ctx.erasure(source), ctx.erasure(template.getErasure().asType()))) {
             return false;
         }
-        final var args = ((DeclaredType) source).getTypeArguments();
         final var templateArgs = template.getArgs();
-        if (args.size() != templateArgs.size()) {
+        if (ctx.typeArgumentCount(source) != templateArgs.size()) {
             return false;
         }
         for (int i = 0; i < templateArgs.size(); i++) {
-            if (!unify(templateArgs.get(i), args.get(i), bindings, depth + 1)) {
+            if (!unify(templateArgs.get(i), ctx.typeArgument(source, i), bindings, depth + 1)) {
                 return false;
             }
         }
@@ -156,9 +152,8 @@ final class Grounding {
     }
 
     /** Restrict-v1 policy: a variable matches only an invariant reference argument; never a wildcard/type-variable. */
-    private static boolean isGroundable(final TypeMirror source) {
-        final var kind = source.getKind();
-        return kind == TypeKind.DECLARED || kind == TypeKind.ARRAY;
+    private boolean isGroundable(final TypeMirror source) {
+        return ctx.isDeclared(source) || ctx.isArray(source);
     }
 
     // ---- instantiation (substitute the bindings to build a fully-concrete spec) ---------------------------
@@ -230,7 +225,7 @@ final class Grounding {
             final var app = (PortType.App) template;
             final var args =
                     app.getArgs().stream().map(arg -> ground(arg, bindings)).toArray(TypeMirror[]::new);
-            return ctx.types().getDeclaredType(app.getErasure(), args);
+            return ctx.declaredType(app.getErasure(), args);
         }
         throw new IllegalStateException("Unknown PortType: " + template);
     }

@@ -6,13 +6,11 @@ import io.github.joke.percolate.spi.Conversion;
 import io.github.joke.percolate.spi.ExpansionStrategy;
 import io.github.joke.percolate.spi.OperationCodegen;
 import io.github.joke.percolate.spi.ResolveCtx;
-import io.github.joke.percolate.spi.TypeProbe;
 import io.github.joke.percolate.spi.Weights;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Stream;
-import javax.lang.model.type.PrimitiveType;
 import javax.lang.model.type.TypeKind;
 import javax.lang.model.type.TypeMirror;
 import lombok.NoArgsConstructor;
@@ -50,7 +48,7 @@ public final class PrimitiveWrapperConversion extends Conversion {
 
     @Override
     protected Stream<Step> conversions(final TypeMirror target, final ResolveCtx ctx) {
-        if (target.getKind().isPrimitive()) {
+        if (ctx.isPrimitive(target)) {
             return Stream.of(unbox(target, ctx));
         }
         final var primitive = unboxedOrNull(target, ctx);
@@ -63,9 +61,8 @@ public final class PrimitiveWrapperConversion extends Conversion {
     }
 
     private static Step unbox(final TypeMirror primitiveTarget, final ResolveCtx ctx) {
-        final TypeMirror wrapper =
-                ctx.types().boxedClass((PrimitiveType) primitiveTarget).asType();
-        final var accessor = Objects.requireNonNull(UNBOX_ACCESSOR.get(primitiveTarget.getKind()));
+        final TypeMirror wrapper = ctx.boxed(primitiveTarget);
+        final var accessor = Objects.requireNonNull(UNBOX_ACCESSOR.get(ctx.kind(primitiveTarget)));
         final OperationCodegen codegen = inputs -> CodeBlock.of("$L.$N()", inputs.single(), accessor);
         return new Step(wrapper, Labels.conversion(wrapper, primitiveTarget), Weights.STEP, codegen);
     }
@@ -73,10 +70,10 @@ public final class PrimitiveWrapperConversion extends Conversion {
     /** The primitive a declared wrapper target unboxes to, or {@code null} when the target is not a wrapper. */
     @Nullable
     private static TypeMirror unboxedOrNull(final TypeMirror target, final ResolveCtx ctx) {
-        return TypeProbe.asTypeElement(target, ctx)
+        return ctx.asTypeElement(target)
                 .map(element -> element.getQualifiedName().toString())
                 .filter(WRAPPER_FQNS::contains)
-                .<TypeMirror>map(fqn -> ctx.types().unboxedType(target))
+                .<TypeMirror>map(fqn -> ctx.unboxed(target))
                 .orElse(null);
     }
 }

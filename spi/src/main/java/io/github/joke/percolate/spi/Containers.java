@@ -6,15 +6,22 @@ import javax.lang.model.type.TypeKind;
 import javax.lang.model.type.TypeMirror;
 import lombok.experimental.UtilityClass;
 
+/**
+ * Container-kind predicates and structural accessors, forwarding to the {@link ResolveCtx} type-query seam (change
+ * {@code type-query-seam}) — kept as a public utility for source compatibility; new call sites should prefer the
+ * {@code ResolveCtx} methods directly. The four purely-syntactic accessors ({@link #isArray}, {@link #isReferenceType},
+ * {@link #typeArgument}, {@link #arrayComponentType}) never needed a compiler-backed {@code ResolveCtx} and keep their
+ * original no-{@code ResolveCtx} shape.
+ */
 @UtilityClass
 public class Containers {
 
     public boolean isOptional(final TypeMirror t, final ResolveCtx ctx) {
-        return isDeclaredTypeErasureMatch(t, "java.util.Optional", ctx);
+        return ctx.isOptional(t);
     }
 
     public boolean isStream(final TypeMirror t, final ResolveCtx ctx) {
-        return isDeclaredTypeErasureMatch(t, "java.util.stream.Stream", ctx);
+        return ctx.isStream(t);
     }
 
     /** Whether {@code element} is a reference type — i.e. usable as a generic type argument (not a primitive). */
@@ -24,35 +31,19 @@ public class Containers {
     }
 
     public boolean isList(final TypeMirror t, final ResolveCtx ctx) {
-        return isDeclaredTypeErasureMatch(t, "java.util.List", ctx);
+        return ctx.isList(t);
     }
 
     public boolean isSet(final TypeMirror t, final ResolveCtx ctx) {
-        return isDeclaredTypeErasureMatch(t, "java.util.Set", ctx);
+        return ctx.isSet(t);
     }
 
     public boolean isCollection(final TypeMirror t, final ResolveCtx ctx) {
-        if (t.getKind() != TypeKind.DECLARED) {
-            return false;
-        }
-        final var collectionElement = ctx.elements().getTypeElement("java.util.Collection");
-        if (collectionElement == null) {
-            return false;
-        }
-        final var types = ctx.types();
-        return types.isAssignable(types.erasure(t), types.erasure(collectionElement.asType()));
+        return ctx.isCollection(t);
     }
 
     public boolean isIterable(final TypeMirror t, final ResolveCtx ctx) {
-        if (t.getKind() != TypeKind.DECLARED) {
-            return false;
-        }
-        final var iterableElement = ctx.elements().getTypeElement("java.lang.Iterable");
-        if (iterableElement == null) {
-            return false;
-        }
-        final var types = ctx.types();
-        return types.isAssignable(types.erasure(t), types.erasure(iterableElement.asType()));
+        return ctx.isIterable(t);
     }
 
     public boolean isArray(final TypeMirror t) {
@@ -77,9 +68,5 @@ public class Containers {
             throw new IllegalArgumentException("Not an array type: " + arrayType);
         }
         return ((ArrayType) arrayType).getComponentType();
-    }
-
-    private boolean isDeclaredTypeErasureMatch(final TypeMirror t, final String fqn, final ResolveCtx ctx) {
-        return TypeProbe.isType(t, fqn, ctx);
     }
 }

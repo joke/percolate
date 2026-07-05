@@ -2,7 +2,6 @@ package io.github.joke.percolate.spi.builtins;
 
 import com.google.auto.service.AutoService;
 import com.palantir.javapoet.CodeBlock;
-import io.github.joke.percolate.spi.Containers;
 import io.github.joke.percolate.spi.ExpansionStrategy;
 import io.github.joke.percolate.spi.ResolveCtx;
 import io.github.joke.percolate.spi.SourceProjection;
@@ -22,8 +21,8 @@ public final class ListContainer extends CollectionContainer {
     }
 
     @Override
-    protected TypeMirror element(final TypeMirror type) {
-        return Containers.typeArgument(type, 0);
+    protected TypeMirror element(final TypeMirror type, final ResolveCtx ctx) {
+        return ctx.typeArgument(type, 0);
     }
 
     @Override

@@ -1,8 +1,11 @@
 package io.github.joke.percolate.architecture
 
+import com.tngtech.archunit.base.DescribedPredicate
+import com.tngtech.archunit.core.domain.JavaClass
 import com.tngtech.archunit.core.domain.JavaClasses
 import com.tngtech.archunit.core.importer.ClassFileImporter
 import com.tngtech.archunit.core.importer.ImportOption
+import io.github.joke.percolate.spi.ResolveCtx
 import spock.lang.Shared
 import spock.lang.Specification
 import spock.lang.Tag
@@ -125,6 +128,39 @@ class ModuleBoundariesSpec extends Specification {
     def 'percolate packages are free of cycles'() {
         when:
         slices().matching(ROOT + '.(*)..').should().beFreeOfCycles()
+                .check(imported)
+
+        then:
+        notThrown(AssertionError)
+    }
+
+    // The type-query seam (change type-query-seam): javax.lang.model.util (Types/Elements) — the two
+    // compiler-service classes that need a live compile environment to answer — are confined to the seam
+    // impl + its DI wiring, the discovery adapter, codegen emission, and the nullability resolver. Every
+    // other engine/strategy class asks its type questions through the ResolveCtx seam instead, so TypeMirror
+    // stays an opaque pass-through token everywhere else.
+    def 'javax.lang.model.util (Types/Elements) is confined to the seam impl, discovery adapter, codegen emission, and the nullability resolver'() {
+        given:
+        final String PROCESSOR_ROOT = ROOT + '.processor'
+        // The bare processor package holds the Dagger wiring (ProcessorModule, MapperStep) plus its
+        // generated *_Factory/DaggerProcessorComponent siblings, which necessarily mention Types/Elements too.
+        final String[] boundaryPackages = [
+                PROCESSOR_ROOT,
+                PROCESSOR_ROOT + '.internal.stages.expand',
+                PROCESSOR_ROOT + '.internal.stages.discover',
+                PROCESSOR_ROOT + '.internal.stages.generate',
+                PROCESSOR_ROOT + '.nullability',
+        ]
+        final List<String> boundaryClasses = [ResolveCtx]*.name
+        final DescribedPredicate<JavaClass> notBoundary = DescribedPredicate.describe(
+                'not the seam impl, discovery adapter, codegen emission, or nullability resolver') { JavaClass javaClass ->
+            !boundaryClasses.contains(javaClass.name)
+                    && !boundaryPackages.any { javaClass.packageName == it || javaClass.packageName.startsWith(it + '.') }
+        }
+
+        when:
+        noClasses().that(notBoundary)
+                .should().dependOnClassesThat().resideInAPackage('javax.lang.model.util..')
                 .check(imported)
 
         then:

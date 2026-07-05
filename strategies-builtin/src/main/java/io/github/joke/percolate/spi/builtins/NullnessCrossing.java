@@ -2,7 +2,6 @@ package io.github.joke.percolate.spi.builtins;
 
 import com.google.auto.service.AutoService;
 import com.palantir.javapoet.CodeBlock;
-import io.github.joke.percolate.spi.Containers;
 import io.github.joke.percolate.spi.Directive;
 import io.github.joke.percolate.spi.ExpansionStrategy;
 import io.github.joke.percolate.spi.LiteralCoercion;
@@ -17,7 +16,6 @@ import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.stream.Stream;
-import javax.lang.model.type.TypeKind;
 import javax.lang.model.type.TypeMirror;
 import lombok.NoArgsConstructor;
 
@@ -68,7 +66,7 @@ public final class NullnessCrossing implements ExpansionStrategy {
             return Stream.empty();
         }
         final var specs = Stream.<OperationSpec>builder();
-        if (guardsNullness && target.getKind() == TypeKind.DECLARED) {
+        if (guardsNullness && ctx.isDeclared(target)) {
             specs.add(requireNonNull(target, demand.bindingName()));
         }
         defaultLiteral.ifPresent(literal -> coalesce(target, literal, ctx).forEach(specs::add));
@@ -88,7 +86,7 @@ public final class NullnessCrossing implements ExpansionStrategy {
     private static Stream<OperationSpec> coalesce(
             final TypeMirror target, final CodeBlock literal, final ResolveCtx ctx) {
         final var specs = Stream.<OperationSpec>builder();
-        if (target.getKind() == TypeKind.DECLARED) {
+        if (ctx.isDeclared(target)) {
             specs.add(coalesceSpec(
                     target,
                     Nullability.NULLABLE,
@@ -115,13 +113,13 @@ public final class NullnessCrossing implements ExpansionStrategy {
 
     /** {@code Optional<element>} for a reference {@code element}, or empty (no {@code Optional} of a primitive). */
     private static Optional<TypeMirror> optionalOf(final TypeMirror element, final ResolveCtx ctx) {
-        if (!Containers.isReferenceType(element)) {
+        if (!ctx.isReferenceType(element)) {
             return Optional.empty();
         }
-        final var optionalElement = ctx.elements().getTypeElement("java.util.Optional");
+        final var optionalElement = ctx.typeElementNamed("java.util.Optional");
         if (optionalElement == null) {
             return Optional.empty();
         }
-        return Optional.of(ctx.types().getDeclaredType(optionalElement, element));
+        return Optional.of(ctx.declaredType(optionalElement, element));
     }
 }

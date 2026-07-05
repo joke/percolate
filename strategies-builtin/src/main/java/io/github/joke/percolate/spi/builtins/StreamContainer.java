@@ -16,6 +16,6 @@ abstract class StreamContainer extends Container {
     @Override
     protected TypeElement intermediateErasure(final ResolveCtx ctx) {
         return Objects.requireNonNull(
-                ctx.elements().getTypeElement("java.util.stream.Stream"), "java.util.stream.Stream is unavailable");
+                ctx.typeElementNamed("java.util.stream.Stream"), "java.util.stream.Stream is unavailable");
     }
 }

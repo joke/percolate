@@ -3,7 +3,6 @@ package io.github.joke.percolate.reactor;
 import com.google.auto.service.AutoService;
 import com.palantir.javapoet.CodeBlock;
 import io.github.joke.percolate.spi.ChildScopeSpec;
-import io.github.joke.percolate.spi.Containers;
 import io.github.joke.percolate.spi.ExpansionStrategy;
 import io.github.joke.percolate.spi.Nullability;
 import io.github.joke.percolate.spi.OperationSpec;
@@ -12,7 +11,6 @@ import io.github.joke.percolate.spi.PortType;
 import io.github.joke.percolate.spi.ProduceDemand;
 import io.github.joke.percolate.spi.ResolveCtx;
 import io.github.joke.percolate.spi.ScopeCodegen;
-import io.github.joke.percolate.spi.TypeProbe;
 import io.github.joke.percolate.spi.Weights;
 import java.util.List;
 import java.util.stream.Stream;
@@ -47,14 +45,14 @@ public final class FluxMap implements ExpansionStrategy {
     @Override
     public Stream<OperationSpec> expand(final ProduceDemand demand, final ResolveCtx ctx) {
         final var to = demand.targetType();
-        if (!TypeProbe.isType(to, FLUX, ctx)) {
+        if (!ctx.isType(to, FLUX)) {
             return Stream.empty();
         }
-        final var fluxErasure = ctx.elements().getTypeElement(FLUX);
+        final var fluxErasure = ctx.typeElementNamed(FLUX);
         if (fluxErasure == null) {
             return Stream.empty();
         }
-        final var elementOut = Containers.typeArgument(to, 0);
+        final var elementOut = ctx.typeArgument(to, 0);
         final var template = PortType.app(fluxErasure, List.of(PortType.variable(0)));
         final var ports = List.of(new Port(SOURCE_ROLE, fluxErasure.asType(), Nullability.NON_NULL, template));
         final var mapChild =

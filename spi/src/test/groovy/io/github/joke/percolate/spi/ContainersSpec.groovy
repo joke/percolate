@@ -1,129 +1,164 @@
 package io.github.joke.percolate.spi
 
-import io.github.joke.percolate.spi.test.TypeUniverse
-import spock.lang.Shared
 import spock.lang.Specification
 import spock.lang.Tag
 
+import javax.lang.model.type.ArrayType
+import javax.lang.model.type.DeclaredType
+import javax.lang.model.type.TypeKind
 import javax.lang.model.type.TypeMirror
 
+/**
+ * {@link Containers} is a thin, source-compatible forwarder onto the {@link ResolveCtx} type-query seam (change
+ * {@code type-query-seam}): its container-kind predicates delegate straight to {@code ctx}, unit-tested here
+ * against a mocked {@link ResolveCtx} with opaque {@link TypeMirror} tokens. {@link Containers#isArray},
+ * {@link Containers#isReferenceType}, {@link Containers#typeArgument} and {@link Containers#arrayComponentType}
+ * never needed a compiler-backed {@code ResolveCtx} and are exercised directly over mocked
+ * {@link TypeMirror}/{@link DeclaredType}/{@link ArrayType} tokens. No javac.
+ */
 @Tag('unit')
 class ContainersSpec extends Specification {
 
-    @Shared ResolveCtx ctx = new SimpleResolveCtx()
-    @Shared TypeMirror optionalOfString = TypeUniverse.types().getDeclaredType(
-            TypeUniverse.elements().getTypeElement('java.util.Optional'), TypeUniverse.STRING)
-    @Shared TypeMirror setOfString = TypeUniverse.types().getDeclaredType(
-            TypeUniverse.elements().getTypeElement('java.util.Set'), TypeUniverse.STRING)
-    @Shared TypeMirror stringArray = TypeUniverse.types().getArrayType(TypeUniverse.STRING)
-    @Shared TypeMirror streamOfString = TypeUniverse.types().getDeclaredType(
-            TypeUniverse.elements().getTypeElement('java.util.stream.Stream'), TypeUniverse.STRING)
+    ResolveCtx ctx = Mock()
 
-    def 'isOptional recognises Optional<X> and rejects others'() {
+    def 'isOptional delegates to the seam'() {
+        TypeMirror yes = Mock()
+        TypeMirror no = Mock()
+        ctx.isOptional(yes) >> true
+        ctx.isOptional(no) >> false
+
         expect:
-        Containers.isOptional(optionalOfString, ctx)
-        !Containers.isOptional(TypeUniverse.STRING, ctx)
-        !Containers.isOptional(TypeUniverse.LIST_OF_STRING, ctx)
-        !Containers.isOptional(TypeUniverse.INT, ctx)
+        Containers.isOptional(yes, ctx)
+        !Containers.isOptional(no, ctx)
     }
 
-    def 'isList recognises List<X> and rejects others'() {
+    def 'isList delegates to the seam'() {
+        TypeMirror yes = Mock()
+        TypeMirror no = Mock()
+        ctx.isList(yes) >> true
+        ctx.isList(no) >> false
+
         expect:
-        Containers.isList(TypeUniverse.LIST_OF_STRING, ctx)
-        !Containers.isList(setOfString, ctx)
-        !Containers.isList(TypeUniverse.STRING, ctx)
+        Containers.isList(yes, ctx)
+        !Containers.isList(no, ctx)
     }
 
-    def 'isSet recognises Set<X> and rejects others'() {
+    def 'isSet delegates to the seam'() {
+        TypeMirror yes = Mock()
+        TypeMirror no = Mock()
+        ctx.isSet(yes) >> true
+        ctx.isSet(no) >> false
+
         expect:
-        Containers.isSet(setOfString, ctx)
-        !Containers.isSet(TypeUniverse.LIST_OF_STRING, ctx)
-        !Containers.isSet(TypeUniverse.STRING, ctx)
+        Containers.isSet(yes, ctx)
+        !Containers.isSet(no, ctx)
     }
 
-    def 'isCollection recognises Collection-typed declarations'() {
+    def 'isStream delegates to the seam'() {
+        TypeMirror yes = Mock()
+        TypeMirror no = Mock()
+        ctx.isStream(yes) >> true
+        ctx.isStream(no) >> false
+
         expect:
-        Containers.isCollection(TypeUniverse.LIST_OF_STRING, ctx)
-        Containers.isCollection(setOfString, ctx)
-        !Containers.isCollection(TypeUniverse.STRING, ctx)
+        Containers.isStream(yes, ctx)
+        !Containers.isStream(no, ctx)
     }
 
-    def 'isIterable recognises Iterable subtypes and rejects others'() {
+    def 'isCollection delegates to the seam'() {
+        TypeMirror yes = Mock()
+        TypeMirror no = Mock()
+        ctx.isCollection(yes) >> true
+        ctx.isCollection(no) >> false
+
         expect:
-        Containers.isIterable(TypeUniverse.LIST_OF_STRING, ctx)
-        Containers.isIterable(setOfString, ctx)
-        !Containers.isIterable(TypeUniverse.STRING, ctx)
-        !Containers.isIterable(TypeUniverse.INT, ctx)
+        Containers.isCollection(yes, ctx)
+        !Containers.isCollection(no, ctx)
     }
 
-    def 'isArray recognises array types and rejects others'() {
+    def 'isIterable delegates to the seam'() {
+        TypeMirror yes = Mock()
+        TypeMirror no = Mock()
+        ctx.isIterable(yes) >> true
+        ctx.isIterable(no) >> false
+
         expect:
-        Containers.isArray(stringArray)
-        !Containers.isArray(TypeUniverse.STRING)
-        !Containers.isArray(TypeUniverse.LIST_OF_STRING)
+        Containers.isIterable(yes, ctx)
+        !Containers.isIterable(no, ctx)
+    }
+
+    def 'isArray recognises array types and rejects others, with no ResolveCtx involved'() {
+        TypeMirror array = Mock()
+        array.kind >> TypeKind.ARRAY
+        TypeMirror notArray = Mock()
+        notArray.kind >> TypeKind.DECLARED
+
+        expect:
+        Containers.isArray(array)
+        !Containers.isArray(notArray)
+    }
+
+    def 'isReferenceType accepts declared/array/type-variable kinds and rejects primitives'() {
+        expect:
+        Containers.isReferenceType(kindOf(TypeKind.DECLARED))
+        Containers.isReferenceType(kindOf(TypeKind.ARRAY))
+        Containers.isReferenceType(kindOf(TypeKind.TYPEVAR))
+        !Containers.isReferenceType(kindOf(TypeKind.INT))
     }
 
     def 'typeArgument returns the requested generic type argument'() {
+        TypeMirror first = Mock()
+        TypeMirror second = Mock()
+        DeclaredType declaredType = Mock()
+        declaredType.kind >> TypeKind.DECLARED
+        declaredType.typeArguments >> [first, second]
+
         expect:
-        ctx.types().isSameType(Containers.typeArgument(TypeUniverse.LIST_OF_STRING, 0), TypeUniverse.STRING)
-        ctx.types().isSameType(Containers.typeArgument(optionalOfString, 0), TypeUniverse.STRING)
+        Containers.typeArgument(declaredType, 0).is(first)
+        Containers.typeArgument(declaredType, 1).is(second)
     }
 
     def 'typeArgument throws on non-declared types'() {
         when:
-        Containers.typeArgument(TypeUniverse.INT, 0)
+        Containers.typeArgument(kindOf(TypeKind.INT), 0)
+
         then:
         thrown(IllegalArgumentException)
     }
 
     def 'typeArgument throws on out-of-bounds index'() {
+        DeclaredType declaredType = Mock()
+        declaredType.kind >> TypeKind.DECLARED
+        declaredType.typeArguments >> [Mock(TypeMirror)]
+
         when:
-        Containers.typeArgument(TypeUniverse.LIST_OF_STRING, 5)
+        Containers.typeArgument(declaredType, 5)
+
         then:
         thrown(IndexOutOfBoundsException)
     }
 
     def 'arrayComponentType returns the array element type'() {
+        TypeMirror component = Mock()
+        ArrayType arrayType = Mock()
+        arrayType.kind >> TypeKind.ARRAY
+        arrayType.componentType >> component
+
         expect:
-        ctx.types().isSameType(Containers.arrayComponentType(stringArray), TypeUniverse.STRING)
+        Containers.arrayComponentType(arrayType).is(component)
     }
 
     def 'arrayComponentType throws on non-array types'() {
         when:
-        Containers.arrayComponentType(TypeUniverse.STRING)
+        Containers.arrayComponentType(kindOf(TypeKind.DECLARED))
+
         then:
         thrown(IllegalArgumentException)
     }
 
-    def 'isStream recognises Stream<X> and rejects others'() {
-        expect:
-        Containers.isStream(streamOfString, ctx)
-        !Containers.isStream(TypeUniverse.LIST_OF_STRING, ctx)
-        !Containers.isStream(TypeUniverse.STRING, ctx)
-        !Containers.isStream(TypeUniverse.INT, ctx)
-    }
-
-    def 'isReferenceType accepts declared and array types and rejects primitives'() {
-        expect:
-        Containers.isReferenceType(TypeUniverse.STRING)
-        Containers.isReferenceType(stringArray)
-        !Containers.isReferenceType(TypeUniverse.INT)
-    }
-
-    private static final class SimpleResolveCtx implements ResolveCtx {
-        @Override
-        javax.lang.model.util.Elements elements() {
-            TypeUniverse.elements()
-        }
-
-        @Override
-        javax.lang.model.util.Types types() {
-            TypeUniverse.types()
-        }
-
-        @Override
-        CallableMethods callableMethods() {
-            null
-        }
+    private TypeMirror kindOf(final TypeKind kind) {
+        TypeMirror type = Mock()
+        type.kind >> kind
+        type
     }
 }

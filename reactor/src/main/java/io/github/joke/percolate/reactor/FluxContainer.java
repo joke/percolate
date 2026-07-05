@@ -3,11 +3,9 @@ package io.github.joke.percolate.reactor;
 import com.google.auto.service.AutoService;
 import com.palantir.javapoet.CodeBlock;
 import io.github.joke.percolate.spi.Container;
-import io.github.joke.percolate.spi.Containers;
 import io.github.joke.percolate.spi.ExpansionStrategy;
 import io.github.joke.percolate.spi.ResolveCtx;
 import io.github.joke.percolate.spi.SourceProjection;
-import io.github.joke.percolate.spi.TypeProbe;
 import java.util.Objects;
 import java.util.Optional;
 import javax.lang.model.element.TypeElement;
@@ -30,23 +28,23 @@ public final class FluxContainer extends Container {
 
     @Override
     protected boolean matches(final TypeMirror type, final ResolveCtx ctx) {
-        return TypeProbe.isType(type, FLUX, ctx);
+        return ctx.isType(type, FLUX);
     }
 
     @Override
-    protected TypeMirror element(final TypeMirror type) {
-        return Containers.typeArgument(type, 0);
+    protected TypeMirror element(final TypeMirror type, final ResolveCtx ctx) {
+        return ctx.typeArgument(type, 0);
     }
 
     @Override
     protected Optional<TypeElement> kindErasure(final ResolveCtx ctx) {
-        return Optional.ofNullable(ctx.elements().getTypeElement(FLUX));
+        return Optional.ofNullable(ctx.typeElementNamed(FLUX));
     }
 
     @Override
     protected TypeElement intermediateErasure(final ResolveCtx ctx) {
         return Objects.requireNonNull(
-                ctx.elements().getTypeElement(FLUX),
+                ctx.typeElementNamed(FLUX),
                 "reactor-core must be on the compile classpath when percolate-reactor is active");
     }
 

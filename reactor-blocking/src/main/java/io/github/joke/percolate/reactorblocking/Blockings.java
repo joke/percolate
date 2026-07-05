@@ -1,12 +1,8 @@
 package io.github.joke.percolate.reactorblocking;
 
-import io.github.joke.percolate.spi.Containers;
 import io.github.joke.percolate.spi.ResolveCtx;
-import io.github.joke.percolate.spi.TypeProbe;
 import java.util.Optional;
 import java.util.stream.Stream;
-import javax.lang.model.type.DeclaredType;
-import javax.lang.model.type.TypeKind;
 import javax.lang.model.type.TypeMirror;
 import lombok.experimental.UtilityClass;
 
@@ -29,9 +25,9 @@ class Blockings {
     static final int WEIGHT = 1_000;
 
     /** {@code fqn<arg>} as a concrete declared type, or empty when {@code fqn} is not on the compile classpath. */
-    Optional<DeclaredType> declared(final ResolveCtx ctx, final String fqn, final TypeMirror arg) {
-        final var element = ctx.elements().getTypeElement(fqn);
-        return element == null ? Optional.empty() : Optional.of(ctx.types().getDeclaredType(element, arg));
+    Optional<TypeMirror> declared(final ResolveCtx ctx, final String fqn, final TypeMirror arg) {
+        final var element = ctx.typeElementNamed(fqn);
+        return element == null ? Optional.empty() : Optional.of(ctx.declaredType(element, arg));
     }
 
     /**
@@ -43,21 +39,18 @@ class Blockings {
      */
     Stream<TypeMirror> view(
             final TypeMirror source, final String kindFqn, final String targetFqn, final ResolveCtx ctx) {
-        if (source.getKind() != TypeKind.DECLARED || !TypeProbe.isType(source, kindFqn, ctx)) {
+        if (!ctx.isDeclared(source) || !ctx.isType(source, kindFqn)) {
             return Stream.empty();
         }
-        final var args = ((DeclaredType) source).getTypeArguments();
-        if (args.size() != 1 || !Containers.isReferenceType(args.get(0))) {
+        if (ctx.typeArgumentCount(source) != 1 || !ctx.isReferenceType(ctx.typeArgument(source, 0))) {
             return Stream.empty();
         }
-        final var target = ctx.elements().getTypeElement(targetFqn);
-        return target == null ? Stream.empty() : Stream.of(ctx.types().getDeclaredType(target, args.get(0)));
+        final var target = ctx.typeElementNamed(targetFqn);
+        return target == null ? Stream.empty() : Stream.of(ctx.declaredType(target, ctx.typeArgument(source, 0)));
     }
 
     /** A target eligible for {@code block()}/{@code single().block()}: a plain reference type, never itself reactive. */
     boolean isBlockableScalar(final TypeMirror type, final ResolveCtx ctx) {
-        return type.getKind() == TypeKind.DECLARED
-                && !TypeProbe.isType(type, MONO, ctx)
-                && !TypeProbe.isType(type, FLUX, ctx);
+        return ctx.isDeclared(type) && !ctx.isType(type, MONO) && !ctx.isType(type, FLUX);
     }
 }

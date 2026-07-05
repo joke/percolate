@@ -1,8 +1,6 @@
 package io.github.joke.percolate.spi
 
 import com.palantir.javapoet.CodeBlock
-import io.github.joke.percolate.spi.test.PrivateTypeUniverse
-import spock.lang.Shared
 import spock.lang.Specification
 import spock.lang.Tag
 
@@ -15,16 +13,24 @@ import javax.lang.model.type.TypeMirror
  * question: it reads the concrete parent type and the single segment from a {@link DescendDemand}, declines a
  * non-declared parent, and wires the one-port accessor {@link OperationSpec} (typing the produced nullness through the
  * demand oracle). The author supplies only {@link Accessor#accessor}: the member match and its rendering.
+ * Unit-tested mock-only over the {@link ResolveCtx} type-query seam (change {@code type-query-seam}): the sole seam
+ * question the base asks — {@code asTypeElement} — is stubbed on a mocked {@code ResolveCtx}, and every
+ * {@link TypeMirror}/{@link TypeElement} is an opaque never-interrogated token. No javac.
  */
 @Tag('unit')
 class AccessorSpec extends Specification {
 
-    @Shared PrivateTypeUniverse javac = new PrivateTypeUniverse()
-    @Shared ResolveCtx ctx = ctx()
+    ResolveCtx ctx = Mock()
+    TypeMirror stringType = Mock()
+    TypeMirror intType = Mock()
+    TypeMirror integerType = Mock()
+    TypeElement parentElement = Mock()
 
     def 'the base wires a one-port accessor spec from a single segment on a declared parent'() {
+        ctx.asTypeElement(stringType) >> Optional.of(parentElement)
+
         when:
-        def specs = new TestAccessor(javac).descend(descend(javac.STRING, 'known'), ctx).toList()
+        def specs = new TestAccessor(integerType).descend(descend(stringType, 'known'), ctx).toList()
 
         then:
         specs.size() == 1
@@ -36,20 +42,24 @@ class AccessorSpec extends Specification {
         spec.ports.size() == 1
         spec.ports[0].name == 'value'
         spec.ports[0].sourcing == Port.Sourcing.REUSE_OR_MINT
-        ctx.types().isSameType(spec.ports[0].type, javac.STRING)
+        spec.ports[0].type.is(stringType)
         spec.ports[0].nullness == Nullability.NON_NULL
-        ctx.types().isSameType(spec.outputType, javac.INTEGER)
+        spec.outputType.is(integerType)
         spec.outputNullness == Nullability.NULLABLE
     }
 
     def 'a non-declared parent yields no accessor'() {
+        ctx.asTypeElement(intType) >> Optional.empty()
+
         expect:
-        new TestAccessor(javac).descend(descend(javac.INT, 'known'), ctx).toList().empty
+        new TestAccessor(integerType).descend(descend(intType, 'known'), ctx).toList().empty
     }
 
     def 'an unresolved segment yields no accessor'() {
+        ctx.asTypeElement(stringType) >> Optional.of(parentElement)
+
         expect:
-        new TestAccessor(javac).descend(descend(javac.STRING, 'missing'), ctx).toList().empty
+        new TestAccessor(integerType).descend(descend(stringType, 'missing'), ctx).toList().empty
     }
 
     private static DescendDemand descend(final TypeMirror parent, final String segment) {
@@ -61,20 +71,12 @@ class AccessorSpec extends Specification {
         ] as DescendDemand
     }
 
-    private ResolveCtx ctx() {
-        [
-                elements       : { javac.elements() },
-                types          : { javac.types() },
-                callableMethods: { null },
-        ] as ResolveCtx
-    }
-
-    /** Resolves only the segment {@code known}, producing an Integer-typed access rendered as {@code parent.known()}. */
+    /** Resolves only the segment {@code known}, producing an {@code outputType}-typed access rendered as {@code parent.known()}. */
     static class TestAccessor extends Accessor {
-        private final PrivateTypeUniverse javac
+        private final TypeMirror outputType
 
-        TestAccessor(final PrivateTypeUniverse javac) {
-            this.javac = javac
+        TestAccessor(final TypeMirror outputType) {
+            this.outputType = outputType
         }
 
         @Override
@@ -83,7 +85,7 @@ class AccessorSpec extends Specification {
                 return Optional.empty()
             }
             def codegen = { IncomingValues inputs -> CodeBlock.of('$L.known()', inputs.single()) } as OperationCodegen
-            Optional.of(new Step(javac.INTEGER, parent, 'known()', 7, codegen))
+            Optional.of(new Step(outputType, parent, 'known()', 7, codegen))
         }
     }
 }

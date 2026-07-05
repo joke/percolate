@@ -9,10 +9,8 @@ import io.github.joke.percolate.spi.ResolveCtx;
 import io.github.joke.percolate.spi.Weights;
 import java.util.Optional;
 import javax.lang.model.element.Element;
-import javax.lang.model.element.ElementKind;
 import javax.lang.model.element.ExecutableElement;
 import javax.lang.model.element.TypeElement;
-import javax.lang.model.type.DeclaredType;
 import javax.lang.model.type.TypeKind;
 import lombok.NoArgsConstructor;
 
@@ -31,17 +29,11 @@ public final class GetterPathResolver extends Accessor {
     protected Optional<Step> accessor(final TypeElement parent, final String segment, final ResolveCtx ctx) {
         final var getterName = "get" + capitalize(segment);
         final var isName = "is" + capitalize(segment);
-        for (final var member : Members.declaredMembersOf(parent, ctx)) {
-            final var getter = matchGetter(member, getterName);
-            if (getter.isPresent()) {
-                return Optional.of(step(getter.get()));
-            }
-            final var booleanIs = matchBooleanIs(member, isName);
-            if (booleanIs.isPresent()) {
-                return Optional.of(step(booleanIs.get()));
-            }
-        }
-        return Optional.empty();
+        return Members.declaredMembersOf(parent, ctx)
+                .flatMap(member ->
+                        matchGetter(member, getterName, ctx).or(() -> matchBooleanIs(member, isName, ctx)).stream())
+                .findFirst()
+                .map(GetterPathResolver::step);
     }
 
     private static Step step(final ExecutableElement method) {
@@ -50,8 +42,9 @@ public final class GetterPathResolver extends Accessor {
         return new Step(method.getReturnType(), method, methodName + "()", Weights.STEP_GETTER, codegen);
     }
 
-    private Optional<ExecutableElement> matchGetter(final Element member, final String getterName) {
-        if (member.getKind() != ElementKind.METHOD) {
+    private Optional<ExecutableElement> matchGetter(
+            final Element member, final String getterName, final ResolveCtx ctx) {
+        if (!ctx.isMethod(member)) {
             return Optional.empty();
         }
         final var method = (ExecutableElement) member;
@@ -61,8 +54,9 @@ public final class GetterPathResolver extends Accessor {
         return method.getSimpleName().contentEquals(getterName) ? Optional.of(method) : Optional.empty();
     }
 
-    private Optional<ExecutableElement> matchBooleanIs(final Element member, final String isName) {
-        if (member.getKind() != ElementKind.METHOD) {
+    private Optional<ExecutableElement> matchBooleanIs(
+            final Element member, final String isName, final ResolveCtx ctx) {
+        if (!ctx.isMethod(member)) {
             return Optional.empty();
         }
         final var method = (ExecutableElement) member;
@@ -72,20 +66,12 @@ public final class GetterPathResolver extends Accessor {
         if (!method.getSimpleName().contentEquals(isName)) {
             return Optional.empty();
         }
-        return isBooleanReturn(method) ? Optional.of(method) : Optional.empty();
+        return isBooleanReturn(method, ctx) ? Optional.of(method) : Optional.empty();
     }
 
-    private boolean isBooleanReturn(final ExecutableElement method) {
+    private boolean isBooleanReturn(final ExecutableElement method, final ResolveCtx ctx) {
         final var returnType = method.getReturnType();
-        if (returnType.getKind() == TypeKind.BOOLEAN) {
-            return true;
-        }
-        if (returnType.getKind() != TypeKind.DECLARED) {
-            return false;
-        }
-        final var element = ((DeclaredType) returnType).asElement();
-        return element instanceof TypeElement
-                && ((TypeElement) element).getQualifiedName().contentEquals("java.lang.Boolean");
+        return ctx.kind(returnType) == TypeKind.BOOLEAN || "java.lang.Boolean".equals(ctx.qualifiedName(returnType));
     }
 
     private static String capitalize(final String segment) {
