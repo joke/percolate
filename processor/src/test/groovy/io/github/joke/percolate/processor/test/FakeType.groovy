@@ -10,17 +10,17 @@ import javax.lang.model.type.TypeVisitor
 
 /**
  * A javac-free {@link TypeMirror} stand-in: a declared type is {@code (identity, args)} — {@code identity} is
- * whatever object {@link FakeResolveCtx} was given as the "erasure" (typically a {@code Stub(TypeElement)} or a plain
- * {@code String} name), so two declared types are structurally comparable without a compiler. An array wraps a
- * {@code component}; a bare marker kind (e.g. {@code WILDCARD}, or a primitive like {@code INT}) carries neither.
+ * typically a {@code Stub(TypeElement)} or a plain {@code String} name, so two declared types are structurally
+ * comparable without a compiler. An array wraps a {@code component}; a bare marker kind (e.g. {@code WILDCARD}, or a
+ * primitive like {@code INT}) carries neither.
  *
  * <p>Only the {@link #declared} factory's result implements {@link DeclaredType}, and only {@link #array}'s
  * implements {@link ArrayType} — matching the real API, where {@code instanceof DeclaredType}/{@code ArrayType} is
  * consistent with {@code getKind()}. This matters because the (boundary-exempt, never-ctx-routed) code that still
- * casts a raw {@code TypeMirror} directly — {@code DotRenderer}, {@code Labels},
- * {@code ValidateConstantDefaultLegalityStage} — relies on that {@code instanceof} check to route primitives/arrays
- * away from the declared-type branch; a type that always answered {@code true} to both interfaces would silently
- * break it.
+ * casts a raw {@code TypeMirror} directly — {@code ValidateConstantDefaultLegalityStage} — relies on that
+ * {@code instanceof} check to route primitives/arrays away from the declared-type branch; a type that always
+ * answered {@code true} to both interfaces would silently break it. {@code DotRenderer}'s own spec stubs this shape
+ * locally rather than sharing this class (change {@code decompose-engine-stages}).
  */
 abstract class FakeType implements TypeMirror {
 

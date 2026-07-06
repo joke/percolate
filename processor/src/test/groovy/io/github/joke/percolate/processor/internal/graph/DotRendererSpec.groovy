@@ -1,20 +1,30 @@
 package io.github.joke.percolate.processor.internal.graph
 
-import io.github.joke.percolate.processor.test.FakeType
 import io.github.joke.percolate.processor.test.HarnessScope
 import io.github.joke.percolate.spi.Codegen
 import io.github.joke.percolate.spi.Nullability
 import io.github.joke.percolate.spi.Port
+import spock.lang.Shared
 import spock.lang.Specification
 import spock.lang.Tag
 
+import javax.lang.model.element.Name
+import javax.lang.model.element.TypeElement
+import javax.lang.model.type.DeclaredType
+import javax.lang.model.type.TypeKind
 import javax.lang.model.type.TypeMirror
 
+/**
+ * Unit-tested mock-only: {@link DotRenderer} is boundary-exempt, structurally inspecting a raw {@link TypeMirror}
+ * ({@code getKind()}, {@code instanceof DeclaredType}, {@code asElement().getSimpleName()}) rather than going through
+ * {@code ResolveCtx} — so its spec stubs that shape directly (a local {@link #declaredType(String)} helper), with no
+ * shared {@code FakeType} substrate.
+ */
 @Tag('unit')
 class DotRendererSpec extends Specification {
 
-    static final TypeMirror STRING = FakeType.declared('String')
-    static final TypeMirror INT = FakeType.declared('int')
+    @Shared TypeMirror STRING = declaredType('String')
+    @Shared TypeMirror INT = Stub(TypeMirror) { getKind() >> TypeKind.INT }
 
     final MapperGraph graph = new MapperGraph()
     final Scope scope = new HarnessScope('m()')
@@ -80,5 +90,14 @@ class DotRendererSpec extends Specification {
 
     private PortBinding port(final String name, final TypeMirror type) {
         new PortBinding(new Port(name, type, Nullability.NON_NULL), leaf(name, type))
+    }
+
+    /** A declared type whose {@code asElement().getSimpleName()} renders as {@code simpleName}, no type arguments. */
+    private DeclaredType declaredType(final String simpleName) {
+        Stub(DeclaredType) {
+            getKind() >> TypeKind.DECLARED
+            getTypeArguments() >> []
+            asElement() >> Stub(TypeElement) { getSimpleName() >> Stub(Name) { toString() >> simpleName } }
+        }
     }
 }

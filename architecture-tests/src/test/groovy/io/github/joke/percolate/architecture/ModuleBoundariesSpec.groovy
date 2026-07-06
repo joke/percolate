@@ -3,8 +3,13 @@ package io.github.joke.percolate.architecture
 import com.tngtech.archunit.base.DescribedPredicate
 import com.tngtech.archunit.core.domain.JavaClass
 import com.tngtech.archunit.core.domain.JavaClasses
+import com.tngtech.archunit.core.domain.JavaMethod
+import com.tngtech.archunit.core.domain.JavaModifier
 import com.tngtech.archunit.core.importer.ClassFileImporter
 import com.tngtech.archunit.core.importer.ImportOption
+import com.tngtech.archunit.lang.ArchCondition
+import com.tngtech.archunit.lang.ConditionEvents
+import com.tngtech.archunit.lang.SimpleConditionEvent
 import io.github.joke.percolate.spi.ResolveCtx
 import spock.lang.Shared
 import spock.lang.Specification
@@ -13,6 +18,7 @@ import spock.lang.Tag
 import java.nio.file.Paths
 
 import static com.tngtech.archunit.lang.syntax.ArchRuleDefinition.classes
+import static com.tngtech.archunit.lang.syntax.ArchRuleDefinition.methods
 import static com.tngtech.archunit.lang.syntax.ArchRuleDefinition.noClasses
 import static com.tngtech.archunit.library.dependencies.SlicesRuleDefinition.slices
 
@@ -35,6 +41,19 @@ class ModuleBoundariesSpec extends Specification {
     // The engine graph package other-module code must never touch.
     static final String ENGINE_GRAPH = ROOT + '.processor.internal.graph..'
     static final String[] STRATEGY_MODULES = [BUILTINS, REACTOR, REACTOR_BLOCKING]
+    // The packages decomposed by change decompose-engine-stages (design D6): every class in them is individually
+    // testable, so both structural guards apply here first. The remaining stages (ValidateConstantDefaultLegalityStage,
+    // RealisationDiagnosticsStage, ValidateSourceParametersStage, ValidateMappingShapeStage, GraphDumpWriter, and the
+    // discover/graph packages) are an explicit audit backlog (openspec/notes.md) — the scope widens as each is
+    // decomposed in turn, per the guard's own package-scope-widening plan.
+    static final String DECOMPOSED_EXPAND = ROOT + '.processor.internal.stages.expand..'
+    static final String DECOMPOSED_GENERATE = ROOT + '.processor.internal.stages.generate..'
+    static final String[] DECOMPOSED_ENGINE_PACKAGES = [DECOMPOSED_EXPAND, DECOMPOSED_GENERATE]
+    // Tuned against the decomposed classes: BuildMethodBodies.Walk (13 non-synthetic methods) is the largest
+    // legitimate cohesive unit today — a data/query class over shared plan-walk state (design.md's cohesion
+    // exception) — so the ceiling clears it with headroom while still catching a regression back toward the
+    // pre-decomposition sizes this change eliminated (ExpandStage.Driver was 21 private methods, BuildMethodBodies 17).
+    static final int MAX_METHODS_PER_CLASS = 15
 
     @Shared
     JavaClasses imported
@@ -101,6 +120,55 @@ class ModuleBoundariesSpec extends Specification {
         when:
         classes().that().implement(ROOT + '.processor.internal.stages.Stage')
                 .should().haveSimpleNameEndingWith('Stage')
+                .check(imported)
+
+        then:
+        notThrown(AssertionError)
+    }
+
+    // Rule A (decompose-engine-stages design D6): a private method is statically dispatched (invokespecial) and
+    // cannot be intercepted by any test double, so it is not individually testable — the whole reason the engine
+    // stages needed decomposing in the first place. Synthetic/bridge members (lambda$.../access$... bridges) are
+    // compiler artifacts, not authored methods, so they are exempt; private constructors are automatically exempt
+    // (methods() never matches a constructor).
+    def 'no method in the decomposed engine packages is private'() {
+        given:
+        DescribedPredicate<JavaMethod> notSyntheticOrBridge = DescribedPredicate.describe(
+                'not a synthetic or bridge method') { JavaMethod method ->
+            !method.modifiers.contains(JavaModifier.SYNTHETIC) && !method.modifiers.contains(JavaModifier.BRIDGE)
+        }
+
+        when:
+        (methods().that().areDeclaredInClassesThat().resideInAnyPackage(DECOMPOSED_ENGINE_PACKAGES)
+                & notSyntheticOrBridge)
+                .should().notBePrivate()
+                .check(imported)
+
+        then:
+        notThrown(AssertionError)
+    }
+
+    // Rule B (decompose-engine-stages design D6): co-enforced with Rule A — on its own, Rule A is satisfied by
+    // exposing a monolith's guts as package-private members, so this ceiling forces separable logic into a new
+    // small collaborator instead of a bigger exposed one.
+    def 'no class in the decomposed engine packages exceeds the method-count ceiling'() {
+        given:
+        ArchCondition<JavaClass> sizeCeiling = new ArchCondition<JavaClass>(
+                "declare at most $MAX_METHODS_PER_CLASS non-synthetic methods") {
+            @Override
+            void check(final JavaClass javaClass, final ConditionEvents events) {
+                final int count = javaClass.methods.count { !it.modifiers.contains(JavaModifier.SYNTHETIC) }
+                final String message =
+                        "${javaClass.simpleName} declares $count non-synthetic methods (ceiling $MAX_METHODS_PER_CLASS)"
+                events.add(count <= MAX_METHODS_PER_CLASS
+                        ? SimpleConditionEvent.satisfied(javaClass, message)
+                        : SimpleConditionEvent.violated(javaClass, message))
+            }
+        }
+
+        when:
+        classes().that().resideInAnyPackage(DECOMPOSED_ENGINE_PACKAGES)
+                .should(sizeCeiling)
                 .check(imported)
 
         then:

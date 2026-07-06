@@ -42,14 +42,14 @@ final class SelfCallGuard {
     }
 
     /** The whole-parameter source locations of {@code method}: a {@code LEAF} {@link SourceLocation} per parameter. */
-    private static Set<Location> parameterRootLocations(final ExecutableElement method) {
+    static Set<Location> parameterRootLocations(final ExecutableElement method) {
         return method.getParameters().stream()
                 .map(parameter -> (Location) new SourceLocation(
                         AccessPath.of(parameter.getSimpleName().toString())))
                 .collect(Collectors.toUnmodifiableSet());
     }
 
-    private static String signature(final ExecutableElement method) {
+    static String signature(final ExecutableElement method) {
         final var params = method.getParameters().stream()
                 .map(parameter -> parameter.asType().toString())
                 .collect(Collectors.joining(","));

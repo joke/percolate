@@ -2,12 +2,12 @@ package io.github.joke.percolate.processor
 
 import com.google.common.collect.ImmutableSetMultimap
 import io.github.joke.percolate.processor.test.FakeElements
-import io.github.joke.percolate.processor.test.FakeType
 import spock.lang.Specification
 import spock.lang.Subject
 import spock.lang.Tag
 
 import javax.lang.model.element.TypeElement
+import javax.lang.model.type.TypeMirror
 import javax.lang.model.util.Elements
 
 /**
@@ -103,7 +103,7 @@ class MapperStepSpec extends Specification {
     }
 
     def 'process ignores an element that is not a type element'() {
-        def method = FakeElements.method('map', FakeType.declared('Human'))
+        def method = FakeElements.method('map', Mock(TypeMirror))
 
         when:
         def deferred = step.process(ImmutableSetMultimap.of(MAPPER_FQN, method))

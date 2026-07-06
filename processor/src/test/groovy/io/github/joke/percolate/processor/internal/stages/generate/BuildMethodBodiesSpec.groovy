@@ -1,5 +1,6 @@
 package io.github.joke.percolate.processor.internal.stages.generate
 
+import com.palantir.javapoet.ClassName
 import com.palantir.javapoet.CodeBlock
 import io.github.joke.percolate.processor.MapperContext
 import io.github.joke.percolate.processor.ProcessorOptions
@@ -7,132 +8,47 @@ import io.github.joke.percolate.processor.internal.graph.AccessPath
 import io.github.joke.percolate.processor.internal.graph.AddOperation
 import io.github.joke.percolate.processor.internal.graph.AddValue
 import io.github.joke.percolate.processor.internal.graph.ChildScope
-import io.github.joke.percolate.processor.internal.graph.ChildScopeDecl
 import io.github.joke.percolate.processor.internal.graph.ElementLocation
+import io.github.joke.percolate.processor.internal.graph.ExtractedPlan
+import io.github.joke.percolate.processor.internal.graph.InputDecl
+import io.github.joke.percolate.processor.internal.graph.Location
 import io.github.joke.percolate.processor.internal.graph.MapperGraph
 import io.github.joke.percolate.processor.internal.graph.MethodScope
 import io.github.joke.percolate.processor.internal.graph.Operation
-import io.github.joke.percolate.processor.internal.graph.PortBinding
 import io.github.joke.percolate.processor.internal.graph.SourceLocation
 import io.github.joke.percolate.processor.internal.graph.TargetLocation
 import io.github.joke.percolate.processor.internal.graph.TargetPath
 import io.github.joke.percolate.processor.internal.graph.Value
 import io.github.joke.percolate.processor.model.MapperShape
-import io.github.joke.percolate.spi.Codegen
 import io.github.joke.percolate.spi.Nullability
 import io.github.joke.percolate.spi.OperationCodegen
 import io.github.joke.percolate.spi.Port
 import io.github.joke.percolate.spi.ScopeCodegen
-import io.github.joke.percolate.spi.Weights
-import io.github.joke.percolate.spi.test.PrivateTypeUniverse
-import spock.lang.Shared
 import spock.lang.Specification
 import spock.lang.Tag
 
 import javax.lang.model.element.ExecutableElement
 import javax.lang.model.element.Name
 import javax.lang.model.element.TypeElement
-import javax.lang.model.element.VariableElement
 import javax.lang.model.type.TypeMirror
+import java.util.stream.Stream
 
 /**
- * {@link BuildMethodBodies} seam, unit-tested directly: each abstract method body is composed by walking the
- * {@link io.github.joke.percolate.processor.internal.graph.ExtractedPlan} from the return root. A single-port chain
- * renders inline; a Value shared by two consumers is hoisted to a local and referenced; the {@code docTags} option
- * brackets the body. Driven over a hand-built reachable graph with real codegen (the {@code ExtractedPlanSpec}
- * helper pattern, on a {@link MethodScope}).
+ * {@link BuildMethodBodies} seam, unit-tested directly: {@code build}/{@code renderMethod}/{@code docTagged} are
+ * pure wiring, exercised over mocked collaborators (design {@code decompose-engine-stages}, Phase 3 — the codegen
+ * exemplar). {@link BuildMethodBodies.Walk}'s own assembly logic is covered by {@link WalkSpec}.
  */
 @Tag('unit')
 class BuildMethodBodiesSpec extends Specification {
 
-    static final OperationCodegen IDENTITY = { inputs -> inputs.single() } as OperationCodegen
-    static final ScopeCodegen MAP =
-            { operand, var, body -> CodeBlock.of('$L.map($N -> $L)', operand, var, body) } as ScopeCodegen
-
-    @Shared PrivateTypeUniverse javac = new PrivateTypeUniverse()
-
-    def method = Mock(ExecutableElement) {
-        getSimpleName() >> Stub(Name) { toString() >> 'map' }
-        getParameters() >> [param('in')]
-    }
-    MethodScope scope = new MethodScope(method)
-    MapperGraph graph = new MapperGraph()
-    Value root = graph.valueFor(scope, new TargetLocation(TargetPath.of('')), javac.STRING, Nullability.NON_NULL)
-            .tap { graph.markReturnRoot(it) }
-
-    def 'a single-producer return renders inline as the chosen producer expression'() {
-        given:
-        operation(root, [source('in')], IDENTITY)
-
-        when:
-        def bodies = engine(false, false, false).build(context())
-
-        then:
-        bodies.size() == 1
-        bodies[0].method == method
-        bodies[0].body.toString() == 'return in;\n'
-    }
-
-    def 'the docTags option brackets the method body in AsciiDoc include tags named after the method'() {
-        given:
-        operation(root, [source('in')], IDENTITY)
-
-        expect:
-        engine(false, false, true).build(context())[0].body.toString() ==
-                '// tag::map[]\nreturn in;\n// end::map[]\n'
-    }
-
-    def 'a Value shared by two consumer ports is hoisted to a local and referenced by name'() {
-        given: 'root := shared + shared, where shared := in (shared feeds two ports, so it hoists)'
-        def shared = intermediate('m')
-        operation(shared, [source('in')], IDENTITY)
-        operation(root, [shared, shared],
-                { inputs -> CodeBlock.of('$L + $L', inputs.byGroupPosition(0), inputs.byGroupPosition(1)) } as OperationCodegen)
-
-        when:
-        def body = engine(false, false, false).build(context())[0].body.toString()
-
-        then: 'the shared Value is declared once as a local and referenced, not inlined twice'
-        body.contains('String m = in;')
-        body.contains('return m + m;')
-    }
-
-    def 'locals.final and locals.var control the hoisted declaration syntax'() {
-        given:
-        def shared = intermediate('m')
-        operation(shared, [source('in')], IDENTITY)
-        operation(root, [shared, shared],
-                { inputs -> CodeBlock.of('$L + $L', inputs.byGroupPosition(0), inputs.byGroupPosition(1)) } as OperationCodegen)
-
-        expect:
-        engine(makeFinal, useVar, false).build(context())[0].body.toString().contains(declaration)
-
-        where: 'javapoet renders the explicit type as its FQN; var omits it'
-        makeFinal | useVar | declaration
-        false     | false  | 'java.lang.String m = in;'
-        true      | false  | 'final java.lang.String m = in;'
-        false     | true   | 'var m = in;'
-    }
-
-    def 'a produced intermediate feeding a single port stays inline, not hoisted'() {
-        // root := f(mid), mid := g(in): mid has a producer but one consumer, so it is threaded inline
-        def mid = intermediate('m')
-        operation(mid, [source('in')], IDENTITY)
-        operation(root, [mid], IDENTITY)
-
-        when:
-        def body = engine(false, false, false).build(context())[0].body.toString()
-
-        then:
-        body == 'return in;\n'
-    }
+    def method = Mock(ExecutableElement)
 
     def 'build returns no bodies when the shape is absent'() {
         def ctx = new MapperContext(Mock(TypeElement))
-        ctx.graph = graph
+        ctx.graph = Mock(MapperGraph)
 
         expect:
-        engine(false, false, false).build(ctx).empty
+        engine().build(ctx).empty
     }
 
     def 'build returns no bodies when the graph is absent'() {
@@ -140,87 +56,546 @@ class BuildMethodBodiesSpec extends Specification {
         ctx.shape = new MapperShape(Mock(TypeElement), [method])
 
         expect:
-        engine(false, false, false).build(ctx).empty
+        engine().build(ctx).empty
     }
 
-    def 'a container mapping weaves the container codegen around an expression lambda when the child hoists nothing'() {
-        // List<String> in -> List<Integer> out; child String -> Integer sources straight from the element
-        def g = new MapperGraph()
-        def containerOp = containerMapping(g, javac.LIST_OF_INT)
-        def child = containerOp.childScope.get()
-        def element = new AddValue(child, new ElementLocation(), javac.STRING, Nullability.NON_NULL)
-        g.apply(new AddOperation('conv', IDENTITY, 1, false,
-                [new PortBinding(new Port('e', javac.STRING, Nullability.NON_NULL), element)],
-                childRoot(child), Optional.empty()))
+    def 'build renders one body per abstract method when both shape and graph are present'() {
+        method.simpleName >> Stub(Name) { toString() >> 'map' }
+        method.parameters >> []
+        def graph = new MapperGraph()
+        def scope = new MethodScope(method)
+        def root = graph.apply(new AddValue(scope, new TargetLocation(TargetPath.of('')), Mock(TypeMirror), Nullability.NON_NULL))
+        graph.markReturnRoot(root)
+        graph.apply(new AddOperation('supply', { inputs -> CodeBlock.of('x') } as OperationCodegen, 1, false, [],
+                new AddValue(scope, new TargetLocation(TargetPath.of('')), Mock(TypeMirror), Nullability.NON_NULL),
+                Optional.empty()))
+        def ctx = new MapperContext(Mock(TypeElement))
+        ctx.shape = new MapperShape(Mock(TypeElement), [method])
+        ctx.graph = graph
 
         when:
-        def body = engine(false, false, false).build(containerContext(g)).first().body.toString()
+        def bodies = engine().build(ctx)
 
         then:
-        body == 'return in.map(string -> string);\n'
+        bodies.size() == 1
+        bodies[0].method.is(method)
+        bodies[0].body.toString() == 'return x;\n'
+    }
+
+    def 'docTagged returns the body unchanged when the docTags option is off'() {
+        def body = CodeBlock.of('return x;\n')
+
+        expect:
+        engine(false).docTagged(body, method).is(body)
+    }
+
+    def 'docTagged brackets the body in AsciiDoc include tags named after the method when the option is on'() {
+        def body = CodeBlock.of('return x;\n')
+
+        when:
+        def result = engine(true).docTagged(body, method)
+
+        then:
+        1 * method.simpleName >> Stub(Name) { toString() >> 'map' }
+        0 * _
+
+        expect:
+        result.toString() == '// tag::map[]\nreturn x;\n// end::map[]\n'
     }
 
     // ---- helpers ----------------------------------------------------------------------------------------------
 
-    /** A scope-owning List<String> -> List<Integer> map operation; its child return root is Integer. */
-    private Operation containerMapping(final MapperGraph g, final TypeMirror output) {
-        def sourceIn = new AddValue(scope, new SourceLocation(AccessPath.of('in')), javac.LIST_OF_STRING,
-                Nullability.NON_NULL)
-        def decl = new ChildScopeDecl(javac.STRING, Nullability.NON_NULL, javac.INTEGER,
-                Nullability.NON_NULL)
-        def op = g.apply(new AddOperation('map', MAP, Weights.CONTAINER, false,
-                [new PortBinding(new Port('src', javac.LIST_OF_STRING, Nullability.NON_NULL), sourceIn)],
-                new AddValue(scope, new TargetLocation(TargetPath.of('')), output, Nullability.NON_NULL),
-                Optional.of(decl)))
-        g.markReturnRoot(g.outputOf(op).get())
-        op
+    private BuildMethodBodies engine(final boolean docTags = false) {
+        new BuildMethodBodies(new ProcessorOptions(false, [] as Set, false, false, docTags))
+    }
+}
+
+/**
+ * {@link BuildMethodBodies.Walk} unit-tested by mocking {@link MapperGraph}/{@link ExtractedPlan}/{@link HoistPlan}/
+ * {@link TypeNameRenderer} — the pure assembly logic behind one method body, isolated from the irreducible
+ * compiler-backed {@code TypeName.get(mirror)} leaf (design D7 of change {@code decompose-engine-stages}). Methods
+ * that recurse into siblings ({@code renderInline}) are isolated with a {@code Spy}, per the {@code Grounding}
+ * precedent (design D5): the recursion is genuinely self-referential over the plan's structure, not a separable
+ * collaborator.
+ */
+@Tag('unit')
+class WalkSpec extends Specification {
+
+    MapperGraph graph = Mock()
+    ExtractedPlan plan = Mock()
+    HoistPlan hoist = Mock()
+    LocalStyle style = new LocalStyle(false, false)
+    TypeNameRenderer typeNameRenderer = Mock()
+
+    // ---- renderLeaf: a bare leaf renders its bound lambda var or its source segment name -------------------------
+
+    def 'renderLeaf renders a source-path leaf by its first segment name'() {
+        def walk = walk()
+        Value value = Mock()
+
+        when:
+        def result = walk.renderLeaf(value)
+
+        then: 'getLoc is read twice — the instanceof check, then the SourceLocation cast'
+        2 * value.loc >> new SourceLocation(AccessPath.of('in'))
+        0 * _
+
+        expect:
+        result.toString() == 'in'
     }
 
-    private AddValue childRoot(final ChildScope child) {
-        new AddValue(child, new TargetLocation(TargetPath.of('')), javac.INTEGER, Nullability.NON_NULL)
+    def 'renderLeaf fails fast for an unproducible leaf with neither a bound lambda var nor a source segment'() {
+        def walk = walk()
+        Value value = Mock()
+        Location loc = Mock()
+
+        when:
+        walk.renderLeaf(value)
+
+        then:
+        1 * value.loc >> loc
+        1 * value.id() >> 'v1'
+        0 * _
+        def error = thrown(IllegalStateException)
+
+        expect:
+        error.message.contains('v1')
     }
 
-    private MapperContext containerContext(final MapperGraph g) {
-        def ctx = new MapperContext(Mock(TypeElement))
-        ctx.shape = new MapperShape(Mock(TypeElement), [method])
-        ctx.graph = g
-        ctx
+    def 'renderLeaf fails fast for a SourceLocation with no segments'() {
+        def walk = walk()
+        Value value = Mock()
+
+        when:
+        walk.renderLeaf(value)
+
+        then: 'a SourceLocation with an empty path falls through to the same failure as an unrecognised Location'
+        2 * value.loc >> new SourceLocation(new AccessPath([]))
+        1 * value.id() >> 'v1'
+        0 * _
+        def error = thrown(IllegalStateException)
+
+        expect:
+        error.message.contains('v1')
     }
 
-    private BuildMethodBodies engine(final boolean makeFinal, final boolean useVar, final boolean docTags) {
-        new BuildMethodBodies(new ProcessorOptions(false, [] as Set, makeFinal, useVar, docTags))
+    // ---- localType: the sole compiler-backed leaf, delegated verbatim to TypeNameRenderer -------------------------
+
+    def 'localType renders a typed Value\'s type through the injected TypeNameRenderer'() {
+        def walk = walk()
+        Value value = Mock()
+        TypeMirror type = Mock()
+        def rendered = ClassName.get('java.lang', 'String')
+
+        when:
+        def result = walk.localType(value)
+
+        then:
+        1 * value.type >> Optional.of(type)
+        1 * typeNameRenderer.render(type) >> rendered
+        0 * _
+
+        expect:
+        result.is(rendered)
     }
 
-    private Value source(final String slot) {
-        graph.valueFor(scope, new SourceLocation(AccessPath.of(slot)), javac.STRING, Nullability.NON_NULL)
+    def 'localType fails fast for an untyped hoisted Value'() {
+        def walk = walk()
+        Value value = Mock()
+
+        when:
+        walk.localType(value)
+
+        then:
+        1 * value.type >> Optional.empty()
+        1 * value.id() >> 'v1'
+        0 * _
+        def error = thrown(IllegalStateException)
+
+        expect:
+        error.message.contains('v1')
     }
 
-    private Value intermediate(final String slot) {
-        graph.valueFor(scope, new TargetLocation(TargetPath.of(slot)), javac.STRING, Nullability.NON_NULL)
+    // ---- typeToken: var when configured, otherwise the rendered type ---------------------------------------------
+
+    def 'typeToken renders var when the useVar style is set, touching no TypeNameRenderer'() {
+        def walk = walk(new LocalStyle(false, true))
+        Value value = Mock()
+
+        expect:
+        walk.typeToken(value).toString() == 'var'
     }
 
-    private Operation operation(final Value out, final List<Value> portSources, final Codegen codegen) {
-        def ports = (0..<portSources.size()).collect { i ->
-            new PortBinding(new Port('p' + i, portSources[i].type.get(), portSources[i].nullness.get()), av(portSources[i]))
-        }
-        graph.apply(new AddOperation('op', codegen, 1, false, ports, av(out), Optional.empty()))
+    def 'typeToken renders the local type when useVar is not set'() {
+        def walk = walk()
+        Value value = Mock()
+        TypeMirror type = Mock()
+
+        when:
+        def result = walk.typeToken(value)
+
+        then:
+        1 * value.type >> Optional.of(type)
+        1 * typeNameRenderer.render(type) >> ClassName.get('java.lang', 'String')
+        0 * _
+
+        expect:
+        result.toString() == 'java.lang.String'
     }
 
-    private AddValue av(final Value value) {
-        new AddValue(value.scope, value.loc, value.type.get(), value.nullness.get())
+    // ---- emitLocal: one hoisted declaration statement, isolated via Spy from renderInline/typeToken ----------------
+
+    def 'emitLocal emits a final local when the style requires final'() {
+        def walk = Spy(BuildMethodBodies.Walk, constructorArgs: [graph, plan, hoist, new LocalStyle(true, false), typeNameRenderer])
+        Value value = Mock()
+        def builder = CodeBlock.builder()
+
+        when:
+        walk.emitLocal(builder, value)
+
+        then:
+        1 * hoist.declare(value) >> 'm'
+        1 * walk.renderInline(value) >> CodeBlock.of('in')
+        1 * walk.typeToken(value) >> CodeBlock.of('String')
+        1 * walk._
+        0 * _
+
+        expect:
+        builder.build().toString() == 'final String m = in;\n'
     }
 
-    private MapperContext context() {
-        def ctx = new MapperContext(Mock(TypeElement))
-        ctx.shape = new MapperShape(Mock(TypeElement), [method])
-        ctx.graph = graph
-        ctx
+    def 'emitLocal emits a non-final local when the style does not require final'() {
+        def walk = Spy(BuildMethodBodies.Walk, constructorArgs: [graph, plan, hoist, new LocalStyle(false, false), typeNameRenderer])
+        Value value = Mock()
+        def builder = CodeBlock.builder()
+
+        when:
+        walk.emitLocal(builder, value)
+
+        then:
+        1 * hoist.declare(value) >> 'm'
+        1 * walk.renderInline(value) >> CodeBlock.of('in')
+        1 * walk.typeToken(value) >> CodeBlock.of('String')
+        1 * walk._
+        0 * _
+
+        expect:
+        builder.build().toString() == 'String m = in;\n'
     }
 
-    private VariableElement param(final String paramName) {
-        Mock(VariableElement) {
-            getSimpleName() >> Stub(Name) { toString() >> paramName }
-            asType() >> javac.STRING
-        }
+    // ---- renderPlain: an operand per port, positional and by name, isolated via Spy --------------------------------
+
+    def 'renderPlain renders an operand for each port, positional and by name, in port order'() {
+        def walk = spyWalk()
+        Operation operation = Mock()
+        def port0 = new Port('a', Mock(TypeMirror), Nullability.NON_NULL)
+        def port1 = new Port('b', Mock(TypeMirror), Nullability.NON_NULL)
+        Value source0 = Mock()
+        Value source1 = Mock()
+        OperationCodegen codegen = Mock()
+        def rendered = CodeBlock.of('f(x, y)')
+
+        when:
+        def result = walk.renderPlain(operation)
+
+        then:
+        1 * operation.ports >> [port0, port1]
+        1 * graph.portSource(operation, 'a') >> Optional.of(source0)
+        1 * graph.portSource(operation, 'b') >> Optional.of(source1)
+        1 * walk.renderOperand(source0) >> CodeBlock.of('x')
+        1 * walk.renderOperand(source1) >> CodeBlock.of('y')
+        1 * operation.codegen >> codegen
+        1 * codegen.render { it.byGroupPosition(0).toString() == 'x' && it.byGroupPosition(1).toString() == 'y' } >> rendered
+        1 * walk._
+        0 * _
+
+        expect:
+        result.is(rendered)
+    }
+
+    def 'renderPlain fails fast when a port has no source'() {
+        def walk = spyWalk()
+        Operation operation = Mock()
+        def port = new Port('a', Mock(TypeMirror), Nullability.NON_NULL)
+
+        when:
+        walk.renderPlain(operation)
+
+        then:
+        1 * operation.ports >> [port]
+        1 * graph.portSource(operation, 'a') >> Optional.empty()
+        1 * walk._
+        0 * _
+        def error = thrown(IllegalStateException)
+
+        expect:
+        error.message.contains('a')
+    }
+
+    // ---- renderContainerMapping: not spied — a real integration check that the element root binds to its lambda --
+
+    def 'renderContainerMapping binds the materialised element root to its lambda var, readable as a leaf in the child body'() {
+        def walk = walk()
+        Operation operation = Mock()
+        def sourcePort = new Port('src', Mock(TypeMirror), Nullability.NON_NULL)
+        Value sourceValue = Mock()
+        ChildScope child = Mock()
+        InputDecl elementInput = Mock()
+        TypeMirror elementType = Mock()
+        Value elementRoot = Mock()
+        ScopeCodegen codegen = Mock()
+        def rendered = CodeBlock.of('in.map(element -> element)')
+
+        when:
+        def result = walk.renderContainerMapping(operation)
+
+        then:
+        1 * operation.ports >> [sourcePort]
+        1 * graph.portSource(operation, 'src') >> Optional.of(sourceValue)
+        1 * hoist.isHoisted(sourceValue) >> true
+        1 * hoist.reference(sourceValue) >> CodeBlock.of('in')
+        1 * operation.childScope >> Optional.of(child)
+        1 * child.elementInput >> elementInput
+        1 * elementInput.type >> elementType
+        1 * hoist.lambdaName(elementType) >> 'element'
+        1 * graph.valuesIn(child) >> Stream.of(elementRoot)
+        1 * elementRoot.loc >> new ElementLocation()
+        1 * child.returnRoot >> elementRoot
+        2 * plan.chosenProducer(elementRoot) >> Optional.empty()
+        1 * operation.codegen >> codegen
+        1 * codegen.weave(CodeBlock.of('in'), 'element', CodeBlock.of('$N', 'element')) >> rendered
+        0 * _
+
+        expect:
+        result.is(rendered)
+    }
+
+    // ---- renderOperand: a variable reference when hoisted, otherwise the inline expression, isolated via Spy ------
+
+    def 'renderOperand references a hoisted Value by name, without rendering it inline'() {
+        def walk = spyWalk()
+        Value value = Mock()
+        def ref = CodeBlock.of('m')
+
+        when:
+        def result = walk.renderOperand(value)
+
+        then:
+        1 * hoist.isHoisted(value) >> true
+        1 * hoist.reference(value) >> ref
+        1 * walk._
+        0 * _
+
+        expect:
+        result.is(ref)
+    }
+
+    def 'renderOperand renders an un-hoisted Value inline'() {
+        def walk = spyWalk()
+        Value value = Mock()
+        def inline = CodeBlock.of('x')
+
+        when:
+        def result = walk.renderOperand(value)
+
+        then:
+        1 * hoist.isHoisted(value) >> false
+        1 * walk.renderInline(value) >> inline
+        1 * walk._
+        0 * _
+
+        expect:
+        result.is(inline)
+    }
+
+    // ---- renderInline: leaf, plain producer, or container-mapping dispatch, isolated via Spy -----------------------
+
+    def 'renderInline renders an unproduced Value as a leaf'() {
+        def walk = spyWalk()
+        Value value = Mock()
+        def leaf = CodeBlock.of('in')
+
+        when:
+        def result = walk.renderInline(value)
+
+        then:
+        1 * plan.chosenProducer(value) >> Optional.empty()
+        1 * walk.renderLeaf(value) >> leaf
+        1 * walk._
+        0 * _
+
+        expect:
+        result.is(leaf)
+    }
+
+    def 'renderInline dispatches a plain producer to renderPlain'() {
+        def walk = spyWalk()
+        Value value = Mock()
+        Operation operation = Mock()
+        def rendered = CodeBlock.of('x')
+
+        when:
+        def result = walk.renderInline(value)
+
+        then:
+        1 * plan.chosenProducer(value) >> Optional.of(operation)
+        1 * operation.childScope >> Optional.empty()
+        1 * walk.renderPlain(operation) >> rendered
+        1 * walk._
+        0 * _
+
+        expect:
+        result.is(rendered)
+    }
+
+    def 'renderInline dispatches a scope-owning producer to renderContainerMapping'() {
+        def walk = spyWalk()
+        Value value = Mock()
+        Operation operation = Mock()
+        ChildScope childScope = Mock()
+        def rendered = CodeBlock.of('x.map(y -> y)')
+
+        when:
+        def result = walk.renderInline(value)
+
+        then:
+        1 * plan.chosenProducer(value) >> Optional.of(operation)
+        1 * operation.childScope >> Optional.of(childScope)
+        1 * walk.renderContainerMapping(operation) >> rendered
+        1 * walk._
+        0 * _
+
+        expect:
+        result.is(rendered)
+    }
+
+    // ---- renderMethodBody / renderScopeBody: hoist the locals, then return the inline root, via Spy -----------------
+
+    def 'renderMethodBody emits no locals and returns the inline root expression when nothing hoists'() {
+        def walk = spyWalk()
+        Value root = Mock()
+
+        when:
+        def result = walk.renderMethodBody(root)
+
+        then:
+        1 * walk.hoistedInScope(root) >> []
+        1 * walk.renderInline(root) >> CodeBlock.of('x')
+        1 * walk._
+        0 * _
+
+        expect:
+        result.toString() == 'return x;\n'
+    }
+
+    def 'renderMethodBody emits one local statement per hoisted Value before the return'() {
+        def walk = spyWalk()
+        Value root = Mock()
+        Value hoisted = Mock()
+
+        when:
+        def result = walk.renderMethodBody(root)
+
+        then:
+        1 * walk.hoistedInScope(root) >> [hoisted]
+        1 * walk.emitLocal({ it != null }, hoisted) >> { CodeBlock.Builder builder, Value v -> builder.addStatement('var m = in') }
+        1 * walk.renderInline(root) >> CodeBlock.of('m')
+        1 * walk._
+        0 * _
+
+        expect:
+        result.toString() == 'var m = in;\nreturn m;\n'
+    }
+
+    def 'renderScopeBody stays an inline expression when the child scope hoists nothing'() {
+        def walk = spyWalk()
+        Value root = Mock()
+        def inline = CodeBlock.of('x')
+
+        when:
+        def result = walk.renderScopeBody(root)
+
+        then:
+        1 * walk.hoistedInScope(root) >> []
+        1 * walk.renderInline(root) >> inline
+        1 * walk._
+        0 * _
+
+        expect:
+        result.is(inline)
+    }
+
+    def 'renderScopeBody renders a block with locals then a return when the child scope hoists something'() {
+        def walk = spyWalk()
+        Value root = Mock()
+        Value hoisted = Mock()
+
+        when:
+        def result = walk.renderScopeBody(root)
+
+        then:
+        1 * walk.hoistedInScope(root) >> [hoisted]
+        1 * walk.emitLocal({ it != null }, hoisted) >> { CodeBlock.Builder builder, Value v -> builder.addStatement('var m = in') }
+        1 * walk.renderInline(root) >> CodeBlock.of('m')
+        1 * walk._
+        0 * _
+
+        expect:
+        result.toString() == '{\n  var m = in;\n  return m;\n}'
+    }
+
+    // ---- collectHoisted / hoistedInScope: post-order traversal over the plan's port sources -----------------------
+
+    def 'hoistedInScope collects a hoisted producer\'s ports before itself, excluding the root'() {
+        def walk = walk()
+        Value root = Mock()
+        Value child = Mock()
+        Value leaf = Mock()
+        Operation rootProducer = Mock()
+        Operation childProducer = Mock()
+
+        when:
+        def result = walk.hoistedInScope(root)
+
+        then:
+        1 * plan.chosenProducer(root) >> Optional.of(rootProducer)
+        1 * graph.portSourcesOf(rootProducer) >> Stream.of(child)
+        1 * plan.chosenProducer(child) >> Optional.of(childProducer)
+        1 * graph.portSourcesOf(childProducer) >> Stream.of(leaf)
+        1 * plan.chosenProducer(leaf) >> Optional.empty()
+        1 * hoist.isHoisted(child) >> true
+        0 * _
+
+        expect: 'the root is excluded even when hoisted (isHoisted is never even asked for it); the leaf has no producer'
+        result == [child]
+    }
+
+    def 'hoistedInScope visits a Value shared by two consumers only once'() {
+        def walk = walk()
+        Value root = Mock()
+        Value shared = Mock()
+        Operation rootProducer = Mock()
+
+        when:
+        def result = walk.hoistedInScope(root)
+
+        then:
+        1 * plan.chosenProducer(root) >> Optional.of(rootProducer)
+        1 * graph.portSourcesOf(rootProducer) >> Stream.of(shared, shared)
+        1 * plan.chosenProducer(shared) >> Optional.empty()
+        0 * _
+
+        expect: 'shared has no chosen producer, so it is a base case and is never added, regardless of hoist status'
+        result == []
+    }
+
+    // ---- helpers ----------------------------------------------------------------------------------------------
+
+    private BuildMethodBodies.Walk walk(final LocalStyle localStyle = style) {
+        new BuildMethodBodies.Walk(graph, plan, hoist, localStyle, typeNameRenderer)
+    }
+
+    private BuildMethodBodies.Walk spyWalk() {
+        Spy(BuildMethodBodies.Walk, constructorArgs: [graph, plan, hoist, style, typeNameRenderer])
     }
 }

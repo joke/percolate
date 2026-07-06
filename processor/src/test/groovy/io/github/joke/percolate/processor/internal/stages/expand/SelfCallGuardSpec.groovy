@@ -8,7 +8,6 @@ import io.github.joke.percolate.processor.internal.graph.PortBinding
 import io.github.joke.percolate.processor.internal.graph.Scope
 import io.github.joke.percolate.processor.internal.graph.SourceLocation
 import io.github.joke.percolate.processor.test.FakeElements
-import io.github.joke.percolate.processor.test.FakeType
 import io.github.joke.percolate.processor.test.HarnessScope
 import io.github.joke.percolate.spi.Nullability
 import io.github.joke.percolate.spi.OperationCodegen
@@ -28,22 +27,22 @@ import javax.lang.model.type.TypeMirror
  * guard is purely structural (compares the spec's neutral call-target signature to the enclosing method and checks
  * whether a bound port is that method's parameter-root {@code LEAF}); each case isolates one branch of {@code refuses}.
  *
- * <p>Unit-tested mock-only (change {@code type-query-seam}): {@link FakeElements} stand in for the compiled
- * {@code ExecutableElement}s — the guard only ever reads their name/parameters/return type, never a {@code Types}/
- * {@code Elements} lookup, so no javac is needed.
+ * <p>Unit-tested mock-only: {@link FakeElements} stand in for the compiled {@code ExecutableElement}s (the guard
+ * only ever reads their name/parameters/return type, never a {@code Types}/{@code Elements} lookup); every
+ * {@link TypeMirror} is a plain opaque {@code Mock} — the guard never queries a type, it only carries them through
+ * to build fixture {@link OperationSpec}s/{@link Port}s. No javac, no {@code FakeResolveCtx}/{@code FakeType}.
  */
 @Tag('unit')
 class SelfCallGuardSpec extends Specification {
 
-    @Shared TypeMirror personType = FakeType.declared('Person')
-    @Shared TypeMirror humanType = FakeType.declared('Human')
-    @Shared TypeMirror stringType = FakeType.declared('String')
+    @Shared TypeMirror personType = Mock()
+    @Shared TypeMirror humanType = Mock()
+    @Shared TypeMirror stringType = Mock()
     @Shared OperationCodegen codegen = { inc -> CodeBlock.of('x') } as OperationCodegen
 
     SelfCallGuard guard = new SelfCallGuard()
 
     def 'refuses a same-signature call target bound to its own whole-parameter root'() {
-        given:
         def method = mapMethod()
         def scope = new MethodScope(method)
 
@@ -52,7 +51,6 @@ class SelfCallGuardSpec extends Specification {
     }
 
     def 'does not refuse when the scope is not a method scope (a child/element scope cannot self-recur)'() {
-        given:
         def method = mapMethod()
 
         expect: 'the self-call shape is identical, but a non-MethodScope short-circuits the guard'
@@ -61,7 +59,6 @@ class SelfCallGuardSpec extends Specification {
     }
 
     def 'does not refuse a producer that records no call target'() {
-        given:
         def method = mapMethod()
         def scope = new MethodScope(method)
         def producer = OperationSpec.of('new', codegen, Weights.STEP,
@@ -73,7 +70,6 @@ class SelfCallGuardSpec extends Specification {
     }
 
     def 'does not refuse delegation to a different-signature method'() {
-        given:
         def method = mapMethod()
         def scope = new MethodScope(method)
         def getFirstName = FakeElements.method('getFirstName', stringType)
@@ -83,7 +79,6 @@ class SelfCallGuardSpec extends Specification {
     }
 
     def 'does not refuse a self-call bound to a sub-part of the parameter (an ACCESS source), not the whole parameter'() {
-        given:
         def method = mapMethod()
         def scope = new MethodScope(method)
         def subPart = new SourceLocation(new AccessPath(['person', 'firstName']))

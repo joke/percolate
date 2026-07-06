@@ -12,7 +12,6 @@ import io.github.joke.percolate.processor.internal.graph.ExtractedPlan;
 import io.github.joke.percolate.processor.internal.graph.MapperGraph;
 import io.github.joke.percolate.processor.internal.graph.MethodScope;
 import io.github.joke.percolate.processor.internal.graph.Operation;
-import io.github.joke.percolate.processor.internal.graph.Scope;
 import io.github.joke.percolate.processor.internal.graph.SourceLocation;
 import io.github.joke.percolate.processor.internal.graph.Value;
 import io.github.joke.percolate.spi.DocTags;
@@ -59,14 +58,14 @@ public final class BuildMethodBodies {
                 .collect(toUnmodifiableList());
     }
 
-    private MethodImpl renderMethod(final MapperGraph graph, final ExtractedPlan plan, final ExecutableElement method) {
-        final var root = returnRoot(graph, new MethodScope(method));
+    MethodImpl renderMethod(final MapperGraph graph, final ExtractedPlan plan, final ExecutableElement method) {
+        final var root = graph.returnRootIn(new MethodScope(method));
         final var reserved = method.getParameters().stream()
                 .map(parameter -> parameter.getSimpleName().toString())
                 .collect(toUnmodifiableList());
         final var hoist = HoistPlan.forMethod(graph, plan, root, reserved);
         final var style = new LocalStyle(options.isLocalsFinal(), options.isLocalsVar());
-        final var body = new Walk(graph, plan, hoist, style).renderMethodBody(root);
+        final var body = new Walk(graph, plan, hoist, style, new TypeNameRenderer()).renderMethodBody(root);
         return new MethodImpl(method, docTagged(body, method), Set.of());
     }
 
@@ -76,40 +75,48 @@ public final class BuildMethodBodies {
      * {@code include::[tag=<method>]} the generated body. Off by default, so ordinary consumer output is
      * byte-for-byte unchanged.
      */
-    private CodeBlock docTagged(final CodeBlock body, final ExecutableElement method) {
+    CodeBlock docTagged(final CodeBlock body, final ExecutableElement method) {
         if (!options.isDocTags()) {
             return body;
         }
         return DocTags.wrap(body, method.getSimpleName().toString());
     }
 
-    private static Value returnRoot(final MapperGraph graph, final Scope scope) {
-        return graph.returnRoots()
-                .filter(value -> value.getScope().equals(scope))
-                .findFirst()
-                .orElseThrow(() -> new IllegalStateException("no return-root Value in scope " + scope.encode()));
-    }
-
-    /** One method-body render: holds the graph, the plan, the hoist decision, and the lambda-variable environment. */
-    private static final class Walk {
+    /**
+     * One method-body render (decomposed by change {@code decompose-engine-stages}): holds the graph, the plan, the
+     * hoist decision, the lambda-variable environment, and the injected {@link TypeNameRenderer} — the sole
+     * compiler-backed leaf, so every other method here is pure assembly logic a spec can mock/spy in isolation.
+     * Package-visible so the unit suite drives it directly; production code reaches it only through
+     * {@link #renderMethod}. Its own methods recurse into one another over the plan's structure ({@code renderInline}
+     * ↔ {@code renderOperand}/{@code renderContainerMapping}/{@code renderScopeBody}), so a spec isolating one of
+     * them spies the subject and stubs the recursive call, per the {@code Grounding} precedent (design D5).
+     */
+    static final class Walk {
 
         private final MapperGraph graph;
         private final ExtractedPlan plan;
         private final HoistPlan hoist;
         private final LocalStyle style;
+        private final TypeNameRenderer typeNameRenderer;
 
         @SuppressWarnings({"PMD.UseConcurrentHashMap", "IdentityHashMapUsage"})
         private final Map<Value, CodeBlock> lambdaVars = new IdentityHashMap<>();
 
-        private Walk(final MapperGraph graph, final ExtractedPlan plan, final HoistPlan hoist, final LocalStyle style) {
+        Walk(
+                final MapperGraph graph,
+                final ExtractedPlan plan,
+                final HoistPlan hoist,
+                final LocalStyle style,
+                final TypeNameRenderer typeNameRenderer) {
             this.graph = graph;
             this.plan = plan;
             this.hoist = hoist;
             this.style = style;
+            this.typeNameRenderer = typeNameRenderer;
         }
 
         /** The method body: the scope's local declarations, then {@code return <return-root expression>;}. */
-        private CodeBlock renderMethodBody(final Value root) {
+        CodeBlock renderMethodBody(final Value root) {
             final var builder = CodeBlock.builder();
             for (final var value : hoistedInScope(root)) {
                 emitLocal(builder, value);
@@ -121,7 +128,7 @@ public final class BuildMethodBodies {
          * A child (lambda) scope body: the inline expression when it hoists nothing (an expression lambda stays
          * terse), otherwise a {@code { <decls>; return <expr>; }} block (a block lambda).
          */
-        private CodeBlock renderScopeBody(final Value root) {
+        CodeBlock renderScopeBody(final Value root) {
             final var hoistedHere = hoistedInScope(root);
             if (hoistedHere.isEmpty()) {
                 return renderInline(root);
@@ -137,24 +144,24 @@ public final class BuildMethodBodies {
         }
 
         /** Emit one hoisted local: {@code [final] <Type|var> <name> = <expr>;} per the configured {@link LocalStyle}. */
-        private void emitLocal(final CodeBlock.Builder builder, final Value value) {
+        void emitLocal(final CodeBlock.Builder builder, final Value value) {
             final var name = hoist.declare(value);
             final var rhs = renderInline(value);
             builder.addStatement("$L$L $N = $L", style.isMakeFinal() ? "final " : "", typeToken(value), name, rhs);
         }
 
-        /** The declaration's type token: {@code var} when configured, otherwise the Value's explicit type. */
-        private CodeBlock typeToken(final Value value) {
+        /** The declaration's type token: {@code var} when configured, otherwise the Value's rendered type. */
+        CodeBlock typeToken(final Value value) {
             return style.isUseVar() ? CodeBlock.of("var") : CodeBlock.of("$T", localType(value));
         }
 
         /** An operand: a variable reference when the Value is hoisted, otherwise its inline expression. */
-        private CodeBlock renderOperand(final Value value) {
+        CodeBlock renderOperand(final Value value) {
             return hoist.isHoisted(value) ? hoist.reference(value) : renderInline(value);
         }
 
         /** The inline expression for a Value: its chosen producer's rendering, or the leaf name. */
-        private CodeBlock renderInline(final Value value) {
+        CodeBlock renderInline(final Value value) {
             final var producer = plan.chosenProducer(value);
             if (producer.isEmpty()) {
                 return renderLeaf(value);
@@ -167,7 +174,7 @@ public final class BuildMethodBodies {
         }
 
         @SuppressWarnings("PMD.UseConcurrentHashMap") // single-threaded render; insertion order is the port order
-        private CodeBlock renderPlain(final Operation operation) {
+        CodeBlock renderPlain(final Operation operation) {
             final List<CodeBlock> positional = new ArrayList<>();
             final Map<String, CodeBlock> byName = new LinkedHashMap<>();
             for (final var port : operation.getPorts()) {
@@ -181,7 +188,7 @@ public final class BuildMethodBodies {
             return ((OperationCodegen) operation.getCodegen()).render(new IncomingValuesImpl(positional, byName));
         }
 
-        private CodeBlock renderContainerMapping(final Operation operation) {
+        CodeBlock renderContainerMapping(final Operation operation) {
             final var sourcePort = operation.getPorts().get(0);
             final var sourceExpr = graph.portSource(operation, sourcePort.getName())
                     .map(this::renderOperand)
@@ -194,13 +201,13 @@ public final class BuildMethodBodies {
         }
 
         /** The element param-root Value if the child plan sourced from it (lazily materialised), else empty. */
-        private Optional<Value> materialisedElementRoot(final ChildScope child) {
+        Optional<Value> materialisedElementRoot(final ChildScope child) {
             return graph.valuesIn(child)
                     .filter(value -> value.getLoc() instanceof ElementLocation)
                     .findFirst();
         }
 
-        private CodeBlock renderLeaf(final Value value) {
+        CodeBlock renderLeaf(final Value value) {
             final var bound = lambdaVars.get(value);
             if (bound != null) {
                 return bound;
@@ -214,9 +221,9 @@ public final class BuildMethodBodies {
             throw new IllegalStateException("unproducible leaf Value in plan: " + value.id());
         }
 
-        /** The declared type of a hoisted local: the Value's resolved type. */
-        private TypeName localType(final Value value) {
-            return TypeName.get(value.getType()
+        /** The declared type of a hoisted local, rendered through the injected {@link TypeNameRenderer}. */
+        TypeName localType(final Value value) {
+            return typeNameRenderer.render(value.getType()
                     .orElseThrow(() -> new IllegalStateException("hoisted Value has no type: " + value.id())));
         }
 
@@ -225,15 +232,14 @@ public final class BuildMethodBodies {
          * first reference. The walk stays within the scope — it descends a producer's port sources but never its
          * child scope — and excludes {@code root} itself (the return-root renders inline).
          */
-        private List<Value> hoistedInScope(final Value root) {
+        List<Value> hoistedInScope(final Value root) {
             final List<Value> ordered = new ArrayList<>();
             // Value is identity-equal (equals/hashCode are identity), so a HashSet is effectively an identity set.
             collectHoisted(root, root, ordered, new HashSet<>());
             return ordered;
         }
 
-        private void collectHoisted(
-                final Value value, final Value root, final List<Value> ordered, final Set<Value> seen) {
+        void collectHoisted(final Value value, final Value root, final List<Value> ordered, final Set<Value> seen) {
             if (!seen.add(value)) {
                 return;
             }

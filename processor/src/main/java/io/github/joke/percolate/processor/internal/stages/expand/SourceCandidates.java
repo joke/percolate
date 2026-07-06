@@ -46,7 +46,7 @@ final class SourceCandidates {
     List<TypeMirror> sourceTypes(final Scope scope) {
         return Stream.concat(
                         scope.inputDecls(resolver::resolve).map(InputDecl::getType),
-                        sourceValues(scope).map(this::type))
+                        sourceValues(scope).map(Value::type))
                 .collect(toUnmodifiableList());
     }
 
@@ -70,10 +70,11 @@ final class SourceCandidates {
 
     /** Whether {@code value} can feed {@code port}: same type and a non-null source satisfies any nullness. */
     boolean matchesPort(final Value value, final Port port) {
-        return matches(type(value), nullness(value), port);
+        return matches(value.type(), value.nullness(), port);
     }
 
-    private @Nullable Value materialiseMatchingInput(final Scope scope, final Port port) {
+    @Nullable
+    Value materialiseMatchingInput(final Scope scope, final Port port) {
         return scope.inputDecls(resolver::resolve)
                 .filter(decl -> matches(decl.getType(), decl.getNullness(), port))
                 .findFirst()
@@ -82,7 +83,7 @@ final class SourceCandidates {
                 .orElse(null);
     }
 
-    private Stream<Value> sourceValues(final Scope scope) {
+    Stream<Value> sourceValues(final Scope scope) {
         return graph.valuesIn(scope).filter(value -> {
             final var role = value.getLoc().role();
             return role == Location.Role.ACCESS || role == Location.Role.LEAF;
@@ -90,16 +91,8 @@ final class SourceCandidates {
     }
 
     /** Whether a source of {@code (type, nullness)} can feed {@code port}: same type, non-null satisfies any. */
-    private boolean matches(final TypeMirror sourceType, final Nullability sourceNullness, final Port port) {
+    boolean matches(final TypeMirror sourceType, final Nullability sourceNullness, final Port port) {
         final var nullnessClash = port.getNullness() == Nullability.NON_NULL && sourceNullness == Nullability.NULLABLE;
         return !nullnessClash && resolveCtx.isSameType(sourceType, port.getType());
-    }
-
-    private TypeMirror type(final Value value) {
-        return value.getType().orElseThrow(() -> new IllegalStateException("untyped Value: " + value.id()));
-    }
-
-    private Nullability nullness(final Value value) {
-        return value.getNullness().orElseThrow(() -> new IllegalStateException("unnulled Value: " + value.id()));
     }
 }

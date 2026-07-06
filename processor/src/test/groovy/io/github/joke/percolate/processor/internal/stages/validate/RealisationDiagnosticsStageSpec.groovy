@@ -14,7 +14,6 @@ import io.github.joke.percolate.processor.internal.graph.SourceLocation
 import io.github.joke.percolate.processor.internal.graph.TargetLocation
 import io.github.joke.percolate.processor.internal.graph.TargetPath
 import io.github.joke.percolate.processor.test.FakeElements
-import io.github.joke.percolate.processor.test.FakeType
 import io.github.joke.percolate.spi.Nullability
 import io.github.joke.percolate.spi.OperationCodegen
 import io.github.joke.percolate.spi.Port
@@ -34,14 +33,14 @@ import javax.lang.model.type.TypeMirror
  * deepest unreachable demand and its type. Nothing is recorded when the graph is absent or the mapper already carries
  * errors (a targeted diagnostic already explains it).
  *
- * <p>Unit-tested mock-only (change {@code type-query-seam}): {@link FakeType} stands in for the compiled type, since
- * this stage never reaches a {@code ResolveCtx} and only ever prints {@code type.toString()} in its message.
+ * <p>Unit-tested mock-only: a plain {@code Stub} stands in for the compiled type, since this stage never reaches a
+ * {@code ResolveCtx} and only ever prints {@code type.toString()} in its message.
  */
 @Tag('unit')
 class RealisationDiagnosticsStageSpec extends Specification {
 
-    @Shared TypeMirror STRING = FakeType.declared('java.lang.String')
-    @Shared TypeMirror LIST_OF_STRING = FakeType.declared('java.util.List', STRING)
+    @Shared TypeMirror STRING = Stub(TypeMirror) { toString() >> 'java.lang.String' }
+    @Shared TypeMirror LIST_OF_STRING = Mock(TypeMirror)
 
     def method = Mock(ExecutableElement) {
         getSimpleName() >> FakeElements.name('map')

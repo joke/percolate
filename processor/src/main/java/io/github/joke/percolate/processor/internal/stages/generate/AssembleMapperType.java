@@ -50,17 +50,17 @@ public final class AssembleMapperType {
         JavaFile.builder(packageName, typeBuilder.build()).build().writeTo(filer);
     }
 
-    private static AnnotationSpec generatedAnnotation() {
+    static AnnotationSpec generatedAnnotation() {
         return AnnotationSpec.builder(Generated.class)
                 .addMember("value", "$S", GENERATED_VALUE)
                 .build();
     }
 
-    private static MethodSpec emptyPublicConstructor() {
+    static MethodSpec emptyPublicConstructor() {
         return MethodSpec.constructorBuilder().addModifiers(Modifier.PUBLIC).build();
     }
 
-    private static MethodSpec overrideMethod(final MethodImpl impl) {
+    static MethodSpec overrideMethod(final MethodImpl impl) {
         final ExecutableElement method = impl.getMethod();
         final var builder = MethodSpec.methodBuilder(method.getSimpleName().toString())
                 .addModifiers(Modifier.PUBLIC)
@@ -75,7 +75,7 @@ public final class AssembleMapperType {
         return builder.build();
     }
 
-    private static TypeName returnTypeName(final ExecutableElement method) {
+    static TypeName returnTypeName(final ExecutableElement method) {
         final var returnType = method.getReturnType();
         return returnType.getKind() == TypeKind.VOID ? TypeName.VOID : TypeName.get(returnType);
     }

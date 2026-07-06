@@ -28,7 +28,7 @@ final class BindingDirective implements Directive {
                 Optional.ofNullable(directive.getDefaultValue()));
     }
 
-    private static List<String> splitSource(final @Nullable String source) {
+    static List<String> splitSource(final @Nullable String source) {
         if (source == null || source.isEmpty()) {
             return List.of();
         }

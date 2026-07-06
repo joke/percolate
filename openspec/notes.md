@@ -90,11 +90,63 @@ packaged correctly. It is not a feature-coverage or integration layer.
    `ResolveCtx` (`TypeMirror` kept as an opaque token, no owned value model); revert the abandoned owned
    model; rewrite `processor`+`spi` unit specs mock-only; delete `TypeUniverse`; restore threaded pitest.
    Runs **before** `features-as-documentation` so the old `strategies-builtin` e2e compile-tests serve as the
-   safety net for the cutover.
-3. **`features-as-documentation`** — feature e2e=doc co-located per module; delete/replace the old
+   safety net for the cutover. ✅ DONE, archived 2026-07-05.
+3. **`decompose-engine-stages`** — the honest completion of Layer 1: `harden-engine-as-library` hit the
+   coverage/pitest numbers on a coarse seam, but the algorithm-bearing stages (`ExpandStage.Driver`,
+   `Grounding`, `BuildMethodBodies`) were still "one entry point + a wall of private helpers," which is why
+   `FakeResolveCtx`/`FakeType`/`PrivateTypeUniverse` kept surviving in `processor` despite `type-query-seam`.
+   Decomposes them into single-method collaborators, adds the two co-enforced ArchUnit guards below, and is
+   **upstream of** the `strategies-builtin` unit-spec migration and `features-as-documentation` (both were
+   being built on the coarse-seam assumption this change corrects). See "Engine internal structure" below for
+   the guard's metric and the audit backlog it leaves.
+4. **`features-as-documentation`** — feature e2e=doc co-located per module; delete/replace the old
    `strategies-builtin` e2e; distribute pages into modules; central spine only.
 
 ## Open topics
+
+- **Engine internal structure (change: `decompose-engine-stages`).** `ExpandStage.Driver` and `Grounding`
+  are fully decomposed into single-method collaborators (injected, mockable); `BuildMethodBodies` is the
+  codegen exemplar (its pure assembly logic split from the one irreducible `TypeName.get(mirror)` leaf,
+  extracted to `TypeNameRenderer`); `AssembleMapperType` was evaluated and left alone — nearly its entire
+  body *is* that leaf, so there is no separable logic to extract (over-atomization risk, not a gap).
+  - **Two co-enforced ArchUnit guards**, in `ModuleBoundariesSpec` (`architecture-tests`): Rule A (no
+    `private` methods — a `private` method is `invokespecial`-dispatched and no test double can intercept
+    it) and Rule B (a size ceiling, so Rule A alone can't be satisfied by exposing a monolith's guts as
+    package-private). **Rule B's metric: non-synthetic method count per class, ceiling 15.** Chosen because
+    it's the simplest metric ArchUnit doesn't ship natively (no WMC/LOC condition in the fluent DSL, so it's
+    a ~10-line custom `ArchCondition`) and it separates cleanly around the decomposed classes: the largest
+    legitimate unit today, `BuildMethodBodies.Walk`, sits at 13 (a cohesive data/query class walking one
+    plan, design.md's cohesion exception); the pre-decomposition monoliths this change eliminated were 21
+    (`ExpandStage.Driver`) and 17 (`BuildMethodBodies`) *private* methods alone. Both rules were verified to
+    actually fire (private method reintroduced, ceiling lowered — each failed as expected, both reverted)
+    before trusting them green.
+  - **Guard scope today: `processor.internal.stages.expand..` + `processor.internal.stages.generate..`
+    only** (`DECOMPOSED_ENGINE_PACKAGES` in `ModuleBoundariesSpec`) — not the full `processor.internal..`
+    tree the ADDED requirement's text names, because most of the tree still has legitimate `private`
+    methods outside this change's scope (see the audit backlog below). Within `expand`, the pre-existing
+    small collaborators `SourceCandidates`/`SelfCallGuard`/`BindingDirective` had their remaining `private`
+    helpers widened too (trivial, zero behaviour change) so the *whole* package is clean rather than
+    carving out exceptions — a stronger, simpler scope than a per-class allowlist.
+  - **Audit backlog (litmus: is every method describable in one sentence without "and," individually
+    isolable by a same-package spec?)** — each item below still fails that litmus and is out of scope for
+    this change (Non-Goal: not a mass-split of every flagged stage). Widen `DECOMPOSED_ENGINE_PACKAGES` (and
+    re-check the ceiling) as each lands:
+    - `ValidateConstantDefaultLegalityStage` (195 lines, 1 entry / 11 private) — `processor.internal.stages.validate`
+    - `RealisationDiagnosticsStage` (91/1/5) — same package
+    - `ValidateSourceParametersStage`, `ValidateMappingShapeStage` — same package, not yet censused in detail
+    - `GraphDumpWriter` — `processor.internal.stages.dump`
+    - `processor.internal.stages.discover.*` (`DiscoverMappingsStage`, `DiscoverCallableMethodsStage`) — still
+      construct `PrivateTypeUniverse` in their specs; unrelated to this change's Driver/Grounding/BuildMethodBodies
+      scope, so left untouched
+    - `processor.internal.graph.*` (`MapperGraph`, `ExtractedPlan`, `DotRenderer`, `Value`, `Dep`) — the value/view
+      layer design.md calls "already small"; several still carry private algorithmic helpers (e.g.
+      `ExtractedPlan.walk`/`cheapestProducer`, `DotRenderer`'s whole private rendering suite) that were never in
+      the census table and are out of scope here
+  - **`FakeType` was *not* fully deleted** (only `FakeResolveCtx` was): it retains one legitimate consumer,
+    `ValidateConstantDefaultLegalityStageSpec`, which does genuine boundary-exempt structural `TypeMirror`
+    inspection (`instanceof DeclaredType`/`ArrayType`) unrelated to the `ResolveCtx` seam. `PrivateTypeUniverse`
+    similarly survives for `AssembleMapperTypeSpec` (the one class that *is* the compile-tested leaf) and for
+    the `discover` specs above — both explicitly permitted by the ADDED requirement's own exception clause.
 
 - **Evict `javax.lang.model` from engine + SPI (change: `evict-javax-model`, decided 2026-07-03).**
   **WITHDRAWN 2026-07-04 — superseded by `type-query-seam`.** The owned-`TypeRef`-currency approach proved

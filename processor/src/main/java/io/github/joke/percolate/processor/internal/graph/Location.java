@@ -1,6 +1,19 @@
 package io.github.joke.percolate.processor.internal.graph;
 
+import java.util.ArrayList;
+import java.util.List;
+
 public interface Location {
+
+    /** A child target location one segment below the dotted {@code parentPath}, named {@code childName}. */
+    static Location child(final String parentPath, final String childName) {
+        final var segments = new ArrayList<String>();
+        if (!parentPath.isEmpty()) {
+            segments.addAll(List.of(parentPath.split("\\.", -1)));
+        }
+        segments.add(childName);
+        return new TargetLocation(new TargetPath(List.copyOf(segments)));
+    }
 
     /**
      * The resolution mode of the Value at this location (demand-driven-expansion D1): {@code FREE} for target

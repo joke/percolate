@@ -200,6 +200,14 @@ public final class MapperGraph {
         return seededRoots.stream();
     }
 
+    /** The single return-root {@code Value} seeded in {@code scope} — the root a method's body renders from. */
+    public Value returnRootIn(final Scope scope) {
+        return returnRoots()
+                .filter(value -> value.getScope().equals(scope))
+                .findFirst()
+                .orElseThrow(() -> new IllegalStateException("no return-root Value in scope " + scope.encode()));
+    }
+
     /** All Operations in deterministic order. */
     public Stream<Operation> operations() {
         return vertices().filter(Operation.class::isInstance).map(Operation.class::cast);

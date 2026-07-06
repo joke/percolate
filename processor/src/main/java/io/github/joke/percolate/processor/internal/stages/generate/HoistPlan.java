@@ -81,7 +81,7 @@ final class HoistPlan {
         return new HoistPlan(hoisted, names);
     }
 
-    private static void collectOps(
+    static void collectOps(
             final MapperGraph graph,
             final ExtractedPlan plan,
             final Value value,
@@ -122,12 +122,12 @@ final class HoistPlan {
         return names.newName(typeBase(elementType));
     }
 
-    private static String slotBase(final Value value) {
+    static String slotBase(final Value value) {
         final var slot = value.getLoc().slotName();
         return slot.isEmpty() ? "value" : slot;
     }
 
-    private static String typeBase(final TypeMirror type) {
+    static String typeBase(final TypeMirror type) {
         if (type instanceof DeclaredType) {
             final var simple = ((DeclaredType) type).asElement().getSimpleName().toString();
             if (!simple.isEmpty()) {

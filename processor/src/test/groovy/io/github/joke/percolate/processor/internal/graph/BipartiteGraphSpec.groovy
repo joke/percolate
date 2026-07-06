@@ -1,25 +1,30 @@
 package io.github.joke.percolate.processor.internal.graph
 
-import io.github.joke.percolate.processor.test.FakeType
 import io.github.joke.percolate.processor.test.HarnessScope
 import io.github.joke.percolate.spi.Codegen
 import io.github.joke.percolate.spi.Nullability
 import io.github.joke.percolate.spi.Port
 import org.jgrapht.Graph
+import spock.lang.Shared
 import spock.lang.Specification
 import spock.lang.Tag
 
 import javax.lang.model.type.TypeMirror
 
+/**
+ * Unit-tested mock-only: every {@link TypeMirror} is a plain opaque {@code Mock} — {@link MapperGraph} never queries
+ * a type (it dedups {@link Value}s by identity/equality of the opaque token, part of the {@code (scope, location,
+ * type, nullness)} key), so no {@code FakeType} structural stand-in is needed.
+ */
 @Tag('unit')
 class BipartiteGraphSpec extends Specification {
 
-    static final TypeMirror STRING = FakeType.declared('String')
-    static final TypeMirror INT = FakeType.declared('int')
-    static final TypeMirror INTEGER = FakeType.declared('Integer')
-    static final TypeMirror LONG = FakeType.declared('long')
-    static final TypeMirror LIST_OF_INT = FakeType.declared('List', INTEGER)
-    static final TypeMirror LIST_OF_STRING = FakeType.declared('List', STRING)
+    @Shared TypeMirror STRING = Mock()
+    @Shared TypeMirror INT = Mock()
+    @Shared TypeMirror INTEGER = Mock()
+    @Shared TypeMirror LONG = Mock()
+    @Shared TypeMirror LIST_OF_INT = Mock()
+    @Shared TypeMirror LIST_OF_STRING = Mock()
 
     final MapperGraph graph = new MapperGraph()
     final Scope scope = new HarnessScope('m()')
@@ -218,6 +223,25 @@ class BipartiteGraphSpec extends Specification {
         then:
         view.vertexSet().contains(inScope)
         !view.vertexSet().contains(elsewhere)
+    }
+
+    // ---- Return-root lookup (relocated from BuildMethodBodies.returnRoot, decompose-engine-stages) --------------
+
+    def 'returnRootIn finds the seeded return-root Value owned by the given scope'() {
+        final var loc = new TargetLocation(TargetPath.of(''))
+        final var root = graph.valueFor(scope, loc, STRING, Nullability.NON_NULL)
+        graph.markReturnRoot(root)
+
+        expect:
+        graph.returnRootIn(scope).is(root)
+    }
+
+    def 'returnRootIn fails fast when the scope seeded no return-root'() {
+        when:
+        graph.returnRootIn(scope)
+
+        then:
+        thrown(IllegalStateException)
     }
 
     // ---- Vertex / edge identity ----------------------------------------------------------------

@@ -1,19 +1,23 @@
 package io.github.joke.percolate.processor.internal.graph
 
-import io.github.joke.percolate.processor.test.FakeType
 import io.github.joke.percolate.processor.test.HarnessScope
 import io.github.joke.percolate.spi.Codegen
 import io.github.joke.percolate.spi.Nullability
 import io.github.joke.percolate.spi.Port
+import spock.lang.Shared
 import spock.lang.Specification
 import spock.lang.Tag
 
 import javax.lang.model.type.TypeMirror
 
+/**
+ * Unit-tested mock-only: {@code ExtractedPlan} never inspects type structure (a {@link TypeMirror} is an opaque
+ * identity carried through the graph), so a plain {@code Mock} stands in with no structural fake needed.
+ */
 @Tag('unit')
 class ExtractedPlanSpec extends Specification {
 
-    static final TypeMirror STRING = FakeType.declared('String')
+    @Shared TypeMirror STRING = Mock()
 
     final MapperGraph graph = new MapperGraph()
     final Scope scope = new HarnessScope('m()')

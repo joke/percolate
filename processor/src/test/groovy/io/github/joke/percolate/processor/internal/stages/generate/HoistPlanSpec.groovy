@@ -15,25 +15,33 @@ import io.github.joke.percolate.processor.internal.graph.Value
 import io.github.joke.percolate.spi.Nullability
 import io.github.joke.percolate.spi.OperationCodegen
 import io.github.joke.percolate.spi.Port
-import io.github.joke.percolate.spi.test.PrivateTypeUniverse
 import spock.lang.Shared
 import spock.lang.Specification
 import spock.lang.Tag
 
 import javax.lang.model.element.ExecutableElement
 import javax.lang.model.element.Name
+import javax.lang.model.element.TypeElement
+import javax.lang.model.type.DeclaredType
+import javax.lang.model.type.TypeKind
+import javax.lang.model.type.TypeMirror
 
 /**
  * {@link HoistPlan} seam, unit-tested directly: the pure hoist decision over an {@link ExtractedPlan} — a Value is
  * hoisted only when it has a chosen producer AND either feeds an n-ary assembly port or is consumed by more than one
  * in-plan port. Name allocation (slot name, empty-slot fallback, lambda type name) is exercised on the resulting plan.
+ *
+ * <p>Unit-tested mock-only: graph Values carry a plain opaque {@code Mock(TypeMirror)} — the hoist decision never
+ * inspects type structure — except {@code lambdaName}'s {@code typeBase} dispatch, which is boundary-exempt
+ * (structurally inspects a raw {@link TypeMirror}, like {@code DotRenderer}) and so stubs that shape locally via
+ * {@link #declaredType(String)}, with no shared {@code PrivateTypeUniverse}/{@code FakeType} substrate.
  */
 @Tag('unit')
 class HoistPlanSpec extends Specification {
 
     static final OperationCodegen OP = { inputs -> CodeBlock.of('x') } as OperationCodegen
 
-    @Shared PrivateTypeUniverse javac = new PrivateTypeUniverse()
+    @Shared TypeMirror STRING = Mock()
 
     def method = Mock(ExecutableElement) {
         getSimpleName() >> Stub(Name) { toString() >> 'map' }
@@ -113,22 +121,31 @@ class HoistPlanSpec extends Specification {
         def hoist = HoistPlan.forMethod(graph, ExtractedPlan.extract(graph), target(''), [])
 
         expect:
-        hoist.lambdaName(javac.STRING) == 'string'
+        hoist.lambdaName(declaredType('String')) == 'string'
     }
 
     def 'a lambda parameter over a non-declared element type falls back to element'() {
         def hoist = HoistPlan.forMethod(graph, ExtractedPlan.extract(graph), target(''), [])
+        TypeMirror primitive = Stub(TypeMirror) { getKind() >> TypeKind.INT }
 
         expect:
-        hoist.lambdaName(javac.INT) == 'element'
+        hoist.lambdaName(primitive) == 'element'
     }
 
     private Value target(final String slot) {
-        graph.valueFor(scope, new TargetLocation(TargetPath.of(slot)), javac.STRING, Nullability.NON_NULL)
+        graph.valueFor(scope, new TargetLocation(TargetPath.of(slot)), STRING, Nullability.NON_NULL)
     }
 
     private Value source(final String slot) {
-        graph.valueFor(scope, new SourceLocation(AccessPath.of(slot)), javac.STRING, Nullability.NON_NULL)
+        graph.valueFor(scope, new SourceLocation(AccessPath.of(slot)), STRING, Nullability.NON_NULL)
+    }
+
+    /** A declared type whose {@code asElement().getSimpleName()} renders as {@code simpleName}, no type arguments. */
+    private DeclaredType declaredType(final String simpleName) {
+        Stub(DeclaredType) {
+            getKind() >> TypeKind.DECLARED
+            asElement() >> Stub(TypeElement) { getSimpleName() >> Stub(Name) { toString() >> simpleName } }
+        }
     }
 
     private void operation(final Value out, final List<Value> portSources) {

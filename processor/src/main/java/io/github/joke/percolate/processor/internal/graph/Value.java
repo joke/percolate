@@ -16,6 +16,8 @@ import lombok.Getter;
  * site. A Value carries no group labels, no directive, no codegen, and no weight.
  */
 @Getter
+@SuppressWarnings(
+        "PMD.AvoidFieldNameMatchingMethodName") // type/nullness back the unwrapped type()/nullness() accessors
 public final class Value implements GraphVertex {
 
     private static final String UNKNOWN = "?";
@@ -34,6 +36,16 @@ public final class Value implements GraphVertex {
         this.scope = scope;
         this.type = type;
         this.nullness = nullness;
+    }
+
+    /** This Value's type, or a failure if it has not yet been typed. */
+    public TypeMirror type() {
+        return type.orElseThrow(() -> new IllegalStateException("untyped Value: " + id()));
+    }
+
+    /** This Value's nullness, or a failure if it has not yet been typed. */
+    public Nullability nullness() {
+        return nullness.orElseThrow(() -> new IllegalStateException("unnulled Value: " + id()));
     }
 
     public void setTyping(final TypeMirror newType, final Nullability newNullness) {
