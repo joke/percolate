@@ -31,12 +31,12 @@ public final class FieldPathResolver extends Accessor {
                 .map(field -> step(field, segment));
     }
 
-    private static Step step(final VariableElement field, final String segment) {
+    static Step step(final VariableElement field, final String segment) {
         final OperationCodegen codegen = inputs -> CodeBlock.of("$L.$N", inputs.single(), segment);
         return new Step(field.asType(), field, "." + segment, Weights.STEP_FIELD, codegen);
     }
 
-    private Optional<VariableElement> matchField(final Element member, final String segment, final ResolveCtx ctx) {
+    Optional<VariableElement> matchField(final Element member, final String segment, final ResolveCtx ctx) {
         if (!ctx.isField(member)) {
             return Optional.empty();
         }

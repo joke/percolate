@@ -12,10 +12,7 @@ import io.github.joke.percolate.spi.Port;
 import io.github.joke.percolate.spi.ProduceDemand;
 import io.github.joke.percolate.spi.ResolveCtx;
 import io.github.joke.percolate.spi.Weights;
-import java.util.ArrayList;
-import java.util.HashSet;
 import java.util.List;
-import java.util.Set;
 import java.util.stream.Stream;
 import javax.lang.model.type.TypeMirror;
 import lombok.NoArgsConstructor;
@@ -31,6 +28,8 @@ import lombok.NoArgsConstructor;
 public final class MethodCallBridge implements ExpansionStrategy {
 
     private static final int SINGLE_PARAM_COUNT = 1;
+
+    private final SubtypeDistance subtypeDistance = new SubtypeDistance();
 
     @Override
     public Stream<OperationSpec> expand(final ProduceDemand demand, final ResolveCtx ctx) {
@@ -54,7 +53,7 @@ public final class MethodCallBridge implements ExpansionStrategy {
                 .map(candidate -> buildSpec(candidate, targetType, demand, ctx));
     }
 
-    private OperationSpec buildSpec(
+    OperationSpec buildSpec(
             final MethodCandidate candidate,
             final TypeMirror targetType,
             final ProduceDemand demand,
@@ -62,7 +61,7 @@ public final class MethodCallBridge implements ExpansionStrategy {
         final var method = candidate.getMethod();
         final var param = method.getParameters().get(0);
         final var returnType = method.getReturnType();
-        final var returnDistance = subtypeDistance(returnType, targetType, ctx);
+        final var returnDistance = subtypeDistance.between(returnType, targetType, ctx);
         final var weight = Weights.METHOD + returnDistance;
         final var port =
                 new Port(param.getSimpleName().toString(), param.asType(), demand.nullnessOf(param.asType(), param));
@@ -76,60 +75,10 @@ public final class MethodCallBridge implements ExpansionStrategy {
                 method);
     }
 
-    private OperationCodegen renderCodegen(final MethodCandidate candidate) {
+    OperationCodegen renderCodegen(final MethodCandidate candidate) {
         final var receiver = candidate.getReceiver().asExpression();
         final var method = candidate.getMethod();
         final var methodName = method.getSimpleName().toString();
         return inputs -> CodeBlock.of("$L.$N($L)", receiver, methodName, inputs.single());
-    }
-
-    private int subtypeDistance(final TypeMirror from, final TypeMirror to, final ResolveCtx ctx) {
-        if (ctx.isSameType(from, to)) {
-            return 0;
-        }
-        if (!ctx.isAssignable(from, to)) {
-            return 0;
-        }
-        return bfsDistance(from, to, ctx);
-    }
-
-    private int bfsDistance(final TypeMirror start, final TypeMirror target, final ResolveCtx ctx) {
-        if (ctx.isSameType(start, target)) {
-            return 0;
-        }
-        final Set<String> visited = new HashSet<>();
-        final List<Pair> queue = new ArrayList<>();
-        queue.add(new Pair(start, 0));
-        visited.add(start.toString());
-        while (!queue.isEmpty()) {
-            final var current = queue.remove(0);
-            if (!ctx.isDeclared(current.type)) {
-                continue;
-            }
-            final var directSupertype = ctx.superclassOf(current.type);
-            if (!ctx.isDeclared(directSupertype)) {
-                continue;
-            }
-            final var supKey = directSupertype.toString();
-            if (visited.contains(supKey)) {
-                continue;
-            }
-            visited.add(supKey);
-            if (ctx.isSameType(directSupertype, target)) {
-                return current.depth + 1;
-            }
-            queue.add(new Pair(directSupertype, current.depth + 1));
-        }
-        return 0;
-    }
-
-    private static final class Pair {
-        final TypeMirror type;
-        final int depth;
-
-        private Pair(final TypeMirror type, final int depth) {
-            this.type = type;
-            this.depth = depth;
-        }
     }
 }

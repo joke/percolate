@@ -18,9 +18,8 @@ import javax.lang.model.type.TypeKind
  * candidates whose return type is assignable to the demanded output, each carrying the {@link ThisReceiver}.
  *
  * <p>Unit-tested over a {@link PrivateTypeUniverse} (change {@code type-query-seam}) — a per-spec, non-shared javac
- * substrate — rather than the shared-static {@code TypeUniverse}, so no {@code @Isolated} serialisation is needed
- * (this is a discovery-adapter seam, genuinely compiler-backed by design, but its own compiler instance never races
- * another spec's).
+ * substrate — so no {@code @Isolated} serialisation is needed (this is a discovery-adapter seam, genuinely
+ * compiler-backed by design, but its own compiler instance never races another spec's).
  */
 @Tag('unit')
 class DiscoverCallableMethodsStageSpec extends Specification {

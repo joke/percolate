@@ -55,12 +55,12 @@ public final class PrimitiveWrapperConversion extends Conversion {
         return primitive == null ? Stream.empty() : Stream.of(box(target, primitive));
     }
 
-    private static Step box(final TypeMirror wrapperTarget, final TypeMirror primitive) {
+    static Step box(final TypeMirror wrapperTarget, final TypeMirror primitive) {
         final OperationCodegen codegen = inputs -> CodeBlock.of("$T.valueOf($L)", wrapperTarget, inputs.single());
         return new Step(primitive, Labels.conversion(primitive, wrapperTarget), Weights.STEP, codegen);
     }
 
-    private static Step unbox(final TypeMirror primitiveTarget, final ResolveCtx ctx) {
+    static Step unbox(final TypeMirror primitiveTarget, final ResolveCtx ctx) {
         final TypeMirror wrapper = ctx.boxed(primitiveTarget);
         final var accessor = Objects.requireNonNull(UNBOX_ACCESSOR.get(ctx.kind(primitiveTarget)));
         final OperationCodegen codegen = inputs -> CodeBlock.of("$L.$N()", inputs.single(), accessor);
@@ -69,7 +69,7 @@ public final class PrimitiveWrapperConversion extends Conversion {
 
     /** The primitive a declared wrapper target unboxes to, or {@code null} when the target is not a wrapper. */
     @Nullable
-    private static TypeMirror unboxedOrNull(final TypeMirror target, final ResolveCtx ctx) {
+    static TypeMirror unboxedOrNull(final TypeMirror target, final ResolveCtx ctx) {
         return ctx.asTypeElement(target)
                 .map(element -> element.getQualifiedName().toString())
                 .filter(WRAPPER_FQNS::contains)

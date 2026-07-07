@@ -38,7 +38,7 @@ public final class ConstantValue implements ExpansionStrategy {
                 .orElseGet(Stream::empty);
     }
 
-    private static OperationSpec constantSpec(final TypeMirror target, final CodeBlock literal) {
+    static OperationSpec constantSpec(final TypeMirror target, final CodeBlock literal) {
         final OperationCodegen codegen = inputs -> literal;
         return OperationSpec.of(literal.toString(), codegen, Weights.STEP, List.of(), target, Nullability.NON_NULL);
     }

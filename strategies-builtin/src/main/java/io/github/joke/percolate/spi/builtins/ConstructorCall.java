@@ -22,7 +22,6 @@ import javax.lang.model.element.ExecutableElement;
 import javax.lang.model.element.TypeElement;
 import javax.lang.model.type.TypeMirror;
 import lombok.NoArgsConstructor;
-import org.jspecify.annotations.Nullable;
 
 /**
  * Assembles the demanded type by calling one of its constructors: a multi-port {@link OperationSpec} whose ports
@@ -40,7 +39,7 @@ public final class ConstructorCall implements ExpansionStrategy {
     @Override
     public Stream<OperationSpec> expand(final ProduceDemand demand, final ResolveCtx ctx) {
         final var targetType = demand.targetType();
-        final var typeElement = resolveTypeElement(targetType, ctx);
+        final var typeElement = ctx.asTypeElement(targetType).orElse(null);
         if (typeElement == null) {
             return Stream.empty();
         }
@@ -58,18 +57,13 @@ public final class ConstructorCall implements ExpansionStrategy {
                 .map(ctor -> buildSpec(ctor, typeElement, targetType, demand));
     }
 
-    @Nullable
-    private TypeElement resolveTypeElement(final TypeMirror targetType, final ResolveCtx ctx) {
-        return ctx.asTypeElement(targetType).orElse(null);
-    }
-
-    private static Set<String> parameterNames(final ExecutableElement ctor) {
+    static Set<String> parameterNames(final ExecutableElement ctor) {
         return ctor.getParameters().stream()
                 .map(param -> param.getSimpleName().toString())
                 .collect(toUnmodifiableSet());
     }
 
-    private OperationSpec buildSpec(
+    OperationSpec buildSpec(
             final ExecutableElement ctor,
             final TypeElement typeElement,
             final TypeMirror targetType,
@@ -88,13 +82,13 @@ public final class ConstructorCall implements ExpansionStrategy {
                 Nullability.NON_NULL);
     }
 
-    private static String constructorLabel(final TypeElement typeElement, final List<Port> ports) {
+    static String constructorLabel(final TypeElement typeElement, final List<Port> ports) {
         final var params =
                 ports.stream().map(port -> Labels.simple(port.getType())).collect(joining(", "));
         return "new " + typeElement.getSimpleName() + "(" + params + ")";
     }
 
-    private OperationCodegen buildCodegen(final TypeElement typeElement, final List<String> portNames) {
+    OperationCodegen buildCodegen(final TypeElement typeElement, final List<String> portNames) {
         return inputs -> {
             final var builder = CodeBlock.builder().add("new $T(", ClassName.get(typeElement));
             for (var i = 0; i < portNames.size(); i++) {

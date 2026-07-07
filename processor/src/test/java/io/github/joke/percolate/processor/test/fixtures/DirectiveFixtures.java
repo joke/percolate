@@ -6,8 +6,8 @@ import org.jspecify.annotations.NullMarked;
 
 /**
  * A {@code @Mapper} fixture whose methods carry every shape of {@code @Map} directive, so the discovery stage can be
- * unit-tested at its seam by reading the (CLASS-retained) annotation mirrors off this compiled type via
- * {@code TypeUniverse} — no annotation-processing round required.
+ * unit-tested at its seam by reading the (CLASS-retained) annotation mirrors off this compiled type via a
+ * {@code PrivateTypeUniverse} — no annotation-processing round required.
  */
 @NullMarked
 @Mapper

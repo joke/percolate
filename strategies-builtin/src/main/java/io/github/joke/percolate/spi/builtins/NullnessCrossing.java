@@ -73,7 +73,7 @@ public final class NullnessCrossing implements ExpansionStrategy {
         return specs.build();
     }
 
-    private static OperationSpec requireNonNull(final TypeMirror target, final String slotName) {
+    static OperationSpec requireNonNull(final TypeMirror target, final String slotName) {
         final var message = "source for slot '" + slotName + "' is null but target is non-null";
         final OperationCodegen codegen =
                 inputs -> CodeBlock.of("$T.requireNonNull($L, $S)", Objects.class, inputs.single(), message);
@@ -83,8 +83,7 @@ public final class NullnessCrossing implements ExpansionStrategy {
     }
 
     /** Over-emits the coalesce forms that can produce {@code target}: a nullable scalar and an {@code Optional<T>}. */
-    private static Stream<OperationSpec> coalesce(
-            final TypeMirror target, final CodeBlock literal, final ResolveCtx ctx) {
+    static Stream<OperationSpec> coalesce(final TypeMirror target, final CodeBlock literal, final ResolveCtx ctx) {
         final var specs = Stream.<OperationSpec>builder();
         if (ctx.isDeclared(target)) {
             specs.add(coalesceSpec(
@@ -102,7 +101,7 @@ public final class NullnessCrossing implements ExpansionStrategy {
         return specs.build();
     }
 
-    private static OperationSpec coalesceSpec(
+    static OperationSpec coalesceSpec(
             final TypeMirror from,
             final Nullability fromNullness,
             final TypeMirror target,
@@ -112,7 +111,7 @@ public final class NullnessCrossing implements ExpansionStrategy {
     }
 
     /** {@code Optional<element>} for a reference {@code element}, or empty (no {@code Optional} of a primitive). */
-    private static Optional<TypeMirror> optionalOf(final TypeMirror element, final ResolveCtx ctx) {
+    static Optional<TypeMirror> optionalOf(final TypeMirror element, final ResolveCtx ctx) {
         if (!ctx.isReferenceType(element)) {
             return Optional.empty();
         }

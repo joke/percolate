@@ -45,10 +45,12 @@ class ModuleBoundariesSpec extends Specification {
     // testable, so both structural guards apply here first. The remaining stages (ValidateConstantDefaultLegalityStage,
     // RealisationDiagnosticsStage, ValidateSourceParametersStage, ValidateMappingShapeStage, GraphDumpWriter, and the
     // discover/graph packages) are an explicit audit backlog (openspec/notes.md) — the scope widens as each is
-    // decomposed in turn, per the guard's own package-scope-widening plan.
+    // decomposed in turn, per the guard's own package-scope-widening plan. Change cutover-strategies-to-mock-seam
+    // widened the scope to BUILTINS once the strategies-builtin decomposition (SubtypeDistance extraction, the
+    // widen-and-inline passes) landed clean of private methods.
     static final String DECOMPOSED_EXPAND = ROOT + '.processor.internal.stages.expand..'
     static final String DECOMPOSED_GENERATE = ROOT + '.processor.internal.stages.generate..'
-    static final String[] DECOMPOSED_ENGINE_PACKAGES = [DECOMPOSED_EXPAND, DECOMPOSED_GENERATE]
+    static final String[] DECOMPOSED_ENGINE_PACKAGES = [DECOMPOSED_EXPAND, DECOMPOSED_GENERATE, BUILTINS]
     // Tuned against the decomposed classes: BuildMethodBodies.Walk (13 non-synthetic methods) is the largest
     // legitimate cohesive unit today — a data/query class over shared plan-walk state (design.md's cohesion
     // exception) — so the ceiling clears it with headroom while still catching a regression back toward the

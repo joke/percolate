@@ -32,13 +32,12 @@ public final class MethodPathResolver extends Accessor {
                 .map(method -> step(method, segment));
     }
 
-    private static Step step(final ExecutableElement method, final String segment) {
+    static Step step(final ExecutableElement method, final String segment) {
         final OperationCodegen codegen = inputs -> CodeBlock.of("$L.$N()", inputs.single(), segment);
         return new Step(method.getReturnType(), method, segment + "()", Weights.STEP_METHOD, codegen);
     }
 
-    private Optional<ExecutableElement> matchAccessor(
-            final Element member, final String segment, final ResolveCtx ctx) {
+    Optional<ExecutableElement> matchAccessor(final Element member, final String segment, final ResolveCtx ctx) {
         if (!ctx.isMethod(member)) {
             return Optional.empty();
         }

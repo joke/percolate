@@ -2,24 +2,34 @@ package io.github.joke.percolate.spi.builtins
 
 import io.github.joke.percolate.spi.Nullability
 import io.github.joke.percolate.spi.OperationCodegen
+import io.github.joke.percolate.spi.ResolveCtx
 import io.github.joke.percolate.spi.Weights
 import io.github.joke.percolate.spi.builtins.test.Demands
-import io.github.joke.percolate.spi.builtins.test.ResolveCtxBuilder
-import io.github.joke.percolate.spi.test.PrivateTypeUniverse
-import spock.lang.Shared
 import spock.lang.Specification
 import spock.lang.Tag
 
+import javax.lang.model.type.TypeKind
+import javax.lang.model.type.TypeMirror
+
+/**
+ * {@link ConstantValue} unit-tested mock-only over the {@link ResolveCtx} type-query seam (change
+ * {@code cutover-strategies-to-mock-seam}): the strategy asks the seam no questions — it delegates coercion to
+ * {@link io.github.joke.percolate.spi.LiteralCoercion} — so the mocked {@code ResolveCtx} stays unstubbed. The
+ * target {@link TypeMirror} answers only {@code getKind()}, the raw JLS-model plumbing {@code LiteralCoercion}
+ * itself reads (never a {@code ResolveCtx} seam question), and is otherwise never interrogated.
+ */
 @Tag('unit')
 class ConstantValueSpec extends Specification {
 
-    @Shared PrivateTypeUniverse javac = new PrivateTypeUniverse()
-    @Shared def ctx = new ResolveCtxBuilder(javac).build()
-    @Shared def types = javac.types()
+    ResolveCtx ctx = Mock()
+    TypeMirror longType = Mock()
+    TypeMirror intType = Mock()
 
-    def 'emits a zero-port operation producing a NON_NULL value for a coercible String constant'() {
+    def 'emits a zero-port operation producing a NON_NULL value for a coercible long constant'() {
+        longType.kind >> TypeKind.LONG
+
         when:
-        def specs = new ConstantValue().expand(Demands.withConstant(javac.STRING, 'ACTIVE'), ctx).toList()
+        def specs = new ConstantValue().expand(Demands.withConstant(longType, '42'), ctx).toList()
 
         then:
         specs.size() == 1
@@ -27,28 +37,32 @@ class ConstantValueSpec extends Specification {
         spec.ports.empty
         spec.childScope.empty
         spec.codegen instanceof OperationCodegen
-        types.isSameType(spec.outputType, javac.STRING)
+        spec.outputType.is(longType)
         spec.outputNullness == Nullability.NON_NULL
         spec.weight == Weights.STEP
     }
 
-    def 'coerces to a primitive long target'() {
+    def 'coerces to a different primitive target'() {
+        intType.kind >> TypeKind.INT
+
         when:
-        def specs = new ConstantValue().expand(Demands.withConstant(javac.LONG, '42'), ctx).toList()
+        def specs = new ConstantValue().expand(Demands.withConstant(intType, '7'), ctx).toList()
 
         then:
         specs.size() == 1
         specs[0].ports.empty
-        types.isSameType(specs[0].outputType, javac.LONG)
+        specs[0].outputType.is(intType)
     }
 
     def 'emits nothing without a constant'() {
         expect:
-        new ConstantValue().expand(Demands.forTarget(javac.STRING), ctx).toList().empty
+        new ConstantValue().expand(Demands.forTarget(longType), ctx).toList().empty
     }
 
     def 'emits nothing for an uncoercible value'() {
+        intType.kind >> TypeKind.INT
+
         expect:
-        new ConstantValue().expand(Demands.withConstant(javac.INT, 'abc'), ctx).toList().empty
+        new ConstantValue().expand(Demands.withConstant(intType, 'abc'), ctx).toList().empty
     }
 }

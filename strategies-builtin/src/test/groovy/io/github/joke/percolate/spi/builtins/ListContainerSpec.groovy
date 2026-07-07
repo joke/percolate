@@ -1,41 +1,63 @@
 package io.github.joke.percolate.spi.builtins
 
 import com.palantir.javapoet.CodeBlock
-import io.github.joke.percolate.spi.Containers
 import io.github.joke.percolate.spi.Nullability
 import io.github.joke.percolate.spi.OperationCodegen
 import io.github.joke.percolate.spi.ResolveCtx
 import io.github.joke.percolate.spi.Weights
 import io.github.joke.percolate.spi.builtins.test.Demands
-import io.github.joke.percolate.spi.builtins.test.ResolveCtxBuilder
-import io.github.joke.percolate.spi.test.PrivateTypeUniverse
-import spock.lang.Shared
 import spock.lang.Specification
 import spock.lang.Tag
 
+import javax.lang.model.element.TypeElement
 import javax.lang.model.type.TypeMirror
 
+/**
+ * {@link ListContainer} unit-tested mock-only over the {@link ResolveCtx} type-query seam (change
+ * {@code cutover-strategies-to-mock-seam}): every seam question the container's expansion asks is stubbed on a
+ * mocked {@code ResolveCtx}, and every {@link TypeMirror}/{@link TypeElement} is an opaque, never-interrogated
+ * token compared only by identity. No javac. Folds the former {@code ListContainerSeamSpec} detection coverage in
+ * alongside the full expansion coverage.
+ */
 @Tag('unit')
 class ListContainerSpec extends Specification {
 
-    @Shared PrivateTypeUniverse javac = new PrivateTypeUniverse()
-    @Shared ResolveCtx ctx = new ResolveCtxBuilder(javac).build()
-    @Shared TypeMirror listOfString
-    @Shared TypeMirror setOfString
-    @Shared TypeMirror streamOfString
+    ResolveCtx ctx = Mock()
+    TypeElement listElement = Mock()
+    TypeElement streamElement = Mock()
+    TypeMirror listOfString = Mock()
+    TypeMirror streamOfString = Mock()
+    TypeMirror stringType = Mock()
+    TypeMirror streamRawType = Mock()
+    TypeMirror setOfString = Mock()
 
-    def setupSpec() {
-        ['java.lang.Iterable', 'java.util.Collection', 'java.util.SequencedCollection',
-         'java.util.List', 'java.util.Set'].each { javac.elements().getTypeElement(it) }
-        listOfString = javac.LIST_OF_STRING
-        setOfString = javac.types().getDeclaredType(
-                javac.elements().getTypeElement('java.util.Set'), javac.STRING)
-        streamOfString = javac.types().getDeclaredType(
-                javac.elements().getTypeElement('java.util.stream.Stream'), javac.STRING)
-        Containers.isList(listOfString, ctx)
+    def 'matches delegates the list-kind question to the seam'() {
+        ctx.isList(listOfString) >> true
+
+        expect:
+        new ListContainer().matches(listOfString, ctx)
+    }
+
+    def 'a non-list target does not match'() {
+        ctx.isList(listOfString) >> false
+
+        expect:
+        !new ListContainer().matches(listOfString, ctx)
     }
 
     def 'iterates a List into a Stream via .stream(), a plain operation with no child scope'() {
+        ctx.isList(streamOfString) >> false
+        ctx.isDeclared(streamOfString) >> true
+        ctx.erasure(streamOfString) >> streamOfString
+        ctx.typeElementNamed('java.util.stream.Stream') >> streamElement
+        streamElement.asType() >> streamRawType
+        ctx.erasure(streamRawType) >> streamRawType
+        ctx.isSameType(streamOfString, streamRawType) >> true
+        ctx.typeArgument(streamOfString, 0) >> stringType
+        ctx.isReferenceType(stringType) >> true
+        ctx.typeElementNamed('java.util.List') >> listElement
+        ctx.declaredType(listElement, stringType) >> listOfString
+
         when:
         def specs = new ListContainer().expand(Demands.forTarget(streamOfString), ctx).toList()
 
@@ -45,29 +67,35 @@ class ListContainerSpec extends Specification {
         iterate.childScope.empty
         iterate.codegen instanceof OperationCodegen
         iterate.weight == Weights.CONTAINER
-        ctx.types().isSameType(iterate.ports[0].type, listOfString)
-        ctx.types().isSameType(iterate.outputType, streamOfString)
+        iterate.ports[0].type.is(listOfString)
+        iterate.outputType.is(streamOfString)
         new ListContainer().iterate().get().render(CodeBlock.of('$N', 'xs')).toString().contains('.stream()')
     }
 
     def 'collects a Stream into a List and offers a plain single-element List.of wrap'() {
+        ctx.isList(listOfString) >> true
+        ctx.typeArgument(listOfString, 0) >> stringType
+        ctx.isReferenceType(stringType) >> true
+        ctx.typeElementNamed('java.util.stream.Stream') >> streamElement
+        ctx.declaredType(streamElement, stringType) >> streamOfString
+
         when:
         def specs = new ListContainer().expand(Demands.forTarget(listOfString), ctx).toList()
 
         then: 'a plain collect Stream<String> -> List<String>'
-        def collect = specs.find { ctx.types().isSameType(it.ports[0].type, streamOfString) }
+        def collect = specs.find { it.ports[0].type.is(streamOfString) }
         collect != null
         collect.childScope.empty
         collect.codegen instanceof OperationCodegen
-        ctx.types().isSameType(collect.outputType, listOfString)
+        collect.outputType.is(listOfString)
         new ListContainer().collect().get().render(CodeBlock.of('$N', 's')).toString().contains('toList()')
 
         and: 'a plain single-element wrap String -> List<String>, no child scope'
-        def wrap = specs.find { ctx.types().isSameType(it.ports[0].type, javac.STRING) }
+        def wrap = specs.find { it.ports[0].type.is(stringType) }
         wrap != null
         wrap.childScope.empty
         wrap.codegen instanceof OperationCodegen
-        ctx.types().isSameType(wrap.outputType, listOfString)
+        wrap.outputType.is(listOfString)
         wrap.outputNullness == Nullability.NON_NULL
 
         and: 'no operation carries a child scope (no fused element mapping)'
@@ -75,6 +103,9 @@ class ListContainerSpec extends Specification {
     }
 
     def 'declines a target that is neither a List nor a Stream'() {
+        ctx.isList(setOfString) >> false
+        ctx.isDeclared(setOfString) >> false
+
         expect:
         new ListContainer().expand(Demands.forTarget(setOfString), ctx).toList().empty
     }

@@ -36,14 +36,13 @@ public final class GetterPathResolver extends Accessor {
                 .map(GetterPathResolver::step);
     }
 
-    private static Step step(final ExecutableElement method) {
+    static Step step(final ExecutableElement method) {
         final var methodName = method.getSimpleName().toString();
         final OperationCodegen codegen = inputs -> CodeBlock.of("$L.$N()", inputs.single(), methodName);
         return new Step(method.getReturnType(), method, methodName + "()", Weights.STEP_GETTER, codegen);
     }
 
-    private Optional<ExecutableElement> matchGetter(
-            final Element member, final String getterName, final ResolveCtx ctx) {
+    Optional<ExecutableElement> matchGetter(final Element member, final String getterName, final ResolveCtx ctx) {
         if (!ctx.isMethod(member)) {
             return Optional.empty();
         }
@@ -54,8 +53,7 @@ public final class GetterPathResolver extends Accessor {
         return method.getSimpleName().contentEquals(getterName) ? Optional.of(method) : Optional.empty();
     }
 
-    private Optional<ExecutableElement> matchBooleanIs(
-            final Element member, final String isName, final ResolveCtx ctx) {
+    Optional<ExecutableElement> matchBooleanIs(final Element member, final String isName, final ResolveCtx ctx) {
         if (!ctx.isMethod(member)) {
             return Optional.empty();
         }
@@ -69,12 +67,12 @@ public final class GetterPathResolver extends Accessor {
         return isBooleanReturn(method, ctx) ? Optional.of(method) : Optional.empty();
     }
 
-    private boolean isBooleanReturn(final ExecutableElement method, final ResolveCtx ctx) {
+    boolean isBooleanReturn(final ExecutableElement method, final ResolveCtx ctx) {
         final var returnType = method.getReturnType();
         return ctx.kind(returnType) == TypeKind.BOOLEAN || "java.lang.Boolean".equals(ctx.qualifiedName(returnType));
     }
 
-    private static String capitalize(final String segment) {
+    static String capitalize(final String segment) {
         if (segment.isEmpty()) {
             return segment;
         }

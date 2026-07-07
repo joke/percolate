@@ -3,83 +3,102 @@ package io.github.joke.percolate.spi.builtins
 import io.github.joke.percolate.spi.Nullability
 import io.github.joke.percolate.spi.OperationCodegen
 import io.github.joke.percolate.spi.Port
+import io.github.joke.percolate.spi.ResolveCtx
 import io.github.joke.percolate.spi.Weights
 import io.github.joke.percolate.spi.builtins.test.Demands
-import io.github.joke.percolate.spi.builtins.test.ResolveCtxBuilder
-import io.github.joke.percolate.spi.test.PrivateTypeUniverse
-import spock.lang.Shared
 import spock.lang.Specification
 import spock.lang.Tag
 
-import javax.lang.model.element.ElementKind
 import javax.lang.model.element.ExecutableElement
-import javax.lang.model.type.TypeKind
+import javax.lang.model.element.Name
+import javax.lang.model.element.TypeElement
+import javax.lang.model.element.VariableElement
 import javax.lang.model.type.TypeMirror
+import java.util.stream.Stream
 
+/**
+ * {@link ConstructorCall} unit-tested mock-only over the {@link ResolveCtx} type-query seam (change
+ * {@code cutover-strategies-to-mock-seam}): member reflection is stubbed on a mocked {@code ResolveCtx} over opaque
+ * {@link ExecutableElement}/{@link VariableElement} member tokens. No javac, no {@code ResolveCtxBuilder}, no shape
+ * fixtures.
+ */
 @Tag('unit')
 class ConstructorCallSpec extends Specification {
 
-    @Shared PrivateTypeUniverse javac = new PrivateTypeUniverse()
-    @Shared def ctx = new ResolveCtxBuilder(javac).build()
+    ResolveCtx ctx = Mock()
+    TypeMirror targetType = Mock()
+    TypeElement typeElement = Mock()
 
     def 'emits no operation when the target type is not DECLARED'() {
+        ctx.asTypeElement(targetType) >> Optional.empty()
+
         expect:
-        new ConstructorCall().expand(Demands.forTarget(javac.INT), ctx).toList().empty
+        new ConstructorCall().expand(Demands.forTarget(targetType), ctx).toList().empty
     }
 
-    def 'emits a multi-port assembly operation over the constructor parameters when the goal spec matches'() {
-        given:
-        def personRecord = javac.of(io.github.joke.percolate.spi.builtins.fixtures.PersonRecord).asType()
-        def declared = constructorParamNames(personRecord)
+    def 'emits a multi-port assembly operation over the constructor parameters, in declaration order, when the goal spec matches'() {
+        ExecutableElement ctor = Mock()
+        VariableElement numberParam = Mock()
+        VariableElement streetParam = Mock()
+        TypeMirror numberType = Mock()
+        TypeMirror streetType = Mock()
+        ctx.asTypeElement(targetType) >> Optional.of(typeElement)
+        ctx.membersOf(typeElement) >> Stream.of(ctor)
+        ctx.isConstructor(ctor) >> true
+        ctx.isPrivate(ctor) >> false
+        ctor.parameters >> [numberParam, streetParam]
+        numberParam.simpleName >> nameOf('number')
+        streetParam.simpleName >> nameOf('street')
+        numberParam.asType() >> numberType
+        streetParam.asType() >> streetType
 
         when:
-        def specs = new ConstructorCall().expand(Demands.assembling(personRecord, declared), ctx).toList()
+        def declared = ['number', 'street'] as Set
+        def specs = new ConstructorCall().expand(Demands.assembling(targetType, declared), ctx).toList()
 
         then:
         specs.size() == 1
         def spec = specs[0]
         spec.childScope.empty
         spec.codegen instanceof OperationCodegen
-        ctx.types().isSameType(spec.outputType, personRecord)
+        spec.outputType.is(targetType)
         spec.outputNullness == Nullability.NON_NULL
         spec.weight == Weights.STEP
-        // One port per constructor parameter, named after it, in declaration order. (Parameter *names* are
-        // environment-dependent — this unit JVM may report arg0/arg1 — so the goal spec is derived from the
-        // same constructor; the driver's name-based binding is covered by the processor specs.)
         spec.ports.size() == 2
         (spec.ports*.name as Set) == declared
-        // Every assembly port is a structural sub-target: the engine mints a child demand at the child location.
         spec.ports.every { it.sourcing == Port.Sourcing.SUBTARGET }
-        spec.ports[0].type.kind == TypeKind.INT
-        ctx.types().isSameType(spec.ports[1].type, javac.STRING)
-    }
-
-    def 'binds ports in constructor-parameter order for PersonByFieldOrder'() {
-        given:
-        def personByFieldOrder = javac.of(io.github.joke.percolate.spi.builtins.fixtures.PersonByFieldOrder).asType()
-        def declared = constructorParamNames(personByFieldOrder)
-
-        when:
-        def specs = new ConstructorCall().expand(Demands.assembling(personByFieldOrder, declared), ctx).toList()
-
-        then:
-        specs.size() == 1
-        specs[0].ports.size() == 2
-        specs[0].ports[0].type.kind == TypeKind.INT
-        ctx.types().isSameType(specs[0].ports[1].type, javac.STRING)
+        spec.ports[0].type.is(numberType)
+        spec.ports[1].type.is(streetType)
     }
 
     def 'rejects a constructor whose parameters do not match the declared-children goal spec'() {
-        given:
-        def personRecord = javac.of(io.github.joke.percolate.spi.builtins.fixtures.PersonRecord).asType()
+        ExecutableElement ctor = Mock()
+        VariableElement numberParam = Mock()
+        VariableElement streetParam = Mock()
+        ctx.asTypeElement(targetType) >> Optional.of(typeElement)
+        ctx.membersOf(typeElement) >> Stream.of(ctor)
+        ctx.isConstructor(ctor) >> true
+        ctx.isPrivate(ctor) >> false
+        ctor.parameters >> [numberParam, streetParam]
+        numberParam.simpleName >> nameOf('number')
+        streetParam.simpleName >> nameOf('street')
 
         expect:
-        new ConstructorCall().expand(Demands.assembling(personRecord, ['nonexistent'] as Set), ctx).toList().empty
+        new ConstructorCall().expand(Demands.assembling(targetType, ['nonexistent'] as Set), ctx).toList().empty
     }
 
-    private Set<String> constructorParamNames(final TypeMirror type) {
-        def element = javac.types().asElement(type)
-        def ctor = element.enclosedElements.find { it.kind == ElementKind.CONSTRUCTOR } as ExecutableElement
-        ctor.parameters.collect { it.simpleName.toString() } as Set
+    def 'rejects a private constructor'() {
+        ExecutableElement ctor = Mock()
+        ctx.asTypeElement(targetType) >> Optional.of(typeElement)
+        ctx.membersOf(typeElement) >> Stream.of(ctor)
+        ctx.isConstructor(ctor) >> true
+        ctx.isPrivate(ctor) >> true
+
+        expect:
+        new ConstructorCall().expand(Demands.assembling(targetType, ['x'] as Set), ctx).toList().empty
+    }
+
+    private static Name nameOf(final String value) {
+        [contentEquals: { CharSequence cs -> cs.toString() == value }, toString: { value }] as Name
     }
 }

@@ -1,7 +1,6 @@
 package io.github.joke.percolate.spi.builtins
 
 import com.palantir.javapoet.CodeBlock
-import io.github.joke.percolate.spi.Containers
 import io.github.joke.percolate.spi.Nullability
 import io.github.joke.percolate.spi.OperationCodegen
 import io.github.joke.percolate.spi.PortType
@@ -9,54 +8,53 @@ import io.github.joke.percolate.spi.ResolveCtx
 import io.github.joke.percolate.spi.ScopeCodegen
 import io.github.joke.percolate.spi.Weights
 import io.github.joke.percolate.spi.builtins.test.Demands
-import io.github.joke.percolate.spi.builtins.test.ResolveCtxBuilder
-import io.github.joke.percolate.spi.test.TypeUniverse
-import spock.lang.Shared
 import spock.lang.Specification
 import spock.lang.Tag
 
+import javax.lang.model.element.TypeElement
 import javax.lang.model.type.TypeMirror
 
 /**
- * The {@code Optional} presence container, target-driven (design D1/D8): keyed on the demanded target alone (no
- * candidate). When the target is {@code Optional<E>} it offers a plain {@code ofNullable} wrap and a same-kind
- * {@code mapPresence} <b>functor lift</b> (over a type-variable {@code Optional<A>} port the engine grounds); when the
- * target is {@code Stream<E>} it offers a 0-or-1 {@code iterate} from {@code Optional<E>}; for a scalar target it
- * offers a partial {@code unwrap} from {@code Optional<scalar>}. Over-emitted producers are pruned by the driver when
- * no matching source exists.
+ * {@link OptionalContainer} unit-tested mock-only over the {@link ResolveCtx} type-query seam (change
+ * {@code cutover-strategies-to-mock-seam}): every seam question is stubbed on a mocked {@code ResolveCtx}, and every
+ * {@link TypeMirror}/{@link TypeElement} is an opaque, never-interrogated token compared only by identity. No javac.
  */
 @Tag('unit')
 class OptionalContainerSpec extends Specification {
 
-    @Shared ResolveCtx ctx = new ResolveCtxBuilder().build()
-    @Shared TypeMirror optionalOfString
-    @Shared TypeMirror streamOfString
-
-    def setupSpec() {
-        def optional = TypeUniverse.elements().getTypeElement('java.util.Optional')
-        optionalOfString = TypeUniverse.types().getDeclaredType(optional, TypeUniverse.STRING)
-        streamOfString = TypeUniverse.types().getDeclaredType(
-                TypeUniverse.elements().getTypeElement('java.util.stream.Stream'), TypeUniverse.STRING)
-        Containers.isOptional(optionalOfString, ctx)
-    }
+    ResolveCtx ctx = Mock()
+    TypeElement optionalElement = Mock()
+    TypeElement streamElement = Mock()
+    TypeMirror optionalOfString = Mock()
+    TypeMirror streamOfString = Mock()
+    TypeMirror stringType = Mock()
+    TypeMirror optionalRawType = Mock()
+    TypeMirror streamRawType = Mock()
 
     def 'an Optional<E> target offers a plain ofNullable wrap from a scalar, no child scope'() {
+        ctx.isOptional(optionalOfString) >> true
+        ctx.typeArgument(optionalOfString, 0) >> stringType
+        ctx.typeElementNamed('java.util.Optional') >> optionalElement
+        optionalElement.asType() >> optionalRawType
+
         when:
         def specs = new OptionalContainer().expand(Demands.forTarget(optionalOfString), ctx).toList()
 
         then:
-        def wrap = specs.find { it.childScope.empty && ctx.types().isSameType(it.ports[0].type, TypeUniverse.STRING) }
+        def wrap = specs.find { it.childScope.empty && it.ports[0].type.is(stringType) }
         wrap != null
         wrap.codegen instanceof OperationCodegen
         wrap.weight == Weights.CONTAINER
-        ctx.types().isSameType(wrap.outputType, optionalOfString)
+        wrap.outputType.is(optionalOfString)
         wrap.outputNullness == Nullability.NON_NULL
         new OptionalContainer().wrap().get().render(CodeBlock.of('$N', 'x')).toString().contains('ofNullable')
     }
 
     def 'an Optional<E> target offers a same-kind functor-lift mapPresence over a type-variable Optional<A> port'() {
-        given:
-        def optionalErasure = ctx.elements().getTypeElement('java.util.Optional')
+        ctx.isOptional(optionalOfString) >> true
+        ctx.typeArgument(optionalOfString, 0) >> stringType
+        ctx.typeElementNamed('java.util.Optional') >> optionalElement
+        optionalElement.asType() >> optionalRawType
 
         when:
         def specs = new OptionalContainer().expand(Demands.forTarget(optionalOfString), ctx).toList()
@@ -65,32 +63,49 @@ class OptionalContainerSpec extends Specification {
         def mapping = specs.find { it.childScope.present }
         mapping != null
         mapping.codegen instanceof ScopeCodegen
-        mapping.ports[0].template == PortType.app(optionalErasure, [PortType.variable(0)])
+        mapping.ports[0].template == PortType.app(optionalElement, [PortType.variable(0)])
         def child = mapping.childScope.get()
         child.elementInTemplate == PortType.variable(0)
-        ctx.types().isSameType(child.elementOut, TypeUniverse.STRING)
-        ctx.types().isSameType(mapping.outputType, optionalOfString)
+        child.elementOut.is(stringType)
+        mapping.outputType.is(optionalOfString)
         !mapping.partial
         new OptionalContainer().mapPresence().get().weave(CodeBlock.of('$N', 'o'), 'v', CodeBlock.of('$N', 'b'))
                 .toString().contains('.map(')
     }
 
     def 'an Optional<E> iterates to a 0-or-1 Stream via Optional.stream(), a plain operation'() {
+        ctx.isOptional(streamOfString) >> false
+        ctx.isDeclared(streamOfString) >> true
+        ctx.erasure(streamOfString) >> streamOfString
+        ctx.typeElementNamed('java.util.stream.Stream') >> streamElement
+        streamElement.asType() >> streamRawType
+        ctx.erasure(streamRawType) >> streamRawType
+        ctx.isSameType(streamOfString, streamRawType) >> true
+        ctx.typeArgument(streamOfString, 0) >> stringType
+        ctx.isReferenceType(stringType) >> true
+        ctx.typeElementNamed('java.util.Optional') >> optionalElement
+        ctx.declaredType(optionalElement, stringType) >> optionalOfString
+
         when:
         def specs = new OptionalContainer().expand(Demands.forTarget(streamOfString), ctx).toList()
 
         then: 'the iterate produces Stream<String> from Optional<String>'
-        def iterate = specs.find { ctx.types().isSameType(it.ports[0].type, optionalOfString) }
+        def iterate = specs.find { it.ports[0].type.is(optionalOfString) }
         iterate != null
         iterate.childScope.empty
         iterate.codegen instanceof OperationCodegen
-        ctx.types().isSameType(iterate.outputType, streamOfString)
+        iterate.outputType.is(streamOfString)
         new OptionalContainer().iterate().get().render(CodeBlock.of('$N', 'o')).toString().contains('.stream()')
     }
 
     def 'a scalar target offers a plain partial unwrap from Optional<scalar> under the demanded nullness'() {
+        ctx.isOptional(stringType) >> false
+        ctx.isReferenceType(stringType) >> true
+        ctx.typeElementNamed('java.util.Optional') >> optionalElement
+        ctx.declaredType(optionalElement, stringType) >> optionalOfString
+
         when:
-        def demand = Demands.forTarget(TypeUniverse.STRING, Nullability.NULLABLE)
+        def demand = Demands.forTarget(stringType, Nullability.NULLABLE)
         def specs = new OptionalContainer().expand(demand, ctx).toList()
 
         then:
@@ -99,8 +114,8 @@ class OptionalContainerSpec extends Specification {
         unwrap.childScope.empty
         unwrap.codegen instanceof OperationCodegen
         unwrap.partial
-        ctx.types().isSameType(unwrap.ports[0].type, optionalOfString)
-        ctx.types().isSameType(unwrap.outputType, TypeUniverse.STRING)
+        unwrap.ports[0].type.is(optionalOfString)
+        unwrap.outputType.is(stringType)
         unwrap.outputNullness == Nullability.NULLABLE
         new OptionalContainer().unwrap().get().render(CodeBlock.of('$N', 'o'), Nullability.NULLABLE).toString().contains('orElse(null)')
         new OptionalContainer().unwrap().get().render(CodeBlock.of('$N', 'o'), Nullability.NON_NULL).toString().contains('orElseThrow')

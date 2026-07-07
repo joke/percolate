@@ -117,5 +117,10 @@ flowchart LR
 
 ## Open Questions
 
-- **`SubtypeDistance`: library-primitive vs keep-BFS?** — resolved by the task-1 spike; default is keep-BFS-extracted unless JGraphT proves clearly simpler for an on-demand-derived supertype chain.
+- **`SubtypeDistance`: library-primitive vs keep-BFS?** — **Resolved (task-1 spike): keep-BFS-extracted.** The
+  extraction to a package-private `SubtypeDistance` collaborator was mechanical — the BFS reads only through the
+  `ResolveCtx` seam (`isSameType`/`isAssignable`/`superclassOf`/`isDeclared`) and required no graph access, so the
+  go/no-go checkpoint (task 1.4) is a clear go. A JGraphT `Graph` was not adopted: the supertype chain is derived
+  on-demand one hop at a time from `ctx.superclassOf`, so building a graph structure first would be more scaffolding
+  than the ~15-line walk it replaces — Alternative A does not pay for itself here.
 - **Does any migrated spec genuinely need a real mirror for metadata it asserts** (beyond the codegen leaf)? — if one surfaces, it belongs to the e2e=doc layer, not a reintroduced javac fake; flag it rather than resurrect `ResolveCtxBuilder`.

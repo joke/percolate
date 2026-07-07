@@ -1,47 +1,49 @@
 package io.github.joke.percolate.spi.builtins
 
-import io.github.joke.percolate.spi.builtins.test.ResolveCtxBuilder
-import io.github.joke.percolate.spi.test.PrivateTypeUniverse
-import spock.lang.Shared
+import io.github.joke.percolate.spi.ResolveCtx
 import spock.lang.Specification
 import spock.lang.Tag
 
-import javax.lang.model.element.ElementKind
+import javax.lang.model.element.Element
+import javax.lang.model.element.TypeElement
+import java.util.stream.Stream
 
+/**
+ * {@link Members} unit-tested mock-only over the {@link ResolveCtx} type-query seam (change
+ * {@code cutover-strategies-to-mock-seam}): {@code declaredMembersOf} is a thin delegation to the seam's
+ * {@code membersOf}; {@code isInObjectClass} reads only the raw {@link Element#getEnclosingElement()} structural
+ * link, never a seam question. No javac.
+ */
 @Tag('unit')
 class MembersSpec extends Specification {
 
-    @Shared PrivateTypeUniverse javac = new PrivateTypeUniverse()
+    ResolveCtx ctx = Mock()
+    TypeElement parent = Mock()
 
-    def 'declaredMembersOf enumerates accessible members of the type'() {
-        given:
-        def ctx = new ResolveCtxBuilder(javac).build()
-        def typeElement = javac.of(io.github.joke.percolate.spi.builtins.fixtures.PersonBean)
+    def 'declaredMembersOf delegates to the seam membersOf'() {
+        Element member = Mock()
+        ctx.membersOf(parent) >> Stream.of(member)
 
-        when:
-        def memberNames = []
-        Members.declaredMembersOf(typeElement, ctx).each { memberNames << it.simpleName.toString() }
-
-        then:
-        memberNames.contains('getName')
-        memberNames.contains('getAge')
+        expect:
+        Members.declaredMembersOf(parent, ctx).toList() == [member]
     }
 
-    def 'isInObjectClass distinguishes Object methods from declared-type methods'() {
-        given:
-        def ctx = new ResolveCtxBuilder(javac).build()
-        def typeElement = javac.of(io.github.joke.percolate.spi.builtins.fixtures.PersonBean)
-        def members = []
-        Members.declaredMembersOf(typeElement, ctx).each { members << it }
+    def 'isInObjectClass is true for a member enclosed by java.lang.Object'() {
+        Element member = Mock()
+        TypeElement objectElement = Mock()
+        member.enclosingElement >> objectElement
+        objectElement.qualifiedName >> ([contentEquals: { CharSequence cs -> cs.toString() == 'java.lang.Object' }] as javax.lang.model.element.Name)
 
-        when:
-        def getName = members.find { it.simpleName.toString() == 'getName' && it.kind == ElementKind.METHOD }
-        def toString = members.find { it.simpleName.toString() == 'toString' && it.kind == ElementKind.METHOD }
+        expect:
+        Members.isInObjectClass(member)
+    }
 
-        then:
-        getName != null
-        toString != null
-        !Members.isInObjectClass(getName)
-        Members.isInObjectClass(toString)
+    def 'isInObjectClass is false for a member enclosed by a declared, non-Object type'() {
+        Element member = Mock()
+        member.enclosingElement >> parent
+        parent.qualifiedName >> ([contentEquals: { CharSequence cs -> cs.toString() == 'io.example.Person' }] as javax.lang.model.element.Name)
+
+        expect:
+        !Members.isInObjectClass(member)
     }
 }

@@ -3,25 +3,36 @@ package io.github.joke.percolate.spi.builtins
 import io.github.joke.percolate.spi.Nullability
 import io.github.joke.percolate.spi.OperationCodegen
 import io.github.joke.percolate.spi.Port
+import io.github.joke.percolate.spi.ResolveCtx
 import io.github.joke.percolate.spi.Weights
 import io.github.joke.percolate.spi.builtins.test.Demands
-import io.github.joke.percolate.spi.builtins.test.ResolveCtxBuilder
-import io.github.joke.percolate.spi.test.PrivateTypeUniverse
-import spock.lang.Shared
 import spock.lang.Specification
 import spock.lang.Tag
 
+import javax.lang.model.element.Name
+import javax.lang.model.element.TypeElement
+import javax.lang.model.type.DeclaredType
+import javax.lang.model.type.TypeKind
+import javax.lang.model.type.TypeMirror
+
+/**
+ * {@link NullnessCrossing} unit-tested mock-only over the {@link ResolveCtx} type-query seam (change
+ * {@code cutover-strategies-to-mock-seam}): the guard/coalesce over-emission is driven entirely by stubbed seam
+ * questions over opaque {@link TypeMirror} tokens; {@link io.github.joke.percolate.spi.LiteralCoercion} (a
+ * production {@code spi} class, unchanged) still reads the target's raw {@code getKind()}/{@code asElement()}, which
+ * are stubbed directly since they are not {@code ResolveCtx} seam questions. No javac.
+ */
 @Tag('unit')
 class NullnessCrossingSpec extends Specification {
 
-    @Shared PrivateTypeUniverse javac = new PrivateTypeUniverse()
-    @Shared def ctx = new ResolveCtxBuilder(javac).build()
-    @Shared def types = javac.types()
-    @Shared def optionalOfString = types.getDeclaredType(javac.element('java.util.Optional'), javac.STRING)
+    ResolveCtx ctx = Mock()
 
     def 'emits a partial requireNonNull for a non-null reference-scalar demand'() {
+        DeclaredType stringType = Mock()
+        ctx.isDeclared(stringType) >> true
+
         when:
-        def specs = new NullnessCrossing().expand(Demands.crossing(javac.STRING, 'name'), ctx).toList()
+        def specs = new NullnessCrossing().expand(Demands.crossing(stringType, 'name'), ctx).toList()
 
         then:
         specs.size() == 1
@@ -30,41 +41,53 @@ class NullnessCrossingSpec extends Specification {
         spec.weight == Weights.NOOP
         spec.childScope.empty
         spec.codegen instanceof OperationCodegen
-        types.isSameType(spec.ports[0].type, javac.STRING)
+        spec.ports[0].type.is(stringType)
         spec.ports[0].nullness == Nullability.NULLABLE
         spec.ports[0].sourcing == Port.Sourcing.REUSE
-        types.isSameType(spec.outputType, javac.STRING)
+        spec.outputType.is(stringType)
         spec.outputNullness == Nullability.NON_NULL
     }
 
     def 'a nullable demand needs no crossing'() {
+        DeclaredType stringType = Mock()
+
         expect:
         new NullnessCrossing()
-                .expand(Demands.forTarget(javac.STRING, Nullability.NULLABLE), ctx)
+                .expand(Demands.forTarget(stringType, Nullability.NULLABLE), ctx)
                 .toList()
                 .empty
     }
 
     def 'a default over-emits a total scalar coalesce and the Optional coalesce alongside the partial requireNonNull'() {
+        DeclaredType stringType = Mock()
+        TypeElement stringElement = Mock()
+        TypeElement optionalElement = Mock()
+        TypeMirror optionalOfString = Mock()
+        stringType.kind >> TypeKind.DECLARED
+        stringType.asElement() >> stringElement
+        stringElement.qualifiedName >> nameOf('java.lang.String')
+        ctx.isDeclared(stringType) >> true
+        ctx.isReferenceType(stringType) >> true
+        ctx.typeElementNamed('java.util.Optional') >> optionalElement
+        ctx.declaredType(optionalElement, stringType) >> optionalOfString
+
         when:
-        def specs = new NullnessCrossing()
-                .expand(Demands.crossing(javac.STRING, 'name', 'unknown'), ctx)
-                .toList()
+        def specs = new NullnessCrossing().expand(Demands.crossing(stringType, 'name', 'unknown'), ctx).toList()
 
         then: 'a total coalesce over a NULLABLE scalar port'
-        def scalar = specs.find { !it.partial && types.isSameType(it.ports[0].type, javac.STRING) }
+        def scalar = specs.find { !it.partial && it.ports[0].type.is(stringType) }
         scalar != null
         scalar.weight == Weights.NOOP
         scalar.childScope.empty
         scalar.ports[0].nullness == Nullability.NULLABLE
-        types.isSameType(scalar.outputType, javac.STRING)
+        scalar.outputType.is(stringType)
         scalar.outputNullness == Nullability.NON_NULL
 
         and: 'a total coalesce over a present Optional<String> port'
-        def optional = specs.find { !it.partial && types.isSameType(it.ports[0].type, optionalOfString) }
+        def optional = specs.find { !it.partial && it.ports[0].type.is(optionalOfString) }
         optional != null
         optional.ports[0].nullness == Nullability.NON_NULL
-        types.isSameType(optional.outputType, javac.STRING)
+        optional.outputType.is(stringType)
 
         and: 'the partial requireNonNull is also offered (totality picks coalesce in extraction)'
         specs.any { it.partial }
@@ -74,30 +97,53 @@ class NullnessCrossingSpec extends Specification {
     }
 
     def 'coerces the default literal to a wrapper target type'() {
+        DeclaredType integerType = Mock()
+        TypeElement integerElement = Mock()
+        TypeElement optionalElement = Mock()
+        integerType.kind >> TypeKind.DECLARED
+        integerType.asElement() >> integerElement
+        integerElement.qualifiedName >> nameOf('java.lang.Integer')
+        ctx.isDeclared(integerType) >> true
+        ctx.isReferenceType(integerType) >> true
+        ctx.typeElementNamed('java.util.Optional') >> optionalElement
+        ctx.declaredType(optionalElement, integerType) >> Mock(TypeMirror)
+
         when:
-        def specs = new NullnessCrossing()
-                .expand(Demands.crossing(javac.INTEGER, 'n', '0'), ctx)
-                .toList()
+        def specs = new NullnessCrossing().expand(Demands.crossing(integerType, 'n', '0'), ctx).toList()
 
         then:
-        def scalar = specs.find { !it.partial && types.isSameType(it.ports[0].type, javac.INTEGER) }
+        def scalar = specs.find { !it.partial && it.ports[0].type.is(integerType) }
         scalar != null
-        types.isSameType(scalar.outputType, javac.INTEGER)
+        scalar.outputType.is(integerType)
         scalar.ports[0].nullness == Nullability.NULLABLE
     }
 
     def 'emits nothing for a primitive target (a primitive can never be absent)'() {
+        TypeMirror intType = Mock()
+        intType.kind >> TypeKind.INT
+        ctx.isDeclared(intType) >> false
+        ctx.isReferenceType(intType) >> false
+
         expect:
-        new NullnessCrossing().expand(Demands.crossing(javac.INT, 'n', '0'), ctx).toList().empty
+        new NullnessCrossing().expand(Demands.crossing(intType, 'n', '0'), ctx).toList().empty
     }
 
     def 'an uncoercible default yields only the guard, no coalesce'() {
+        DeclaredType integerType = Mock()
+        TypeElement integerElement = Mock()
+        integerType.kind >> TypeKind.DECLARED
+        integerType.asElement() >> integerElement
+        integerElement.qualifiedName >> nameOf('java.lang.Integer')
+        ctx.isDeclared(integerType) >> true
+
         when:
-        def specs = new NullnessCrossing()
-                .expand(Demands.crossing(javac.INTEGER, 'n', 'abc'), ctx)
-                .toList()
+        def specs = new NullnessCrossing().expand(Demands.crossing(integerType, 'n', 'abc'), ctx).toList()
 
         then: 'the requireNonNull guard remains (NON_NULL declared target) but no total coalesce is offered'
         specs.every { it.partial }
+    }
+
+    private static Name nameOf(final String value) {
+        [contentEquals: { CharSequence cs -> cs.toString() == value }, toString: { value }] as Name
     }
 }

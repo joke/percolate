@@ -1,49 +1,71 @@
 package io.github.joke.percolate.spi.builtins
 
+import io.github.joke.percolate.spi.CallableMethods
+import io.github.joke.percolate.spi.MethodCandidate
 import io.github.joke.percolate.spi.Nullability
 import io.github.joke.percolate.spi.OperationCodegen
+import io.github.joke.percolate.spi.Receiver
+import io.github.joke.percolate.spi.ResolveCtx
 import io.github.joke.percolate.spi.Weights
 import io.github.joke.percolate.spi.builtins.test.Demands
-import io.github.joke.percolate.spi.builtins.test.FakeReceiver
-import io.github.joke.percolate.spi.builtins.test.ResolveCtxBuilder
-import io.github.joke.percolate.spi.test.TypeUniverse
 import spock.lang.Specification
 import spock.lang.Tag
 
 import javax.lang.model.element.ExecutableElement
-import javax.lang.model.element.TypeElement
+import javax.lang.model.element.Name
+import javax.lang.model.element.VariableElement
+import javax.lang.model.type.TypeMirror
 import java.util.stream.Stream
 
+/**
+ * {@link MethodCallBridge} unit-tested mock-only over the {@link ResolveCtx} type-query seam (change
+ * {@code cutover-strategies-to-mock-seam}): candidate filtering and spec assembly are driven by a mocked
+ * {@code CallableMethods}/{@code ResolveCtx} over opaque tokens. No javac. The subtype-distance walk it delegates to
+ * is covered on its own in {@link SubtypeDistanceSpec}; here the seam supplies just enough (same-type, distance 0)
+ * for the real {@link SubtypeDistance} collaborator to resolve without further stubbing.
+ */
 @Tag('unit')
 class MethodCallBridgeSpec extends Specification {
 
-    def types = TypeUniverse.types()
+    ResolveCtx ctx = Mock()
+    TypeMirror target = Mock()
 
     def 'returns empty when callableMethods is null'() {
-        given:
-        def ctx = new ResolveCtxBuilder()
-                .withCallableMethods(null)
-                .build()
+        ctx.callableMethods() >> null
 
         expect:
-        new MethodCallBridge().expand(Demands.forTarget(TypeUniverse.STRING), ctx).toList().empty
+        new MethodCallBridge().expand(Demands.forTarget(target), ctx).toList().empty
     }
 
     def 'returns empty when callableMethods produces an empty stream'() {
-        given:
-        def ctx = new ResolveCtxBuilder().build()
+        CallableMethods callableMethods = Mock()
+        ctx.callableMethods() >> callableMethods
+        callableMethods.producing(target) >> Stream.empty()
 
         expect:
-        new MethodCallBridge().expand(Demands.forTarget(TypeUniverse.STRING), ctx).toList().empty
+        new MethodCallBridge().expand(Demands.forTarget(target), ctx).toList().empty
     }
 
     def 'emits a one-port call operation when CallableMethods provides a matching candidate'() {
-        given:
-        def candidate = createExactMatchCandidate()
-        def ctx = candidateCtx(candidate)
+        CallableMethods callableMethods = Mock()
+        ExecutableElement method = Mock()
+        VariableElement param = Mock()
+        TypeMirror paramType = Mock()
+        Receiver receiver = Mock()
+        def candidate = new MethodCandidate(method, receiver)
+        ctx.callableMethods() >> callableMethods
+        callableMethods.producing(target) >> Stream.of(candidate)
+        method.parameters >> [param]
+        method.returnType >> target
+        method.simpleName >> nameOf('concat')
+        param.simpleName >> nameOf('arg')
+        param.asType() >> paramType
+        ctx.isAssignable(target, target) >> true
+        ctx.isSameType(target, target) >> true
+        receiver.asExpression() >> com.palantir.javapoet.CodeBlock.of('obj')
 
         when:
-        def specs = new MethodCallBridge().expand(Demands.forTarget(TypeUniverse.STRING), ctx).toList()
+        def specs = new MethodCallBridge().expand(Demands.forTarget(target), ctx).toList()
 
         then:
         specs.size() == 1
@@ -52,87 +74,11 @@ class MethodCallBridgeSpec extends Specification {
         spec.codegen instanceof OperationCodegen
         spec.ports.size() == 1
         spec.weight >= Weights.METHOD
-        types.isSameType(spec.outputType, TypeUniverse.STRING)
+        spec.outputType.is(target)
         spec.outputNullness == Nullability.NON_NULL
     }
 
-    def 'pins current behaviour: subtypeDistance returns 0 for a same-type return'() {
-        given:
-        def candidate = createExactMatchCandidate()
-        def ctx = candidateCtx(candidate)
-
-        when:
-        def specs = new MethodCallBridge().expand(Demands.forTarget(TypeUniverse.STRING), ctx).toList()
-
-        then:
-        specs.size() == 1
-        // returnType String == target String → distance 0 → weight is METHOD + 0
-        specs[0].weight == Weights.METHOD
-    }
-
-    def 'pins current behaviour: subtypeDistance returns 0 for a non-assignable parameter'() {
-        given:
-        def candidate = createValueOfObjectCandidate()
-        def ctx = candidateCtx(candidate)
-
-        when:
-        // valueOf(Object) returns String; the parameter type is irrelevant to weight, which is driven only by
-        // the return→target distance (0 here), so weight is METHOD.
-        def specs = new MethodCallBridge().expand(Demands.forTarget(TypeUniverse.STRING), ctx).toList()
-
-        then:
-        specs.size() == 1
-        specs[0].weight == Weights.METHOD
-    }
-
-    private static io.github.joke.percolate.spi.ResolveCtx candidateCtx(final candidate) {
-        new ResolveCtxBuilder()
-                .withCallableMethods(new io.github.joke.percolate.spi.CallableMethods() {
-                    @Override
-                    Stream<io.github.joke.percolate.spi.MethodCandidate> producing(final javax.lang.model.type.TypeMirror outputType) {
-                        Stream.of(candidate)
-                    }
-                })
-                .build()
-    }
-
-    private static io.github.joke.percolate.spi.MethodCandidate createExactMatchCandidate() {
-        def concatElement = TypeUniverse.element('java.lang.String').enclosedElements.stream()
-                .filter { it.simpleName.toString() == 'concat' }
-                .filter { it instanceof ExecutableElement }
-                .map(ExecutableElement.&cast)
-                .filter { it.parameters.size() == 1 }
-                .filter {
-                    def paramType = it.parameters.get(0).asType()
-                    def elem = TypeUniverse.types().asElement(paramType)
-                    elem instanceof TypeElement && ((TypeElement) elem).qualifiedName.contentEquals('java.lang.String')
-                }
-                .findFirst()
-                .orElse(null)
-        if (concatElement == null) {
-            throw new IllegalStateException('concat method not found on java.lang.String')
-        }
-        def fakeReceiver = FakeReceiver.instance()
-        new io.github.joke.percolate.spi.MethodCandidate(concatElement, fakeReceiver)
-    }
-
-    private static io.github.joke.percolate.spi.MethodCandidate createValueOfObjectCandidate() {
-        def valueOfElement = TypeUniverse.element('java.lang.String').enclosedElements.stream()
-                .filter { it.simpleName.toString() == 'valueOf' }
-                .filter { it instanceof ExecutableElement }
-                .map(ExecutableElement.&cast)
-                .filter { it.parameters.size() == 1 }
-                .filter {
-                    def paramType = it.parameters.get(0).asType()
-                    def elem = TypeUniverse.types().asElement(paramType)
-                    elem instanceof TypeElement && ((TypeElement) elem).qualifiedName.contentEquals('java.lang.Object')
-                }
-                .findFirst()
-                .orElse(null)
-        if (valueOfElement == null) {
-            throw new IllegalStateException('valueOf(Object) method not found on java.lang.String')
-        }
-        def fakeReceiver = FakeReceiver.instance()
-        new io.github.joke.percolate.spi.MethodCandidate(valueOfElement, fakeReceiver)
+    private static Name nameOf(final String value) {
+        [contentEquals: { CharSequence cs -> cs.toString() == value }, toString: { value }] as Name
     }
 }

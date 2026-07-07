@@ -29,13 +29,12 @@ import java.util.concurrent.ConcurrentHashMap
  * transitionally for those specs (and the strategy specs deferred to {@code features-as-documentation}); the
  * {@code processor}/{@code spi} unit specs move to a mocked {@code ResolveCtx} instead.
  *
- * <p>Unlike {@link TypeUniverse}'s <b>static</b> {@link JavacTask} shared by every spec in the JVM, each instance
- * here is exclusive to one spec class (typically a {@code @Shared} field, created once per spec class) — no
- * cross-spec symbol-table contention. But a single spec class routinely drives its own instance from several
- * feature methods, and javac's lazy symbol completion is not reentrant-safe under real concurrent execution
- * (Spock's parallel runner, or a threaded pitest minion): the same synchronized-lookup and
- * {@code SynchronizedElements} guard {@link TypeUniverse} uses is required here too, just keyed per-instance
- * instead of per-class.
+ * <p>Unlike a JVM-lifetime <b>static</b> {@link JavacTask} shared by every spec, each instance here is exclusive to
+ * one spec class (typically a {@code @Shared} field, created once per spec class) — no cross-spec symbol-table
+ * contention. But a single spec class routinely drives its own instance from several feature methods, and javac's
+ * lazy symbol completion is not reentrant-safe under real concurrent execution (Spock's parallel runner, or a
+ * threaded pitest minion): the same synchronized-lookup and {@code SynchronizedElements} guard is required here too,
+ * just keyed per-instance instead of per-class.
  */
 final class PrivateTypeUniverse {
 
@@ -83,7 +82,7 @@ final class PrivateTypeUniverse {
      * A single spec class routinely drives one {@code PrivateTypeUniverse} from several feature methods; under
      * Spock's parallel runner (or a threaded pitest minion) those calls can overlap. javac's lazy symbol
      * completion is not reentrant-safe, so the whole lookup — cache check plus the completion walk it triggers —
-     * is serialized on this instance, mirroring {@link TypeUniverse#lookup}.
+     * is serialized on this instance.
      */
     TypeElement element(final String qualifiedName) {
         synchronized (this) {
@@ -118,8 +117,8 @@ final class PrivateTypeUniverse {
     /**
      * On Java 21+, {@code java.util.Collection} extends {@code SequencedCollection}; javac lazy-loads classes on
      * first use and hits an internal re-entrancy assertion if one fill starts while a related one is still
-     * mid-flight (see {@link TypeUniverse}'s identical priming, which this mirrors per-instance). Unrelated to
-     * sharing — a quirk of javac's own lazy-completion order — so a private task still needs it once, up front.
+     * mid-flight. Unrelated to sharing — a quirk of javac's own lazy-completion order — so a private task still
+     * needs it once, up front.
      */
     private void primeJdkQuirks() {
         ['java.util.SequencedCollection', 'java.util.SequencedSet', 'java.util.SequencedMap',
@@ -151,7 +150,7 @@ final class PrivateTypeUniverse {
         }
     }
 
-    /** Force the declared/nested-type closure eagerly, single-threaded — see {@link TypeUniverse}'s identical logic. */
+    /** Force the declared/nested-type closure eagerly, single-threaded. */
     private void completeClosure(final TypeElement type) {
         if (!completed.add(completionKey(type))) {
             return
@@ -171,7 +170,7 @@ final class PrivateTypeUniverse {
         }
     }
 
-    /** Instance-scoped mirror of {@link TypeUniverse.SynchronizedElements}, guarding on the outer instance. */
+    /** An {@link Elements} wrapper that serializes the lazy-completion-sensitive calls on the outer instance. */
     private final class SynchronizedElements implements Elements {
         private final Elements delegate
 

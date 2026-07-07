@@ -2,26 +2,43 @@ package io.github.joke.percolate.spi.builtins
 
 import io.github.joke.percolate.spi.Nullability
 import io.github.joke.percolate.spi.OperationCodegen
+import io.github.joke.percolate.spi.ResolveCtx
 import io.github.joke.percolate.spi.Weights
 import io.github.joke.percolate.spi.builtins.test.Demands
-import io.github.joke.percolate.spi.builtins.test.ResolveCtxBuilder
-import io.github.joke.percolate.spi.test.PrivateTypeUniverse
-import spock.lang.Shared
 import spock.lang.Specification
 import spock.lang.Tag
 
+import javax.lang.model.element.ExecutableElement
+import javax.lang.model.element.Name
+import javax.lang.model.element.TypeElement
+import javax.lang.model.type.TypeKind
+import javax.lang.model.type.TypeMirror
+import java.util.stream.Stream
+
+/**
+ * {@link GetterPathResolver} unit-tested mock-only over the {@link ResolveCtx} type-query seam (change
+ * {@code cutover-strategies-to-mock-seam}): member reflection is stubbed on a mocked {@code ResolveCtx} over opaque
+ * {@link ExecutableElement} member tokens. No javac, no {@code ResolveCtxBuilder}, no shape fixtures.
+ */
 @Tag('unit')
 class GetterPathResolverSpec extends Specification {
 
-    @Shared PrivateTypeUniverse javac = new PrivateTypeUniverse()
-    @Shared def ctx = new ResolveCtxBuilder(javac).build()
+    ResolveCtx ctx = Mock()
+    TypeMirror parentType = Mock()
+    TypeElement parent = Mock()
 
     def 'matches a getX accessor as a unary operation typed to the return type'() {
-        given:
-        def personBean = javac.of(io.github.joke.percolate.spi.builtins.fixtures.PersonBean).asType()
+        ExecutableElement getter = Mock()
+        TypeMirror returnType = Mock()
+        ctx.asTypeElement(parentType) >> Optional.of(parent)
+        ctx.membersOf(parent) >> Stream.of(getter)
+        ctx.isMethod(getter) >> true
+        getter.parameters >> []
+        getter.simpleName >> nameOf('getName')
+        getter.returnType >> returnType
 
         when:
-        def specs = new GetterPathResolver().descend(Demands.descend(personBean, 'name'), ctx).toList()
+        def specs = new GetterPathResolver().descend(Demands.descend(parentType, 'name'), ctx).toList()
 
         then:
         specs.size() == 1
@@ -30,17 +47,23 @@ class GetterPathResolverSpec extends Specification {
         spec.codegen instanceof OperationCodegen
         spec.weight == Weights.STEP_GETTER
         spec.ports.size() == 1
-        ctx.types().isSameType(spec.ports[0].type, personBean)
-        ctx.types().isSameType(spec.outputType, javac.STRING)
+        spec.ports[0].type.is(parentType)
+        spec.outputType.is(returnType)
         spec.outputNullness == Nullability.NON_NULL
     }
 
     def 'types the produced value through the demand nullness oracle'() {
-        given:
-        def personBean = javac.of(io.github.joke.percolate.spi.builtins.fixtures.PersonBean).asType()
+        ExecutableElement getter = Mock()
+        ctx.asTypeElement(parentType) >> Optional.of(parent)
+        ctx.membersOf(parent) >> Stream.of(getter)
+        ctx.isMethod(getter) >> true
+        getter.parameters >> []
+        getter.simpleName >> nameOf('getName')
+        getter.returnType >> Mock(TypeMirror)
 
         when:
-        def specs = new GetterPathResolver().descend(Demands.descend(personBean, 'name', Nullability.NULLABLE), ctx).toList()
+        def specs = new GetterPathResolver()
+                .descend(Demands.descend(parentType, 'name', Nullability.NULLABLE), ctx).toList()
 
         then:
         specs.size() == 1
@@ -48,36 +71,59 @@ class GetterPathResolverSpec extends Specification {
     }
 
     def 'matches an isX accessor for a boolean-returning method'() {
-        given:
-        def booleanBean = javac.of(io.github.joke.percolate.spi.builtins.fixtures.BooleanBean).asType()
+        ExecutableElement getter = Mock()
+        TypeMirror returnType = Mock()
+        ctx.asTypeElement(parentType) >> Optional.of(parent)
+        ctx.membersOf(parent) >> Stream.of(getter)
+        ctx.isMethod(getter) >> true
+        getter.parameters >> []
+        getter.simpleName >> nameOf('isFlag')
+        getter.returnType >> returnType
+        ctx.kind(returnType) >> TypeKind.BOOLEAN
 
         when:
-        def specs = new GetterPathResolver().descend(Demands.descend(booleanBean, 'flag'), ctx).toList()
+        def specs = new GetterPathResolver().descend(Demands.descend(parentType, 'flag'), ctx).toList()
 
         then:
         specs.size() == 1
-        specs[0].outputType.kind.name() == 'BOOLEAN'
+        specs[0].outputType.is(returnType)
         specs[0].weight == Weights.STEP_GETTER
     }
 
     def 'rejects parameterized overloads when no zero-arg getter exists'() {
-        given:
-        def overloaded = javac.of(io.github.joke.percolate.spi.builtins.fixtures.OverloadedGetter).asType()
+        ExecutableElement getter = Mock()
+        ctx.asTypeElement(parentType) >> Optional.of(parent)
+        ctx.membersOf(parent) >> Stream.of(getter)
+        ctx.isMethod(getter) >> true
+        getter.parameters >> [Mock(javax.lang.model.element.VariableElement)]
+        getter.simpleName >> nameOf('getName')
 
         expect:
-        new GetterPathResolver().descend(Demands.descend(overloaded, 'name'), ctx).toList().empty
+        new GetterPathResolver().descend(Demands.descend(parentType, 'name'), ctx).toList().empty
     }
 
     def 'ignores methods declared on java.lang.Object'() {
-        given:
-        def objectType = javac.element('java.lang.Object').asType()
+        ExecutableElement getter = Mock()
+        TypeElement objectElement = Mock()
+        ctx.asTypeElement(parentType) >> Optional.of(parent)
+        ctx.membersOf(parent) >> Stream.of(getter)
+        ctx.isMethod(getter) >> true
+        getter.parameters >> []
+        getter.enclosingElement >> objectElement
+        objectElement.qualifiedName >> nameOf('java.lang.Object')
 
         expect:
-        new GetterPathResolver().descend(Demands.descend(objectType, 'class'), ctx).toList().empty
+        new GetterPathResolver().descend(Demands.descend(parentType, 'name'), ctx).toList().empty
     }
 
     def 'returns empty for non-declared parent types'() {
+        ctx.asTypeElement(parentType) >> Optional.empty()
+
         expect:
-        new GetterPathResolver().descend(Demands.descend(javac.INT, 'length'), ctx).toList().empty
+        new GetterPathResolver().descend(Demands.descend(parentType, 'length'), ctx).toList().empty
+    }
+
+    private static Name nameOf(final String value) {
+        [contentEquals: { CharSequence cs -> cs.toString() == value }, toString: { value }] as Name
     }
 }

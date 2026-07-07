@@ -3,24 +3,28 @@ package io.github.joke.percolate.spi.builtins
 import io.github.joke.percolate.spi.Nullability
 import io.github.joke.percolate.spi.OperationCodegen
 import io.github.joke.percolate.spi.Port
+import io.github.joke.percolate.spi.ResolveCtx
 import io.github.joke.percolate.spi.Weights
 import io.github.joke.percolate.spi.builtins.test.Demands
-import io.github.joke.percolate.spi.builtins.test.ResolveCtxBuilder
-import io.github.joke.percolate.spi.test.PrivateTypeUniverse
-import spock.lang.Shared
 import spock.lang.Specification
 import spock.lang.Tag
 
+import javax.lang.model.type.TypeMirror
+
+/**
+ * {@link DirectAssign} unit-tested mock-only over the {@link ResolveCtx} type-query seam (change
+ * {@code cutover-strategies-to-mock-seam}): the strategy asks the seam no questions at all, so the mocked
+ * {@code ResolveCtx} is never stubbed; the target {@link TypeMirror} is an opaque, never-interrogated token.
+ */
 @Tag('unit')
 class DirectAssignSpec extends Specification {
 
-    @Shared PrivateTypeUniverse javac = new PrivateTypeUniverse()
-    @Shared def ctx = new ResolveCtxBuilder(javac).build()
-    @Shared def types = javac.types()
+    ResolveCtx ctx = Mock()
+    TypeMirror target = Mock()
 
     def 'emits a zero-cost identity operation that produces the demanded target'() {
         when:
-        def specs = new DirectAssign().expand(Demands.forTarget(javac.STRING), ctx).toList()
+        def specs = new DirectAssign().expand(Demands.forTarget(target), ctx).toList()
 
         then:
         specs.size() == 1
@@ -30,14 +34,14 @@ class DirectAssignSpec extends Specification {
         spec.codegen instanceof OperationCodegen
         spec.ports.size() == 1
         spec.ports[0].name == 'value'
-        types.isSameType(spec.ports[0].type, javac.STRING)
-        types.isSameType(spec.outputType, javac.STRING)
+        spec.ports[0].type.is(target)
+        spec.outputType.is(target)
         spec.outputNullness == Nullability.NON_NULL
     }
 
     def 'its single port is reuse-only: the driver binds an in-scope same-type source or the op does not apply'() {
         when:
-        def specs = new DirectAssign().expand(Demands.forTarget(javac.STRING), ctx).toList()
+        def specs = new DirectAssign().expand(Demands.forTarget(target), ctx).toList()
 
         then: 'never minted — a same-type value already feeds the target directly (no self-copy manufacturing)'
         specs[0].ports[0].sourcing == Port.Sourcing.REUSE
@@ -45,7 +49,7 @@ class DirectAssignSpec extends Specification {
 
     def 'is nullness-transparent: port and output carry the demanded nullness'() {
         when:
-        def demand = Demands.forTarget(javac.STRING, Nullability.NULLABLE)
+        def demand = Demands.forTarget(target, Nullability.NULLABLE)
         def specs = new DirectAssign().expand(demand, ctx).toList()
 
         then:
