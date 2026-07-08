@@ -1,7 +1,7 @@
 # expansion-test-harness Specification
 
 ## Purpose
-This spec defines the test infrastructure for the expansion engine: the `assembleExpansionPipeline` factory that wires an `ExpandStage`, the `ResolveCtx` type-query seam that `processor` and `spi` unit specs mock or fake instead of standing up a shared javac substrate (change `type-query-seam`), the narrowed-scope `TypeUniverse` fixture kept only for the `strategies-builtin` specs not yet rewritten, and the module-location invariant that keeps engine-bound test helpers in the processor module. Engine tests drive the stage directly through the factory (compiling fixtures with `com.google.testing.compile`) and assert over the bipartite `MapperGraph` / extracted plan; there is no standalone `ExpansionHarness`/`ExpansionResult`/`ExpansionAssertions` façade.
+This spec defines the test infrastructure for the expansion engine: the `assembleExpansionPipeline` factory that wires an `ExpandStage`, the `ResolveCtx` type-query seam that `processor` and `spi` unit specs mock or fake instead of standing up a shared javac substrate (change `type-query-seam`, completed by `cutover-strategies-to-mock-seam` which deleted the last `TypeUniverse` consumers), the per-spec `PrivateTypeUniverse` fixture kept only for the `processor` compiler-boundary specs, and the module-location invariant that keeps engine-bound test helpers in the processor module. Engine tests drive the stage directly through the factory (compiling fixtures with `com.google.testing.compile`) and assert over the bipartite `MapperGraph` / extracted plan; there is no standalone `ExpansionHarness`/`ExpansionResult`/`ExpansionAssertions` façade.
 
 ## Requirements
 
@@ -86,53 +86,17 @@ Once the codegen stages (`AssembleMapperType`, `BuildMethodBodies`) are decompos
 - **WHEN** a decomposed codegen unit (an extracted method-signature or method-body assembler) is unit-tested
 - **THEN** it is exercised against mocked seams, with real-mirror rendering left to the feature-e2e compile tests
 
-### Requirement: TypeUniverse fixture
-
-The class `io.github.joke.percolate.spi.test.TypeUniverse` in `spi/src/testFixtures/groovy/` (Groovy source, published via `percolate-spi`'s `testFixtures` configuration) SHALL expose a fixed set of `javax.lang.model.type.TypeMirror` instances backed by a single, JVM-lifetime `com.sun.source.util.JavacTask` held in a `static final` field. The task SHALL be obtained via `ToolProvider.getSystemJavaCompiler().getTask(...)` with no writer, no file manager, no diagnostic listener, no classes, and no compilation units — passing only an options list of `['-cp', <java.class.path>]` so the test JVM's classpath types resolve — and cast to `com.sun.source.util.JavacTask`. The fixture SHALL NOT call `task.parse()`, `task.analyze()`, or `task.call()`; bootstrap class resolution happens lazily inside `Elements.getTypeElement(...)`. The fixture SHALL NOT use `com.google.testing.compile` for type sourcing.
-
-The set SHALL include at minimum: `int`, `long`, the primitive wrapper types `Integer` and `Long`, `String`, an enum type (`java.time.DayOfWeek`), `java.time.LocalDateTime`, `java.time.Instant`, and `java.util.List<E>` (as `List<Integer>` and `List<String>`). All `TypeMirror` instances SHALL come from the same `Types` and `Elements` instance — namely those returned by `task.getTypes()` and `task.getElements()` — so that javac's equality semantics hold across the universe.
-
-`TypeUniverse` SHALL initialise javac at most once per JVM (modulo separate class loaders). Test classes SHALL access `TypeUniverse` through `static` fields initialised on first reference.
-
-**Narrowed scope (change `type-query-seam`):** neither `processor` nor `spi` unit specs consume
-`TypeUniverse` any longer — both mock or fake the `ResolveCtx` seam instead (see "Unit tests mock the
-ResolveCtx seam"). `TypeUniverse` remains **only** as the substrate for the `strategies-builtin` specs not
-yet rewritten against a mocked `ResolveCtx` (deferred to `features-as-documentation`); deleting it is
-gated on that rewrite, not this change, since removing it now would break `strategies-builtin`'s build.
-
-Consumers (the `strategies-builtin` module's per-strategy specs still on the shared substrate, and any
-third-party strategy author testing against it) SHALL access `TypeUniverse` by declaring
-`testImplementation testFixtures(project(':spi'))` (or the equivalent published-coordinate dependency).
-
-#### Scenario: Universe types share an Elements
-- **WHEN** `TypeUniverse.STRING` and `TypeUniverse.INTEGER` are obtained
-- **THEN** both `TypeMirror` instances were resolved against the same `javax.lang.model.util.Elements`
-- **AND** equality and `Types.isSameType(...)` behave consistently across the set
-
-#### Scenario: Initialisation is amortised
-- **WHEN** any two distinct test methods access `TypeUniverse` fields
-- **THEN** the underlying `JavacTask` is constructed at most once across the JVM
-
-#### Scenario: Type sourcing uses only public javac API
-- **WHEN** the source of `TypeUniverse` is inspected
-- **THEN** it imports `com.sun.source.util.JavacTask` and no class from `com.sun.tools.javac.*`
-- **AND** it never invokes `task.parse()`, `task.analyze()`, or `task.call()`
-- **AND** the `JavacTask` is held in a field whose lifetime equals the JVM's so that captured `TypeMirror` instances remain valid
-
-#### Scenario: No processor or spi unit spec consumes TypeUniverse
-- **WHEN** the `processor` and `spi` modules' `@Tag('unit')` specs are inspected
-- **THEN** none of them imports `io.github.joke.percolate.spi.test.TypeUniverse`; only `strategies-builtin` specs deferred to `features-as-documentation` still do
-
 ### Requirement: Engine unit tests mock the seam; no shared type-system fixture module
 
 Every `processor` and `spi` unit test SHALL exercise its subject against a mocked or faked `ResolveCtx`
 (see "Unit tests mock the ResolveCtx seam"), needing no shared **javac** type-system fixture. No published
 Gradle module SHALL exist whose sole purpose is to host engine-test infrastructure. `spi` SHALL export no
-`testFixtures` type whose purpose is a shared javac substrate **for the `processor`/`spi` unit path**
-specifically — `HarnessResolveCtx` (which existed only to hand strategy specs a `ResolveCtx` backed by
-`TypeUniverse`'s real `Types`/`Elements`) is deleted, having no remaining consumer once `processor` and
-`spi` went mock-only. `TypeUniverse` itself is **not** deleted (see its own requirement above): it remains
-a `testFixtures` export, scoped down to serve only the `strategies-builtin` specs not yet rewritten.
+`testFixtures` type whose purpose is a shared javac substrate — `HarnessResolveCtx` (which handed strategy
+specs a `ResolveCtx` backed by real `Types`/`Elements`) is deleted, and the shared-static **`TypeUniverse`
+fixture is now also deleted** (see the REMOVED "TypeUniverse fixture"), its last code consumers — the
+`strategies-builtin` unit specs — having migrated to the mocked seam. The per-spec `PrivateTypeUniverse`
+`testFixtures` export **remains**, scoped to the `processor` compiler-boundary specs (`discover`,
+`AssembleMapperType`) that genuinely need real mirrors.
 
 Engine-bound helpers that a **compile-based** engine/e2e test still needs (`HarnessScope`, `TestFiler`, and the
 Java `fixtures`) MAY remain co-located under `processor/src/test/` because they depend on engine internals
@@ -144,10 +108,10 @@ other module. The e2e/doc compile tests continue to exercise the seam's real-jav
 - **WHEN** `settings.gradle` is inspected
 - **THEN** it does NOT include any module whose sole purpose is to host test infrastructure for the expansion engine
 
-#### Scenario: HarnessResolveCtx is gone; TypeUniverse remains for strategies-builtin only
+#### Scenario: HarnessResolveCtx and TypeUniverse are gone; PrivateTypeUniverse remains for the processor boundary
 - **WHEN** `spi`'s `testFixtures` are inspected
-- **THEN** `io.github.joke.percolate.spi.test.HarnessResolveCtx` does not exist
-- **AND** `io.github.joke.percolate.spi.test.TypeUniverse` still exists, consumed only by `strategies-builtin` specs deferred to `features-as-documentation`
+- **THEN** neither `io.github.joke.percolate.spi.test.HarnessResolveCtx` nor `io.github.joke.percolate.spi.test.TypeUniverse` exists
+- **AND** `io.github.joke.percolate.spi.test.PrivateTypeUniverse` still exists, consumed only by the `processor` `discover`/`AssembleMapperType` boundary specs
 
 #### Scenario: Compile-bound engine helpers stay next to the engine tests
 - **WHEN** the source tree is inspected
@@ -171,19 +135,3 @@ port signature exactly.
 - **WHEN** a test asserts a demand is satisfied
 - **THEN** it queries the `ExtractedPlan`'s `reachable` (finite extraction cost) rather than a stored
   SAT predicate
-
-### Requirement: Type resolution by Class literal
-
-`TypeUniverse` SHALL expose `static javax.lang.model.element.TypeElement of(Class<?> type)` that resolves the given class through the same `Elements`/`JavacTask` substrate as `element(String)` (e.g. by canonical name). It is a rename-safe, IDE-tracked alternative to passing a fully-qualified string, and SHALL be the preferred way to resolve a fixture type that exists as a compiled `Class` on the test classpath. `element(String)` remains for JDK types and genuinely dynamic names.
-
-`TypeUniverse` SHALL NOT retain members that exist only to serve removed test layers: it SHALL NOT expose a `pool()` of `TypeMirror`s (a fossil of a removed property-test layer) and SHALL NOT carry constants resolved by nothing else.
-
-#### Scenario: of(Class) resolves a fixture from a Class literal
-
-- **WHEN** a spec calls `TypeUniverse.of(SomeFixture.class)`
-- **THEN** it returns a non-null `TypeElement` for that class, drawn from the same substrate as `TypeUniverse.element(...)`, such that `Types.isSameType` comparisons with other `TypeUniverse` types behave consistently
-
-#### Scenario: of(Class) and element(String) agree
-
-- **WHEN** both `TypeUniverse.of(SomeFixture.class)` and `TypeUniverse.element("<fully-qualified SomeFixture>")` are resolved
-- **THEN** they return the same `TypeElement`

@@ -141,14 +141,16 @@ and member reflection (`membersOf`/`isField`/`isMethod`/`isConstructor`/`isPriva
 nor any owned type-value model, nor any reference to `MapperGraph`, `Edge`, `Node`, `EdgeKind`,
 `MapperStep`, or any other type from `processor.graph` or `processor.stages.*`.
 
-`ResolveCtx` SHALL still declare `types()`/`elements()` — this is a **deliberate, transitional exception**,
-not an oversight: the real-javac-backed `strategies-builtin` fixtures (`PrivateTypeUniverse`,
-`ResolveCtxBuilder`) construct a `ResolveCtx` directly over a `Types`/`Elements` pair for the specs not yet
-rewritten against a mocked `ResolveCtx` (deferred to `features-as-documentation`). Engine and strategy
-*production* code SHALL NOT call `types()`/`elements()` directly — every type question routes through the
-seam methods above instead — and the architecture suite confines the accessors' own
+`ResolveCtx` SHALL still declare `types()`/`elements()` — this is a **deliberate delegation seam**, not an
+oversight: the production real-javac implementation (`CompileResolveCtx`) answers every seam question by
+delegating through them, so a single `Types`/`Elements` pair supplies the whole surface for free. No
+**test** constructs a `ResolveCtx` over a `Types`/`Elements` pair any more — `ResolveCtxBuilder` is deleted
+and the `strategies-builtin` unit specs mock the seam directly (change `cutover-strategies-to-mock-seam`).
+Engine and strategy *production* code SHALL NOT call `types()`/`elements()` directly — every type question
+routes through the seam methods above instead — and the architecture suite confines the accessors' own
 `javax.lang.model.util` imports to the `ResolveCtx` interface plus the enumerated boundary packages (see
-`module-boundaries`).
+`module-boundaries`). Removing `types()`/`elements()` from the interface entirely (so the production impl
+overrides each seam method directly) is a separate later phase, out of scope here.
 
 A method that returns a type SHALL return another opaque token (see "TypeMirror is an opaque pass-through
 token"). `callableMethods()` SHALL return the per-mapper index produced by the discovery stage. The
@@ -167,12 +169,13 @@ opaque token without importing `Types`/`Elements`).
 - **THEN** the seam returns the answer (a `boolean`, an `int`, or another opaque token) without the caller
   needing to call `types()`/`elements()` itself
 
-#### Scenario: types()/elements() remain, but only as a transitional strategies-builtin bridge
+#### Scenario: types()/elements() remain only as the production-impl delegation seam
 - **WHEN** the `ResolveCtx` interface is inspected
 - **THEN** it still declares `types()` and `elements()`, and it declares no `typeSpace()`, `mapperType()`,
   or `currentMethod()` method, and no method returning a `processor.graph` or `processor.stages.*` type
 - **AND** no engine or strategy production class other than `CompileResolveCtx` calls `types()`/`elements()`
   directly to answer a type question
+- **AND** no test constructs a `ResolveCtx` over a `Types`/`Elements` pair (`ResolveCtxBuilder` does not exist)
 
 #### Scenario: A type-returning question yields an opaque token
 - **WHEN** a strategy calls `ctx.typeArgument(t, 0)` on a declared `List<String>` token

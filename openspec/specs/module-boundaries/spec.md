@@ -28,26 +28,30 @@ No production or test class outside the `processor` module SHALL depend on any `
 
 ### Requirement: Engine internal methods are never private
 
-The architecture suite SHALL enforce that no method declared by a class in `io.github.joke.percolate.processor.internal..` carries the `private` modifier. The rationale is a testability constraint, not a style preference: a `private` method is statically dispatched (`invokespecial`) and cannot be intercepted by any Spock/Mockito test double — even the inline mock maker — so it is not individually testable. Compiler-synthetic members (lambda and `access$` bridges), private constructors, and generated (`@Generated`/Lombok) members SHALL be exempt.
+The architecture suite SHALL enforce that no method declared by a class in a **decomposed package** carries the `private` modifier. The decomposed packages are `io.github.joke.percolate.processor.internal..` (the engine) **and `io.github.joke.percolate.spi.builtins..` (the built-in strategies)**. The rationale is a testability constraint, not a style preference: a `private` method is statically dispatched (`invokespecial`) and cannot be intercepted by any Spock/Mockito test double — even the inline mock maker — so it is not individually testable. Compiler-synthetic members (lambda and `access$` bridges), private constructors, and generated (`@Generated`/Lombok) members SHALL be exempt.
 
 #### Scenario: A private engine-internal method fails the build
 - **WHEN** a class in an engine `internal` package declares a `private` method
 - **THEN** the architecture suite fails, flagging the method
 
+#### Scenario: A private builtin-strategy method fails the build
+- **WHEN** a class in `io.github.joke.percolate.spi.builtins..` declares a `private` method
+- **THEN** the architecture suite fails, flagging the method
+
 #### Scenario: Synthetic members and private constructors are exempt
-- **WHEN** the architecture suite analyses an engine `internal` class that uses lambdas or declares a private constructor
+- **WHEN** the architecture suite analyses a decomposed class that uses lambdas or declares a private constructor
 - **THEN** the synthetic lambda/`access$` methods and the private constructor do not trip the rule
 
 ### Requirement: Engine internal classes stay within a size ceiling
 
-The architecture suite SHALL enforce a ceiling on the size of each class in `io.github.joke.percolate.processor.internal..` — a bound on method count, or an equivalent weighted-method-complexity or class-length metric — so that no class accretes responsibilities. This rule SHALL be **co-enforced** with the no-private rule: the no-private rule alone is satisfied by exposing a monolith's internals as package-private members, so the size ceiling is required to force separable logic into new small classes rather than exposed helpers.
+The architecture suite SHALL enforce a ceiling on the size of each class in the **decomposed packages** — `io.github.joke.percolate.processor.internal..` **and `io.github.joke.percolate.spi.builtins..`** — a bound on method count, or an equivalent weighted-method-complexity or class-length metric — so that no class accretes responsibilities. This rule SHALL be **co-enforced** with the no-private rule: the no-private rule alone is satisfied by exposing a monolith's internals as package-private members, so the size ceiling is required to force separable logic into new small classes rather than exposed helpers.
 
-#### Scenario: An oversized engine-internal class fails the build
-- **WHEN** a class in an engine `internal` package exceeds the configured size ceiling
+#### Scenario: An oversized decomposed class fails the build
+- **WHEN** a class in a decomposed package exceeds the configured size ceiling
 - **THEN** the architecture suite fails, flagging the class
 
-#### Scenario: The decomposed stages pass both structural rules
-- **WHEN** the architecture suite analyses the decomposed engine `internal` packages
+#### Scenario: The decomposed stages and strategies pass both structural rules
+- **WHEN** the architecture suite analyses the decomposed engine `internal` packages and the `spi.builtins` strategy package
 - **THEN** no class declares a `private` method and no class exceeds the size ceiling
 
 ### Requirement: Inter-module dependencies obey the declared layering
@@ -99,10 +103,11 @@ by the enumerated type-boundary regions:
 - `processor.internal.stages.discover` (the discovery adapter),
 - `processor.internal.stages.generate` (codegen emission),
 - `processor.nullability` (the nullability resolver), and
-- the `io.github.joke.percolate.spi.ResolveCtx` interface itself, which declares `types()`/`elements()` as a
-  transitional bridge kept for the real-javac-backed `strategies-builtin` fixtures (`PrivateTypeUniverse`,
-  `ResolveCtxBuilder`) not yet rewritten against a mocked `ResolveCtx` (deferred to
-  `features-as-documentation`).
+- the `io.github.joke.percolate.spi.ResolveCtx` interface itself, which declares `types()`/`elements()` so
+  that a real-javac production implementation (`CompileResolveCtx`) can answer every seam question by
+  delegating through them; strategy and engine *production* code never calls them, and no test now
+  constructs a `ResolveCtx` over a `Types`/`Elements` pair (`ResolveCtxBuilder` is deleted and the
+  `strategies-builtin` unit specs mock the seam).
 
 This is deliberately narrower than a blanket ban on all of `javax.lang.model` (which would also outlaw
 holding `TypeMirror`/`TypeElement`/`Element` values as opaque pass-through tokens everywhere — the design
