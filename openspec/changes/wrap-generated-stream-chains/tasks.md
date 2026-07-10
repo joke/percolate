@@ -42,4 +42,4 @@
 
 ## 6. Finalize
 
-- [ ] 6.1 Commit the completed change with `/commit-commands:commit`
+- [x] 6.1 Commit the completed change with `/commit-commands:commit`
