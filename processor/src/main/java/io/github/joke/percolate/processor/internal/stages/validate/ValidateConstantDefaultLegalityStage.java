@@ -14,6 +14,7 @@ import io.github.joke.percolate.processor.internal.graph.TargetPath;
 import io.github.joke.percolate.processor.internal.graph.Value;
 import io.github.joke.percolate.processor.internal.stages.Stage;
 import io.github.joke.percolate.processor.model.MappingDirective;
+import io.github.joke.percolate.processor.model.MethodMappings;
 import io.github.joke.percolate.spi.LiteralCoercion;
 import io.github.joke.percolate.spi.Nullability;
 import jakarta.inject.Inject;
@@ -51,12 +52,12 @@ public final class ValidateConstantDefaultLegalityStage implements Stage {
         if (mappings == null || graph == null) {
             return;
         }
-        for (final var method : mappings.getMethods()) {
-            final var scope = new MethodScope(method.getMethod());
-            for (final var directive : method.getDirectives()) {
-                checkDirective(directive, method.getMethod(), scope, graph);
-            }
-        }
+        mappings.getMethods().forEach(method -> checkMethod(method, graph));
+    }
+
+    private void checkMethod(final MethodMappings method, final MapperGraph graph) {
+        final var scope = new MethodScope(method.getMethod());
+        method.getDirectives().forEach(directive -> checkDirective(directive, method.getMethod(), scope, graph));
     }
 
     private void checkDirective(
@@ -97,14 +98,34 @@ public final class ValidateConstantDefaultLegalityStage implements Stage {
             final MapperGraph graph) {
         final var defaultValue = requireNonNull(directive.getDefaultValue());
         final var target = targetType(graph, scope, directive.getTarget());
-        if (target != null && LiteralCoercion.coerce(defaultValue, target).isEmpty()) {
-            diagnostics.error(
-                    method,
-                    directive.getMirror(),
-                    directive.getDefaultValueValue(),
-                    "cannot coerce '" + defaultValue + "' to " + typeName(target));
+        if (checkDefaultCoercion(directive, method, defaultValue, target)) {
             return;
         }
+        checkDeadDefault(directive, method, scope, graph);
+    }
+
+    /** Diagnoses (and reports {@code true}) when {@code defaultValue} cannot coerce to a resolved {@code target}. */
+    private boolean checkDefaultCoercion(
+            final MappingDirective directive,
+            final ExecutableElement method,
+            final String defaultValue,
+            final @Nullable TypeMirror target) {
+        if (target == null || LiteralCoercion.coerce(defaultValue, target).isPresent()) {
+            return false;
+        }
+        diagnostics.error(
+                method,
+                directive.getMirror(),
+                directive.getDefaultValueValue(),
+                "cannot coerce '" + defaultValue + "' to " + typeName(target));
+        return true;
+    }
+
+    private void checkDeadDefault(
+            final MappingDirective directive,
+            final ExecutableElement method,
+            final MethodScope scope,
+            final MapperGraph graph) {
         final var source = sourceNode(graph, scope, directive.getSource());
         if (source != null && isDeadDefault(source)) {
             diagnostics.error(
@@ -177,13 +198,13 @@ public final class ValidateConstantDefaultLegalityStage implements Stage {
     }
 
     private static String typeName(final TypeMirror type) {
-        if (type instanceof DeclaredType) {
-            final var element = ((DeclaredType) type).asElement();
-            if (element instanceof TypeElement) {
-                return ((TypeElement) element).getSimpleName().toString();
-            }
+        if (!(type instanceof DeclaredType)) {
+            return type.toString();
         }
-        return type.toString();
+        final var element = ((DeclaredType) type).asElement();
+        return element instanceof TypeElement
+                ? ((TypeElement) element).getSimpleName().toString()
+                : type.toString();
     }
 
     private static List<String> splitPath(final String path) {

@@ -1,9 +1,10 @@
 package io.github.joke.percolate.spi.builtins;
 
 import io.github.joke.percolate.spi.ResolveCtx;
-import java.util.ArrayList;
+import java.util.ArrayDeque;
+import java.util.Deque;
 import java.util.HashSet;
-import java.util.List;
+import java.util.Optional;
 import java.util.Set;
 import javax.lang.model.type.TypeMirror;
 
@@ -35,29 +36,49 @@ final class SubtypeDistance {
             return 0;
         }
         final Set<String> visited = new HashSet<>();
-        final List<Hop> queue = new ArrayList<>();
-        queue.add(new Hop(start, 0));
         visited.add(start.toString());
+        final Deque<Hop> queue = new ArrayDeque<>();
+        queue.add(new Hop(start, 0));
         while (!queue.isEmpty()) {
-            final var current = queue.remove(0);
-            if (!ctx.isDeclared(current.type)) {
-                continue;
+            final var distance = advance(queue.remove(), target, visited, queue, ctx);
+            if (distance.isPresent()) {
+                return distance.get();
             }
-            final var directSupertype = ctx.superclassOf(current.type);
-            if (!ctx.isDeclared(directSupertype)) {
-                continue;
-            }
-            final var supKey = directSupertype.toString();
-            if (visited.contains(supKey)) {
-                continue;
-            }
-            visited.add(supKey);
-            if (ctx.isSameType(directSupertype, target)) {
-                return current.depth + 1;
-            }
-            queue.add(new Hop(directSupertype, current.depth + 1));
         }
         return 0;
+    }
+
+    /**
+     * One BFS step from {@code current}: the distance to {@code target} when its unvisited direct supertype is a
+     * match, else empty — enqueueing that supertype as the next hop when it is not.
+     */
+    Optional<Integer> advance(
+            final Hop current,
+            final TypeMirror target,
+            final Set<String> visited,
+            final Deque<Hop> queue,
+            final ResolveCtx ctx) {
+        final var hop = nextHop(current, visited, ctx);
+        if (hop.isEmpty()) {
+            return Optional.empty();
+        }
+        if (ctx.isSameType(hop.get().type, target)) {
+            return Optional.of(hop.get().depth);
+        }
+        queue.add(hop.get());
+        return Optional.empty();
+    }
+
+    /** The unvisited direct supertype hop of {@code current}, or empty when there is none left to walk. */
+    Optional<Hop> nextHop(final Hop current, final Set<String> visited, final ResolveCtx ctx) {
+        if (!ctx.isDeclared(current.type)) {
+            return Optional.empty();
+        }
+        final var directSupertype = ctx.superclassOf(current.type);
+        if (!ctx.isDeclared(directSupertype) || !visited.add(directSupertype.toString())) {
+            return Optional.empty();
+        }
+        return Optional.of(new Hop(directSupertype, current.depth + 1));
     }
 
     private static final class Hop {

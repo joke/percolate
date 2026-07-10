@@ -1,6 +1,7 @@
 package io.github.joke.percolate.processor.internal.stages.expand;
 
 import io.github.joke.percolate.spi.Port;
+import io.github.joke.percolate.spi.PortType;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -42,10 +43,21 @@ final class BindingEnumerator {
         }
         final var template = Objects.requireNonNull(ports.get(index).getTemplate());
         for (final var source : sources) {
-            final var trial = new HashMap<>(current);
-            if (unifier.unify(template, source, trial, 0)) {
-                assign(ports, index + 1, sources, trial, out);
-            }
+            tryAssign(ports, index, sources, current, out, template, source);
+        }
+    }
+
+    void tryAssign(
+            final List<Port> ports,
+            final int index,
+            final List<TypeMirror> sources,
+            final Map<Integer, TypeMirror> current,
+            final List<Map<Integer, TypeMirror>> out,
+            final PortType template,
+            final TypeMirror source) {
+        final var trial = new HashMap<>(current);
+        if (unifier.unify(template, source, trial, 0)) {
+            assign(ports, index + 1, sources, trial, out);
         }
     }
 }

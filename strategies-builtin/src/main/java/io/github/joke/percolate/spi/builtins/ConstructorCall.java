@@ -90,15 +90,10 @@ public final class ConstructorCall implements ExpansionStrategy {
 
     OperationCodegen buildCodegen(final TypeElement typeElement, final List<String> portNames) {
         return inputs -> {
-            final var builder = CodeBlock.builder().add("new $T(", ClassName.get(typeElement));
-            for (var i = 0; i < portNames.size(); i++) {
-                if (i > 0) {
-                    builder.add(", ");
-                }
-                builder.add("$L", inputs.byName(portNames.get(i)));
-            }
-            builder.add(")");
-            return builder.build();
+            final var args = portNames.stream().map(inputs::byName).collect(CodeBlock.joining(", "));
+            return CodeBlock.builder()
+                    .add("new $T($L)", ClassName.get(typeElement), args)
+                    .build();
         };
     }
 }

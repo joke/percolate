@@ -39,14 +39,19 @@ class Blockings {
      */
     Stream<TypeMirror> view(
             final TypeMirror source, final String kindFqn, final String targetFqn, final ResolveCtx ctx) {
-        if (!ctx.isDeclared(source) || !ctx.isType(source, kindFqn)) {
-            return Stream.empty();
-        }
-        if (ctx.typeArgumentCount(source) != 1 || !ctx.isReferenceType(ctx.typeArgument(source, 0))) {
+        if (!isSingleReferenceArgKind(source, kindFqn, ctx)) {
             return Stream.empty();
         }
         final var target = ctx.typeElementNamed(targetFqn);
         return target == null ? Stream.empty() : Stream.of(ctx.declaredType(target, ctx.typeArgument(source, 0)));
+    }
+
+    /** {@code source} is a declared {@code kindFqn<X>} with exactly one reference type argument {@code X}. */
+    private boolean isSingleReferenceArgKind(final TypeMirror source, final String kindFqn, final ResolveCtx ctx) {
+        if (!ctx.isDeclared(source) || !ctx.isType(source, kindFqn)) {
+            return false;
+        }
+        return ctx.typeArgumentCount(source) == 1 && ctx.isReferenceType(ctx.typeArgument(source, 0));
     }
 
     /** A target eligible for {@code block()}/{@code single().block()}: a plain reference type, never itself reactive. */

@@ -100,9 +100,14 @@ public final class DiscoverMappingsStage implements Stage {
                 defaultValue,
                 mirror,
                 targetValue,
-                source == null ? null : sourceValue,
-                constant == null ? null : constantValue,
-                defaultValue == null ? null : defaultValueValue);
+                valueIfPresent(source, sourceValue),
+                valueIfPresent(constant, constantValue),
+                valueIfPresent(defaultValue, defaultValueValue));
+    }
+
+    @Nullable
+    private static AnnotationValue valueIfPresent(final @Nullable String presentString, final AnnotationValue value) {
+        return presentString == null ? null : value;
     }
 
     /**

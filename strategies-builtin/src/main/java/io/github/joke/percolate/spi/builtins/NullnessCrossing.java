@@ -65,12 +65,17 @@ public final class NullnessCrossing implements ExpansionStrategy {
         if (!guardsNullness && defaultLiteral.isEmpty()) {
             return Stream.empty();
         }
-        final var specs = Stream.<OperationSpec>builder();
-        if (guardsNullness && ctx.isDeclared(target)) {
-            specs.add(requireNonNull(target, demand.bindingName()));
-        }
-        defaultLiteral.ifPresent(literal -> coalesce(target, literal, ctx).forEach(specs::add));
-        return specs.build();
+        return Stream.concat(
+                requireNonNullGuard(target, demand.bindingName(), guardsNullness, ctx),
+                defaultLiteral.map(literal -> coalesce(target, literal, ctx)).orElseGet(Stream::empty));
+    }
+
+    /** The {@code [requireNonNull]} crossing, when the target is both {@code NON_NULL} and declared. */
+    static Stream<OperationSpec> requireNonNullGuard(
+            final TypeMirror target, final String bindingName, final boolean guardsNullness, final ResolveCtx ctx) {
+        return guardsNullness && ctx.isDeclared(target)
+                ? Stream.of(requireNonNull(target, bindingName))
+                : Stream.empty();
     }
 
     static OperationSpec requireNonNull(final TypeMirror target, final String slotName) {

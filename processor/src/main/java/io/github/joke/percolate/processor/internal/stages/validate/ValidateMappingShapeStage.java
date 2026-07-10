@@ -64,22 +64,30 @@ public final class ValidateMappingShapeStage implements Stage {
     }
 
     private boolean checkSourceXorConstant(final MappingDirective directive, final ExecutableElement method) {
-        if (directive.hasSource() && directive.hasConstant()) {
-            diagnostics.error(
-                    method,
-                    directive.getMirror(),
-                    directive.getConstantValue(),
-                    "@Map declares both 'source' and 'constant'; they are mutually exclusive");
+        return !reportsBothSourceAndConstant(directive, method) && !reportsNeitherSourceNorConstant(directive, method);
+    }
+
+    private boolean reportsBothSourceAndConstant(final MappingDirective directive, final ExecutableElement method) {
+        if (!(directive.hasSource() && directive.hasConstant())) {
             return false;
         }
-        if (!directive.hasSource() && !directive.hasConstant()) {
-            diagnostics.error(
-                    method,
-                    directive.getMirror(),
-                    directive.getTargetValue(),
-                    "@Map must declare a 'source' or a 'constant'");
+        diagnostics.error(
+                method,
+                directive.getMirror(),
+                directive.getConstantValue(),
+                "@Map declares both 'source' and 'constant'; they are mutually exclusive");
+        return true;
+    }
+
+    private boolean reportsNeitherSourceNorConstant(final MappingDirective directive, final ExecutableElement method) {
+        if (directive.hasSource() || directive.hasConstant()) {
             return false;
         }
+        diagnostics.error(
+                method,
+                directive.getMirror(),
+                directive.getTargetValue(),
+                "@Map must declare a 'source' or a 'constant'");
         return true;
     }
 

@@ -24,24 +24,34 @@ public final class JspecifyNullabilityResolver implements NullabilityResolver {
         if (hasAny(type, annotations.getNullableFqns())) {
             return Nullability.NULLABLE;
         }
+        final var fromEnclosing = markedNullabilityOfEnclosing(scope);
+        if (fromEnclosing != null) {
+            return fromEnclosing;
+        }
+        final var fromPackage = markedNullabilityOfPackage(scope);
+        return fromPackage != null ? fromPackage : Nullability.UNKNOWN;
+    }
+
+    private @Nullable Nullability markedNullabilityOfEnclosing(final Element scope) {
         for (Element current = scope; current != null; current = current.getEnclosingElement()) {
-            if (hasAny(current, annotations.getUnmarkedFqns())) {
-                return Nullability.UNKNOWN;
-            }
-            if (hasAny(current, annotations.getMarkedFqns())) {
-                return Nullability.NON_NULL;
+            final var marked = markedNullability(current);
+            if (marked != null) {
+                return marked;
             }
         }
+        return null;
+    }
+
+    private @Nullable Nullability markedNullabilityOfPackage(final Element scope) {
         final var pkg = elements.getPackageOf(scope);
-        if (pkg != null) {
-            if (hasAny(pkg, annotations.getUnmarkedFqns())) {
-                return Nullability.UNKNOWN;
-            }
-            if (hasAny(pkg, annotations.getMarkedFqns())) {
-                return Nullability.NON_NULL;
-            }
+        return pkg == null ? null : markedNullability(pkg);
+    }
+
+    private @Nullable Nullability markedNullability(final AnnotatedConstruct construct) {
+        if (hasAny(construct, annotations.getUnmarkedFqns())) {
+            return Nullability.UNKNOWN;
         }
-        return Nullability.UNKNOWN;
+        return hasAny(construct, annotations.getMarkedFqns()) ? Nullability.NON_NULL : null;
     }
 
     private static boolean hasAny(final AnnotatedConstruct construct, final Set<String> fqns) {

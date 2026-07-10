@@ -115,11 +115,11 @@ public final class LiteralCoercion {
     }
 
     private static Optional<CodeBlock> floatLiteral(final String raw) {
-        return floating(raw, true);
+        return parseFloat(raw).filter(Float::isFinite).map(value -> CodeBlock.of("$L", value + "f"));
     }
 
     private static Optional<CodeBlock> doubleLiteral(final String raw) {
-        return floating(raw, false);
+        return parseDouble(raw).filter(Double::isFinite).map(value -> CodeBlock.of("$L", value.toString()));
     }
 
     private static Optional<CodeBlock> charLiteral(final String raw) {
@@ -138,20 +138,17 @@ public final class LiteralCoercion {
         return Optional.of(CodeBlock.of("$L", castPrefix + value + suffix));
     }
 
-    private static Optional<CodeBlock> floating(final String raw, final boolean isFloat) {
+    private static Optional<Float> parseFloat(final String raw) {
         try {
-            if (isFloat) {
-                final var value = Float.parseFloat(raw);
-                if (!Float.isFinite(value)) {
-                    return Optional.empty();
-                }
-                return Optional.of(CodeBlock.of("$L", Float.toString(value) + "f"));
-            }
-            final var value = Double.parseDouble(raw);
-            if (!Double.isFinite(value)) {
-                return Optional.empty();
-            }
-            return Optional.of(CodeBlock.of("$L", Double.toString(value)));
+            return Optional.of(Float.parseFloat(raw));
+        } catch (final NumberFormatException ignored) {
+            return Optional.empty();
+        }
+    }
+
+    private static Optional<Double> parseDouble(final String raw) {
+        try {
+            return Optional.of(Double.parseDouble(raw));
         } catch (final NumberFormatException ignored) {
             return Optional.empty();
         }

@@ -85,16 +85,20 @@ final class SpecInstantiator {
             return ((PortType.Concrete) template).getType();
         }
         if (template instanceof PortType.Var) {
-            final var bound = bindings.get(((PortType.Var) template).getIndex());
-            if (bound == null) {
-                throw new IllegalStateException("Ungrounded type variable while instantiating: " + template);
-            }
-            return bound;
+            return groundVar((PortType.Var) template, bindings);
         }
         // PortType is a closed pseudo-sealed hierarchy (Concrete/Var/App): having excluded the first two, this is App.
         final var app = (PortType.App) template;
         final var args =
                 app.getArgs().stream().map(arg -> ground(arg, bindings)).toArray(TypeMirror[]::new);
         return ctx.declaredType(app.getErasure(), args);
+    }
+
+    TypeMirror groundVar(final PortType.Var template, final Map<Integer, TypeMirror> bindings) {
+        final var bound = bindings.get(template.getIndex());
+        if (bound == null) {
+            throw new IllegalStateException("Ungrounded type variable while instantiating: " + template);
+        }
+        return bound;
     }
 }

@@ -11,6 +11,7 @@ import io.github.joke.percolate.processor.model.MapperMappings;
 import io.github.joke.percolate.processor.model.MappingDirective;
 import io.github.joke.percolate.processor.model.MethodMappings;
 import jakarta.inject.Inject;
+import java.util.Optional;
 import java.util.Set;
 import javax.lang.model.element.ExecutableElement;
 import javax.lang.model.element.TypeElement;
@@ -100,12 +101,14 @@ public final class ValidateSourceParametersStage implements Stage {
         if (mirror.getKind() == TypeKind.TYPEVAR) {
             return mirror.toString();
         }
-        if (mirror instanceof javax.lang.model.type.DeclaredType) {
-            final var elem = ((javax.lang.model.type.DeclaredType) mirror).asElement();
-            if (elem instanceof TypeElement) {
-                return elem.getSimpleName().toString();
-            }
+        return declaredSimpleName(mirror).orElseGet(mirror::toString);
+    }
+
+    private static Optional<String> declaredSimpleName(final javax.lang.model.type.TypeMirror mirror) {
+        if (!(mirror instanceof javax.lang.model.type.DeclaredType)) {
+            return Optional.empty();
         }
-        return mirror.toString();
+        final var elem = ((javax.lang.model.type.DeclaredType) mirror).asElement();
+        return elem instanceof TypeElement ? Optional.of(elem.getSimpleName().toString()) : Optional.empty();
     }
 }

@@ -57,18 +57,21 @@ public final class RealisationDiagnosticsStage implements Stage {
         final Set<Value> visited = new HashSet<>();
         var current = value;
         while (visited.add(current)) {
-            final var producer =
-                    graph.producersOf(current).filter(op -> !plan.reachable(op)).findFirst();
-            if (producer.isEmpty()) {
+            final var next = nextUnsatisfied(graph, plan, current);
+            if (next.isEmpty()) {
                 return current;
             }
-            final var unsatPort = firstUnsatisfiedPort(graph, plan, producer.get());
-            if (unsatPort.isEmpty()) {
-                return current;
-            }
-            current = unsatPort.get();
+            current = next.get();
         }
         return current;
+    }
+
+    /** The unsatisfied port feeding {@code current}'s unreachable producer, or empty when {@code current} is the miss. */
+    private static Optional<Value> nextUnsatisfied(
+            final MapperGraph graph, final ExtractedPlan plan, final Value current) {
+        final var producer =
+                graph.producersOf(current).filter(op -> !plan.reachable(op)).findFirst();
+        return producer.isEmpty() ? Optional.empty() : firstUnsatisfiedPort(graph, plan, producer.get());
     }
 
     private static Optional<Value> firstUnsatisfiedPort(

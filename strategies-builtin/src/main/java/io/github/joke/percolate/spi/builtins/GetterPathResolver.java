@@ -43,28 +43,11 @@ public final class GetterPathResolver extends Accessor {
     }
 
     Optional<ExecutableElement> matchGetter(final Element member, final String getterName, final ResolveCtx ctx) {
-        if (!ctx.isMethod(member)) {
-            return Optional.empty();
-        }
-        final var method = (ExecutableElement) member;
-        if (Members.isInObjectClass(method) || !method.getParameters().isEmpty()) {
-            return Optional.empty();
-        }
-        return method.getSimpleName().contentEquals(getterName) ? Optional.of(method) : Optional.empty();
+        return Members.noArgMethodNamed(member, getterName, ctx);
     }
 
     Optional<ExecutableElement> matchBooleanIs(final Element member, final String isName, final ResolveCtx ctx) {
-        if (!ctx.isMethod(member)) {
-            return Optional.empty();
-        }
-        final var method = (ExecutableElement) member;
-        if (Members.isInObjectClass(method) || !method.getParameters().isEmpty()) {
-            return Optional.empty();
-        }
-        if (!method.getSimpleName().contentEquals(isName)) {
-            return Optional.empty();
-        }
-        return isBooleanReturn(method, ctx) ? Optional.of(method) : Optional.empty();
+        return Members.noArgMethodNamed(member, isName, ctx).filter(method -> isBooleanReturn(method, ctx));
     }
 
     boolean isBooleanReturn(final ExecutableElement method, final ResolveCtx ctx) {

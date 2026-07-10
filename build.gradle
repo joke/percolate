@@ -191,7 +191,7 @@ subprojects { project ->
     pluginManager.withPlugin('pmd') {
         pmd {
             consoleOutput = false
-            toolVersion = '7.24.0' // keep in sync with below
+            toolVersion = '7.26.0' // keep in sync with below
             rulesMinimumPriority = 5
             ruleSets = ["$rootDir/.pmd.xml"]
         }

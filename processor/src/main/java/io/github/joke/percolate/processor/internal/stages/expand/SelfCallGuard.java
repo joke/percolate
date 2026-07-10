@@ -49,17 +49,21 @@ final class SelfCallGuard {
 
     /** Whether landing {@code spec} bound by {@code ports} in {@code scope} would be a whole-parameter self-call. */
     boolean refuses(final Scope scope, final OperationSpec spec, final List<PortBinding> ports) {
-        if (!(scope instanceof MethodScope) || !spec.getCallTarget().isPresent()) {
+        if (!isSameShapedAbstractSelfCallTarget(scope, spec)) {
+            return false;
+        }
+        final var parameterRoots = parameterRootLocations(((MethodScope) scope).getMethod());
+        return ports.stream()
+                .anyMatch(binding -> parameterRoots.contains(binding.getSource().getLocation()));
+    }
+
+    boolean isSameShapedAbstractSelfCallTarget(final Scope scope, final OperationSpec spec) {
+        if (!(scope instanceof MethodScope) || spec.getCallTarget().isEmpty()) {
             return false;
         }
         final var callTarget = spec.getCallTarget().get();
         final var method = ((MethodScope) scope).getMethod();
-        if (!callTarget.getModifiers().contains(Modifier.ABSTRACT) || !sameShape(callTarget, method)) {
-            return false;
-        }
-        final var parameterRoots = parameterRootLocations(method);
-        return ports.stream()
-                .anyMatch(binding -> parameterRoots.contains(binding.getSource().getLocation()));
+        return callTarget.getModifiers().contains(Modifier.ABSTRACT) && sameShape(callTarget, method);
     }
 
     /** The whole-parameter source locations of {@code method}: a {@code LEAF} {@link SourceLocation} per parameter. */

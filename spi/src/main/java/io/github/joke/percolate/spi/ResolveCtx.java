@@ -128,13 +128,9 @@ public interface ResolveCtx {
 
     /** A short display name for {@code type}: a declared type's simple name, else its string form. */
     default String simpleName(final TypeMirror type) {
-        if (isDeclared(type)) {
-            final var element = ((DeclaredType) type).asElement();
-            if (element instanceof TypeElement) {
-                return ((TypeElement) element).getSimpleName().toString();
-            }
-        }
-        return type.toString();
+        return asTypeElement(type)
+                .map(element -> element.getSimpleName().toString())
+                .orElseGet(type::toString);
     }
 
     /** The fully-qualified name of a declared type's element, else its string form. */

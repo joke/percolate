@@ -59,23 +59,27 @@ final class Unifier {
             final TypeMirror source,
             final Map<Integer, TypeMirror> bindings,
             final int depth) {
-        if (!ctx.isDeclared(source)) {
-            return false;
-        }
-        if (!ctx.isSameType(
-                ctx.erasure(source), ctx.erasure(template.getErasure().asType()))) {
+        if (!matchesErasure(template, source, ctx)) {
             return false;
         }
         final var templateArgs = template.getArgs();
-        if (ctx.typeArgumentCount(source) != templateArgs.size()) {
-            return false;
-        }
         for (int i = 0; i < templateArgs.size(); i++) {
             if (!unify(templateArgs.get(i), ctx.typeArgument(source, i), bindings, depth + 1)) {
                 return false;
             }
         }
         return true;
+    }
+
+    // static (not an instance method): unifyApp is exercised through a Spy in UnifierSpec to isolate the
+    // self-recursive unify() call, and a static call bypasses the spy's interaction recording entirely — unlike
+    // an instance helper, which would show up as an extra untracked interaction under strict `0 * _` mocking.
+    /** Whether {@code source} is declared, erases to {@code template}'s erasure, and has as many type arguments. */
+    static boolean matchesErasure(final PortType.App template, final TypeMirror source, final ResolveCtx ctx) {
+        return ctx.isDeclared(source)
+                && ctx.isSameType(
+                        ctx.erasure(source), ctx.erasure(template.getErasure().asType()))
+                && ctx.typeArgumentCount(source) == template.getArgs().size();
     }
 
     /** Restrict-v1 policy: a variable matches only an invariant reference argument; never a wildcard/type-variable. */

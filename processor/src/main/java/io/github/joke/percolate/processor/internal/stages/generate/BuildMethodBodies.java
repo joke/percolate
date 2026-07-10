@@ -212,13 +212,17 @@ public final class BuildMethodBodies {
             if (bound != null) {
                 return bound;
             }
-            if (value.getLoc() instanceof SourceLocation) {
-                final var segments = ((SourceLocation) value.getLoc()).getPath().getSegments();
-                if (!segments.isEmpty()) {
-                    return CodeBlock.of("$N", segments.get(0));
-                }
+            return sourceSegmentRoot(value)
+                    .orElseThrow(() -> new IllegalStateException("unproducible leaf Value in plan: " + value.id()));
+        }
+
+        /** {@code value}'s first source-path segment, rendered as a bare reference, or empty when it has none. */
+        Optional<CodeBlock> sourceSegmentRoot(final Value value) {
+            if (!(value.getLoc() instanceof SourceLocation)) {
+                return Optional.empty();
             }
-            throw new IllegalStateException("unproducible leaf Value in plan: " + value.id());
+            final var segments = ((SourceLocation) value.getLoc()).getPath().getSegments();
+            return segments.isEmpty() ? Optional.empty() : Optional.of(CodeBlock.of("$N", segments.get(0)));
         }
 
         /** The declared type of a hoisted local, rendered through the injected {@link TypeNameRenderer}. */
@@ -247,7 +251,16 @@ public final class BuildMethodBodies {
             if (producer.isEmpty()) {
                 return;
             }
-            graph.portSourcesOf(producer.get()).forEach(source -> collectHoisted(source, root, ordered, seen));
+            descendAndRecord(value, root, ordered, seen, producer.get());
+        }
+
+        void descendAndRecord(
+                final Value value,
+                final Value root,
+                final List<Value> ordered,
+                final Set<Value> seen,
+                final Operation producer) {
+            graph.portSourcesOf(producer).forEach(source -> collectHoisted(source, root, ordered, seen));
             if (!value.equals(root) && hoist.isHoisted(value)) {
                 ordered.add(value);
             }

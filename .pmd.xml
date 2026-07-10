@@ -21,13 +21,34 @@
         <exclude name="UseExplicitTypes"/>
         <exclude name="AtLeastOneConstructor"/>
     </rule>
+
     <rule ref="category/java/design.xml">
         <exclude name="LawOfDemeter"/>
         <exclude name="CouplingBetweenObjects"/>
         <exclude name="ExcessiveImports"/>
         <exclude name="TooManyMethods"/>
         <exclude name="LoosePackageCoupling"/>
+        <exclude name="CognitiveComplexity"/>
+        <exclude name="CyclomaticComplexity"/> <!-- we prefer CognitiveComplexity -->
+        <exclude name="AvoidDeeplyNestedIfStmts"/>
+        <exclude name="NPathComplexity"/>
     </rule>
+    <rule ref="category/java/design.xml/CognitiveComplexity">
+        <properties>
+            <property name="reportLevel" value="5" />
+        </properties>
+    </rule>
+    <rule ref="category/java/design.xml/AvoidDeeplyNestedIfStmts">
+        <properties>
+            <property name="problemDepth" value="2" />
+        </properties>
+    </rule>
+    <rule ref="category/java/design.xml/NPathComplexity">
+        <properties>
+            <property name="reportLevel" value="5" />
+        </properties>
+    </rule>
+
     <rule ref="category/java/errorprone.xml">
         <exclude name="UseProperClassLoader"/>
     </rule>

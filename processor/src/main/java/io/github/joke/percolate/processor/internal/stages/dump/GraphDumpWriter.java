@@ -59,13 +59,7 @@ public final class GraphDumpWriter {
             final Predicate<GraphVertex> include,
             final boolean dimUnreachable) {
         final var graph = ctx.getGraph();
-        // Like GenerateStage, this stage writes through the Filer, which forbids reopening a path. The
-        // pipeline re-runs every deferral round, so dump only on the round the mapper realises (empty
-        // outcome) — otherwise a deferred-then-realised mapper would write each .dot twice.
-        if (graph == null
-                || !processorOptions.isDebugGraphs()
-                || graph.vertexCount() == 0
-                || !ctx.getUnsatisfiedRealisation().isEmpty()) {
+        if (graph == null || skipDump(graph, ctx)) {
             return;
         }
         final Predicate<GraphVertex> dimmed = dimUnreachable ? dimmedByCost(graph) : vertex -> false;
@@ -73,6 +67,15 @@ public final class GraphDumpWriter {
         final var fqn = mapperType.getQualifiedName().toString();
         final var infixes = infixes(orderedScopes(graph, include));
         infixes.forEach((scope, infix) -> writeScope(graph, include, dimmed, scope, infix, fqn, view, mapperType));
+    }
+
+    // Like GenerateStage, this stage writes through the Filer, which forbids reopening a path. The pipeline
+    // re-runs every deferral round, so dump only on the round the mapper realises (empty outcome) — otherwise
+    // a deferred-then-realised mapper would write each .dot twice.
+    private boolean skipDump(final MapperGraph graph, final MapperContext ctx) {
+        return !processorOptions.isDebugGraphs()
+                || graph.vertexCount() == 0
+                || !ctx.getUnsatisfiedRealisation().isEmpty();
     }
 
     private static Predicate<GraphVertex> dimmedByCost(final MapperGraph graph) {
@@ -132,12 +135,16 @@ public final class GraphDumpWriter {
         final var byBase =
                 scopes.stream().collect(groupingBy(GraphDumpWriter::baseInfix, LinkedHashMap::new, toList()));
         final var result = new LinkedHashMap<Scope, String>();
-        byBase.forEach((base, group) -> {
-            final var disambiguate = group.size() > 1;
-            for (var index = 0; index < group.size(); index++) {
-                result.put(group.get(index), disambiguate ? base + "-" + index : base);
-            }
-        });
+        byBase.forEach((base, group) -> result.putAll(infixesWithinGroup(base, group)));
+        return result;
+    }
+
+    private static Map<Scope, String> infixesWithinGroup(final String base, final List<Scope> group) {
+        final var disambiguate = group.size() > 1;
+        final var result = new LinkedHashMap<Scope, String>();
+        for (var index = 0; index < group.size(); index++) {
+            result.put(group.get(index), disambiguate ? base + "-" + index : base);
+        }
         return result;
     }
 

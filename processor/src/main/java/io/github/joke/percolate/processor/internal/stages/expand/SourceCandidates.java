@@ -14,6 +14,7 @@ import io.github.joke.percolate.spi.Port;
 import io.github.joke.percolate.spi.ResolveCtx;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Optional;
 import java.util.stream.Stream;
 import javax.lang.model.type.TypeMirror;
 import lombok.RequiredArgsConstructor;
@@ -58,14 +59,17 @@ final class SourceCandidates {
      */
     @Nullable
     Value matchingSource(final Scope scope, final Port port, final @Nullable Value pinnedSource) {
-        if (pinnedSource != null && matchesPort(pinnedSource, port)) {
-            return pinnedSource;
-        }
-        final var existing = sourceValues(scope)
-                .filter(value -> matchesPort(value, port))
-                .min(Comparator.comparing(Value::id))
-                .orElse(null);
-        return existing != null ? existing : materialiseMatchingInput(scope, port);
+        return pinnedMatch(pinnedSource, port)
+                .or(() -> existingMatch(scope, port))
+                .orElseGet(() -> materialiseMatchingInput(scope, port));
+    }
+
+    Optional<Value> pinnedMatch(final @Nullable Value pinnedSource, final Port port) {
+        return Optional.ofNullable(pinnedSource).filter(value -> matchesPort(value, port));
+    }
+
+    Optional<Value> existingMatch(final Scope scope, final Port port) {
+        return sourceValues(scope).filter(value -> matchesPort(value, port)).min(Comparator.comparing(Value::id));
     }
 
     /** Whether {@code value} can feed {@code port}: same type and a non-null source satisfies any nullness. */

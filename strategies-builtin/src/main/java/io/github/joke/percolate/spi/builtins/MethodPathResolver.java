@@ -38,13 +38,6 @@ public final class MethodPathResolver extends Accessor {
     }
 
     Optional<ExecutableElement> matchAccessor(final Element member, final String segment, final ResolveCtx ctx) {
-        if (!ctx.isMethod(member)) {
-            return Optional.empty();
-        }
-        final var method = (ExecutableElement) member;
-        if (Members.isInObjectClass(method) || !method.getParameters().isEmpty()) {
-            return Optional.empty();
-        }
-        return method.getSimpleName().contentEquals(segment) ? Optional.of(method) : Optional.empty();
+        return Members.noArgMethodNamed(member, segment, ctx);
     }
 }

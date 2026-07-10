@@ -37,15 +37,13 @@ public final class FieldPathResolver extends Accessor {
     }
 
     Optional<VariableElement> matchField(final Element member, final String segment, final ResolveCtx ctx) {
-        if (!ctx.isField(member)) {
+        if (!isVisibleField(member, ctx)) {
             return Optional.empty();
         }
-        if (!member.getSimpleName().contentEquals(segment)) {
-            return Optional.empty();
-        }
-        if (ctx.isPrivate(member) || ctx.isStatic(member)) {
-            return Optional.empty();
-        }
-        return Optional.of((VariableElement) member);
+        return member.getSimpleName().contentEquals(segment) ? Optional.of((VariableElement) member) : Optional.empty();
+    }
+
+    boolean isVisibleField(final Element member, final ResolveCtx ctx) {
+        return ctx.isField(member) && !ctx.isPrivate(member) && !ctx.isStatic(member);
     }
 }

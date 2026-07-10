@@ -57,8 +57,19 @@ final class HoistPlan {
         final Set<Operation> inPlanOps = Collections.newSetFromMap(new IdentityHashMap<>());
         collectOps(graph, plan, root, inPlanOps, Collections.newSetFromMap(new IdentityHashMap<>()));
 
-        final Set<Value> feedsNary = Collections.newSetFromMap(new IdentityHashMap<>());
         final Map<Value, Integer> portConsumers = new IdentityHashMap<>();
+        final Set<Value> feedsNary = collectPortConsumers(graph, inPlanOps, portConsumers);
+        final Set<Value> hoisted = hoistedValues(plan, portConsumers, feedsNary);
+
+        final var names = new NameAllocator();
+        reservedNames.forEach(names::newName);
+        return new HoistPlan(hoisted, names);
+    }
+
+    /** Tallies how many in-plan ports consume each source, returning the subset feeding an n-ary operation. */
+    static Set<Value> collectPortConsumers(
+            final MapperGraph graph, final Set<Operation> inPlanOps, final Map<Value, Integer> portConsumers) {
+        final Set<Value> feedsNary = Collections.newSetFromMap(new IdentityHashMap<>());
         for (final var operation : inPlanOps) {
             final var nary = operation.getPorts().size() >= NARY;
             graph.portSourcesOf(operation).forEach(source -> {
@@ -68,17 +79,24 @@ final class HoistPlan {
                 }
             });
         }
+        return feedsNary;
+    }
 
+    /** The Values that materialise as named locals: a chosen producer feeding an n-ary op or more than one port. */
+    static Set<Value> hoistedValues(
+            final ExtractedPlan plan, final Map<Value, Integer> portConsumers, final Set<Value> feedsNary) {
         final Set<Value> hoisted = Collections.newSetFromMap(new IdentityHashMap<>());
         portConsumers.forEach((value, count) -> {
-            if (plan.chosenProducer(value).isPresent() && (feedsNary.contains(value) || count > 1)) {
+            if (isHoistCandidate(plan, feedsNary, value, count)) {
                 hoisted.add(value);
             }
         });
+        return hoisted;
+    }
 
-        final var names = new NameAllocator();
-        reservedNames.forEach(names::newName);
-        return new HoistPlan(hoisted, names);
+    static boolean isHoistCandidate(
+            final ExtractedPlan plan, final Set<Value> feedsNary, final Value value, final int count) {
+        return plan.chosenProducer(value).isPresent() && (feedsNary.contains(value) || count > 1);
     }
 
     static void collectOps(
@@ -128,12 +146,13 @@ final class HoistPlan {
     }
 
     static String typeBase(final TypeMirror type) {
-        if (type instanceof DeclaredType) {
-            final var simple = ((DeclaredType) type).asElement().getSimpleName().toString();
-            if (!simple.isEmpty()) {
-                return Character.toLowerCase(simple.charAt(0)) + simple.substring(1);
-            }
-        }
-        return "element";
+        final var simple = declaredSimpleName(type);
+        return simple.isEmpty() ? "element" : Character.toLowerCase(simple.charAt(0)) + simple.substring(1);
+    }
+
+    static String declaredSimpleName(final TypeMirror type) {
+        return type instanceof DeclaredType
+                ? ((DeclaredType) type).asElement().getSimpleName().toString()
+                : "";
     }
 }
