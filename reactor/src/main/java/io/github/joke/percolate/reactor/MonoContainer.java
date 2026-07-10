@@ -58,7 +58,7 @@ public final class MonoContainer extends Container {
 
     @Override
     public Optional<UnarySnippet> iterate() {
-        return Optional.of(container -> CodeBlock.of("$L.flux()", container));
+        return Optional.of(container -> CodeBlock.of("$L$Z.flux()", container));
     }
 
     @Override
@@ -68,6 +68,6 @@ public final class MonoContainer extends Container {
 
     @Override
     public Optional<ScopeCodegen> mapPresence() {
-        return Optional.of((operand, var, body) -> CodeBlock.of("$L.map($N -> $L)", operand, var, body));
+        return Optional.of((operand, var, body) -> CodeBlock.of("$L$Z.map($N -> $L)", operand, var, body));
     }
 }

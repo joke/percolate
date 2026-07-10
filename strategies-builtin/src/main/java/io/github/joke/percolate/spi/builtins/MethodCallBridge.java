@@ -79,6 +79,6 @@ public final class MethodCallBridge implements ExpansionStrategy {
         final var receiver = candidate.getReceiver().asExpression();
         final var method = candidate.getMethod();
         final var methodName = method.getSimpleName().toString();
-        return inputs -> CodeBlock.of("$L.$N($L)", receiver, methodName, inputs.single());
+        return inputs -> CodeBlock.of("$L$Z.$N($L)", receiver, methodName, inputs.single());
     }
 }

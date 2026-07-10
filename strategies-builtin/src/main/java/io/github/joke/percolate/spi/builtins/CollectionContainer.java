@@ -27,12 +27,12 @@ abstract class CollectionContainer extends StreamContainer {
 
     @Override
     public Optional<UnarySnippet> iterate() {
-        return Optional.of(container -> CodeBlock.of("$L.stream()", container));
+        return Optional.of(container -> CodeBlock.of("$L$Z.stream()", container));
     }
 
     @Override
     public Optional<UnarySnippet> collect() {
-        return Optional.of(stream -> CodeBlock.of("$L.collect($L)", stream, collector()));
+        return Optional.of(stream -> CodeBlock.of("$L$Z.collect($L)", stream, collector()));
     }
 
     @Override

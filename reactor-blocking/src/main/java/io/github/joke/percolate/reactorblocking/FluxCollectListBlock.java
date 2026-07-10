@@ -32,7 +32,7 @@ public final class FluxCollectListBlock implements ExpansionStrategy {
         return Blockings.declared(ctx, Blockings.FLUX, ctx.typeArgument(to, 0))
                 .map(flux -> OperationSpec.of(
                         "collectList().block",
-                        (OperationCodegen) inputs -> CodeBlock.of("$L.collectList().block()", inputs.single()),
+                        (OperationCodegen) inputs -> CodeBlock.of("$L$Z.collectList()$Z.block()", inputs.single()),
                         Blockings.WEIGHT,
                         List.of(Port.reuse("flux", flux, Nullability.NON_NULL)),
                         to,

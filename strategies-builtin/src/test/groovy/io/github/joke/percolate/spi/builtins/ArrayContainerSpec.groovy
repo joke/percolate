@@ -69,7 +69,7 @@ class ArrayContainerSpec extends Specification {
         collect.codegen instanceof OperationCodegen
         collect.ports[0].type.is(streamOfString)
         collect.outputType.is(stringArray)
-        new ArrayContainer().collect().get().render(CodeBlock.of('$N', 's')).toString().contains('toArray()')
+        CodeBlock.of('$L\n', new ArrayContainer().collect().get().render(CodeBlock.of('$N', 's'))).toString().contains('toArray()')
     }
 
     def 'declines a target that is neither an array nor a Stream'() {

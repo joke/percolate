@@ -36,7 +36,7 @@ public final class SingleOptional implements ExpansionStrategy {
         return Reactors.declared(ctx, Reactors.MONO, ctx.typeArgument(inner, 0))
                 .map(mono -> OperationSpec.of(
                         "singleOptional",
-                        (OperationCodegen) inputs -> CodeBlock.of("$L.singleOptional()", inputs.single()),
+                        (OperationCodegen) inputs -> CodeBlock.of("$L$Z.singleOptional()", inputs.single()),
                         Weights.STEP,
                         List.of(new Port("mono", mono, Nullability.NON_NULL)),
                         to,

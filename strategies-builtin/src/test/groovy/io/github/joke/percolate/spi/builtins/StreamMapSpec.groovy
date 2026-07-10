@@ -49,7 +49,7 @@ class StreamMapSpec extends Specification {
         map.ports[0].name == 'stream'
         map.ports[0].template == expectedTemplate
         map.childScope.get().elementInTemplate == PortType.variable(0)
-        ((ScopeCodegen) map.codegen).weave(CodeBlock.of('$N', 's'), 'v', CodeBlock.of('$N', 'b'))
+        CodeBlock.of('$L\n', ((ScopeCodegen) map.codegen).weave(CodeBlock.of('$N', 's'), 'v', CodeBlock.of('$N', 'b')))
                 .toString().contains('.map(')
 
         and: 'flatMap: child A -> Stream<String>'
@@ -57,7 +57,7 @@ class StreamMapSpec extends Specification {
         flatMap != null
         flatMap.ports[0].template == expectedTemplate
         flatMap.childScope.get().elementInTemplate == PortType.variable(0)
-        ((ScopeCodegen) flatMap.codegen).weave(CodeBlock.of('$N', 's'), 'v', CodeBlock.of('$N', 'b'))
+        CodeBlock.of('$L\n', ((ScopeCodegen) flatMap.codegen).weave(CodeBlock.of('$N', 's'), 'v', CodeBlock.of('$N', 'b')))
                 .toString().contains('.flatMap(')
     }
 

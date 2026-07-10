@@ -37,7 +37,7 @@ public final class CollectList implements ExpansionStrategy {
         return Reactors.declared(ctx, Reactors.FLUX, ctx.typeArgument(inner, 0))
                 .map(flux -> OperationSpec.of(
                         "collectList",
-                        (OperationCodegen) inputs -> CodeBlock.of("$L.collectList()", inputs.single()),
+                        (OperationCodegen) inputs -> CodeBlock.of("$L$Z.collectList()", inputs.single()),
                         Weights.CONTAINER,
                         List.of(new Port("flux", flux, Nullability.NON_NULL)),
                         to,

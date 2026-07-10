@@ -48,6 +48,6 @@ public final class ArrayContainer extends StreamContainer {
 
     @Override
     public Optional<UnarySnippet> collect() {
-        return Optional.of(stream -> CodeBlock.of("$L.toArray()", stream));
+        return Optional.of(stream -> CodeBlock.of("$L$Z.toArray()", stream));
     }
 }

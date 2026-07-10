@@ -102,7 +102,7 @@ public final class NullnessCrossing implements ExpansionStrategy {
                         optional,
                         Nullability.NON_NULL,
                         target,
-                        inputs -> CodeBlock.of("$L.orElse($L)", inputs.single(), literal))));
+                        inputs -> CodeBlock.of("$L$Z.orElse($L)", inputs.single(), literal))));
         return specs.build();
     }
 

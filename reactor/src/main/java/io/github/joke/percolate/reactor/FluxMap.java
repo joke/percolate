@@ -38,9 +38,9 @@ public final class FluxMap implements ExpansionStrategy {
     private static final String FLUX = "reactor.core.publisher.Flux";
     private static final String SOURCE_ROLE = "flux";
     private static final ScopeCodegen MAP =
-            (operand, var, body) -> CodeBlock.of("$L.map($N -> $L)", operand, var, body);
+            (operand, var, body) -> CodeBlock.of("$L$Z.map($N -> $L)", operand, var, body);
     private static final ScopeCodegen FLAT_MAP =
-            (operand, var, body) -> CodeBlock.of("$L.flatMap($N -> $L)", operand, var, body);
+            (operand, var, body) -> CodeBlock.of("$L$Z.flatMap($N -> $L)", operand, var, body);
 
     @Override
     public Stream<OperationSpec> expand(final ProduceDemand demand, final ResolveCtx ctx) {

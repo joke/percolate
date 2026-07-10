@@ -40,7 +40,7 @@ public final class MonoBlockOptional implements ExpansionStrategy, SourceProject
         return Blockings.declared(ctx, Blockings.MONO, ctx.typeArgument(to, 0))
                 .map(mono -> OperationSpec.of(
                         "blockOptional",
-                        (OperationCodegen) inputs -> CodeBlock.of("$L.blockOptional()", inputs.single()),
+                        (OperationCodegen) inputs -> CodeBlock.of("$L$Z.blockOptional()", inputs.single()),
                         Blockings.WEIGHT,
                         List.of(Port.reuse("mono", mono, Nullability.NON_NULL)),
                         to,

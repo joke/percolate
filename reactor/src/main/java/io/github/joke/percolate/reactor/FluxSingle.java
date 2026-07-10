@@ -33,7 +33,7 @@ public final class FluxSingle implements ExpansionStrategy {
         return Reactors.declared(ctx, Reactors.FLUX, ctx.typeArgument(to, 0))
                 .map(flux -> OperationSpec.of(
                         "single",
-                        (OperationCodegen) inputs -> CodeBlock.of("$L.single()", inputs.single()),
+                        (OperationCodegen) inputs -> CodeBlock.of("$L$Z.single()", inputs.single()),
                         Weights.CONTAINER,
                         List.of(new Port("flux", flux, Nullability.NON_NULL)),
                         to,

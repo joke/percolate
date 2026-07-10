@@ -39,14 +39,28 @@ public abstract class Container implements ExpansionStrategy, SourceProjection {
     private static final String SOURCE_ROLE = "source";
     private static final String STREAM_ROLE = "stream";
 
-    /** A unary, inline container snippet ({@code iterate}/{@code collect}/{@code wrap}). */
+    /**
+     * A unary, inline container snippet ({@code iterate}/{@code collect}/{@code wrap}).
+     *
+     * <p>When the rendered {@code CodeBlock} <b>chains a call onto its operand</b> (its format string appends
+     * {@code .methodName(...)} after the spliced-in operand, e.g. {@code "$L$Z.stream()"}), prefix that call's leading
+     * {@code .} with JavaPoet's {@code $Z} (zero-width space) wrap marker. This costs nothing below JavaPoet's column
+     * limit — the rendered text is unchanged — but lets a long fluent pipeline built from several containers' snippets
+     * wrap at a call boundary instead of rendering as one unbroken line. A snippet that prepends rather than chains
+     * (e.g. {@code wrap}'s {@code "$T.of($L)"}) has no such call to mark.
+     */
     @FunctionalInterface
     public interface UnarySnippet {
         /** Render the snippet over its single operand (the container, stream, or scalar expression). */
         CodeBlock render(CodeBlock operand);
     }
 
-    /** The (partial) {@code unwrap} snippet: collapse a wrapper to a scalar under the demanded nullability. */
+    /**
+     * The (partial) {@code unwrap} snippet: collapse a wrapper to a scalar under the demanded nullability.
+     *
+     * <p>Follows the same {@code $Z} chain-wrap convention as {@link UnarySnippet} where its rendering chains a call
+     * onto its operand (e.g. {@code "$L$Z.orElseThrow()"}).
+     */
     @FunctionalInterface
     public interface UnwrapSnippet {
         /** Render the collapse of {@code wrapper} to a scalar under {@code targetNullability}. */

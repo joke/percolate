@@ -63,7 +63,7 @@ public final class PrimitiveWrapperConversion extends Conversion {
     static Step unbox(final TypeMirror primitiveTarget, final ResolveCtx ctx) {
         final TypeMirror wrapper = ctx.boxed(primitiveTarget);
         final var accessor = Objects.requireNonNull(UNBOX_ACCESSOR.get(ctx.kind(primitiveTarget)));
-        final OperationCodegen codegen = inputs -> CodeBlock.of("$L.$N()", inputs.single(), accessor);
+        final OperationCodegen codegen = inputs -> CodeBlock.of("$L$Z.$N()", inputs.single(), accessor);
         return new Step(wrapper, Labels.conversion(wrapper, primitiveTarget), Weights.STEP, codegen);
     }
 

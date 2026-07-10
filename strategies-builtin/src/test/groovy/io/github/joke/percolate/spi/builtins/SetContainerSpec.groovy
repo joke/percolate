@@ -51,7 +51,7 @@ class SetContainerSpec extends Specification {
         iterate.codegen instanceof OperationCodegen
         iterate.ports[0].type.is(setOfString)
         iterate.outputType.is(streamOfString)
-        new SetContainer().iterate().get().render(CodeBlock.of('$N', 'xs')).toString().contains('.stream()')
+        CodeBlock.of('$L\n', new SetContainer().iterate().get().render(CodeBlock.of('$N', 'xs'))).toString().contains('.stream()')
     }
 
     def 'collects a Stream into a Set (Collectors.toSet) and offers a plain single-element Set.of wrap'() {
@@ -71,7 +71,7 @@ class SetContainerSpec extends Specification {
         collect.codegen instanceof OperationCodegen
         collect.weight == Weights.CONTAINER
         collect.outputType.is(setOfString)
-        new SetContainer().collect().get().render(CodeBlock.of('$N', 's')).toString().contains('toSet()')
+        CodeBlock.of('$L\n', new SetContainer().collect().get().render(CodeBlock.of('$N', 's'))).toString().contains('toSet()')
 
         and: 'a plain single-element wrap String -> Set<String>'
         def wrap = specs.find { it.ports[0].type.is(stringType) }

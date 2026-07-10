@@ -70,7 +70,7 @@ class OptionalContainerSpec extends Specification {
         child.elementOut.is(stringType)
         mapping.outputType.is(optionalOfString)
         !mapping.partial
-        new OptionalContainer().mapPresence().get().weave(CodeBlock.of('$N', 'o'), 'v', CodeBlock.of('$N', 'b'))
+        CodeBlock.of('$L\n', new OptionalContainer().mapPresence().get().weave(CodeBlock.of('$N', 'o'), 'v', CodeBlock.of('$N', 'b')))
                 .toString().contains('.map(')
     }
 
@@ -96,7 +96,7 @@ class OptionalContainerSpec extends Specification {
         iterate.childScope.empty
         iterate.codegen instanceof OperationCodegen
         iterate.outputType.is(streamOfString)
-        new OptionalContainer().iterate().get().render(CodeBlock.of('$N', 'o')).toString().contains('.stream()')
+        CodeBlock.of('$L\n', new OptionalContainer().iterate().get().render(CodeBlock.of('$N', 'o'))).toString().contains('.stream()')
     }
 
     def 'a scalar target offers a plain partial unwrap from Optional<scalar> under the demanded nullness'() {
@@ -118,7 +118,7 @@ class OptionalContainerSpec extends Specification {
         unwrap.ports[0].type.is(optionalOfString)
         unwrap.outputType.is(stringType)
         unwrap.outputNullness == Nullability.NULLABLE
-        new OptionalContainer().unwrap().get().render(CodeBlock.of('$N', 'o'), Nullability.NULLABLE).toString().contains('orElse(null)')
-        new OptionalContainer().unwrap().get().render(CodeBlock.of('$N', 'o'), Nullability.NON_NULL).toString().contains('orElseThrow')
+        CodeBlock.of('$L\n', new OptionalContainer().unwrap().get().render(CodeBlock.of('$N', 'o'), Nullability.NULLABLE)).toString().contains('orElse(null)')
+        CodeBlock.of('$L\n', new OptionalContainer().unwrap().get().render(CodeBlock.of('$N', 'o'), Nullability.NON_NULL)).toString().contains('orElseThrow')
     }
 }

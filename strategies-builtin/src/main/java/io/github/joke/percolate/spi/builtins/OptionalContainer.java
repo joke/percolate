@@ -39,7 +39,7 @@ public final class OptionalContainer extends StreamContainer {
 
     @Override
     public Optional<UnarySnippet> iterate() {
-        return Optional.of(container -> CodeBlock.of("$L.stream()", container));
+        return Optional.of(container -> CodeBlock.of("$L$Z.stream()", container));
     }
 
     @Override
@@ -55,12 +55,12 @@ public final class OptionalContainer extends StreamContainer {
     @Override
     public Optional<UnwrapSnippet> unwrap() {
         return Optional.of((wrapper, targetNullability) -> targetNullability == Nullability.NULLABLE
-                ? CodeBlock.of("$L.orElse(null)", wrapper)
-                : CodeBlock.of("$L.orElseThrow()", wrapper));
+                ? CodeBlock.of("$L$Z.orElse(null)", wrapper)
+                : CodeBlock.of("$L$Z.orElseThrow()", wrapper));
     }
 
     @Override
     public Optional<ScopeCodegen> mapPresence() {
-        return Optional.of((operand, var, body) -> CodeBlock.of("$L.map($N -> $L)", operand, var, body));
+        return Optional.of((operand, var, body) -> CodeBlock.of("$L$Z.map($N -> $L)", operand, var, body));
     }
 }

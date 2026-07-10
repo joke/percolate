@@ -32,7 +32,7 @@ public final class FieldPathResolver extends Accessor {
     }
 
     static Step step(final VariableElement field, final String segment) {
-        final OperationCodegen codegen = inputs -> CodeBlock.of("$L.$N", inputs.single(), segment);
+        final OperationCodegen codegen = inputs -> CodeBlock.of("$L$Z.$N", inputs.single(), segment);
         return new Step(field.asType(), field, "." + segment, Weights.STEP_FIELD, codegen);
     }
 

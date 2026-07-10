@@ -35,7 +35,7 @@ public final class MonoBlock implements ExpansionStrategy {
         return Blockings.declared(ctx, Blockings.MONO, to)
                 .map(mono -> OperationSpec.ofPartial(
                         "block",
-                        (OperationCodegen) inputs -> CodeBlock.of("$L.block()", inputs.single()),
+                        (OperationCodegen) inputs -> CodeBlock.of("$L$Z.block()", inputs.single()),
                         Blockings.WEIGHT,
                         List.of(Port.reuse("mono", mono, Nullability.NON_NULL)),
                         to,

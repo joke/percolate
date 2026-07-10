@@ -69,7 +69,7 @@ class ListContainerSpec extends Specification {
         iterate.weight == Weights.CONTAINER
         iterate.ports[0].type.is(listOfString)
         iterate.outputType.is(streamOfString)
-        new ListContainer().iterate().get().render(CodeBlock.of('$N', 'xs')).toString().contains('.stream()')
+        CodeBlock.of('$L\n', new ListContainer().iterate().get().render(CodeBlock.of('$N', 'xs'))).toString().contains('.stream()')
     }
 
     def 'collects a Stream into a List and offers a plain single-element List.of wrap'() {
@@ -88,7 +88,7 @@ class ListContainerSpec extends Specification {
         collect.childScope.empty
         collect.codegen instanceof OperationCodegen
         collect.outputType.is(listOfString)
-        new ListContainer().collect().get().render(CodeBlock.of('$N', 's')).toString().contains('toList()')
+        CodeBlock.of('$L\n', new ListContainer().collect().get().render(CodeBlock.of('$N', 's'))).toString().contains('toList()')
 
         and: 'a plain single-element wrap String -> List<String>, no child scope'
         def wrap = specs.find { it.ports[0].type.is(stringType) }

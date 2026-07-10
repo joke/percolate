@@ -41,7 +41,7 @@ public final class FluxToStream implements ExpansionStrategy, SourceProjection {
         return Blockings.declared(ctx, Blockings.FLUX, ctx.typeArgument(to, 0))
                 .map(flux -> OperationSpec.of(
                         "toStream",
-                        (OperationCodegen) inputs -> CodeBlock.of("$L.toStream()", inputs.single()),
+                        (OperationCodegen) inputs -> CodeBlock.of("$L$Z.toStream()", inputs.single()),
                         Blockings.WEIGHT,
                         List.of(Port.reuse("flux", flux, Nullability.NON_NULL)),
                         to,

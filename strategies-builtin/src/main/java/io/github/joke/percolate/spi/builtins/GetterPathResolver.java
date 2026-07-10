@@ -38,7 +38,7 @@ public final class GetterPathResolver extends Accessor {
 
     static Step step(final ExecutableElement method) {
         final var methodName = method.getSimpleName().toString();
-        final OperationCodegen codegen = inputs -> CodeBlock.of("$L.$N()", inputs.single(), methodName);
+        final OperationCodegen codegen = inputs -> CodeBlock.of("$L$Z.$N()", inputs.single(), methodName);
         return new Step(method.getReturnType(), method, methodName + "()", Weights.STEP_GETTER, codegen);
     }
 
