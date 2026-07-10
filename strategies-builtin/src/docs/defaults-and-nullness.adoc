@@ -1,0 +1,38 @@
+= Defaults & nullness
+:navtitle: Defaults & nullness
+
+Percolate reads JSpecify `@Nullable` annotations to know which crossings need a guard. A source that may
+be absent (`@Nullable`, or an absent `Optional`) feeding a non-null target must resolve that gap somehow:
+either a declared fallback (see the `defaultValue` examples in xref:map-annotation.adoc[The `@Map`
+annotation]) or, lacking one, a runtime guard that fails loudly instead of assembling a bean with a silently
+missing value.
+
+[source,java]
+----
+include::example$nullness/OrderMapper.java[tag=mapper]
+----
+
+`OrderForm.trackingCode` is `@Nullable`; `Order.trackingCode` is plain (non-null) and no `defaultValue` is
+declared. Percolate guards the crossing with `Objects.requireNonNull`, naming the target slot in the
+message so a runtime failure points straight at the offending field:
+
+[source,java]
+----
+include::example$nullness/OrderMapperImpl.java[tag=map]
+----
+
+A present `trackingCode` flows through unchanged; an absent one throws immediately, with the message
+`source for slot 'trackingCode' is null but target is non-null` — rather than propagating the gap into a
+bean that silently holds a value its own type says it never can.
+
+[TIP]
+====
+Declaring a `defaultValue` instead of leaving the crossing unguarded turns this thrown exception into a
+fallback value — see xref:map-annotation.adoc[The `@Map` annotation] for both the nullable-scalar
+(`requireNonNullElse`) and absent-`Optional` (`orElse`) fallback forms.
+====
+
+== Where to next
+
+* xref:map-annotation.adoc[The `@Map` annotation] — the `defaultValue` fallback that replaces this guard.
+* xref:optionals.adoc[Optionals] — presence as a container, not just a nullability annotation.

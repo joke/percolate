@@ -1,5 +1,7 @@
 package io.github.joke.percolate.spi.builtins
 
+import com.palantir.javapoet.CodeBlock
+import io.github.joke.percolate.spi.IncomingValues
 import io.github.joke.percolate.spi.Nullability
 import io.github.joke.percolate.spi.OperationCodegen
 import io.github.joke.percolate.spi.Port
@@ -46,6 +48,11 @@ class NullnessCrossingSpec extends Specification {
         spec.ports[0].sourcing == Port.Sourcing.REUSE
         spec.outputType.is(stringType)
         spec.outputNullness == Nullability.NON_NULL
+
+        and: 'the rendered guard names the slot in its message (design D7 repatriation of NullnessCrossingEndToEndSpec)'
+        def rendered = spec.codegen.render(singleInput(CodeBlock.of('$N', 'src'))).toString()
+        rendered.contains('requireNonNull')
+        rendered.contains("source for slot 'name' is null but target is non-null")
     }
 
     def 'a nullable demand needs no crossing'() {
@@ -145,5 +152,9 @@ class NullnessCrossingSpec extends Specification {
 
     private static Name nameOf(final String value) {
         [contentEquals: { CharSequence cs -> cs.toString() == value }, toString: { value }] as Name
+    }
+
+    private static IncomingValues singleInput(final CodeBlock value) {
+        [single: { -> value }] as IncomingValues
     }
 }

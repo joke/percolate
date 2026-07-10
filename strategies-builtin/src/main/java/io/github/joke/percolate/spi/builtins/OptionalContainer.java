@@ -48,6 +48,11 @@ public final class OptionalContainer extends StreamContainer {
     }
 
     @Override
+    protected Nullability wrapNullness() {
+        return Nullability.NULLABLE;
+    }
+
+    @Override
     public Optional<UnwrapSnippet> unwrap() {
         return Optional.of((wrapper, targetNullability) -> targetNullability == Nullability.NULLABLE
                 ? CodeBlock.of("$L.orElse(null)", wrapper)

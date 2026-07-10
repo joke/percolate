@@ -88,6 +88,16 @@ public abstract class Container implements ExpansionStrategy, SourceProjection {
         return Optional.empty();
     }
 
+    /**
+     * The nullness {@link #wrap}'s scalar element port declares — {@code NON_NULL} by default, since most kinds'
+     * wrap ({@code List.of}, {@code Set.of}, {@code Mono.just}, {@code Flux.just}) reject a {@code null} element.
+     * Override to {@code NULLABLE} for a kind whose wrap is itself null-safe (e.g. {@code Optional.ofNullable}), so a
+     * {@code @Nullable}-declared source binds directly instead of forcing a spurious {@code NullnessCrossing} guard.
+     */
+    protected Nullability wrapNullness() {
+        return Nullability.NON_NULL;
+    }
+
     /** Collapse this container to a scalar ({@code Cont<E> → E}, partial); empty for a sequence. */
     public Optional<UnwrapSnippet> unwrap() {
         return Optional.empty();
@@ -146,7 +156,7 @@ public abstract class Container implements ExpansionStrategy, SourceProjection {
                 "wrap",
                 unary(lift),
                 Weights.CONTAINER,
-                List.of(new Port(ELEMENT_ROLE, elementOut, Nullability.NON_NULL)),
+                List.of(new Port(ELEMENT_ROLE, elementOut, wrapNullness())),
                 to,
                 Nullability.NON_NULL)));
         mapPresence().ifPresent(map -> kindErasure(ctx).ifPresent(erasure -> {

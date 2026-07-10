@@ -1,0 +1,94 @@
+= Extending percolate
+:navtitle: Extending (SPI)
+
+The consumer pages describe what percolate does out of the box. This page is for authors who want to teach
+percolate something new. It is a map of the extension model, not a full contract reference — the
+authoritative, versioned contract is the `percolate-spi` module.
+
+== Everything is a strategy
+
+Percolate's engine is deliberately small and knows nothing about specific containers or conversions. Each
+mapping decision is made by a **strategy** discovered through the JDK `ServiceLoader`. The built-ins you
+have been using — the `List`/`Set`/`Optional` handling, the constructor assembly, the method-call bridge
+behind xref:conversion-methods.adoc[conversion methods] — are themselves just registered strategies, the
+first customers of the same SPI you would use.
+
+That means an extension is not a special case: you ship a strategy on the annotation-processor classpath and
+percolate treats it exactly like a built-in.
+
+== The shape of a strategy
+
+A strategy implements an SPI interface (for value-producing strategies, `ExpansionStrategy`) and registers
+itself with Google `@AutoService` so the `ServiceLoader` finds it. Rather than a fictional skeleton, here is
+a real one: `percolate-reactor`'s bridge from a synchronous `Optional<T>` to a reactive `Mono<T>`, via
+`Mono.justOrEmpty`:
+
+[source,java]
+----
+include::example$reactor/JustOrEmpty.java[]
+----
+
+Two principles keep extensions composable:
+
+* **Strategies are myopic.** A strategy makes a local decision from the demand and the resolve context
+  only. It never inspects or mutates the engine's graph — the engine owns all wiring. Needing graph access
+  is a sign the decision belongs in the engine, not a strategy. This is not just a guideline: the engine's
+  graph and stages live in an internal package the SPI never exposes, and an architecture test fails the
+  build if a strategy implementation depends on it.
+* **Over-emit, then prune.** A strategy returns *candidate* operations; the engine picks the cheapest
+  viable plan by weight. You do not decide whether your candidate "wins".
+
+== A third-party strategy, exactly like a built-in
+
+`percolate-reactor` is not special-cased by the engine at all — it is just another jar on the
+annotation-processor classpath, alongside the `percolate` starter:
+
+[source,java]
+----
+include::example$extending/PreferenceMapper.java[tag=mapper]
+----
+
+Percolate generates:
+
+[source,java]
+----
+include::example$extending/PreferenceMapperImpl.java[tag=wrap]
+----
+
+`JustOrEmpty` is discovered via `ServiceLoader` and its candidate operation competes and wins on cost like
+any built-in's — nothing here required `percolate-reactor` to be known to the engine in advance. Your own
+strategy module joins percolate the same way.
+
+== Depending on the SPI
+
+A strategy author needs only `percolate-spi` at compile time (it depends solely on the JDK and JavaPoet,
+because `CodeBlock` is part of the contract — it does not drag in the annotations or the processor).
+Versions are managed by the `percolate-bom` platform.
+
+[source,groovy,subs="+attributes"]
+----
+dependencies {
+    implementation platform('io.github.joke.percolate:percolate-bom:{percolate-version}')
+    implementation 'io.github.joke.percolate:percolate-spi'
+
+    // ServiceLoader registration
+    compileOnly 'com.google.auto.service:auto-service-annotations'
+    annotationProcessor 'com.google.auto.service:auto-service'
+}
+----
+
+Consumers then add your artifact to their `annotationProcessor` configuration alongside the `percolate`
+starter, and your strategy participates automatically.
+
+== Reference material
+
+* The `percolate-spi` module — the published contract: the strategy interfaces, the value types, and the
+  codegen abstractions.
+* The `percolate-strategies-builtin` module — the built-in strategies, worth reading as reference
+  implementations of the SPI.
+
+[NOTE]
+====
+`percolate-spi` is a published, versioned contract. Changes to it are either non-breaking additions or
+arrive with a breaking version bump.
+====

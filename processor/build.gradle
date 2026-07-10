@@ -42,6 +42,15 @@ dependencies {
     testImplementation 'org.assertj:assertj-core'
     testImplementation testFixtures(project(':spi'))
 
+    // Doc-e2e only (change features-as-documentation, design D4): the compile-time-switches reference is a
+    // processor-owned feature, so its @Tag('integration') doc-e2e lives here rather than in strategies-builtin —
+    // but demonstrating an option's generated effect needs the real builtins on the annotation-processing
+    // classpath. This is a test->main edge (unaffected main-scope module-boundaries guards, D4), and it is the
+    // ONE place in this module that may reference a strategy; the unit suite stays strategy-free.
+    testImplementation project(':strategies-builtin')
+    testImplementation project(':test-foundation')
+    testImplementation 'com.google.testing.compile:compile-testing'
+
     testRuntimeOnly 'net.bytebuddy:byte-buddy'
     testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
     testRuntimeOnly 'org.mockito:mockito-junit-jupiter'

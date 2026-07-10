@@ -1,0 +1,36 @@
+= Reactive to blocking bridge
+:navtitle: Reactive to blocking bridge
+
+xref:reactive.adoc[Reactive containers] never invents an *unsound* crossing on its own — collapsing an
+asynchronous `Flux`/`Mono` into a synchronous target is a deliberate, opt-in choice. The optional
+`percolate-reactor-blocking` module adds exactly that: the upward bridge from a reactive source to a
+blocking, synchronous target.
+
+Add it alongside `percolate-reactor` on the `annotationProcessor` classpath and a reactive source can feed a
+plain scalar, `List`, `Optional`, or `Stream` target — percolate blocks only at that one boundary, then maps
+as usual:
+
+[source,java]
+----
+include::example$reactor-blocking/PersonMapperImpl.java[tag=map]
+
+include::example$reactor-blocking/PersonMapperImpl.java[tag=toDao]
+----
+
+A `Mono<PersonDTO>` source reduces to a scalar `PersonDAO` target via `.block()`, then the blocked value is
+converted through `toDao` exactly like any other xref:conversion-methods.adoc[conversion method] — the
+blocking bridge and the element conversion are two independent, composed steps.
+
+== Every upward crossing is reuse-only, and never out-prices a lazy path
+
+Each blocking bridge only fires against an *already in-scope* reactive source — it never invents one — and
+is weighted strictly above any non-blocking alternative. So percolate never blocks when a lazy, fully
+reactive path exists; blocking is chosen only when the target genuinely demands a synchronous value.
+Depending on the source/target shape, the bridge takes one of a few forms: a plain `.block()`, the
+empty-safe `.blockOptional()`, `Flux`'s `.single().block()` reduction, `.collectList().block()` for a
+`List` target, or the lazily-streaming `.toStream()` for a `Stream` target.
+
+== Where to next
+
+* xref:reactive.adoc[Reactive containers] — the non-blocking `Flux`/`Mono` mechanism this module extends.
+* xref:conversion-methods.adoc[Conversion methods] — how the blocked value itself gets converted.

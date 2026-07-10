@@ -1,0 +1,44 @@
+= Reactive containers
+:navtitle: Reactive containers
+
+The optional `percolate-reactor` module adds Project Reactor's `Flux` and `Mono` to the
+xref:collections.adoc[supported container kinds]. Percolate maps them like any other container —
+element-by-element through a mapper method — but composes the pipeline with Reactor operators so the mapping
+**stays reactive end to end**: no `Stream`, no `block()`, no eager collection.
+
+[source,java]
+----
+include::example$reactive/FeedMapper.java[tag=mapper]
+----
+
+With these beans:
+
+[source,java]
+----
+include::example$reactive/FeedMapper.java[tag=model]
+----
+
+percolate generates:
+
+[source,java]
+----
+include::example$reactive/FeedMapperImpl.java[tag=map]
+----
+
+Percolate composes a `flux.map(...)` over the element method: the `Flux<Article>` is mapped element-wise
+through `toView`, and the result is still a `Flux<ArticleView>` — nothing is blocked or buffered, so
+backpressure and laziness are preserved. The same holds for `Mono`, and for bridges between the container
+kinds (a `Mono` opens to a `Flux` via `flux()`, a `List` enters a `Flux` via `fromStream`, and a `Flux`
+reduces to a `Mono` via `single()` or `collectList()`) — always without leaving the reactive world.
+
+== Adding the reactor module
+
+`percolate-reactor` is an optional add-on: put it on the `annotationProcessor` classpath alongside the
+`percolate` starter and the `Flux`/`Mono` strategies join the builtins. See
+xref:getting-started.adoc[Getting started] for the BOM and starter setup.
+
+== Where to next
+
+* xref:collections.adoc[Collections] — the `List`, `Set`, and `Optional` container kinds.
+* xref:conversion-methods.adoc[Conversion methods] — when the element types need converting.
+* xref:reactor-blocking.adoc[Reactive to blocking bridge] — the opt-in, upward crossing to a blocking target.

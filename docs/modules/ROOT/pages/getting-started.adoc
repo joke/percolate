@@ -89,14 +89,14 @@ Declare an interface, annotate it `@Mapper`, and describe each target field with
 
 [source,java]
 ----
-include::example$getting-started/PersonMapper.java[tag=mapper]
+include::example$gettingstarted/PersonMapper.java[tag=mapper]
 ----
 
 Given these beans:
 
 [source,java]
 ----
-include::example$getting-started/PersonMapper.java[tag=model]
+include::example$gettingstarted/PersonMapper.java[tag=model]
 ----
 
 percolate generates `PersonMapperImpl` during compilation. The body reads each source through its accessor
@@ -104,10 +104,7 @@ and constructs the target:
 
 [source,java]
 ----
-@Override
-public Human map(Person person) {
-    return new Human(person.getFirstName());
-}
+include::example$gettingstarted/PersonMapperImpl.java[tag=map]
 ----
 
 [IMPORTANT]

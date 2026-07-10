@@ -14,18 +14,90 @@ ext:
   # Import the module-owned example fixtures into the content catalog. `dir` is a plain path, so it
   # resolves from the content-source worktree root (the repo root). The same `example$` subpaths the
   # pages include:: are reconstructed under modules/ROOT/examples.
+  # The reactive page is owned by and compiled in the reactor module (the only place Flux/Mono compile).
   - scan:
-      dir: strategies-builtin/src/test/resources/examples
-      files: '**/*.java'
-      into: modules/ROOT/examples
-  # The reactive example is owned by and compiled in the reactor module (the only place Flux/Mono compile).
+      dir: reactor/src/docs
+      files: '**/*.adoc'
+      into: modules/ROOT/pages
   - scan:
       dir: reactor/src/test/resources/examples
       files: '**/*.java'
       into: modules/ROOT/examples
-  # The real doc-tagged generated source, materialised by the doc-example e2e specs (the antora task
-  # dependsOn them). Pages include the generated body by tag, so shown output cannot drift from code.
+  # The reactive page's doc-e2e materialised output (compile-testing-based, since it precedes this change's
+  # real-source pattern): the spec is the sole materialiser of its own generated output, per D2's original
+  # real-compile pattern.
   - scan:
-      dir: strategies-builtin/build/generated-doc-examples
+      dir: reactor/build/generated-doc-examples
+      files: '**/*'
+      into: modules/ROOT/examples
+  # strategies-builtin's own pages (design D3 — co-located: getting-started's basics through the container/
+  # optionals/nullness/conversion chapters all live with the module that owns their fixture and compile-test).
+  - scan:
+      dir: strategies-builtin/src/docs
+      files: '**/*.adoc'
+      into: modules/ROOT/pages
+  # Real @Mapper source compiled by the ordinary compileTestJava task (change features-as-documentation, design
+  # D2) — no compile-testing involved. Source shown on a page and the compiled *Impl behind its doc-e2e are the
+  # exact same file.
+  - scan:
+      dir: strategies-builtin/src/test/java/io/github/joke/percolate/docs
       files: '**/*.java'
+      into: modules/ROOT/examples
+  # The real, doc-tagged generated output for the real-source examples above — Gradle's ordinary annotation-
+  # processing output location, produced as a side effect of compileTestJava. Pages include the generated method
+  # body by tag, so shown output cannot drift from code.
+  - scan:
+      dir: strategies-builtin/build/generated/sources/annotationProcessor/java/test/io/github/joke/percolate/docs
+      files: '**/*.java'
+      into: modules/ROOT/examples
+  # The compile-time-switches reference page, co-located in processor (design D4 — a processor-owned feature).
+  - scan:
+      dir: processor/src/docs
+      files: '**/*.adoc'
+      into: modules/ROOT/pages
+  # The switches reference's example fixtures. Genuinely compile-testing-based, not the real-source pattern above:
+  # comparing an option on vs off needs multiple compilations of the same fixture, which an ordinary single-
+  # configuration compileTestJava run cannot express.
+  - scan:
+      dir: processor/src/test/resources/examples
+      files: '**/*.java'
+      into: modules/ROOT/examples
+  # The real, doc-tagged generated output the switches doc-e2e materialises itself (it is the sole owner of
+  # input -> assert -> output, per design D2's original real-compile pattern), since compile-testing's in-memory
+  # output has no ordinary Gradle build location the collector could scan directly.
+  - scan:
+      dir: processor/build/generated-doc-examples
+      files: '**/*'
+      into: modules/ROOT/examples
+  # The Extending page's real reference strategy (design D4 — Extending's doc-e2e lives in spi, using reactor's
+  # real JustOrEmpty as the worked example of a third-party strategy). Scans one directory up so the "reactor/"
+  # package segment becomes the example$ subpath, matching the page's include::.
+  - scan:
+      dir: reactor/src/main/java/io/github/joke/percolate
+      files: reactor/JustOrEmpty.java
+      into: modules/ROOT/examples
+  # spi's own page (design D3 — the Extending page is co-located with the published contract it documents).
+  - scan:
+      dir: spi/src/docs
+      files: '**/*.adoc'
+      into: modules/ROOT/pages
+  # spi's own real-source doc example (the Extending page), compiled by the ordinary compileTestJava task.
+  - scan:
+      dir: spi/src/test/java/io/github/joke/percolate/docs
+      files: '**/*.java'
+      into: modules/ROOT/examples
+  - scan:
+      dir: spi/build/generated/sources/annotationProcessor/java/test/io/github/joke/percolate/docs
+      files: '**/*.java'
+      into: modules/ROOT/examples
+  # The reactor-blocking module's own page (design D4/D3 — co-located, a reactor-blocking-owned feature).
+  - scan:
+      dir: reactor-blocking/src/docs
+      files: '**/*.adoc'
+      into: modules/ROOT/pages
+  # reactor-blocking's doc-e2e materialised output (compile-testing-based, like the switches reference: this
+  # module has no source of its own to hang a real @Mapper fixture on).
+  - scan:
+      dir: reactor-blocking/build/generated-doc-examples
+      files: '**/*'
       into: modules/ROOT/examples

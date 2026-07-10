@@ -19,6 +19,7 @@ dependencies {
     implementation project(':spi')
 
     testImplementation platform(project(':dependencies'))
+    testImplementation project(':annotations')
     testImplementation project(':processor')
     testImplementation project(':test-foundation')
     testImplementation 'com.google.testing.compile:compile-testing'
@@ -29,15 +30,31 @@ dependencies {
 
     testRuntimeOnly 'net.bytebuddy:byte-buddy'
     testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+
+    // Doc examples (change features-as-documentation, design D2): real @Mapper source under src/test/java is
+    // compiled by the ordinary compileTestJava task through the real starter (engine + this module's own builtin
+    // strategies, exactly as a consumer would apply it), with docTags on so the generated method bodies are
+    // include::-able. This is a normal test->main edge (the starter depends on this module's own main output),
+    // not a cycle. A behavioural Spock spec then instantiates the real compiled *Impl directly — no compile-testing
+    // involved for these fixtures.
+    testAnnotationProcessor project(':percolate')
 }
 
-// The manual's example mappers are module-owned compile-testing fixtures under
-// src/test/resources/examples; the e2e specs compile them via forResource, and the user manual
-// include::s the same files (brought into Antora's catalog by the antora-collector `scan` in
-// docs/antora.yml), so a published example cannot drift from compiled code.
+// The manual's example mappers are module-owned fixtures the user manual include::s (brought into Antora's
+// catalog by the antora-collector `scan` in docs/antora.yml), so a published example cannot drift from compiled
+// code. Converted categories are real source under src/test/java/io/github/joke/percolate/docs/<chapter> (change
+// features-as-documentation, design D2); categories not yet converted remain compile-testing fixtures under
+// src/test/resources/examples, compiled in-memory via forResource.
 
 tasks.named('jacocoTestCoverageVerification') {
     enabled = false
+}
+
+// Doc-example fixtures show realistic, publicly-accessible bean shapes (the point is to look like ordinary
+// consumer code a reader would recognise) — not this module's own API surface, so the public-API-hygiene design
+// rule doesn't apply to them.
+tasks.named('pmdTest') {
+    exclude 'io/github/joke/percolate/docs/**'
 }
 
 // The forced test-task serialisation (maxParallelForks = 1, parallel execution disabled) that used to live here is
@@ -48,6 +65,9 @@ tasks.named('jacocoTestCoverageVerification') {
 
 tasks.named('compileTestJava') {
     options.release = 17
+    // Doc examples opt every generated method body into AsciiDoc include-tags; ordinary test code is untouched
+    // since the option only affects classes the percolate processor actually generates (real @Mapper fixtures).
+    options.compilerArgs << '-Apercolate.docTags=true'
 }
 
 // Module-specific pitest thresholds (change cutover-strategies-to-mock-seam, task 6.2) — pitest had never run on

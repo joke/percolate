@@ -1,0 +1,39 @@
+= Default-method conversions
+:navtitle: Default-method conversions
+
+A xref:conversion-methods.adoc[conversion method] that percolate generates can only do what percolate knows
+how to assemble. When a conversion needs **hand-written logic** — formatting a number, parsing a string,
+any scalar transform — write it as a Java `default` method on the mapper. Percolate discovers it like any
+single-argument method and calls it; it does not try to generate (or override) a method that already has a
+body.
+
+[source,java]
+----
+include::example$defaultmethod/ProductMapper.java[tag=mapper]
+----
+
+`map` needs a `String` for `price`, but the source is a `long` (cents). The `formatPrice(long)` default
+method returns a `String`, so percolate calls it:
+
+[source,java]
+----
+include::example$defaultmethod/ProductMapperImpl.java[tag=map]
+----
+
+`formatPrice` itself is left exactly as you wrote it.
+
+== When to reach for a default method
+
+[cols="1,1"]
+|===
+| Use a generated conversion method | Use a `default` method
+
+| Object-to-object mapping percolate can assemble from accessors and constructors
+| Scalar or custom logic — formatting, parsing, arithmetic, anything with a body you control
+
+| You want percolate to write the body
+| You want to write the body yourself
+|===
+
+Both kinds live side by side on the same mapper, and both are discovered the same way — the only difference
+is whether percolate generates the body or you do.

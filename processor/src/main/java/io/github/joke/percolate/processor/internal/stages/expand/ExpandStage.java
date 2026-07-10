@@ -106,7 +106,7 @@ public final class ExpandStage implements Stage {
             this.operationLander = new OperationLander(graph, applier);
             final var portSourceResolver = new PortSourceResolver(sourceCandidates, operationLander);
             this.portBinder = new PortBinder(portSourceResolver);
-            this.selfCallGuard = new SelfCallGuard();
+            this.selfCallGuard = new SelfCallGuard(resolveCtx);
             this.sourcePathDescender =
                     new SourcePathDescender(strategies, resolveCtx, resolver, graph, applier, operationLander);
             final var seeder = new Seeder(graph, applier, resolver);

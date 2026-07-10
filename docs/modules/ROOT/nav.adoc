@@ -4,8 +4,12 @@
 * xref:map-annotation.adoc[The @Map annotation]
 * xref:nested-paths.adoc[Nested paths]
 * xref:collections.adoc[Collections]
+* xref:optionals.adoc[Optionals]
+* xref:defaults-and-nullness.adoc[Defaults & nullness]
 * xref:reactive.adoc[Reactive containers]
+* xref:reactor-blocking.adoc[Reactive to blocking bridge]
 * Conversions
 ** xref:conversion-methods.adoc[Conversion methods]
 ** xref:default-method-conversions.adoc[Default-method conversions]
+* xref:compile-time-switches.adoc[Compile-time switches]
 * xref:extending.adoc[Extending (SPI)]

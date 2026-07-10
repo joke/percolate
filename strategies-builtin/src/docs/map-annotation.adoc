@@ -1,0 +1,93 @@
+= The @Map annotation
+:navtitle: The @Map annotation
+
+`@Map` describes how **one** target member is produced. It is repeatable, so a method carries one `@Map`
+per target field. Every field you want produced needs a directive — percolate does not auto-map by name.
+
+[source,java]
+----
+include::example$mapannotation/AccountMapper.java[tag=mapper]
+----
+
+percolate generates:
+
+[source,java]
+----
+include::example$mapannotation/AccountMapperImpl.java[tag=map]
+----
+
+== Members
+
+[cols="1,1,3"]
+|===
+| Member | Required | Meaning
+
+| `target`
+| always
+| The target member path this directive produces, for example `displayName` or `address.zip`
+  (see xref:nested-paths.adoc[Nested paths]).
+
+| `source`
+| one of `source`/`constant`
+| The source path the value is *moved* from, for example `form.id`. The path starts with the method
+  parameter name.
+
+| `constant`
+| one of `source`/`constant`
+| A fixed literal *supplied* with no source. Mutually exclusive with `source`.
+
+| `defaultValue`
+| optional
+| A fallback used only when the `source` value is **absent**. Requires `source`; illegal with `constant`.
+|===
+
+Exactly one of `source` and `constant` must be present on a directive.
+
+== source
+
+The value is read from the source path and assigned to the target. The `id` directive above emits
+`form.getId()` directly — no source can be absent here, so there is nothing to guard.
+
+A source and target that differ only by a widening primitive conversion (`byte`→`short`→`int`→`long`→
+`float`→`double`, or `char`→`int`) need no conversion method either — the `balanceCents` directive above
+(an `int` source into a `long` target) emits a plain `(long) form.getBalanceCents()` cast. A *narrowing*
+conversion (the reverse direction) is not implicit; write a xref:conversion-methods.adoc[conversion method].
+
+== constant
+
+A constant supplies a literal with no source. It is coerced into the target type:
+
+* a `String` target takes the raw text verbatim;
+* a primitive or its wrapper is parsed (`"42"` → `int 42`);
+* coercion is strict — `char` rejects multi-character text, `boolean` rejects non-canonical text, and a
+  numeric overflow fails rather than silently truncating.
+
+The `status` directive above emits the literal `"ACTIVE"` with no source read at all.
+
+== defaultValue
+
+A default applies **only** when the source value is absent — a `null` reference scalar or an empty
+`Optional`. It never replaces a value that is present, and the two absent-capable shapes render two
+different fallback forms:
+
+* an absent-capable **reference** source (`displayName`, above) coalesces with `Objects.requireNonNullElse(...)`;
+* an absent **`Optional`** source (`nickname`, above) coalesces with `.orElse(...)` instead of a null-guard.
+
+[WARNING]
+====
+A `defaultValue` requires a source that *can* be absent. Declaring one on a source that is known
+non-nullable (a primitive, or a reference proven non-null) is rejected as a dead default.
+====
+
+== Presence and the empty string
+
+`source`, `constant`, and `defaultValue` are considered **present** whenever they are set — *including when
+set to the empty string* `""`. Percolate distinguishes "absent" from "empty" with an internal `UNSET`
+sentinel, not by testing for an empty string. So `constant = ""` is a real, present constant (the empty
+string), not a missing value.
+
+== Where to next
+
+* xref:nested-paths.adoc[Nested paths] — multi-segment `target` and `source`.
+* xref:conversion-methods.adoc[Conversion methods] — when source and target field types differ.
+* xref:defaults-and-nullness.adoc[Defaults & nullness] — what happens when an absent source has no `defaultValue`.

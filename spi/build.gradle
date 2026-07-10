@@ -37,8 +37,24 @@ dependencies {
     testImplementation 'org.jspecify:jspecify'
     testImplementation testFixtures(project(':spi'))
 
+    // Doc-e2e only (change features-as-documentation, design D4): the Extending page's worked example is a real,
+    // separately-shipped strategy module (reactor) added exactly as a consumer would — alongside the percolate
+    // starter — to prove a third-party strategy needs no special engine wiring. Test->main edges only; the unit
+    // suite stays strategy-free.
+    testAnnotationProcessor project(':percolate')
+    testAnnotationProcessor project(':reactor')
+    testImplementation project(':annotations')
+    testImplementation 'io.projectreactor:reactor-core'
+
     testRuntimeOnly 'net.bytebuddy:byte-buddy'
     testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+}
+
+// Doc example (change features-as-documentation, design D2): the real @Mapper source under src/test/java is
+// compiled by the ordinary compileTestJava task, docTags on so the generated method body is include::-able.
+tasks.named('compileTestJava') {
+    options.release = 17
+    options.compilerArgs << '-Apercolate.docTags=true'
 }
 
 // The serialised-execution workaround for the shared TypeUniverse JavacTask race is gone (change type-query-seam,

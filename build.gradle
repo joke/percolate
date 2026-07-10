@@ -20,10 +20,20 @@ antora {
     ]
 }
 
-// The doc-example e2e specs materialise the real doc-tagged generated source the manual include::s,
-// so the site build must run them first; the collector then scans their output into the catalog.
+// Two doc-example patterns feed the collector (change features-as-documentation, design D2): the real-source
+// examples generate output as an ordinary compileTestJava side effect (annotation processing), while the
+// compile-time-switches reference (processor, design D4) genuinely needs compile-testing — comparing an option
+// on vs off needs multiple compilations of the same fixture — so its doc-e2e materialises generated source as a
+// side effect of the integrationTest suite instead. The site build depends on both so the collector always
+// scans fresh output.
 tasks.named('antora') {
     dependsOn ':strategies-builtin:integrationTest'
+    dependsOn ':strategies-builtin:compileTestJava'
+    dependsOn ':processor:integrationTest'
+    dependsOn ':spi:integrationTest'
+    dependsOn ':spi:compileTestJava'
+    dependsOn ':reactor-blocking:integrationTest'
+    dependsOn ':reactor:integrationTest'
 }
 
 subprojects { project ->

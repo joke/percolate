@@ -1,0 +1,52 @@
+= Optionals
+:navtitle: Optionals
+
+`Optional` is a presence wrapper like any other container (see xref:collections.adoc[Collections]), but its
+wrap and unwrap ends are worth their own worked examples: wrapping is null-safe, and unwrapping must choose
+what an absent value becomes.
+
+[source,java]
+----
+include::example$optionals/PreferencesMapper.java[tag=mapper]
+----
+
+== Wrap: a nullable scalar into a present-or-empty `Optional`
+
+`wrapBio` takes a `@Nullable String` and produces an `Optional<String>`. Percolate calls `Optional.ofNullable`
+directly — a `null` source becomes an empty `Optional`, not a thrown exception:
+
+[source,java]
+----
+include::example$optionals/PreferencesMapperImpl.java[tag=wrapBio]
+----
+
+== Unwrap into a non-null target: absence throws
+
+`unwrapHandle` collapses an `Optional<String>` into a plain, non-null `String`. An absent source has
+nothing to fall back to, so percolate emits `orElseThrow()`:
+
+[source,java]
+----
+include::example$optionals/PreferencesMapperImpl.java[tag=unwrapHandle]
+----
+
+== Unwrap into a nullable target: absence becomes `null`
+
+`unwrapNickname` collapses the same `Optional<String>` into a `@Nullable String` instead. Because the
+target itself tolerates absence, percolate emits `orElse(null)` rather than throwing:
+
+[source,java]
+----
+include::example$optionals/PreferencesMapperImpl.java[tag=unwrapNickname]
+----
+
+== Composed with a container
+
+`Optional` composes with a surrounding container the same way any presence wrapper does — see
+xref:collections.adoc[Collections]' `toRoster` example, which converts a `List<Optional<Member>>` into an
+`Optional<Set<MemberView>>` by flattening the elements' presence while collecting.
+
+== Where to next
+
+* xref:collections.adoc[Collections] — the general container mechanism `Optional` is one kind of.
+* xref:conversion-methods.adoc[Conversion methods] — how a wrapped or unwrapped element itself is converted.

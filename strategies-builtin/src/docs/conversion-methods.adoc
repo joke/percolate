@@ -1,0 +1,38 @@
+= Conversion methods
+:navtitle: Conversion methods
+
+When a source field and its target have different types, percolate looks for a **single-argument method on
+the mapper** that returns the needed type, and calls it. A second mapper method therefore doubles as a
+reusable conversion.
+
+[source,java]
+----
+include::example$conversion/CustomerMapper.java[tag=mapper]
+----
+
+`map` needs an `AddressView` for the nested `address` field, but the source supplies an `Address`. The
+`toView(Address)` method returns exactly an `AddressView`, so percolate calls it — and because `toView` is
+abstract, percolate also generates its body:
+
+[source,java]
+----
+include::example$conversion/CustomerMapperImpl.java[tag=map]
+
+include::example$conversion/CustomerMapperImpl.java[tag=toView]
+----
+
+== How a method is chosen
+
+* The method must take **exactly one argument** and return a type assignable to what is demanded.
+* Methods are discovered across the whole mapper interface, including inherited ones.
+* Percolate prefers calling an existing method over inlining an equivalent assembly, so declaring a
+  conversion method is enough to make nested mappings reuse it.
+
+This is the mechanism behind element conversions in xref:collections.adoc[Collections]: the per-element
+`map(...)` step calls the same kind of method.
+
+[TIP]
+====
+A conversion that needs *custom logic* — formatting, parsing, a scalar transform percolate cannot assemble —
+is written as a `default` method instead. See xref:default-method-conversions.adoc[Default-method conversions].
+====

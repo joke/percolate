@@ -31,7 +31,7 @@ class OptionalContainerSpec extends Specification {
     TypeMirror optionalRawType = Mock()
     TypeMirror streamRawType = Mock()
 
-    def 'an Optional<E> target offers a plain ofNullable wrap from a scalar, no child scope'() {
+    def 'an Optional<E> target offers a plain ofNullable wrap from a scalar, no child scope, a NULLABLE element port'() {
         ctx.isOptional(optionalOfString) >> true
         ctx.typeArgument(optionalOfString, 0) >> stringType
         ctx.typeElementNamed('java.util.Optional') >> optionalElement
@@ -40,13 +40,14 @@ class OptionalContainerSpec extends Specification {
         when:
         def specs = new OptionalContainer().expand(Demands.forTarget(optionalOfString), ctx).toList()
 
-        then:
+        then: 'the element port is NULLABLE — ofNullable is null-safe, so a @Nullable source binds directly'
         def wrap = specs.find { it.childScope.empty && it.ports[0].type.is(stringType) }
         wrap != null
         wrap.codegen instanceof OperationCodegen
         wrap.weight == Weights.CONTAINER
         wrap.outputType.is(optionalOfString)
         wrap.outputNullness == Nullability.NON_NULL
+        wrap.ports[0].nullness == Nullability.NULLABLE
         new OptionalContainer().wrap().get().render(CodeBlock.of('$N', 'x')).toString().contains('ofNullable')
     }
 

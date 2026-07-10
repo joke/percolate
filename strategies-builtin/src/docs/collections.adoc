@@ -1,0 +1,110 @@
+= Collections
+:navtitle: Collections
+
+When a target field is a container, percolate maps it element-by-element, reusing one of your mapper methods
+for the element conversion. Every container mechanism composes over an internal element-sequence stream, so
+the same small set of building blocks — iterate, element-map, collect, wrap/unwrap — covers same-kind
+mapping, cross-kind conversion, a `Stream` source, and presence composed with a container. Each is shown
+below with one worked example; the mechanism is parametric over its element type; see
+xref:conversion-methods.adoc[Conversion methods] for how the element itself is converted.
+
+[source,java]
+----
+include::example$collections/TeamMapper.java[tag=mapper]
+----
+
+== Same-kind, element-converting: `List<X>` to `List<Y>`
+
+`Team.getMembers()` is a `List<Member>` and `TeamView` wants a `List<MemberView>`. Percolate composes a
+stream pipeline and delegates each element to `toView`:
+
+[source,java]
+----
+include::example$collections/TeamMapperImpl.java[tag=map]
+----
+
+== Cross-kind: `Set` to `List`
+
+A top-level method whose return type is itself a container needs no `@Map` directive — the sole parameter
+is the source. `toSortedTags` converts a `Set<String>` into a `List<String>`; no element conversion is
+needed since the element type is unchanged:
+
+[source,java]
+----
+include::example$collections/TeamMapperImpl.java[tag=toSortedTags]
+----
+
+== A `Stream` source composes the same way
+
+A `Stream` is a container like any other — it needs no special handling on either side of a mapping.
+`toUniqueTags` collects a `Stream<String>` source into a `Set<String>`:
+
+[source,java]
+----
+include::example$collections/TeamMapperImpl.java[tag=toUniqueTags]
+----
+
+== Presence composed inside a container
+
+A container of `Optional` elements flattens while collecting: each element's 0-or-1 stream is flat-mapped
+in, so only the *present* values survive. `toPresentTags` converts `List<Optional<String>>` into
+`Set<String>`, dropping the absent tags:
+
+[source,java]
+----
+include::example$collections/TeamMapperImpl.java[tag=toPresentTags]
+----
+
+Notice percolate reuses `toUniqueTags` for the `Stream<String> → Set<String>` half of the pipeline — the
+same conversion-method reuse described in xref:conversion-methods.adoc[Conversion methods] applies to a
+container conversion it has already generated elsewhere on the mapper.
+
+== Composed containers: nesting flattens through the same pipeline
+
+Because every kind composes over the same stream intermediate, a *nested* mismatch needs no dedicated
+composer either. `toRoster` converts `List<Optional<Member>>` into `Optional<Set<MemberView>>`: iterate the
+`List`, flat-map each element's 0-or-1 `Optional` stream (dropping the absent ones), convert the survivors
+with `toView`, collect into a `Set`, then wrap the result in an `Optional`:
+
+[source,java]
+----
+include::example$collections/TeamMapperImpl.java[tag=toRoster]
+----
+
+== Supported container kinds
+
+[cols="1,3"]
+|===
+| Kind | Notes
+
+| `List`
+| A sequence: mapped through a stream and collected back into a list.
+
+| `Set`
+| A sequence: mapped through a stream and collected into a set.
+
+| `Stream`
+| The element-sequence intermediate itself — usable directly as a source or target.
+
+| `Optional`
+| A presence wrapper: percolate maps the contained value when present and preserves emptiness. See
+  xref:optionals.adoc[Optionals] for wrap/unwrap on their own.
+
+| `Flux`, `Mono` (reactive)
+| Available when the optional `percolate-reactor` module is on the annotation-processor path. Reactive
+  containers compose over their own stream intermediate.
+|===
+
+== Nesting
+
+Because every kind composes over the same stream intermediate, percolate also bridges *nested* containers
+without inventing a dedicated composer — for example `Optional<Set<X>>` flattens into `Set<X>`, and
+`List<Set<X>>` converts into `Set<List<X>>` element-wise. It never invents an *unsound* crossing, such as
+collapsing an asynchronous `Flux` into a synchronous `List` (that upward crossing requires the opt-in
+`percolate-reactor-blocking` module — see xref:reactive.adoc[Reactive containers]).
+
+== Where to next
+
+* xref:conversion-methods.adoc[Conversion methods] — the element conversion, in depth.
+* xref:default-method-conversions.adoc[Default-method conversions] — hand-written element conversions.
+* xref:optionals.adoc[Optionals] — presence on its own, without a surrounding container.

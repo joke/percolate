@@ -90,11 +90,12 @@ class ContainerSpec extends Specification {
         collect.codegen instanceof OperationCodegen
         ctx.isSameType(collect.outputType, listOfString)
 
-        and: 'a plain single-element wrap String -> List<String>'
+        and: 'a plain single-element wrap String -> List<String>, its port NON_NULL by default (List.of rejects null)'
         def wrap = specs.find { ctx.isSameType(it.ports[0].type, STRING) }
         wrap != null
         wrap.childScope.empty
         ctx.isSameType(wrap.outputType, listOfString)
+        wrap.ports[0].nullness == Nullability.NON_NULL
 
         and: 'nothing carries a child scope (no fused element mapping)'
         specs.every { it.childScope.empty }
@@ -130,11 +131,12 @@ class ContainerSpec extends Specification {
         when:
         def specs = new TestWrapper().expand(demand(optionalOfString), ctx).toList()
 
-        then: 'a plain wrap String -> Optional<String>, no child scope'
+        then: 'a plain wrap String -> Optional<String>, no child scope, port NON_NULL by default'
         def wrap = specs.find { it.childScope.empty && ctx.isSameType(it.ports[0].type, STRING) }
         wrap != null
         wrap.codegen instanceof OperationCodegen
         ctx.isSameType(wrap.outputType, optionalOfString)
+        wrap.ports[0].nullness == Nullability.NON_NULL
 
         and: 'a scope-owning functor-lift mapPresence Optional<A> -> Optional<String> over a type-variable port'
         def mapping = specs.find { it.childScope.present }
@@ -160,6 +162,16 @@ class ContainerSpec extends Specification {
         ctx.isSameType(iterate.outputType, streamOfString)
         !iterate.partial
         specs.every { !it.childScope.present }
+    }
+
+    def 'a wrapper may declare its wrap element port nullable, e.g. Optional.ofNullable'() {
+        when:
+        def specs = new TestWrapper(wrapNullable: true).expand(demand(optionalOfString), ctx).toList()
+
+        then:
+        def wrap = specs.find { it.childScope.empty && ctx.isSameType(it.ports[0].type, STRING) }
+        wrap != null
+        wrap.ports[0].nullness == Nullability.NULLABLE
     }
 
     def 'a wrapper unwraps a scalar target, plain and partial, under the demanded nullness'() {
@@ -234,6 +246,8 @@ class ContainerSpec extends Specification {
     /** An Optional-shaped presence wrapper: matches Optional, element is its first type argument, no collect. */
     static class TestWrapper extends Container {
 
+        boolean wrapNullable = false
+
         @Override
         Optional<UnarySnippet> iterate() {
             Optional.of({ container -> CodeBlock.of('$L.stream()', container) } as UnarySnippet)
@@ -266,6 +280,11 @@ class ContainerSpec extends Specification {
         @Override
         protected TypeMirror element(final TypeMirror type, final ResolveCtx c) {
             Containers.typeArgument(type, 0)
+        }
+
+        @Override
+        protected Nullability wrapNullness() {
+            wrapNullable ? Nullability.NULLABLE : Nullability.NON_NULL
         }
 
         @Override

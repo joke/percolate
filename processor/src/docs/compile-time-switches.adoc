@@ -1,0 +1,122 @@
+= Compile-time switches
+:navtitle: Compile-time switches
+
+Percolate takes a handful of annotation-processor options (`-A<name>=<value>`), each affecting either the
+generated *text* or a debug side-channel — never the mapping behaviour itself. This page shows every option
+with a real before/after of its generated effect.
+
+[cols="2,1,4"]
+|===
+| Option | Default | Effect
+
+| `percolate.docTags`
+| `false`
+| Wraps each generated method body in `// tag::<method>[]` / `// end::<method>[]` comments (used to build
+  this very manual).
+
+| `percolate.locals.final`
+| `false`
+| Prefixes every hoisted local variable declaration with `final`.
+
+| `percolate.locals.var`
+| `false`
+| Declares every hoisted local with `var` instead of its explicit type.
+
+| `percolate.nullable.annotations`
+| _(none)_
+| A comma-separated list of additional `@Nullable` annotation FQNs to recognise, alongside JSpecify's own.
+
+| `percolate.debug.graphs`
+| `false`
+| Writes one GraphViz `.dot` file per generated method (and per container-element scope) to the
+  annotation-processing output directory.
+|===
+
+The `docTags`, `locals.final`, and `locals.var` examples below all compile the same small mapper:
+
+[source,java]
+----
+include::example$switches/ProductMapper.java[tag=mapper]
+----
+
+== `percolate.docTags`
+
+Off by default, so ordinary consumer output stays exactly `@Generated`-annotated code with nothing extra:
+
+[source,java]
+----
+include::example$switches/doctags-off/ProductMapperImpl.java[]
+----
+
+With the option on, each method body is bracketed by include-tags — invisible to `javac`, but what lets
+this manual show *real* generated output rather than a hand-typed copy:
+
+[source,java]
+----
+include::example$switches/doctags-on/ProductMapperImpl.java[]
+----
+
+== `percolate.locals.final`
+
+Every local percolate hoists — here, each constructor argument — is declared `final`:
+
+[source,java]
+----
+include::example$switches/locals-final/ProductMapperImpl.java[tag=map]
+----
+
+== `percolate.locals.var`
+
+The same hoisted locals, declared with `var` instead of an explicit type:
+
+[source,java]
+----
+include::example$switches/locals-var/ProductMapperImpl.java[tag=map]
+----
+
+== `percolate.nullable.annotations`
+
+[source,java]
+----
+include::example$switches/CustomNullable.java[tag=annotation]
+----
+
+[source,java]
+----
+include::example$switches/NullableMapper.java[tag=mapper]
+----
+
+`ShipmentForm.trackingCode` is annotated with a third-party `@Nullable` (`examples.switches.CustomNullable`),
+not JSpecify's own. Left unregistered, percolate does not recognise it as a nullness marker, so the crossing
+is unguarded:
+
+[source,java]
+----
+include::example$switches/nullable-unregistered/NullableMapperImpl.java[tag=map]
+----
+
+Passed as `-Apercolate.nullable.annotations=examples.switches.CustomNullable`, percolate treats it exactly
+like a JSpecify `@Nullable` (see xref:defaults-and-nullness.adoc[Defaults & nullness]) and guards the
+crossing:
+
+[source,java]
+----
+include::example$switches/nullable-registered/NullableMapperImpl.java[tag=map]
+----
+
+Registering an annotation is additive — JSpecify's own `@Nullable` keeps working alongside it.
+
+== `percolate.debug.graphs`
+
+With the option on, percolate writes a GraphViz `.dot` file per method scope — the full over-emitted
+candidate graph, cost-pruned vertices dimmed — next to the generated sources, viewable with any GraphViz
+tool. An excerpt of a real one:
+
+[source]
+----
+include::example$switches/debug-graphs/excerpt.dot[]
+----
+
+== Where to next
+
+* xref:defaults-and-nullness.adoc[Defaults & nullness] — the crossing `percolate.nullable.annotations` extends.

@@ -49,7 +49,7 @@ That is why a `default` method is skipped for generation yet still available as 
 
 [source,java]
 ----
-include::example$getting-started/PersonMapper.java[tag=mapper]
+include::example$gettingstarted/PersonMapper.java[tag=mapper]
 ----
 
 `map(Person)` is abstract, so percolate generates it. A `default` helper on the same interface would be

@@ -1,0 +1,62 @@
+= Nested paths
+:navtitle: Nested paths
+
+Both `source` and `target` may be **multi-segment paths** separated by dots. Percolate reaches into the
+source by chaining accessors, and builds the target by nesting construction.
+
+[source,java]
+----
+include::example$nested/ProfileMapper.java[tag=mapper]
+----
+
+With these beans:
+
+[source,java]
+----
+include::example$nested/ProfileMapper.java[tag=model]
+----
+
+percolate generates:
+
+[source,java]
+----
+include::example$nested/ProfileMapperImpl.java[tag=map]
+----
+
+== Source paths descend through accessors
+
+A source path like `user.company.address.city` resolves one segment at a time, starting from the method
+parameter (`user`). Each segment is matched to an accessor — a JavaBean getter (`getCity()`), a record-style
+or fluent accessor (`city()`), or a public field — and the hops are chained: `user.getCompany().getAddress().getCity()`.
+
+== Path access forms
+
+Each path segment is resolved independently, so a single path can freely mix all three accessor forms.
+`ContactMapper` reads `email` through a JavaBeans getter, descends into `phone` through a getter and then
+reads its `areaCode` through a **record accessor**, and reads `zip` directly from a **public field**:
+
+[source,java]
+----
+include::example$pathaccess/ContactMapper.java[tag=mapper]
+----
+
+[source,java]
+----
+include::example$pathaccess/ContactMapperImpl.java[tag=map]
+----
+
+When more than one form matches the same segment name, percolate prefers a getter over a record/fluent
+accessor, and either over a public field — but a mapper's fields and methods rarely collide like that in
+practice, so this ordering is mostly invisible day to day.
+
+== Target paths nest construction
+
+A target path like `location.city` tells percolate the value belongs to a nested object. It groups targets
+by level and builds the intermediate objects, here constructing `new Location(...)` to hold the `city`
+before passing it to `new Profile(...)`. Several directives that share a prefix (`location.city`,
+`location.country`, …) assemble the same intermediate once.
+
+== Where to next
+
+* xref:collections.adoc[Collections] — paths whose values are `List`, `Set`, or `Optional`.
+* xref:conversion-methods.adoc[Conversion methods] — when the nested types need converting.
