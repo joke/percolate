@@ -152,7 +152,7 @@ class HoistPlanSpec extends Specification {
         def ports = (0..<portSources.size()).collect { i ->
             new PortBinding(new Port('p' + i, portSources[i].type.get(), portSources[i].nullness.get()), av(portSources[i]))
         }
-        graph.apply(new AddOperation('op', OP, 1, false, ports, av(out), Optional.empty()))
+        graph.apply(new AddOperation('op', OP, 1, false, ports, av(out), Optional.empty(), [] as Set, []))
     }
 
     private AddValue av(final Value value) {

@@ -138,7 +138,7 @@ class BipartiteGraphSpec extends Specification {
         final var op = graph.apply(new AddOperation('new Range', Stub(Codegen), 1, false,
                 [new PortBinding(new Port('low', INT, Nullability.NON_NULL), x),
                  new PortBinding(new Port('high', INT, Nullability.NON_NULL), x)],
-                target('range', STRING), Optional.empty()))
+                target('range', STRING), Optional.empty(), [] as Set, []))
         final var view = graph.bipartiteView()
 
         when:
@@ -156,10 +156,10 @@ class BipartiteGraphSpec extends Specification {
         given:
         final var c1 = graph.apply(new AddOperation('C1', Stub(Codegen), 1, false,
                 [port('number', INT), port('street', STRING)],
-                target('addr', STRING), Optional.empty()))
+                target('addr', STRING), Optional.empty(), [] as Set, []))
         final var c2 = graph.apply(new AddOperation('C2', Stub(Codegen), 2, false,
                 [port('number', LONG), port('street', STRING)],
-                target('addr', STRING), Optional.empty()))
+                target('addr', STRING), Optional.empty(), [] as Set, []))
         final var view = graph.bipartiteView()
 
         expect: 'the equal-typed street port is one shared Value, the divergent number ports are distinct'
@@ -178,7 +178,7 @@ class BipartiteGraphSpec extends Specification {
         final var crossing = new AddOperation('cross', Stub(Codegen), 1, false,
                 [new PortBinding(new Port('p', STRING, Nullability.NON_NULL),
                         new AddValue(other, new SourceLocation(AccessPath.of('p')), STRING, Nullability.NON_NULL))],
-                target('out', STRING), Optional.empty())
+                target('out', STRING), Optional.empty(), [] as Set, [])
 
         when:
         graph.apply(crossing)
@@ -193,7 +193,7 @@ class BipartiteGraphSpec extends Specification {
                 INTEGER, Nullability.NON_NULL, STRING, Nullability.NON_NULL)
         final var op = graph.apply(new AddOperation('map', Stub(Codegen), 1, false,
                 [port('src', LIST_OF_INT)],
-                target('out', LIST_OF_STRING), Optional.of(decl)))
+                target('out', LIST_OF_STRING), Optional.of(decl), [] as Set, []))
         final var child = op.childScope.get()
 
         expect: 'the return-root Value is minted eagerly inside the child scope'
@@ -265,7 +265,7 @@ class BipartiteGraphSpec extends Specification {
     }
 
     def 'an uninitialised child scope rejects access to its roots until the owning Operation lands'() {
-        final var op = new Operation(0, 'map', Stub(Codegen), 1, false, [], scope, true)
+        final var op = new Operation(0, 'map', Stub(Codegen), 1, false, [], scope, true, [] as Set, [])
         final var child = op.childScope.get()
 
         when:
@@ -286,7 +286,7 @@ class BipartiteGraphSpec extends Specification {
                 INTEGER, Nullability.NON_NULL, STRING, Nullability.NON_NULL)
         final var op = graph.apply(new AddOperation('map', Stub(Codegen), 1, false,
                 [port('src', LIST_OF_INT)],
-                target('out', LIST_OF_STRING), Optional.of(decl)))
+                target('out', LIST_OF_STRING), Optional.of(decl), [] as Set, []))
         final var child = op.childScope.get()
 
         when: 're-initialising with the roots already minted at landing time'
@@ -320,6 +320,6 @@ class BipartiteGraphSpec extends Specification {
 
     private AddOperation constructor(final String outputSlot, final List<PortBinding> ports) {
         new AddOperation('new ' + outputSlot, Stub(Codegen), 1, false, ports,
-                target(outputSlot, STRING), Optional.empty())
+                target(outputSlot, STRING), Optional.empty(), [] as Set, [])
     }
 }

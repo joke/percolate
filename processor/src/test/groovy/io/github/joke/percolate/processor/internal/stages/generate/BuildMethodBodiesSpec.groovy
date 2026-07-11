@@ -48,7 +48,7 @@ class BuildMethodBodiesSpec extends Specification {
         ctx.graph = Mock(MapperGraph)
 
         expect:
-        engine().build(ctx).empty
+        engine().build(ctx).bodies.empty
     }
 
     def 'build returns no bodies when the graph is absent'() {
@@ -56,7 +56,7 @@ class BuildMethodBodiesSpec extends Specification {
         ctx.shape = new MapperShape(Mock(TypeElement), [method])
 
         expect:
-        engine().build(ctx).empty
+        engine().build(ctx).bodies.empty
     }
 
     def 'build renders one body per abstract method when both shape and graph are present'() {
@@ -68,18 +68,19 @@ class BuildMethodBodiesSpec extends Specification {
         graph.markReturnRoot(root)
         graph.apply(new AddOperation('supply', { inputs -> CodeBlock.of('x') } as OperationCodegen, 1, false, [],
                 new AddValue(scope, new TargetLocation(TargetPath.of('')), Mock(TypeMirror), Nullability.NON_NULL),
-                Optional.empty()))
+                Optional.empty(), [] as Set, []))
         def ctx = new MapperContext(Mock(TypeElement))
         ctx.shape = new MapperShape(Mock(TypeElement), [method])
         ctx.graph = graph
 
         when:
-        def bodies = engine().build(ctx)
+        def result = engine().build(ctx)
 
         then:
-        bodies.size() == 1
-        bodies[0].method.is(method)
-        bodies[0].body.toString() == 'return x;\n'
+        result.bodies.size() == 1
+        result.bodies[0].method.is(method)
+        result.bodies[0].body.toString() == 'return x;\n'
+        result.members.empty
     }
 
     def 'docTagged returns the body unchanged when the docTags option is off'() {
@@ -106,7 +107,7 @@ class BuildMethodBodiesSpec extends Specification {
     // ---- helpers ----------------------------------------------------------------------------------------------
 
     private BuildMethodBodies engine(final boolean docTags = false) {
-        new BuildMethodBodies(new ProcessorOptions(false, [] as Set, false, false, docTags))
+        new BuildMethodBodies(new ProcessorOptions(false, [] as Set, false, false, docTags, Optional.empty()))
     }
 }
 
@@ -124,6 +125,7 @@ class WalkSpec extends Specification {
     MapperGraph graph = Mock()
     ExtractedPlan plan = Mock()
     HoistPlan hoist = Mock()
+    MemberPlan memberPlan = Mock()
     LocalStyle style = new LocalStyle(false, false)
     TypeNameRenderer typeNameRenderer = Mock()
 
@@ -246,7 +248,7 @@ class WalkSpec extends Specification {
     // ---- emitLocal: one hoisted declaration statement, isolated via Spy from renderInline/typeToken ----------------
 
     def 'emitLocal emits a final local when the style requires final'() {
-        def walk = Spy(BuildMethodBodies.Walk, constructorArgs: [graph, plan, hoist, new LocalStyle(true, false), typeNameRenderer])
+        def walk = Spy(BuildMethodBodies.Walk, constructorArgs: [graph, plan, hoist, memberPlan, new LocalStyle(true, false), typeNameRenderer])
         Value value = Mock()
         def builder = CodeBlock.builder()
 
@@ -265,7 +267,7 @@ class WalkSpec extends Specification {
     }
 
     def 'emitLocal emits a non-final local when the style does not require final'() {
-        def walk = Spy(BuildMethodBodies.Walk, constructorArgs: [graph, plan, hoist, new LocalStyle(false, false), typeNameRenderer])
+        def walk = Spy(BuildMethodBodies.Walk, constructorArgs: [graph, plan, hoist, memberPlan, new LocalStyle(false, false), typeNameRenderer])
         Value value = Mock()
         def builder = CodeBlock.builder()
 
@@ -304,8 +306,33 @@ class WalkSpec extends Specification {
         1 * graph.portSource(operation, 'b') >> Optional.of(source1)
         1 * walk.renderOperand(source0) >> CodeBlock.of('x')
         1 * walk.renderOperand(source1) >> CodeBlock.of('y')
+        1 * operation.memberRequests >> []
         1 * operation.codegen >> codegen
         1 * codegen.render { it.byGroupPosition(0).toString() == 'x' && it.byGroupPosition(1).toString() == 'y' } >> rendered
+        1 * walk._
+        0 * _
+
+        expect:
+        result.is(rendered)
+    }
+
+    def 'renderPlain resolves a member reference for a strategy-requested member, by dedup key'() {
+        def walk = spyWalk()
+        Operation operation = Mock()
+        OperationCodegen codegen = Mock()
+        def memberRequest = new io.github.joke.percolate.spi.MemberRequest(
+                ClassName.get('java.time.format', 'DateTimeFormatter'), CodeBlock.of('null'), 'fmt-yyyy-MM-dd')
+        def rendered = CodeBlock.of('FMT.format(x)')
+
+        when:
+        def result = walk.renderPlain(operation)
+
+        then:
+        1 * operation.ports >> []
+        1 * operation.memberRequests >> [memberRequest]
+        1 * memberPlan.reference('fmt-yyyy-MM-dd') >> CodeBlock.of('FMT')
+        1 * operation.codegen >> codegen
+        1 * codegen.render { it.member('fmt-yyyy-MM-dd').toString() == 'FMT' } >> rendered
         1 * walk._
         0 * _
 
@@ -592,10 +619,10 @@ class WalkSpec extends Specification {
     // ---- helpers ----------------------------------------------------------------------------------------------
 
     private BuildMethodBodies.Walk walk(final LocalStyle localStyle = style) {
-        new BuildMethodBodies.Walk(graph, plan, hoist, localStyle, typeNameRenderer)
+        new BuildMethodBodies.Walk(graph, plan, hoist, memberPlan, localStyle, typeNameRenderer)
     }
 
     private BuildMethodBodies.Walk spyWalk() {
-        Spy(BuildMethodBodies.Walk, constructorArgs: [graph, plan, hoist, style, typeNameRenderer])
+        Spy(BuildMethodBodies.Walk, constructorArgs: [graph, plan, hoist, memberPlan, style, typeNameRenderer])
     }
 }

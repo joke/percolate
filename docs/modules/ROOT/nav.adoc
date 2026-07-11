@@ -6,6 +6,7 @@
 * xref:collections.adoc[Collections]
 * xref:optionals.adoc[Optionals]
 * xref:defaults-and-nullness.adoc[Defaults & nullness]
+* xref:temporal-mapping.adoc[Temporal mapping]
 * xref:reactive.adoc[Reactive containers]
 * xref:reactor-blocking.adoc[Reactive to blocking bridge]
 * Conversions

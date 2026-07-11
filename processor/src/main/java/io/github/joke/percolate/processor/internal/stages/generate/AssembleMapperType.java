@@ -10,7 +10,6 @@ import com.palantir.javapoet.TypeSpec;
 import io.github.joke.percolate.processor.MapperContext;
 import jakarta.inject.Inject;
 import java.io.IOException;
-import java.util.List;
 import javax.annotation.processing.Filer;
 import javax.annotation.processing.Generated;
 import javax.lang.model.element.ElementKind;
@@ -28,7 +27,7 @@ public final class AssembleMapperType {
     private final Filer filer;
     private final Elements elements;
 
-    void assemble(final MapperContext ctx, final List<MethodImpl> bodies) throws IOException {
+    void assemble(final MapperContext ctx, final MethodBodies methodBodies) throws IOException {
         final var mapperType = ctx.getMapperType();
         final var simpleName = mapperType.getSimpleName() + "Impl";
         final var packageName =
@@ -37,6 +36,7 @@ public final class AssembleMapperType {
         final var typeBuilder = TypeSpec.classBuilder(simpleName)
                 .addModifiers(Modifier.PUBLIC, Modifier.FINAL)
                 .addAnnotation(generatedAnnotation())
+                .addFields(methodBodies.getMembers())
                 .addMethod(emptyPublicConstructor());
 
         if (mapperType.getKind() == ElementKind.INTERFACE) {
@@ -45,7 +45,7 @@ public final class AssembleMapperType {
             typeBuilder.superclass(TypeName.get(mapperType.asType()));
         }
 
-        bodies.forEach(body -> typeBuilder.addMethod(overrideMethod(body)));
+        methodBodies.getBodies().forEach(body -> typeBuilder.addMethod(overrideMethod(body)));
 
         JavaFile.builder(packageName, typeBuilder.build()).build().writeTo(filer);
     }

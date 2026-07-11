@@ -31,6 +31,9 @@ public interface ResolveCtx {
     @Nullable
     CallableMethods callableMethods();
 
+    /** The project-wide default zone id from {@code -Apercolate.time.zone=…}, else empty when the option is unset. */
+    Optional<String> configuredTimeZone();
+
     // ---- type algebra --------------------------------------------------------------------------------------
 
     /** Whether {@code a} and {@code b} denote the same type. */

@@ -18,6 +18,7 @@ import io.github.joke.percolate.processor.internal.stages.validate.RealisationDi
 import io.github.joke.percolate.processor.internal.stages.validate.ValidateConstantDefaultLegalityStage;
 import io.github.joke.percolate.processor.internal.stages.validate.ValidateMappingShapeStage;
 import io.github.joke.percolate.processor.internal.stages.validate.ValidateNoDuplicateTargetsStage;
+import io.github.joke.percolate.processor.internal.stages.validate.ValidateOptionConsumptionStage;
 import io.github.joke.percolate.processor.internal.stages.validate.ValidateSourceParametersStage;
 import io.github.joke.percolate.processor.nullability.JspecifyNullabilityResolver;
 import io.github.joke.percolate.processor.nullability.NullabilityAnnotations;
@@ -96,8 +97,9 @@ public final class ProcessorModule {
             final List<SourceProjection> projections,
             final Types types,
             final Elements elements,
-            final NullabilityResolver nullabilityResolver) {
-        return new ExpandStage(strategies, projections, types, elements, nullabilityResolver);
+            final NullabilityResolver nullabilityResolver,
+            final ProcessorOptions options) {
+        return new ExpandStage(strategies, projections, types, elements, nullabilityResolver, options);
     }
 
     @Provides
@@ -106,8 +108,9 @@ public final class ProcessorModule {
             final List<SourceProjection> projections,
             final Types types,
             final Elements elements,
-            final NullabilityResolver nullabilityResolver) {
-        return assembleExpansionPipeline(strategies, projections, types, elements, nullabilityResolver);
+            final NullabilityResolver nullabilityResolver,
+            final ProcessorOptions options) {
+        return assembleExpansionPipeline(strategies, projections, types, elements, nullabilityResolver, options);
     }
 
     @Provides
@@ -131,6 +134,7 @@ public final class ProcessorModule {
             final DumpTransformsStage dumpTransforms,
             final DumpPlanStage dumpPlan,
             final ValidateConstantDefaultLegalityStage validateConstantDefaultLegality,
+            final ValidateOptionConsumptionStage validateOptionConsumption,
             final RealisationDiagnosticsStage realisationDiagnostics,
             final GenerateStage generateStage) {
         return Stream.concat(
@@ -143,6 +147,7 @@ public final class ProcessorModule {
                                 // Realisation outcome is computed before the Filer-writing stages (dumps,
                                 // generate) so they can skip a deferred round and write each artifact once.
                                 validateConstantDefaultLegality,
+                                validateOptionConsumption,
                                 realisationDiagnostics,
                                 dumpFullGraph,
                                 dumpTransforms,

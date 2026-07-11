@@ -46,26 +46,32 @@ public final class BuildMethodBodies {
 
     private final ProcessorOptions options;
 
-    List<MethodImpl> build(final MapperContext ctx) {
+    MethodBodies build(final MapperContext ctx) {
         final var shape = ctx.getShape();
         final var graph = ctx.getGraph();
         if (shape == null || graph == null) {
-            return List.of();
+            return new MethodBodies(List.of(), List.of());
         }
         final var plan = ExtractedPlan.extract(graph);
-        return shape.getAbstractMethods().stream()
-                .map(method -> renderMethod(graph, plan, method))
+        final var memberPlan = MemberPlan.forMapper(graph, plan);
+        final var bodies = shape.getAbstractMethods().stream()
+                .map(method -> renderMethod(graph, plan, memberPlan, method))
                 .collect(toUnmodifiableList());
+        return new MethodBodies(bodies, memberPlan.fields());
     }
 
-    MethodImpl renderMethod(final MapperGraph graph, final ExtractedPlan plan, final ExecutableElement method) {
+    MethodImpl renderMethod(
+            final MapperGraph graph,
+            final ExtractedPlan plan,
+            final MemberPlan memberPlan,
+            final ExecutableElement method) {
         final var root = graph.returnRootIn(new MethodScope(method));
         final var reserved = method.getParameters().stream()
                 .map(parameter -> parameter.getSimpleName().toString())
                 .collect(toUnmodifiableList());
         final var hoist = HoistPlan.forMethod(graph, plan, root, reserved);
         final var style = new LocalStyle(options.isLocalsFinal(), options.isLocalsVar());
-        final var body = new Walk(graph, plan, hoist, style, new TypeNameRenderer()).renderMethodBody(root);
+        final var body = new Walk(graph, plan, hoist, memberPlan, style, new TypeNameRenderer()).renderMethodBody(root);
         return new MethodImpl(method, docTagged(body, method), Set.of());
     }
 
@@ -96,6 +102,7 @@ public final class BuildMethodBodies {
         private final MapperGraph graph;
         private final ExtractedPlan plan;
         private final HoistPlan hoist;
+        private final MemberPlan memberPlan;
         private final LocalStyle style;
         private final TypeNameRenderer typeNameRenderer;
 
@@ -106,11 +113,13 @@ public final class BuildMethodBodies {
                 final MapperGraph graph,
                 final ExtractedPlan plan,
                 final HoistPlan hoist,
+                final MemberPlan memberPlan,
                 final LocalStyle style,
                 final TypeNameRenderer typeNameRenderer) {
             this.graph = graph;
             this.plan = plan;
             this.hoist = hoist;
+            this.memberPlan = memberPlan;
             this.style = style;
             this.typeNameRenderer = typeNameRenderer;
         }
@@ -185,7 +194,13 @@ public final class BuildMethodBodies {
                 positional.add(operand);
                 byName.put(port.getName(), operand);
             }
-            return ((OperationCodegen) operation.getCodegen()).render(new IncomingValuesImpl(positional, byName));
+            final Map<String, CodeBlock> members = new LinkedHashMap<>();
+            operation
+                    .getMemberRequests()
+                    .forEach(
+                            request -> members.put(request.getDedupKey(), memberPlan.reference(request.getDedupKey())));
+            return ((OperationCodegen) operation.getCodegen())
+                    .render(new IncomingValuesImpl(positional, byName, members));
         }
 
         CodeBlock renderContainerMapping(final Operation operation) {

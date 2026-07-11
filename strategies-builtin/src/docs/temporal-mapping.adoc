@@ -1,0 +1,119 @@
+= Temporal (date/time) mapping
+:navtitle: Temporal mapping
+
+Percolate maps `java.util.Date`, `java.sql.Timestamp`, and every common `java.time.*` type automatically —
+no `@Map` needed for a same-family conversion. Every pair routes through one of two **hub** types instead of
+an authored N×N table: `Instant` for the *absolute* family (an instant in time) and `LocalDateTime` for the
+*local* family (wall-clock time, no instant). The engine composes any multi-hop path through the hub the
+same way it composes `int → Long` as widen-then-box — nothing dedicated is authored per pair.
+
+[source,java]
+----
+include::example$temporal/TemporalMapper.java[tag=mapper]
+----
+
+== Same-family: composes through one hub, no zone
+
+`toInstant` converts `java.util.Date` to `Instant` directly — both are absolute-family, so no zone is ever
+read:
+
+[source,java]
+----
+include::example$temporal/TemporalMapperImpl.java[tag=toInstant]
+----
+
+A cross-*spoke* pair in the same family composes through the hub automatically. `toDate` converts
+`OffsetDateTime` to `java.util.Date`: percolate finds `OffsetDateTime → Instant → Date` and prunes to it —
+nothing dedicated is authored for this exact pair:
+
+[source,java]
+----
+include::example$temporal/TemporalMapperImpl.java[tag=toDate]
+----
+
+== The no-truncation guarantee
+
+A hub is always the *widest* type in its family, so it can never silently drop part of a value on the way
+through. The only place a `00:00:00` time-of-day legitimately appears is when the **source** is a
+`LocalDate` — a type that inherently never carried a time in the first place. Every other conversion —
+however many hops it composes through — preserves the source's instant (absolute family) or wall-clock
+reading (local family) exactly.
+
+== Crossing families: the zone bridge
+
+`Instant` and `LocalDateTime` describe fundamentally different things — an instant has no wall-clock
+reading until you pick a zone, and wall-clock time has no instant until you do. Exactly one hop reads a
+zone to cross between them; every other conversion in this chapter is zone-free by construction.
+
+Zone resolution follows a fixed precedence: a directive-declared `@Map(zone = …)` wins; otherwise a
+project-wide `-Apercolate.time.zone=…` compiler option (see
+xref:compile-time-switches.adoc[Compile-time switches]); otherwise the generated code reads
+`ZoneId.systemDefault()` **at the consumer's runtime**, honouring that JVM's `-Duser.timezone`. Percolate
+never bakes its own build-machine zone into generated code.
+
+With neither a directive nor the compiler option, `toLocalDateTime` defers to the runtime default:
+
+[source,java]
+----
+include::example$temporal/TemporalMapperImpl.java[tag=toLocalDateTime]
+----
+
+A directive-declared zone is frozen into the generated code instead — `toBerlinTime` always reads
+`Europe/Berlin`, regardless of the consumer's own default zone:
+
+[source,java]
+----
+include::example$temporal/TemporalMapperImpl.java[tag=toBerlinTime]
+----
+
+[NOTE]
+====
+Re-expressing an instant in a different zone can *look* surprising even though nothing was lost: a `+02:00`
+`OffsetDateTime` at `14:30` becomes `13:30` when read as UTC `LocalDateTime` — the wall-clock digits change,
+but the instant they denote is identical. A `LocalDateTime` produced this way is always the wall-time
+*in the resolved zone*.
+====
+
+== `@Map(format = "…")`: `String` ⇄ temporal
+
+A directive-declared `format` pattern parses a `String` into, or renders a `String` from, a temporal value.
+For a `java.time` type, percolate hoists **one shared** `private static final DateTimeFormatter` per distinct
+pattern — immutable and thread-safe, so every call site reuses the same instance:
+
+[source,java]
+----
+include::example$temporal/TemporalMapperImpl.java[tag=parseDate]
+
+include::example$temporal/TemporalMapperImpl.java[tag=formatDate]
+----
+
+`parseDate` and `formatDate` above share the exact same pattern, so the generated type declares only *one*
+`DateTimeFormatter` field for both of them:
+
+[source,java]
+----
+include::example$temporal/TemporalMapperImpl.java[]
+----
+
+For `java.util.Date`/`java.sql.*` targets, `@Map(format = …)` instead constructs a fresh
+`new SimpleDateFormat(pattern)` per call site — `SimpleDateFormat` is not thread-safe, so it is never shared.
+
+== Automatic roster
+
+[cols="1,3"]
+|===
+| Family | Types
+
+| Absolute (hub: `Instant`)
+| `java.util.Date`, `java.sql.Timestamp`, `OffsetDateTime`, `ZonedDateTime`
+
+| Local (hub: `LocalDateTime`)
+| `LocalDate`
+|===
+
+Partial types — `LocalTime`, `Year`, `YearMonth`, `MonthDay`, and an epoch `long` — are deliberately outside
+the automatic roster (they don't carry enough information to compose losslessly through a hub). Map these
+with a xref:conversion-methods.adoc[conversion method] or
+xref:default-method-conversions.adoc[default method] instead. `java.sql.Date` is likewise outside the
+roster — it looks date-only but is a `java.util.Date` subtype with an unspecified time component, so
+percolate does not guess which family it belongs to.

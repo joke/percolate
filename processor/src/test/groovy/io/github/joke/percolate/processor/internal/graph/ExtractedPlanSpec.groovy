@@ -188,7 +188,7 @@ class ExtractedPlanSpec extends Specification {
         graph.apply(new AddOperation('map', Stub(Codegen), 0, false,
                 [new PortBinding(new Port('p0', param.type.get(), param.nullness.get()), av(param))],
                 av(root),
-                Optional.of(new ChildScopeDecl(STRING, Nullability.NON_NULL, STRING, Nullability.NON_NULL))))
+                Optional.of(new ChildScopeDecl(STRING, Nullability.NON_NULL, STRING, Nullability.NON_NULL)), [] as Set, []))
 
         when:
         final var plan = extract()
@@ -226,7 +226,7 @@ class ExtractedPlanSpec extends Specification {
         final var ports = (0..<portSources.size()).collect { i ->
             new PortBinding(new Port('p' + i, portSources[i].type.get(), portSources[i].nullness.get()), av(portSources[i]))
         }
-        graph.apply(new AddOperation('op', Stub(Codegen), weight, partial, ports, av(out), Optional.empty()))
+        graph.apply(new AddOperation('op', Stub(Codegen), weight, partial, ports, av(out), Optional.empty(), [] as Set, []))
     }
 
     /** Mints an intermediate target Value of {@code type} produced with {@code weight} from {@code portSources}. */

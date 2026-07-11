@@ -47,7 +47,7 @@ class AssembleMapperTypeSpec extends Specification {
         def bodies = [new MethodImpl(method(DirectiveFixtures, 'sink'), CodeBlock.of(''), [] as Set)]
 
         when:
-        stage.assemble(ctx, bodies)
+        stage.assemble(ctx, new MethodBodies(bodies, []))
 
         then:
         writer.toString().contains('void sink(')
@@ -59,7 +59,7 @@ class AssembleMapperTypeSpec extends Specification {
         def bodies = [new MethodImpl(method(PersonMapper, 'map'), CodeBlock.of('return null;\n'), [] as Set)]
 
         when:
-        stage.assemble(ctx, bodies)
+        stage.assemble(ctx, new MethodBodies(bodies, []))
         def source = writer.toString()
 
         then: 'the impl lives in the mapper package, is public final, generated, and implements the interface'
@@ -72,6 +72,9 @@ class AssembleMapperTypeSpec extends Specification {
         source.contains('@Override')
         source.contains('map(')
         source.contains('return null;')
+
+        and: 'a mapper whose strategies requested no members declares no fields'
+        !source.contains('private static final')
     }
 
     def 'extends (not implements) when the mapper type is a class'() {
@@ -80,10 +83,31 @@ class AssembleMapperTypeSpec extends Specification {
         def bodies = [new MethodImpl(method(CallableFixtures, 'makeHuman'), CodeBlock.of('return null;\n'), [] as Set)]
 
         when:
-        stage.assemble(ctx, bodies)
+        stage.assemble(ctx, new MethodBodies(bodies, []))
 
         then:
         writer.toString().contains('class CallableFixturesImpl extends CallableFixtures')
+    }
+
+    def 'strategy-requested members are emitted as private static final fields'() {
+        given:
+        def ctx = new MapperContext(javac.of(PersonMapper))
+        def bodies = [new MethodImpl(method(PersonMapper, 'map'), CodeBlock.of('return null;\n'), [] as Set)]
+        def field = com.palantir.javapoet.FieldSpec.builder(
+                com.palantir.javapoet.ClassName.get('java.time.format', 'DateTimeFormatter'),
+                'DATE_TIME_FORMATTER',
+                javax.lang.model.element.Modifier.PRIVATE, javax.lang.model.element.Modifier.STATIC,
+                javax.lang.model.element.Modifier.FINAL)
+                .initializer('$T.ofPattern($S)', com.palantir.javapoet.ClassName.get('java.time.format', 'DateTimeFormatter'), 'yyyy-MM-dd')
+                .build()
+
+        when:
+        stage.assemble(ctx, new MethodBodies(bodies, [field]))
+        def source = writer.toString()
+
+        then:
+        source.contains('private static final DateTimeFormatter DATE_TIME_FORMATTER')
+        source.contains('DateTimeFormatter.ofPattern("yyyy-MM-dd")')
     }
 
     def 'the mapper interface is detected by element kind'() {

@@ -90,19 +90,27 @@ public final class DiscoverMappingsStage implements Stage {
         final var sourceValue = getAnnotationValue(mirror, "source");
         final var constantValue = getAnnotationValue(mirror, "constant");
         final var defaultValueValue = getAnnotationValue(mirror, "defaultValue");
+        final var formatValue = getAnnotationValue(mirror, "format");
+        final var zoneValue = getAnnotationValue(mirror, "zone");
         final var source = present(sourceValue);
         final var constant = present(constantValue);
         final var defaultValue = present(defaultValueValue);
+        final var format = present(formatValue);
+        final var zone = present(zoneValue);
         return new MappingDirective(
                 targetValue.getValue().toString(),
                 source,
                 constant,
                 defaultValue,
+                format,
+                zone,
                 mirror,
                 targetValue,
                 valueIfPresent(source, sourceValue),
                 valueIfPresent(constant, constantValue),
-                valueIfPresent(defaultValue, defaultValueValue));
+                valueIfPresent(defaultValue, defaultValueValue),
+                valueIfPresent(format, formatValue),
+                valueIfPresent(zone, zoneValue));
     }
 
     @Nullable

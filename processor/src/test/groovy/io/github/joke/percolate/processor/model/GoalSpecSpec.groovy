@@ -41,10 +41,10 @@ class GoalSpecSpec extends Specification {
     }
 
     private static MappingDirective directive(final String target, final String source) {
-        new MappingDirective(target, source, null, null, null, null, null, null, null)
+        new MappingDirective(target, source, null, null, null, null, null, null, null, null, null, null, null)
     }
 
     private static MappingDirective constant(final String target, final String value) {
-        new MappingDirective(target, null, value, null, null, null, null, null, null)
+        new MappingDirective(target, null, value, null, null, null, null, null, null, null, null, null, null)
     }
 }

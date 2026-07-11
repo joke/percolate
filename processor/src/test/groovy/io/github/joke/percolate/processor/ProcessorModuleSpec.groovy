@@ -13,6 +13,7 @@ import io.github.joke.percolate.processor.internal.stages.validate.RealisationDi
 import io.github.joke.percolate.processor.internal.stages.validate.ValidateConstantDefaultLegalityStage
 import io.github.joke.percolate.processor.internal.stages.validate.ValidateMappingShapeStage
 import io.github.joke.percolate.processor.internal.stages.validate.ValidateNoDuplicateTargetsStage
+import io.github.joke.percolate.processor.internal.stages.validate.ValidateOptionConsumptionStage
 import io.github.joke.percolate.processor.internal.stages.validate.ValidateSourceParametersStage
 import io.github.joke.percolate.processor.nullability.JspecifyNullabilityResolver
 import io.github.joke.percolate.processor.nullability.NullabilityResolver
@@ -109,7 +110,7 @@ class ProcessorModuleSpec extends Specification {
 
     def 'nullabilityAnnotations returns the jspecify defaults when no custom annotations are configured'() {
         given:
-        def options = new ProcessorOptions(false, [] as Set, false, false, false)
+        def options = new ProcessorOptions(false, [] as Set, false, false, false, Optional.empty())
 
         expect:
         module.nullabilityAnnotations(options).nullableFqns == ['org.jspecify.annotations.Nullable'] as Set
@@ -117,7 +118,7 @@ class ProcessorModuleSpec extends Specification {
 
     def 'nullabilityAnnotations merges the custom nullable FQNs onto the defaults, keeping the marked/unmarked sets'() {
         given:
-        def options = new ProcessorOptions(false, ['com.example.Nullable'] as Set, false, false, false)
+        def options = new ProcessorOptions(false, ['com.example.Nullable'] as Set, false, false, false, Optional.empty())
         def annotations = module.nullabilityAnnotations(options)
 
         expect:
@@ -136,12 +137,14 @@ class ProcessorModuleSpec extends Specification {
 
     def 'expandStage assembles an ExpandStage from the injected collaborators'() {
         expect:
-        module.expandStage([], [], Mock(Types), Mock(Elements), Mock(NullabilityResolver)) instanceof ExpandStage
+        module.expandStage([], [], Mock(Types), Mock(Elements), Mock(NullabilityResolver),
+                new ProcessorOptions(false, [] as Set, false, false, false, Optional.empty())) instanceof ExpandStage
     }
 
     def 'assembleExpansionPipeline constructs an ExpandStage'() {
         expect:
-        ProcessorModule.assembleExpansionPipeline([], [], Mock(Types), Mock(Elements), Mock(NullabilityResolver)) instanceof ExpandStage
+        ProcessorModule.assembleExpansionPipeline([], [], Mock(Types), Mock(Elements), Mock(NullabilityResolver),
+                new ProcessorOptions(false, [] as Set, false, false, false, Optional.empty())) instanceof ExpandStage
     }
 
     def 'discoverStages lists abstract-methods, mappings, then callable-methods in order'() {
@@ -166,20 +169,22 @@ class ProcessorModuleSpec extends Specification {
         DumpTransformsStage dumpTransforms = Mock()
         DumpPlanStage dumpPlan = Mock()
         ValidateConstantDefaultLegalityStage constantDefaultLegality = Mock()
+        ValidateOptionConsumptionStage optionConsumption = Mock()
         RealisationDiagnosticsStage realisation = Mock()
         GenerateStage generate = Mock()
 
         when:
         def stages = ProcessorModule.stages(
                 [discoverA, discoverB], noDuplicateTargets, mappingShape, sourceParameters, expand,
-                dumpFullGraph, dumpTransforms, dumpPlan, constantDefaultLegality, realisation, generate)
+                dumpFullGraph, dumpTransforms, dumpPlan, constantDefaultLegality, optionConsumption, realisation,
+                generate)
 
         then:
         stages == [
                 discoverA, discoverB,
                 noDuplicateTargets, mappingShape, sourceParameters,
                 expand,
-                constantDefaultLegality, realisation,
+                constantDefaultLegality, optionConsumption, realisation,
                 dumpFullGraph, dumpTransforms, dumpPlan,
                 generate
         ]

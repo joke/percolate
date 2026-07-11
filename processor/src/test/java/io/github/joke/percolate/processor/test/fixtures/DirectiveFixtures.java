@@ -22,6 +22,12 @@ public interface DirectiveFixtures {
     @Map(target = "note", constant = "")
     Human emptyConstant(Person in);
 
+    @Map(target = "day", source = "in.ts", format = "yyyy-MM-dd")
+    Human formatted(Person in);
+
+    @Map(target = "at", source = "in.local", zone = "Europe/Berlin")
+    Human zoned(Person in);
+
     @Map(target = "first", source = "in.first")
     @Map(target = "second", source = "in.second")
     Human repeated(Person in);

@@ -2,6 +2,7 @@ package io.github.joke.percolate.processor;
 
 import java.util.Arrays;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
 import lombok.Value;
@@ -14,24 +15,28 @@ public class ProcessorOptions {
     public static final String LOCALS_FINAL = "percolate.locals.final";
     public static final String LOCALS_VAR = "percolate.locals.var";
     public static final String DOC_TAGS = "percolate.docTags";
+    public static final String TIME_ZONE = "percolate.time.zone";
 
     boolean debugGraphs;
     Set<String> customNullableAnnotations;
     boolean localsFinal;
     boolean localsVar;
     boolean docTags;
+    Optional<String> timeZone;
 
     public ProcessorOptions(
             final boolean debugGraphs,
             final Set<String> customNullableAnnotations,
             final boolean localsFinal,
             final boolean localsVar,
-            final boolean docTags) {
+            final boolean docTags,
+            final Optional<String> timeZone) {
         this.debugGraphs = debugGraphs;
         this.customNullableAnnotations = Set.copyOf(customNullableAnnotations);
         this.localsFinal = localsFinal;
         this.localsVar = localsVar;
         this.docTags = docTags;
+        this.timeZone = timeZone;
     }
 
     static ProcessorOptions from(final Map<String, String> options) {
@@ -46,7 +51,12 @@ public class ProcessorOptions {
                     .collect(Collectors.toUnmodifiableSet());
         }
         return new ProcessorOptions(
-                debug, nullable, flag(options, LOCALS_FINAL), flag(options, LOCALS_VAR), flag(options, DOC_TAGS));
+                debug,
+                nullable,
+                flag(options, LOCALS_FINAL),
+                flag(options, LOCALS_VAR),
+                flag(options, DOC_TAGS),
+                Optional.ofNullable(options.get(TIME_ZONE)));
     }
 
     private static boolean flag(final Map<String, String> options, final String key) {

@@ -11,10 +11,19 @@ final class IncomingValuesImpl implements IncomingValues {
 
     private final List<CodeBlock> positional;
     private final Map<String, CodeBlock> nameMap;
+    private final Map<String, CodeBlock> memberMap;
 
     IncomingValuesImpl(final List<CodeBlock> positional, final Map<String, CodeBlock> nameMap) {
+        this(positional, nameMap, Map.of());
+    }
+
+    IncomingValuesImpl(
+            final List<CodeBlock> positional,
+            final Map<String, CodeBlock> nameMap,
+            final Map<String, CodeBlock> memberMap) {
         this.positional = List.copyOf(positional);
         this.nameMap = Map.copyOf(nameMap);
+        this.memberMap = Map.copyOf(memberMap);
     }
 
     @Override
@@ -39,6 +48,15 @@ final class IncomingValuesImpl implements IncomingValues {
         final var result = nameMap.get(slotName);
         if (result == null) {
             throw new IllegalStateException("No incoming value for slot: " + slotName);
+        }
+        return result;
+    }
+
+    @Override
+    public CodeBlock member(final String dedupKey) {
+        final var result = memberMap.get(dedupKey);
+        if (result == null) {
+            throw new IllegalStateException("No member reference for dedup key: " + dedupKey);
         }
         return result;
     }

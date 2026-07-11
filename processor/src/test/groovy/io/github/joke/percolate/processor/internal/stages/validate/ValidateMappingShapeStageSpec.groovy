@@ -33,7 +33,7 @@ class ValidateMappingShapeStageSpec extends Specification {
 
     def 'both source and constant is rejected at the constant value and the directive is dropped'() {
         given:
-        def directive = new MappingDirective('status', 'in.status', 'ACTIVE', null, mirror, targetV, sourceV, constantV, null)
+        def directive = new MappingDirective('status', 'in.status', 'ACTIVE', null, null, null, mirror, targetV, sourceV, constantV, null, null, null)
 
         when:
         def result = stage.validate(mappings(directive))
@@ -45,7 +45,7 @@ class ValidateMappingShapeStageSpec extends Specification {
 
     def 'neither source nor constant is rejected at the target value and the directive is dropped'() {
         given:
-        def directive = new MappingDirective('status', null, null, null, mirror, targetV, null, null, null)
+        def directive = new MappingDirective('status', null, null, null, null, null, mirror, targetV, null, null, null, null, null)
 
         when:
         def result = stage.validate(mappings(directive))
@@ -57,7 +57,7 @@ class ValidateMappingShapeStageSpec extends Specification {
 
     def 'defaultValue on a constant directive is rejected at the defaultValue and the constant survives'() {
         given:
-        def directive = new MappingDirective('status', null, 'ACTIVE', 'x', mirror, targetV, null, constantV, defaultV)
+        def directive = new MappingDirective('status', null, 'ACTIVE', 'x', null, null, mirror, targetV, null, constantV, defaultV, null, null)
 
         when:
         def result = stage.validate(mappings(directive))
@@ -71,7 +71,7 @@ class ValidateMappingShapeStageSpec extends Specification {
 
     def 'a defaultValue alongside a source is accepted with no error'() {
         given:
-        def directive = new MappingDirective('name', 'in.name', null, 'unknown', mirror, targetV, sourceV, null, defaultV)
+        def directive = new MappingDirective('name', 'in.name', null, 'unknown', null, null, mirror, targetV, sourceV, null, defaultV, null, null)
 
         when:
         def result = stage.validate(mappings(directive))
@@ -83,8 +83,8 @@ class ValidateMappingShapeStageSpec extends Specification {
 
     def 'exactly one of source or constant is accepted'() {
         given:
-        def constantOnly = new MappingDirective('status', null, 'ACTIVE', null, mirror, targetV, null, constantV, null)
-        def sourceOnly = new MappingDirective('name', 'in.name', null, null, mirror, targetV, sourceV, null, null)
+        def constantOnly = new MappingDirective('status', null, 'ACTIVE', null, null, null, mirror, targetV, null, constantV, null, null, null)
+        def sourceOnly = new MappingDirective('name', 'in.name', null, null, null, null, mirror, targetV, sourceV, null, null, null, null)
 
         when:
         def result = stage.validate(mappings(constantOnly, sourceOnly))
@@ -111,8 +111,8 @@ class ValidateMappingShapeStageSpec extends Specification {
     def 'run installs the validated mappings, dropping the contradictory directive'() {
         given:
         def ctx = new MapperContext(Mock(TypeElement))
-        ctx.mappings = mappings(new MappingDirective('status', 'in.status', 'ACTIVE', null, mirror, targetV, sourceV,
-                constantV, null))
+        ctx.mappings = mappings(new MappingDirective('status', 'in.status', 'ACTIVE', null, null, null, mirror, targetV, sourceV,
+                constantV, null, null, null))
 
         when:
         stage.run(ctx)

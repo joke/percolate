@@ -30,30 +30,36 @@ final class SpecInstantiator {
         final var childScope = spec.getChildScope().map(child -> groundChild(child, bindings));
         if (childScope.isPresent()) {
             return OperationSpec.mapping(
-                    spec.getLabel(),
-                    spec.getCodegen(),
-                    spec.getWeight(),
-                    ports,
-                    spec.getOutputType(),
-                    spec.getOutputNullness(),
-                    childScope.get());
+                            spec.getLabel(),
+                            spec.getCodegen(),
+                            spec.getWeight(),
+                            ports,
+                            spec.getOutputType(),
+                            spec.getOutputNullness(),
+                            childScope.get())
+                    .withConsumedOptionKeys(spec.getConsumedOptionKeys())
+                    .withMemberRequests(spec.getMemberRequests());
         }
         if (spec.isPartial()) {
             return OperationSpec.ofPartial(
-                    spec.getLabel(),
-                    spec.getCodegen(),
-                    spec.getWeight(),
-                    ports,
-                    spec.getOutputType(),
-                    spec.getOutputNullness());
+                            spec.getLabel(),
+                            spec.getCodegen(),
+                            spec.getWeight(),
+                            ports,
+                            spec.getOutputType(),
+                            spec.getOutputNullness())
+                    .withConsumedOptionKeys(spec.getConsumedOptionKeys())
+                    .withMemberRequests(spec.getMemberRequests());
         }
         return OperationSpec.of(
-                spec.getLabel(),
-                spec.getCodegen(),
-                spec.getWeight(),
-                ports,
-                spec.getOutputType(),
-                spec.getOutputNullness());
+                        spec.getLabel(),
+                        spec.getCodegen(),
+                        spec.getWeight(),
+                        ports,
+                        spec.getOutputType(),
+                        spec.getOutputNullness())
+                .withConsumedOptionKeys(spec.getConsumedOptionKeys())
+                .withMemberRequests(spec.getMemberRequests());
     }
 
     /** {@code port} with its template substituted by {@code bindings}, or {@code port} unchanged when it has none. */

@@ -102,7 +102,7 @@ class ValidateNoDuplicateTargetsStageSpec extends Specification {
     }
 
     private MappingDirective directive(final String target, final AnnotationValue targetValue) {
-        new MappingDirective(target, null, null, null, mirror, targetValue, null, null, null)
+        new MappingDirective(target, null, null, null, null, null, mirror, targetValue, null, null, null, null, null)
     }
 
     private MapperMappings mappings(final MappingDirective... directives) {

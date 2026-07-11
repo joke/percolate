@@ -1,6 +1,7 @@
 package io.github.joke.percolate.processor.internal.stages.expand;
 
 import io.github.joke.percolate.processor.MapperContext;
+import io.github.joke.percolate.processor.ProcessorOptions;
 import io.github.joke.percolate.processor.internal.graph.Location;
 import io.github.joke.percolate.processor.internal.graph.MapperGraph;
 import io.github.joke.percolate.processor.internal.graph.Operation;
@@ -54,6 +55,7 @@ public final class ExpandStage implements Stage {
     private final Types types;
     private final Elements elements;
     private final NullabilityResolver resolver;
+    private final ProcessorOptions options;
 
     @Override
     public void run(final MapperContext ctx) {
@@ -63,7 +65,7 @@ public final class ExpandStage implements Stage {
         }
         final var graph = new MapperGraph();
         ctx.setGraph(graph);
-        final var resolveCtx = new CompileResolveCtx(elements, types, ctx.getCallableMethods());
+        final var resolveCtx = new CompileResolveCtx(elements, types, ctx.getCallableMethods(), options.getTimeZone());
         new Driver(strategies, projections, resolver, graph, ctx.getGoalSpecs(), resolveCtx).seedAndExpand(shape);
     }
 

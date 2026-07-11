@@ -8,4 +8,7 @@ public interface IncomingValues {
     CodeBlock byGroupPosition(int idx);
 
     CodeBlock byName(String slotName);
+
+    /** The reference to a class-level member this operation requested via a {@link MemberRequest}, by its {@code dedupKey}. */
+    CodeBlock member(String dedupKey);
 }

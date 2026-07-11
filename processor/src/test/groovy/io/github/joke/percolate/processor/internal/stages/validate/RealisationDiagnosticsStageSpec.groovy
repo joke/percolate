@@ -76,7 +76,7 @@ class RealisationDiagnosticsStageSpec extends Specification {
         def child = new AddValue(scope, new TargetLocation(new TargetPath(['x'])), STRING, Nullability.NON_NULL)
         def operation = graph.apply(new AddOperation('build', { CodeBlock.of('x') } as OperationCodegen, Weights.STEP,
                 false, [new PortBinding(new Port('x', STRING, Nullability.NON_NULL), child)],
-                new AddValue(scope, root(), STRING, Nullability.NON_NULL), Optional.empty()))
+                new AddValue(scope, root(), STRING, Nullability.NON_NULL), Optional.empty(), [] as Set, []))
         graph.markReturnRoot(graph.outputOf(operation).get())
         def ctx = context(graph)
 
@@ -118,7 +118,7 @@ class RealisationDiagnosticsStageSpec extends Specification {
         diagnostics.hasErrorsFor(_) >> false
         def graph = new MapperGraph()
         def operation = graph.apply(new AddOperation('supply', { CodeBlock.of('x') } as OperationCodegen, Weights.STEP,
-                false, [], new AddValue(scope, root(), STRING, Nullability.NON_NULL), Optional.empty()))
+                false, [], new AddValue(scope, root(), STRING, Nullability.NON_NULL), Optional.empty(), [] as Set, []))
         graph.markReturnRoot(graph.outputOf(operation).get())
         def ctx = context(graph)
 
@@ -141,7 +141,7 @@ class RealisationDiagnosticsStageSpec extends Specification {
                 false,
                 [new PortBinding(new Port('a', STRING, Nullability.NON_NULL), leaf),
                  new PortBinding(new Port('b', STRING, Nullability.NON_NULL), access)],
-                new AddValue(scope, root(), STRING, Nullability.NON_NULL), Optional.empty()))
+                new AddValue(scope, root(), STRING, Nullability.NON_NULL), Optional.empty(), [] as Set, []))
         graph.markReturnRoot(graph.outputOf(operation).get())
         def ctx = context(graph)
 
@@ -160,7 +160,7 @@ class RealisationDiagnosticsStageSpec extends Specification {
                 Nullability.NON_NULL)
         def operation = graph.apply(new AddOperation('map', { CodeBlock.of('x') } as OperationCodegen, Weights.STEP,
                 false, [], new AddValue(scope, root(), LIST_OF_STRING, Nullability.NON_NULL),
-                Optional.of(childScope)))
+                Optional.of(childScope), [] as Set, []))
         graph.markReturnRoot(graph.outputOf(operation).get())
         def ctx = context(graph)
 
@@ -180,10 +180,10 @@ class RealisationDiagnosticsStageSpec extends Specification {
                 Nullability.NON_NULL)
         def opA = graph.apply(new AddOperation('a', { CodeBlock.of('x') } as OperationCodegen, Weights.STEP, false,
                 [new PortBinding(new Port('p', STRING, Nullability.NON_NULL), childAdd)], rootAdd,
-                Optional.empty()))
+                Optional.empty(), [] as Set, []))
         graph.apply(new AddOperation('b', { CodeBlock.of('x') } as OperationCodegen, Weights.STEP, false,
                 [new PortBinding(new Port('q', STRING, Nullability.NON_NULL), rootAdd)], childAdd,
-                Optional.empty()))
+                Optional.empty(), [] as Set, []))
         graph.markReturnRoot(graph.outputOf(opA).get())
         def ctx = context(graph)
 

@@ -1,9 +1,11 @@
 package io.github.joke.percolate.processor.internal.graph;
 
 import io.github.joke.percolate.spi.Codegen;
+import io.github.joke.percolate.spi.MemberRequest;
 import io.github.joke.percolate.spi.Port;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 import lombok.Getter;
 
 /**
@@ -30,7 +32,10 @@ public final class Operation implements GraphVertex {
     private final List<Port> ports;
     private final Scope scope;
     private final Optional<ChildScope> childScope;
+    private final Set<String> consumedOptionKeys;
+    private final List<MemberRequest> memberRequests;
 
+    @SuppressWarnings("PMD.ExcessiveParameterList")
     Operation(
             final int seq,
             final String label,
@@ -39,7 +44,9 @@ public final class Operation implements GraphVertex {
             final boolean partial,
             final List<Port> ports,
             final Scope scope,
-            final boolean ownsChildScope) {
+            final boolean ownsChildScope,
+            final Set<String> consumedOptionKeys,
+            final List<MemberRequest> memberRequests) {
         this.seq = seq;
         this.label = label;
         this.codegen = codegen;
@@ -48,6 +55,8 @@ public final class Operation implements GraphVertex {
         this.ports = List.copyOf(ports);
         this.scope = scope;
         this.childScope = ownsChildScope ? Optional.of(new ChildScope(this, scope)) : Optional.empty();
+        this.consumedOptionKeys = Set.copyOf(consumedOptionKeys);
+        this.memberRequests = List.copyOf(memberRequests);
     }
 
     @Override

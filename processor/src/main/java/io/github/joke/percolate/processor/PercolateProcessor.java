@@ -29,7 +29,8 @@ public final class PercolateProcessor extends BasicAnnotationProcessor {
                 ProcessorOptions.NULLABLE_ANNOTATIONS,
                 ProcessorOptions.LOCALS_FINAL,
                 ProcessorOptions.LOCALS_VAR,
-                ProcessorOptions.DOC_TAGS);
+                ProcessorOptions.DOC_TAGS,
+                ProcessorOptions.TIME_ZONE);
     }
 
     @Override

@@ -66,4 +66,21 @@ public @interface Map {
      * {@code defaultValue} requires a present {@code source} and is illegal with a {@code constant}.
      */
     String defaultValue() default UNSET;
+
+    /**
+     * A {@link java.time.format.DateTimeFormatter}-style pattern used to parse a {@code String} source into, or
+     * render a {@code String} from, a temporal target. Defaults to {@link #UNSET} (absent). Present — including as
+     * the empty string {@code ""} — exactly when {@code !Map.UNSET.equals(format())}. Applies only where a
+     * {@code String} crosses with a date/time type; declared on any other pairing, it has no effect and is reported.
+     */
+    String format() default UNSET;
+
+    /**
+     * A {@link java.time.ZoneId} id (e.g. {@code "Europe/Berlin"}) used by a cross-family temporal conversion (an
+     * "absolute" instant-based type crossing to or from a "local" wall-time type). Defaults to {@link #UNSET}
+     * (absent). Present — including as the empty string {@code ""} — exactly when {@code !Map.UNSET.equals(zone())}.
+     * Applies only where the winning conversion crosses the zone bridge; declared on any other pairing, it has no
+     * effect and is reported.
+     */
+    String zone() default UNSET;
 }

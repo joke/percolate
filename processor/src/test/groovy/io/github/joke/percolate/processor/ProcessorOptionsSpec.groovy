@@ -55,7 +55,7 @@ class ProcessorOptionsSpec extends Specification {
     def 'the custom nullable set is an immutable copy decoupled from the caller-supplied set'() {
         given:
         def input = ['com.example.Nullable'] as Set
-        def options = new ProcessorOptions(false, input, false, false, false)
+        def options = new ProcessorOptions(false, input, false, false, false, Optional.empty())
 
         when:
         input << 'added.after.construction'
@@ -123,15 +123,32 @@ class ProcessorOptionsSpec extends Specification {
         options.localsVar
     }
 
-    def 'PercolateProcessor advertises exactly the five recognised options'() {
+    def 'PercolateProcessor advertises exactly the six recognised options'() {
         expect:
         new PercolateProcessor().supportedOptions == [
                 'percolate.debug.graphs',
                 'percolate.nullable.annotations',
                 'percolate.locals.final',
                 'percolate.locals.var',
-                'percolate.docTags'
+                'percolate.docTags',
+                'percolate.time.zone'
         ] as Set
+    }
+
+    def 'absent percolate.time.zone yields an empty timeZone'() {
+        when:
+        def options = ProcessorOptions.from([:])
+
+        then:
+        options.timeZone == Optional.empty()
+    }
+
+    def 'percolate.time.zone carries the configured zone id'() {
+        when:
+        def options = ProcessorOptions.from(['percolate.time.zone': 'Europe/Berlin'])
+
+        then:
+        options.timeZone == Optional.of('Europe/Berlin')
     }
 
     def 'PercolateProcessor supports the latest source version the compiler offers'() {

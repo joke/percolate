@@ -67,8 +67,8 @@ class ValidateSourceParametersStageSpec extends Specification {
 
     def 'a sourceless (constant) directive is kept without parameter validation'() {
         given:
-        def constant = new MappingDirective('status', null, 'ACTIVE', null, mirror, Mock(AnnotationValue), null,
-                Mock(AnnotationValue), null)
+        def constant = new MappingDirective('status', null, 'ACTIVE', null, null, null, mirror, Mock(AnnotationValue), null,
+                Mock(AnnotationValue), null, null, null)
 
         when:
         def result = stage.validate(mappings(methodWith('in'), constant))
@@ -183,7 +183,7 @@ class ValidateSourceParametersStageSpec extends Specification {
     }
 
     private MappingDirective sourceDirective(final String source) {
-        new MappingDirective('name', source, null, null, mirror, Mock(AnnotationValue), sourceValue, null, null)
+        new MappingDirective('name', source, null, null, null, null, mirror, Mock(AnnotationValue), sourceValue, null, null, null, null)
     }
 
     private MapperMappings mappings(final ExecutableElement method, final MappingDirective... directives) {

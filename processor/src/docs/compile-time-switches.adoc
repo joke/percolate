@@ -30,6 +30,11 @@ with a real before/after of its generated effect.
 | `false`
 | Writes one GraphViz `.dot` file per generated method (and per container-element scope) to the
   annotation-processing output directory.
+
+| `percolate.time.zone`
+| _(none)_
+| A project-wide default `ZoneId` for xref:temporal-mapping.adoc[temporal mapping]'s zone bridge, used
+  whenever a binding declares no `@Map(zone = …)` of its own.
 |===
 
 The `docTags`, `locals.final`, and `locals.var` examples below all compile the same small mapper:
@@ -117,6 +122,34 @@ tool. An excerpt of a real one:
 include::example$switches/debug-graphs/excerpt.dot[]
 ----
 
+== `percolate.time.zone`
+
+`ZonedMapper.toLocalDateTime` crosses temporal families, so it reads a zone (see
+xref:temporal-mapping.adoc[Temporal mapping]):
+
+[source,java]
+----
+include::example$switches/ZonedMapper.java[tag=mapper]
+----
+
+Unset, the generated code defers to the consumer's own runtime default zone:
+
+[source,java]
+----
+include::example$switches/time-zone-unset/ZonedMapperImpl.java[tag=toLocalDateTime]
+----
+
+Passed as `-Apercolate.time.zone=Europe/Berlin`, that zone is frozen into the generated code instead — every
+mapper compiled with this option shares the same project-wide default:
+
+[source,java]
+----
+include::example$switches/time-zone-set/ZonedMapperImpl.java[tag=toLocalDateTime]
+----
+
+A directive-declared `@Map(zone = …)` still wins over this option when both are present.
+
 == Where to next
 
 * xref:defaults-and-nullness.adoc[Defaults & nullness] — the crossing `percolate.nullable.annotations` extends.
+* xref:temporal-mapping.adoc[Temporal mapping] — the zone bridge `percolate.time.zone` configures.

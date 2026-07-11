@@ -14,18 +14,23 @@ import org.jspecify.annotations.Nullable;
  * are {@code null} on the {@link MappingDirective}); an empty string is reported present, never absent.
  */
 @RequiredArgsConstructor
-@SuppressWarnings("PMD.AvoidFieldNameMatchingMethodName") // each field backs the Directive accessor of the same name
+// each field backs the Directive accessor of the same name; a pure adapter is expected to look like a data class
+@SuppressWarnings({"PMD.AvoidFieldNameMatchingMethodName", "PMD.DataClass"})
 final class BindingDirective implements Directive {
 
     private final List<String> sourcePath;
     private final Optional<String> constant;
     private final Optional<String> defaultValue;
+    private final Optional<String> format;
+    private final Optional<String> zone;
 
     static BindingDirective from(final MappingDirective directive) {
         return new BindingDirective(
                 splitSource(directive.getSource()),
                 Optional.ofNullable(directive.getConstant()),
-                Optional.ofNullable(directive.getDefaultValue()));
+                Optional.ofNullable(directive.getDefaultValue()),
+                Optional.ofNullable(directive.getFormat()),
+                Optional.ofNullable(directive.getZone()));
     }
 
     static List<String> splitSource(final @Nullable String source) {
@@ -48,5 +53,15 @@ final class BindingDirective implements Directive {
     @Override
     public Optional<String> defaultValue() {
         return defaultValue;
+    }
+
+    @Override
+    public Optional<String> format() {
+        return format;
+    }
+
+    @Override
+    public Optional<String> zone() {
+        return zone;
     }
 }

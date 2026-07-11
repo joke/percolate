@@ -25,6 +25,7 @@ class CompileTimeSwitchesDocExampleSpec extends Specification {
     private static final JavaFileObject PRODUCT_MAPPER = forResource('examples/switches/ProductMapper.java')
     private static final JavaFileObject NULLABLE_MAPPER = forResource('examples/switches/NullableMapper.java')
     private static final JavaFileObject CUSTOM_NULLABLE = forResource('examples/switches/CustomNullable.java')
+    private static final JavaFileObject ZONED_MAPPER = forResource('examples/switches/ZonedMapper.java')
 
     def 'percolate.docTags wraps each generated method body in include-tags, off by default'() {
         when:
@@ -113,6 +114,26 @@ class CompileTimeSwitchesDocExampleSpec extends Specification {
 
         and:
         materialise('debug-graphs/excerpt.dot', content.readLines().take(12).join('\n'))
+    }
+
+    def 'percolate.time.zone freezes the zone bridge to a project-wide default; unset defers to systemDefault()'() {
+        when:
+        Compilation unset = PercolateCompiler.compileWith(['-Apercolate.docTags=true'], ZONED_MAPPER)
+        Compilation set = PercolateCompiler.compileWith(
+                ['-Apercolate.docTags=true', '-Apercolate.time.zone=Europe/Berlin'], ZONED_MAPPER)
+
+        then:
+        unset.errors().empty
+        set.errors().empty
+        def unsetContent = sourceOf(unset, 'examples.switches.ZonedMapperImpl')
+        def setContent = sourceOf(set, 'examples.switches.ZonedMapperImpl')
+        unsetContent.contains('ZoneId.systemDefault()')
+        !unsetContent.contains('Europe/Berlin')
+        setContent.contains('ZoneId.of("Europe/Berlin")')
+
+        and:
+        materialise('time-zone-unset/ZonedMapperImpl.java', unsetContent)
+        materialise('time-zone-set/ZonedMapperImpl.java', setContent)
     }
 
     private static Optional<JavaFileObject> anyDotFile(final Compilation compilation) {

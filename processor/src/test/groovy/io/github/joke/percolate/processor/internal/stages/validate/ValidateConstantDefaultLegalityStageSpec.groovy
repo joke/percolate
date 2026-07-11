@@ -69,7 +69,7 @@ class ValidateConstantDefaultLegalityStageSpec extends Specification {
     def 'a constant that cannot be coerced to the target type is diagnosed at the constant value'() {
         given:
         def ctx = context(returnRoot(INT, Nullability.NON_NULL),
-                new MappingDirective('', null, 'abc', null, mirror, value(), null, constantValue, null))
+                new MappingDirective('', null, 'abc', null, null, null, mirror, value(), null, constantValue, null, null, null))
 
         when:
         stage.run(ctx)
@@ -82,7 +82,7 @@ class ValidateConstantDefaultLegalityStageSpec extends Specification {
     def 'a constant that coerces to the target type passes with no diagnostic'() {
         given:
         def ctx = context(returnRoot(INT, Nullability.NON_NULL),
-                new MappingDirective('', null, '42', null, mirror, value(), null, constantValue, null))
+                new MappingDirective('', null, '42', null, null, null, mirror, value(), null, constantValue, null, null, null))
 
         when:
         stage.run(ctx)
@@ -97,7 +97,7 @@ class ValidateConstantDefaultLegalityStageSpec extends Specification {
         graph.apply(new AddValue(scope, root(), STRING, Nullability.NON_NULL))
         graph.apply(new AddValue(scope, source('in'), STRING, Nullability.NON_NULL))
         def ctx = context(graph,
-                new MappingDirective('', 'in', null, 'fallback', mirror, value(), value(), null, defaultValue))
+                new MappingDirective('', 'in', null, 'fallback', null, null, mirror, value(), value(), null, defaultValue, null, null))
 
         when:
         stage.run(ctx)
@@ -112,7 +112,7 @@ class ValidateConstantDefaultLegalityStageSpec extends Specification {
         graph.apply(new AddValue(scope, root(), STRING, Nullability.NON_NULL))
         graph.apply(new AddValue(scope, source('in'), STRING, Nullability.NULLABLE))
         def ctx = context(graph,
-                new MappingDirective('', 'in', null, 'fallback', mirror, value(), value(), null, defaultValue))
+                new MappingDirective('', 'in', null, 'fallback', null, null, mirror, value(), value(), null, defaultValue, null, null))
 
         when:
         stage.run(ctx)
@@ -124,7 +124,7 @@ class ValidateConstantDefaultLegalityStageSpec extends Specification {
     def 'a directive with neither a constant nor a defaultValue is not checked'() {
         given:
         def ctx = context(returnRoot(STRING, Nullability.NON_NULL),
-                new MappingDirective('', 'in', null, null, mirror, value(), value(), null, null))
+                new MappingDirective('', 'in', null, null, null, null, mirror, value(), value(), null, null, null, null))
 
         when:
         stage.run(ctx)
@@ -147,7 +147,7 @@ class ValidateConstantDefaultLegalityStageSpec extends Specification {
     def 'nothing is checked when the context has no graph'() {
         def ctx = new MapperContext(Mock(TypeElement))
         ctx.mappings = new MapperMappings(null, [new MethodMappings(method,
-                [new MappingDirective('', null, '42', null, mirror, value(), null, constantValue, null)])])
+                [new MappingDirective('', null, '42', null, null, null, mirror, value(), null, constantValue, null, null, null)])])
 
         when:
         stage.run(ctx)
@@ -159,7 +159,7 @@ class ValidateConstantDefaultLegalityStageSpec extends Specification {
     def 'a constant whose target type cannot be resolved is not checked'() {
         // an empty graph — no typed return root, so the target type is unresolvable
         def ctx = context(new MapperGraph(),
-                new MappingDirective('', null, '42', null, mirror, value(), null, constantValue, null))
+                new MappingDirective('', null, '42', null, null, null, mirror, value(), null, constantValue, null, null, null))
 
         when:
         stage.run(ctx)
@@ -170,7 +170,7 @@ class ValidateConstantDefaultLegalityStageSpec extends Specification {
 
     def 'a defaultValue that cannot be coerced to the target type is diagnosed at the default value'() {
         def ctx = context(returnRoot(INT, Nullability.NON_NULL),
-                new MappingDirective('', null, null, 'abc', mirror, value(), null, null, defaultValue))
+                new MappingDirective('', null, null, 'abc', null, null, mirror, value(), null, null, defaultValue, null, null))
 
         when:
         stage.run(ctx)
@@ -182,7 +182,7 @@ class ValidateConstantDefaultLegalityStageSpec extends Specification {
 
     def 'a defaultValue with no source and a coercible value passes with no diagnostic'() {
         def ctx = context(returnRoot(STRING, Nullability.NON_NULL),
-                new MappingDirective('', null, null, 'fallback', mirror, value(), null, null, defaultValue))
+                new MappingDirective('', null, null, 'fallback', null, null, mirror, value(), null, null, defaultValue, null, null))
 
         when:
         stage.run(ctx)
@@ -196,7 +196,7 @@ class ValidateConstantDefaultLegalityStageSpec extends Specification {
         graph.apply(new AddValue(scope, root(), STRING, Nullability.NON_NULL))
         graph.apply(new AddValue(scope, source('in'), INT, Nullability.NON_NULL))
         def ctx = context(graph,
-                new MappingDirective('', 'in', null, 'fallback', mirror, value(), value(), null, defaultValue))
+                new MappingDirective('', 'in', null, 'fallback', null, null, mirror, value(), value(), null, defaultValue, null, null))
 
         when:
         stage.run(ctx)
@@ -211,7 +211,7 @@ class ValidateConstantDefaultLegalityStageSpec extends Specification {
         graph.apply(new AddValue(scope, root(), STRING, Nullability.NON_NULL))
         graph.apply(new AddValue(scope, source('in'), optionalOfString, Nullability.NON_NULL))
         def ctx = context(graph,
-                new MappingDirective('', 'in', null, 'fallback', mirror, value(), value(), null, defaultValue))
+                new MappingDirective('', 'in', null, 'fallback', null, null, mirror, value(), value(), null, defaultValue, null, null))
 
         when:
         stage.run(ctx)
@@ -227,7 +227,7 @@ class ValidateConstantDefaultLegalityStageSpec extends Specification {
         graph.apply(new AddValue(scope, root(), STRING, Nullability.NON_NULL))
         graph.apply(new AddValue(scope, source('in'), arrayOfString, Nullability.NON_NULL))
         def ctx = context(graph,
-                new MappingDirective('', 'in', null, 'fallback', mirror, value(), value(), null, defaultValue))
+                new MappingDirective('', 'in', null, 'fallback', null, null, mirror, value(), value(), null, defaultValue, null, null))
 
         when:
         stage.run(ctx)
@@ -240,7 +240,7 @@ class ValidateConstantDefaultLegalityStageSpec extends Specification {
         // a root produced by an operation whose port "x" feeds an int child at tgt[x]
         def graph = nestedIntChildGraph()
         def ctx = context(graph,
-                new MappingDirective('x', null, 'abc', null, mirror, value(), null, constantValue, null))
+                new MappingDirective('x', null, 'abc', null, null, null, mirror, value(), null, constantValue, null, null, null))
 
         when:
         stage.run(ctx)
@@ -252,7 +252,7 @@ class ValidateConstantDefaultLegalityStageSpec extends Specification {
 
     def 'a nested target whose path segment names no port is not checked'() {
         def ctx = context(nestedIntChildGraph(),
-                new MappingDirective('y', null, '42', null, mirror, value(), null, constantValue, null))
+                new MappingDirective('y', null, '42', null, null, null, mirror, value(), null, constantValue, null, null, null))
 
         when:
         stage.run(ctx)
@@ -263,7 +263,7 @@ class ValidateConstantDefaultLegalityStageSpec extends Specification {
 
     def 'a coercion failure to a declared target type names the simple type name'() {
         def ctx = context(returnRoot(DAY_OF_WEEK, Nullability.NON_NULL),
-                new MappingDirective('', null, 'NOTADAY', null, mirror, value(), null, constantValue, null))
+                new MappingDirective('', null, 'NOTADAY', null, null, null, mirror, value(), null, constantValue, null, null, null))
 
         when:
         stage.run(ctx)
@@ -278,7 +278,7 @@ class ValidateConstantDefaultLegalityStageSpec extends Specification {
         def child = new AddValue(scope, new TargetLocation(new TargetPath(['x'])), INT, Nullability.NON_NULL)
         graph.apply(new AddOperation('build', { CodeBlock.of('build') } as OperationCodegen, Weights.STEP, false,
                 [new PortBinding(new Port('x', INT, Nullability.NON_NULL), child)],
-                new AddValue(scope, root(), STRING, Nullability.NON_NULL), Optional.empty()))
+                new AddValue(scope, root(), STRING, Nullability.NON_NULL), Optional.empty(), [] as Set, []))
         graph
     }
 

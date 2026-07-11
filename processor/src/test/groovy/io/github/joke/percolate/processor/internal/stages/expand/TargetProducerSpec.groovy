@@ -135,7 +135,7 @@ class TargetProducerSpec extends Specification {
         Value value = Mock()
         value.scope >> scope
         value.loc >> loc
-        def directive = new MappingDirective('address', null, 'literal', null, null, null, null, null, null)
+        def directive = new MappingDirective('address', null, 'literal', null, null, null, null, null, null, null, null, null, null)
         def producer = new TargetProducer([strategy], [(scope): GoalSpec.from([directive])], sourceCandidates,
                 grounding, resolveCtx, resolver)
 
@@ -201,6 +201,6 @@ class TargetProducerSpec extends Specification {
     // ---- helpers ----------------------------------------------------------------------------------------------
 
     private MappingDirective directive(final String target, final String source) {
-        new MappingDirective(target, source, null, null, null, null, null, null, null)
+        new MappingDirective(target, source, null, null, null, null, null, null, null, null, null, null, null)
     }
 }

@@ -71,6 +71,37 @@ class DiscoverMappingsStageSpec extends Specification {
         !directive.hasSource()
     }
 
+    def 'a format directive is discovered with format present and zone absent'() {
+        when:
+        def directive = stage.extractDirectives(method('formatted').annotationMirrors)[0]
+
+        then:
+        directive.hasFormat()
+        directive.format == 'yyyy-MM-dd'
+        !directive.hasZone()
+        directive.zone == null
+    }
+
+    def 'a zone directive is discovered with zone present'() {
+        when:
+        def directive = stage.extractDirectives(method('zoned').annotationMirrors)[0]
+
+        then:
+        directive.hasZone()
+        directive.zone == 'Europe/Berlin'
+    }
+
+    def 'absent format and zone are reported absent'() {
+        when:
+        def directive = stage.extractDirectives(method('sourceWithDefault').annotationMirrors)[0]
+
+        then:
+        !directive.hasFormat()
+        !directive.hasZone()
+        directive.format == null
+        directive.zone == null
+    }
+
     def 'repeated @Map directives are unwrapped from the @MapList container, in order'() {
         when:
         def directives = stage.extractDirectives(method('repeated').annotationMirrors)

@@ -50,7 +50,7 @@ final class Demands {
 
     /** A demand asking for {@code target} whose directive declares a present {@code constant}. */
     static ProduceDemand withConstant(final TypeMirror target, final String constant) {
-        demand(target, Nullability.NON_NULL, directive([], constant, null), [] as Set, '', Nullability.NON_NULL)
+        demand(target, Nullability.NON_NULL, directive([], constant, null, null, null), [] as Set, '', Nullability.NON_NULL)
     }
 
     /**
@@ -59,7 +59,17 @@ final class Demands {
      * never a source candidate (the driver binds the reuse-only crossing ports).
      */
     static ProduceDemand crossing(final TypeMirror target, final String slot, final String defaultValue = null) {
-        demand(target, Nullability.NON_NULL, directive([], null, defaultValue), [] as Set, slot, Nullability.NON_NULL)
+        demand(target, Nullability.NON_NULL, directive([], null, defaultValue, null, null), [] as Set, slot, Nullability.NON_NULL)
+    }
+
+    /** A demand asking for {@code target} whose directive declares a present {@code format}, optionally with {@code zone}. */
+    static ProduceDemand withFormat(final TypeMirror target, final String format, final String zone = null) {
+        demand(target, Nullability.NON_NULL, directive([], null, null, format, zone), [] as Set, '', Nullability.NON_NULL)
+    }
+
+    /** A demand asking for {@code target} whose directive declares a present {@code zone}, with no {@code format}. */
+    static ProduceDemand withZone(final TypeMirror target, final String zone) {
+        demand(target, Nullability.NON_NULL, directive([], null, null, null, zone), [] as Set, '', Nullability.NON_NULL)
     }
 
     private static ProduceDemand demand(final TypeMirror target, final Nullability targetNullness,
@@ -81,13 +91,18 @@ final class Demands {
         }
     }
 
-    private static Directive directive(final List<String> sourcePath, final String constant, final String defaultValue) {
+    private static Directive directive(final List<String> sourcePath, final String constant, final String defaultValue,
+                                       final String format, final String zone) {
         new Directive() {
             List<String> sourcePath() { sourcePath }
 
             Optional<String> constant() { Optional.ofNullable(constant) }
 
             Optional<String> defaultValue() { Optional.ofNullable(defaultValue) }
+
+            Optional<String> format() { Optional.ofNullable(format) }
+
+            Optional<String> zone() { Optional.ofNullable(zone) }
         }
     }
 }

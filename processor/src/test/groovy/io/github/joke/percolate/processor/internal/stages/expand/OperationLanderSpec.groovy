@@ -46,7 +46,7 @@ class OperationLanderSpec extends Specification {
         def result = lander.landOperation(spec, ports, output)
 
         then:
-        1 * applier.apply(graph, new AddOperation('copy', codegen, 3, false, ports, output, Optional.empty())) >> landed
+        1 * applier.apply(graph, new AddOperation('copy', codegen, 3, false, ports, output, Optional.empty(), [] as Set, [])) >> landed
         0 * _
 
         expect:
@@ -63,7 +63,7 @@ class OperationLanderSpec extends Specification {
         def result = lander.landOperation(spec, ports, output)
 
         then:
-        1 * applier.apply(graph, new AddOperation('firstOrThrow', codegen, 2, true, ports, output, Optional.empty())) >> landed
+        1 * applier.apply(graph, new AddOperation('firstOrThrow', codegen, 2, true, ports, output, Optional.empty(), [] as Set, [])) >> landed
         0 * _
 
         expect:
@@ -79,7 +79,7 @@ class OperationLanderSpec extends Specification {
         def spec = OperationSpec.mapping('map', codegen, 5, [port], outputType, Nullability.NON_NULL, child)
         def output = new AddValue(Mock(Scope), Mock(Location), outputType, Nullability.NON_NULL)
         def expectedDelta = new AddOperation('map', codegen, 5, false, ports, output,
-                Optional.of(new ChildScopeDecl(elementIn, Nullability.NON_NULL, elementOut, Nullability.NULLABLE)))
+                Optional.of(new ChildScopeDecl(elementIn, Nullability.NON_NULL, elementOut, Nullability.NULLABLE)), [] as Set, [])
 
         when:
         def result = lander.landOperation(spec, ports, output)
@@ -93,7 +93,7 @@ class OperationLanderSpec extends Specification {
     }
 
     def 'apply delegates the delta to the injected Applier'() {
-        def delta = new AddOperation('x', codegen, 1, false, [], new AddValue(Mock(Scope), Mock(Location), outputType, Nullability.NON_NULL), Optional.empty())
+        def delta = new AddOperation('x', codegen, 1, false, [], new AddValue(Mock(Scope), Mock(Location), outputType, Nullability.NON_NULL), Optional.empty(), [] as Set, [])
 
         when:
         def result = lander.apply(delta)

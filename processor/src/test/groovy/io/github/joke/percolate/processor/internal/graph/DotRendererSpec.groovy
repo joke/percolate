@@ -34,7 +34,7 @@ class DotRendererSpec extends Specification {
         given:
         graph.apply(new AddOperation('new Address', Stub(Codegen), 1, false,
                 [port('number', INT), port('street', STRING)],
-                target('addr', STRING), Optional.empty()))
+                target('addr', STRING), Optional.empty(), [] as Set, []))
 
         when:
         def dot = renderer.render(graph.bipartiteView(), scope.encode()) { false }
@@ -54,7 +54,7 @@ class DotRendererSpec extends Specification {
         graph.apply(new AddOperation('assign', Stub(Codegen), 0, false,
                 [new PortBinding(new Port('value', STRING, Nullability.NULLABLE),
                         new AddValue(scope, new SourceLocation(AccessPath.of('s')), STRING, Nullability.NULLABLE))],
-                target('name', STRING), Optional.empty()))
+                target('name', STRING), Optional.empty(), [] as Set, []))
 
         when:
         def dot = renderer.render(graph.bipartiteView(), scope.encode()) { false }
@@ -69,7 +69,7 @@ class DotRendererSpec extends Specification {
     def 'unreachable vertices are dimmed (grey, dashed) while reachable ones are not'() {
         given:
         graph.apply(new AddOperation('new Address', Stub(Codegen), 1, false,
-                [port('street', STRING)], target('addr', STRING), Optional.empty()))
+                [port('street', STRING)], target('addr', STRING), Optional.empty(), [] as Set, []))
 
         when: 'every Operation is marked unreachable'
         def dot = renderer.render(graph.bipartiteView(), scope.encode()) { it instanceof Operation }

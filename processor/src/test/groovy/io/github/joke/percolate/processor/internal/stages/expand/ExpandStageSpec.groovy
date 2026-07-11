@@ -1,6 +1,7 @@
 package io.github.joke.percolate.processor.internal.stages.expand
 
 import io.github.joke.percolate.processor.MapperContext
+import io.github.joke.percolate.processor.ProcessorOptions
 import io.github.joke.percolate.processor.model.MapperShape
 import io.github.joke.percolate.processor.nullability.NullabilityResolver
 import io.github.joke.percolate.processor.test.FakeElements
@@ -53,6 +54,7 @@ class ExpandStageSpec extends Specification {
     }
 
     private ExpandStage stage() {
-        new ExpandStage([], [], Stub(Types), Stub(Elements), resolver)
+        new ExpandStage([], [], Stub(Types), Stub(Elements), resolver,
+                new ProcessorOptions(false, [] as Set, false, false, false, Optional.empty()))
     }
 }

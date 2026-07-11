@@ -88,6 +88,29 @@ class IncomingValuesImplSpec extends Specification {
         thrown(IllegalStateException)
     }
 
+    def 'member returns the correct CodeBlock for a known dedup key'() {
+        given:
+        final var member = CodeBlock.of('FORMATTER')
+        final var incoming = new IncomingValuesImpl(List.of(), Map.of(), Map.of('fmt-yyyy-MM-dd', member))
+
+        when:
+        final var result = incoming.member('fmt-yyyy-MM-dd')
+
+        then:
+        result == member
+    }
+
+    def 'member throws for an unregistered dedup key'() {
+        given:
+        final var incoming = new IncomingValuesImpl(List.of(), Map.of(), Map.of())
+
+        when:
+        incoming.member('unknown')
+
+        then:
+        thrown(IllegalStateException)
+    }
+
     def 'of() creates an IncomingValues with a single entry'() {
         given:
         final var cb = CodeBlock.of('singleValue')

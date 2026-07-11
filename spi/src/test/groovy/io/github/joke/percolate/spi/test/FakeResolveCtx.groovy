@@ -39,6 +39,7 @@ class FakeResolveCtx implements ResolveCtx {
     private final Map<String, TypeElement> namedElements = [:]
     private final Map<TypeElement, String> elementNames = [:]
     private final Map<TypeElement, List<? extends Element>> memberFacts = [:]
+    private Optional<String> configuredTimeZoneFact = Optional.empty()
 
     @Override
     Types types() {
@@ -58,6 +59,16 @@ class FakeResolveCtx implements ResolveCtx {
                 Stream.empty()
             }
         }
+    }
+
+    @Override
+    Optional<String> configuredTimeZone() {
+        configuredTimeZoneFact
+    }
+
+    /** Registers the project-wide default zone the fake reports from {@link #configuredTimeZone()}. */
+    void configuredTimeZone(final String zoneId) {
+        configuredTimeZoneFact = Optional.ofNullable(zoneId)
     }
 
     /** Declares that {@code from} is assignable to {@code to} (e.g. {@code List}'s erasure → {@code Collection}'s). */

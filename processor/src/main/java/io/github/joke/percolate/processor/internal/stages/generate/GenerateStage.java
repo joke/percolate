@@ -23,8 +23,8 @@ public final class GenerateStage implements Stage {
         }
 
         try {
-            final var bodies = buildMethodBodies.build(ctx);
-            assembleMapperType.assemble(ctx, bodies);
+            final var methodBodies = buildMethodBodies.build(ctx);
+            assembleMapperType.assemble(ctx, methodBodies);
         } catch (final Throwable t) {
             diagnostics.error(ctx.getMapperType(), "code generation failed: " + t.getMessage());
         }

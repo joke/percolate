@@ -15,18 +15,18 @@ class BindingDirectiveSpec extends Specification {
 
     def 'splits a dotted source path into its segments'() {
         expect:
-        BindingDirective.from(directive('person.address.street', null, null)).sourcePath() ==
+        BindingDirective.from(directive('person.address.street', null, null, null, null)).sourcePath() ==
                 ['person', 'address', 'street']
     }
 
     def 'a single-segment source yields a one-element path'() {
         expect:
-        BindingDirective.from(directive('name', null, null)).sourcePath() == ['name']
+        BindingDirective.from(directive('name', null, null, null, null)).sourcePath() == ['name']
     }
 
     def 'an absent or empty source yields an empty path'() {
         expect:
-        BindingDirective.from(directive(source, null, null)).sourcePath() == []
+        BindingDirective.from(directive(source, null, null, null, null)).sourcePath() == []
 
         where:
         source << [null, '']
@@ -34,7 +34,7 @@ class BindingDirectiveSpec extends Specification {
 
     def 'constant and defaultValue are carried as present Optionals when set (empty string is present)'() {
         when:
-        def directive = BindingDirective.from(directive(null, '', 'fallback'))
+        def directive = BindingDirective.from(directive(null, '', 'fallback', null, null))
 
         then:
         directive.constant() == Optional.of('')
@@ -44,14 +44,33 @@ class BindingDirectiveSpec extends Specification {
 
     def 'constant and defaultValue are empty Optionals when absent'() {
         when:
-        def directive = BindingDirective.from(directive('a', null, null))
+        def directive = BindingDirective.from(directive('a', null, null, null, null))
 
         then:
         directive.constant() == Optional.empty()
         directive.defaultValue() == Optional.empty()
     }
 
-    private static MappingDirective directive(final String source, final String constant, final String defaultValue) {
-        new MappingDirective('target', source, constant, defaultValue, null, null, null, null, null)
+    def 'format and zone are carried as present Optionals when set (empty string is present)'() {
+        when:
+        def directive = BindingDirective.from(directive(null, null, null, '', 'Europe/Berlin'))
+
+        then:
+        directive.format() == Optional.of('')
+        directive.zone() == Optional.of('Europe/Berlin')
+    }
+
+    def 'format and zone are empty Optionals when absent'() {
+        when:
+        def directive = BindingDirective.from(directive('a', null, null, null, null))
+
+        then:
+        directive.format() == Optional.empty()
+        directive.zone() == Optional.empty()
+    }
+
+    private static MappingDirective directive(final String source, final String constant, final String defaultValue,
+                                               final String format, final String zone) {
+        new MappingDirective('target', source, constant, defaultValue, format, zone, null, null, null, null, null, null, null)
     }
 }

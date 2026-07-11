@@ -28,13 +28,14 @@ class GenerateStageSpec extends Specification {
     def 'a clean, fully-realised mapper is built and then assembled'() {
         given:
         diagnostics.hasErrorsFor(mapperType) >> false
+        def methodBodies = new MethodBodies([], [])
 
         when:
         stage.run(ctx)
 
         then:
-        1 * buildMethodBodies.build(ctx) >> []
-        1 * assembleMapperType.assemble(ctx, [])
+        1 * buildMethodBodies.build(ctx) >> methodBodies
+        1 * assembleMapperType.assemble(ctx, methodBodies)
         0 * diagnostics.error(*_)
     }
 

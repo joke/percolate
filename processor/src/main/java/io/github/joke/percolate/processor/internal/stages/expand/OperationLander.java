@@ -37,7 +37,9 @@ final class OperationLander {
                                 child.getElementIn(),
                                 child.getElementInNullness(),
                                 child.getElementOut(),
-                                child.getElementOutNullness()))));
+                                child.getElementOutNullness())),
+                spec.getConsumedOptionKeys(),
+                spec.getMemberRequests()));
     }
 
     /** Applies {@code delta}, landing its Operation vertex and port/output edges atomically. */

@@ -36,6 +36,13 @@ class BuiltinServiceRegistrationSpec extends Specification {
         discovered.contains('io.github.joke.percolate.spi.builtins.GetterPathResolver')
         discovered.contains('io.github.joke.percolate.spi.builtins.FieldPathResolver')
         discovered.contains('io.github.joke.percolate.spi.builtins.MethodPathResolver')
+
+        // Temporal hubs + zone bridge + format (change add-temporal-type-mapping)
+        discovered.contains('io.github.joke.percolate.spi.builtins.AbsoluteTemporalConversion')
+        discovered.contains('io.github.joke.percolate.spi.builtins.LocalTemporalConversion')
+        discovered.contains('io.github.joke.percolate.spi.builtins.InstantLocalDateTimeBridge')
+        discovered.contains('io.github.joke.percolate.spi.builtins.TemporalFormat')
+        discovered.contains('io.github.joke.percolate.spi.builtins.LegacyTemporalFormat')
     }
 
     def 'the retired per-operation and per-SPI builtins are gone'() {
