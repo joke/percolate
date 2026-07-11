@@ -52,4 +52,4 @@
 
 - [x] 7.1 Run `./gradlew check` and fix every violation (tests, jacoco 95% gate, ArchUnit, PMD/error-prone, CodeNarc). NEVER continue with violations.
 - [x] 7.2 Run pitest on the affected modules (`:processor:pitest`, `:strategies-builtin:pitest`) with cleared history; confirm the ratchet holds for the new classes.
-- [ ] 7.3 Commit the completed change with `/commit-commands:commit`.
+- [x] 7.3 Commit the completed change with `/commit-commands:commit`.
