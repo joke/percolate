@@ -22,6 +22,19 @@ with a real before/after of its generated effect.
 | `false`
 | Declares every hoisted local with `var` instead of its explicit type.
 
+| `percolate.parameters.final`
+| `false`
+| Declares every generated method's parameters `final`.
+
+| `percolate.methods.final`
+| `false`
+| Declares every generated `@Override` method `final`.
+
+| `percolate.classes.final`
+| `false`
+| Declares the generated `<Mapper>Impl` class `final`. **Changed default**: previously the generated class
+  was unconditionally `final`; it is now `final` only when this option is set.
+
 | `percolate.nullable.annotations`
 | _(none)_
 | A comma-separated list of additional `@Nullable` annotation FQNs to recognise, alongside JSpecify's own.
@@ -37,7 +50,8 @@ with a real before/after of its generated effect.
   whenever a binding declares no `@Map(zone = …)` of its own.
 |===
 
-The `docTags`, `locals.final`, and `locals.var` examples below all compile the same small mapper:
+The `docTags`, `locals.final`, `locals.var`, `parameters.final`, `methods.final`, and `classes.final`
+examples below all compile the same small mapper:
 
 [source,java]
 ----
@@ -77,6 +91,55 @@ The same hoisted locals, declared with `var` instead of an explicit type:
 [source,java]
 ----
 include::example$switches/locals-var/ProductMapperImpl.java[tag=map]
+----
+
+== `percolate.parameters.final`
+
+Off by default — a generated method's parameters carry no `final`:
+
+[source,java]
+----
+include::example$switches/parameters-final-off/ProductMapperImpl.java[tag=map]
+----
+
+With the option on, every parameter is declared `final`:
+
+[source,java]
+----
+include::example$switches/parameters-final-on/ProductMapperImpl.java[tag=map]
+----
+
+== `percolate.methods.final`
+
+Off by default:
+
+[source,java]
+----
+include::example$switches/methods-final-off/ProductMapperImpl.java[tag=map]
+----
+
+With the option on, the generated `@Override` method is declared `final`:
+
+[source,java]
+----
+include::example$switches/methods-final-on/ProductMapperImpl.java[tag=map]
+----
+
+== `percolate.classes.final`
+
+Off by default — this is a **changed default**: prior to this option existing, the generated class was
+always `final`:
+
+[source,java]
+----
+include::example$switches/classes-final-off/ProductMapperImpl.java[]
+----
+
+With the option on, the generated class is declared `final`, matching the old unconditional behaviour:
+
+[source,java]
+----
+include::example$switches/classes-final-on/ProductMapperImpl.java[]
 ----
 
 == `percolate.nullable.annotations`

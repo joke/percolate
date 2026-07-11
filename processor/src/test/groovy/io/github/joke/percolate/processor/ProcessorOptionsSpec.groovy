@@ -55,7 +55,17 @@ class ProcessorOptionsSpec extends Specification {
     def 'the custom nullable set is an immutable copy decoupled from the caller-supplied set'() {
         given:
         def input = ['com.example.Nullable'] as Set
-        def options = new ProcessorOptions(false, input, false, false, false, Optional.empty())
+        def options = ProcessorOptions.builder()
+                .debugGraphs(false)
+                .customNullableAnnotations(input)
+                .localsFinal(false)
+                .localsVar(false)
+                .parametersFinal(false)
+                .methodsFinal(false)
+                .classesFinal(false)
+                .docTags(false)
+                .timeZone(Optional.empty())
+                .build()
 
         when:
         input << 'added.after.construction'
@@ -123,16 +133,43 @@ class ProcessorOptionsSpec extends Specification {
         options.localsVar
     }
 
-    def 'PercolateProcessor advertises exactly the six recognised options'() {
+    def 'PercolateProcessor advertises exactly the nine recognised options'() {
         expect:
         new PercolateProcessor().supportedOptions == [
                 'percolate.debug.graphs',
                 'percolate.nullable.annotations',
                 'percolate.locals.final',
                 'percolate.locals.var',
+                'percolate.parameters.final',
+                'percolate.methods.final',
+                'percolate.classes.final',
                 'percolate.docTags',
                 'percolate.time.zone'
         ] as Set
+    }
+
+    def 'parameters.final, methods.final and classes.final default to false when absent'() {
+        when:
+        def options = ProcessorOptions.from([:])
+
+        then:
+        !options.parametersFinal
+        !options.methodsFinal
+        !options.classesFinal
+    }
+
+    def 'percolate.parameters.final, percolate.methods.final and percolate.classes.final parse the true flag'() {
+        when:
+        def options = ProcessorOptions.from([
+                'percolate.parameters.final': 'true',
+                'percolate.methods.final'   : 'true',
+                'percolate.classes.final'   : 'true'
+        ])
+
+        then:
+        options.parametersFinal
+        options.methodsFinal
+        options.classesFinal
     }
 
     def 'absent percolate.time.zone yields an empty timeZone'() {

@@ -110,7 +110,7 @@ class ProcessorModuleSpec extends Specification {
 
     def 'nullabilityAnnotations returns the jspecify defaults when no custom annotations are configured'() {
         given:
-        def options = new ProcessorOptions(false, [] as Set, false, false, false, Optional.empty())
+        def options = defaultOptions()
 
         expect:
         module.nullabilityAnnotations(options).nullableFqns == ['org.jspecify.annotations.Nullable'] as Set
@@ -118,7 +118,7 @@ class ProcessorModuleSpec extends Specification {
 
     def 'nullabilityAnnotations merges the custom nullable FQNs onto the defaults, keeping the marked/unmarked sets'() {
         given:
-        def options = new ProcessorOptions(false, ['com.example.Nullable'] as Set, false, false, false, Optional.empty())
+        def options = defaultOptions(['com.example.Nullable'] as Set)
         def annotations = module.nullabilityAnnotations(options)
 
         expect:
@@ -138,13 +138,13 @@ class ProcessorModuleSpec extends Specification {
     def 'expandStage assembles an ExpandStage from the injected collaborators'() {
         expect:
         module.expandStage([], [], Mock(Types), Mock(Elements), Mock(NullabilityResolver),
-                new ProcessorOptions(false, [] as Set, false, false, false, Optional.empty())) instanceof ExpandStage
+                defaultOptions()) instanceof ExpandStage
     }
 
     def 'assembleExpansionPipeline constructs an ExpandStage'() {
         expect:
         ProcessorModule.assembleExpansionPipeline([], [], Mock(Types), Mock(Elements), Mock(NullabilityResolver),
-                new ProcessorOptions(false, [] as Set, false, false, false, Optional.empty())) instanceof ExpandStage
+                defaultOptions()) instanceof ExpandStage
     }
 
     def 'discoverStages lists abstract-methods, mappings, then callable-methods in order'() {
@@ -188,5 +188,19 @@ class ProcessorModuleSpec extends Specification {
                 dumpFullGraph, dumpTransforms, dumpPlan,
                 generate
         ]
+    }
+
+    private static ProcessorOptions defaultOptions(customNullableAnnotations = [] as Set) {
+        ProcessorOptions.builder()
+                .debugGraphs(false)
+                .customNullableAnnotations(customNullableAnnotations)
+                .localsFinal(false)
+                .localsVar(false)
+                .parametersFinal(false)
+                .methodsFinal(false)
+                .classesFinal(false)
+                .docTags(false)
+                .timeZone(Optional.empty())
+                .build()
     }
 }

@@ -2,6 +2,7 @@ package io.github.joke.percolate.processor.internal.stages.generate
 
 import com.palantir.javapoet.CodeBlock
 import io.github.joke.percolate.processor.MapperContext
+import io.github.joke.percolate.processor.ProcessorOptions
 import io.github.joke.percolate.processor.test.fixtures.CallableFixtures
 import io.github.joke.percolate.processor.test.fixtures.DirectiveFixtures
 import io.github.joke.percolate.processor.test.fixtures.Human
@@ -19,9 +20,11 @@ import javax.tools.JavaFileObject
 
 /**
  * {@link AssembleMapperType} seam, unit-tested directly: it assembles a {@code <Name>Impl} type in the mapper's
- * package — public final, {@code @Generated}, an empty constructor, and one {@code @Override} per method body — then
- * writes it via the {@link Filer}. The written source is captured through a stub Filer/Writer. Real mapper types come
- * from {@link PrivateTypeUniverse}, exercising the interface ({@code implements}) vs class ({@code extends}) branch.
+ * package — public (final iff {@code percolate.classes.final}), {@code @Generated}, an empty constructor, and one
+ * {@code @Override} per method body (final iff {@code percolate.methods.final}, its parameters final iff
+ * {@code percolate.parameters.final}) — then writes it via the {@link Filer}. The written source is captured through
+ * a stub Filer/Writer. Real mapper types come from {@link PrivateTypeUniverse}, exercising the interface
+ * ({@code implements}) vs class ({@code extends}) branch.
  */
 @Tag('unit')
 class AssembleMapperTypeSpec extends Specification {
@@ -32,7 +35,7 @@ class AssembleMapperTypeSpec extends Specification {
     def filer = Mock(Filer) {
         createSourceFile(_, _) >> Mock(JavaFileObject) { openWriter() >> writer }
     }
-    def stage = new AssembleMapperType(filer, javac.elements())
+    def stage = stageWith()
 
     def setupSpec() {
         javac.of(Person)
@@ -53,7 +56,7 @@ class AssembleMapperTypeSpec extends Specification {
         writer.toString().contains('void sink(')
     }
 
-    def 'assembles a public final <Name>Impl implementing a @Mapper interface, with a generated annotation'() {
+    def 'assembles a non-final public <Name>Impl implementing a @Mapper interface by default, with a generated annotation'() {
         given:
         def ctx = new MapperContext(javac.of(PersonMapper))
         def bodies = [new MethodImpl(method(PersonMapper, 'map'), CodeBlock.of('return null;\n'), [] as Set)]
@@ -62,19 +65,69 @@ class AssembleMapperTypeSpec extends Specification {
         stage.assemble(ctx, new MethodBodies(bodies, []))
         def source = writer.toString()
 
-        then: 'the impl lives in the mapper package, is public final, generated, and implements the interface'
+        then: 'the impl lives in the mapper package, is public (not final), generated, and implements the interface'
         source.contains('package io.github.joke.percolate.processor.test.fixtures;')
-        source.contains('public final class PersonMapperImpl implements PersonMapper')
+        source.contains('public class PersonMapperImpl implements PersonMapper')
         source.contains('@Generated')
         source.contains('public PersonMapperImpl()')
 
-        and: 'the one method body is emitted as an @Override'
+        and: 'the one method body is emitted as a non-final @Override with a non-final parameter'
         source.contains('@Override')
-        source.contains('map(')
+        source.contains('public Human map(Person arg0)')
         source.contains('return null;')
 
         and: 'a mapper whose strategies requested no members declares no fields'
         !source.contains('private static final')
+    }
+
+    def 'percolate.classes.final renders a final class'() {
+        given:
+        def ctx = new MapperContext(javac.of(PersonMapper))
+        def bodies = [new MethodImpl(method(PersonMapper, 'map'), CodeBlock.of('return null;\n'), [] as Set)]
+
+        when:
+        stageWith(true, false, false).assemble(ctx, new MethodBodies(bodies, []))
+
+        then:
+        writer.toString().contains('public final class PersonMapperImpl implements PersonMapper')
+    }
+
+    def 'percolate.methods.final renders a final method'() {
+        given:
+        def ctx = new MapperContext(javac.of(PersonMapper))
+        def bodies = [new MethodImpl(method(PersonMapper, 'map'), CodeBlock.of('return null;\n'), [] as Set)]
+
+        when:
+        stageWith(false, true, false).assemble(ctx, new MethodBodies(bodies, []))
+
+        then:
+        writer.toString().contains('public final Human map(Person arg0)')
+    }
+
+    def 'percolate.parameters.final renders a final parameter'() {
+        given:
+        def ctx = new MapperContext(javac.of(PersonMapper))
+        def bodies = [new MethodImpl(method(PersonMapper, 'map'), CodeBlock.of('return null;\n'), [] as Set)]
+
+        when:
+        stageWith(false, false, true).assemble(ctx, new MethodBodies(bodies, []))
+
+        then:
+        writer.toString().contains('public Human map(final Person arg0)')
+    }
+
+    def 'the three finality switches compose independently'() {
+        given:
+        def ctx = new MapperContext(javac.of(PersonMapper))
+        def bodies = [new MethodImpl(method(PersonMapper, 'map'), CodeBlock.of('return null;\n'), [] as Set)]
+
+        when:
+        stageWith(true, true, false).assemble(ctx, new MethodBodies(bodies, []))
+        def source = writer.toString()
+
+        then:
+        source.contains('public final class PersonMapperImpl implements PersonMapper')
+        source.contains('public final Human map(Person arg0)')
     }
 
     def 'extends (not implements) when the mapper type is a class'() {
@@ -120,5 +173,19 @@ class AssembleMapperTypeSpec extends Specification {
         javac.of(type).enclosedElements.find {
             it.kind == ElementKind.METHOD && it.simpleName.toString() == name
         } as ExecutableElement
+    }
+
+    private AssembleMapperType stageWith(classesFinal = false, methodsFinal = false, parametersFinal = false) {
+        new AssembleMapperType(filer, javac.elements(), ProcessorOptions.builder()
+                .debugGraphs(false)
+                .customNullableAnnotations([] as Set)
+                .localsFinal(false)
+                .localsVar(false)
+                .parametersFinal(parametersFinal)
+                .methodsFinal(methodsFinal)
+                .classesFinal(classesFinal)
+                .docTags(false)
+                .timeZone(Optional.empty())
+                .build())
     }
 }

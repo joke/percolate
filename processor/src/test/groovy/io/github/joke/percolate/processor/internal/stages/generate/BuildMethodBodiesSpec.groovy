@@ -107,7 +107,17 @@ class BuildMethodBodiesSpec extends Specification {
     // ---- helpers ----------------------------------------------------------------------------------------------
 
     private BuildMethodBodies engine(final boolean docTags = false) {
-        new BuildMethodBodies(new ProcessorOptions(false, [] as Set, false, false, docTags, Optional.empty()))
+        new BuildMethodBodies(ProcessorOptions.builder()
+                .debugGraphs(false)
+                .customNullableAnnotations([] as Set)
+                .localsFinal(false)
+                .localsVar(false)
+                .parametersFinal(false)
+                .methodsFinal(false)
+                .classesFinal(false)
+                .docTags(docTags)
+                .timeZone(Optional.empty())
+                .build())
     }
 }
 

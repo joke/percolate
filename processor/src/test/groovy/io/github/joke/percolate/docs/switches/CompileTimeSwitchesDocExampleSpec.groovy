@@ -76,6 +76,64 @@ class CompileTimeSwitchesDocExampleSpec extends Specification {
         materialise('locals-var/ProductMapperImpl.java', content)
     }
 
+    def 'percolate.classes.final declares the generated class final, off by default'() {
+        when:
+        Compilation off = PercolateCompiler.compileWith(['-Apercolate.docTags=true'], PRODUCT_MAPPER)
+        Compilation on = PercolateCompiler.compileWith(
+                ['-Apercolate.docTags=true', '-Apercolate.classes.final=true'], PRODUCT_MAPPER)
+
+        then:
+        off.errors().empty
+        on.errors().empty
+        def offContent = sourceOf(off, 'examples.switches.ProductMapperImpl')
+        def onContent = sourceOf(on, 'examples.switches.ProductMapperImpl')
+        offContent.contains('public class ProductMapperImpl')
+        !offContent.contains('public final class ProductMapperImpl')
+        onContent.contains('public final class ProductMapperImpl')
+
+        and:
+        materialise('classes-final-off/ProductMapperImpl.java', offContent)
+        materialise('classes-final-on/ProductMapperImpl.java', onContent)
+    }
+
+    def 'percolate.methods.final declares each generated method final, off by default'() {
+        when:
+        Compilation off = PercolateCompiler.compileWith(['-Apercolate.docTags=true'], PRODUCT_MAPPER)
+        Compilation on = PercolateCompiler.compileWith(
+                ['-Apercolate.docTags=true', '-Apercolate.methods.final=true'], PRODUCT_MAPPER)
+
+        then:
+        off.errors().empty
+        on.errors().empty
+        def offContent = sourceOf(off, 'examples.switches.ProductMapperImpl')
+        def onContent = sourceOf(on, 'examples.switches.ProductMapperImpl')
+        !offContent.contains('public final ProductView map(')
+        onContent.contains('public final ProductView map(')
+
+        and:
+        materialise('methods-final-off/ProductMapperImpl.java', offContent)
+        materialise('methods-final-on/ProductMapperImpl.java', onContent)
+    }
+
+    def 'percolate.parameters.final declares each generated method parameter final, off by default'() {
+        when:
+        Compilation off = PercolateCompiler.compileWith(['-Apercolate.docTags=true'], PRODUCT_MAPPER)
+        Compilation on = PercolateCompiler.compileWith(
+                ['-Apercolate.docTags=true', '-Apercolate.parameters.final=true'], PRODUCT_MAPPER)
+
+        then:
+        off.errors().empty
+        on.errors().empty
+        def offContent = sourceOf(off, 'examples.switches.ProductMapperImpl')
+        def onContent = sourceOf(on, 'examples.switches.ProductMapperImpl')
+        !offContent.contains('map(final Product')
+        onContent.contains('map(final Product')
+
+        and:
+        materialise('parameters-final-off/ProductMapperImpl.java', offContent)
+        materialise('parameters-final-on/ProductMapperImpl.java', onContent)
+    }
+
     def 'percolate.nullable.annotations registers a third-party @Nullable as a nullness marker'() {
         when:
         Compilation unregistered = PercolateCompiler.compileWith(

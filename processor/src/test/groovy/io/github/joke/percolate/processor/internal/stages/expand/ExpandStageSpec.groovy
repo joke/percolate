@@ -55,6 +55,16 @@ class ExpandStageSpec extends Specification {
 
     private ExpandStage stage() {
         new ExpandStage([], [], Stub(Types), Stub(Elements), resolver,
-                new ProcessorOptions(false, [] as Set, false, false, false, Optional.empty()))
+                ProcessorOptions.builder()
+                        .debugGraphs(false)
+                        .customNullableAnnotations([] as Set)
+                        .localsFinal(false)
+                        .localsVar(false)
+                        .parametersFinal(false)
+                        .methodsFinal(false)
+                        .classesFinal(false)
+                        .docTags(false)
+                        .timeZone(Optional.empty())
+                        .build())
     }
 }
