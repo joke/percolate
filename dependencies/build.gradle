@@ -22,7 +22,7 @@ dependencies {
         api 'com.palantir.javapoet:javapoet:0.16.0'
         api 'com.tngtech.archunit:archunit:1.4.1'
         api 'io.projectreactor:reactor-core:3.7.0'
-        api 'net.bytebuddy:byte-buddy:1.18.7'
+        api 'net.bytebuddy:byte-buddy:1.18.11'
         api 'org.assertj:assertj-core:3.27.3'
         api 'org.codenarc:CodeNarc:3.7.0-groovy-4.0'
         api 'org.jetbrains:annotations:26.1.0'
