@@ -1,0 +1,48 @@
+plugins {
+    id 'java-library'
+    id 'com.gradleup.shadow'
+    id 'maven-publish'
+}
+
+// Source-free relocation module (design D1/D3/D4): shades com.palantir.javapoet:javapoet into
+// io.github.joke.percolate.javapoet so spi/processor/strategies never share the exact upstream
+// package with a foreign annotation processor on the same processorpath. The upstream jar is a
+// compileOnly (never api/implementation) input, so it never reaches apiElements/runtimeElements'
+// dependency set — that keeps the published POM free of a com.palantir.javapoet dependency (the
+// swallow invariant) while shadowJar still bundles+relocates its classes.
+dependencies {
+    compileOnly platform(project(':dependencies'))
+    compileOnly 'com.palantir.javapoet:javapoet'
+}
+
+tasks.named('shadowJar') {
+    archiveClassifier.set('')
+    // 'compileOnly' itself is not resolvable; 'compileClasspath' is the resolvable configuration
+    // that extends it, carrying the exact same (single) upstream dependency.
+    configurations.set([project.configurations.compileClasspath])
+    relocate 'com.palantir.javapoet', 'io.github.joke.percolate.javapoet'
+}
+
+// Shadow's own optional variant (SHADOW_RUNTIME_ELEMENTS) is not used: it would carry the 'shadow'
+// configuration's dependencies verbatim, reintroducing the exact upstream dependency the swallow
+// invariant forbids. Instead, apiElements/runtimeElements (whose dependency set derives only from
+// api/implementation - both empty here) are redirected to publish the relocated shadowJar directly.
+shadow {
+    addShadowVariantIntoJavaComponent = false
+}
+
+configurations {
+    apiElements {
+        outgoing.artifacts.clear()
+        outgoing.artifact(tasks.shadowJar)
+    }
+    runtimeElements {
+        outgoing.artifacts.clear()
+        outgoing.artifact(tasks.shadowJar)
+    }
+}
+
+// No source, no tests: nothing for branch-coverage verification to measure.
+tasks.named('jacocoTestCoverageVerification') {
+    enabled = false
+}

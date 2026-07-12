@@ -1,6 +1,6 @@
 package io.github.joke.percolate.processor.internal.stages.generate
 
-import com.palantir.javapoet.CodeBlock
+import io.github.joke.percolate.javapoet.CodeBlock
 import io.github.joke.percolate.processor.MapperContext
 import io.github.joke.percolate.processor.ProcessorOptions
 import io.github.joke.percolate.processor.test.fixtures.CallableFixtures
@@ -146,12 +146,12 @@ class AssembleMapperTypeSpec extends Specification {
         given:
         def ctx = new MapperContext(javac.of(PersonMapper))
         def bodies = [new MethodImpl(method(PersonMapper, 'map'), CodeBlock.of('return null;\n'), [] as Set)]
-        def field = com.palantir.javapoet.FieldSpec.builder(
-                com.palantir.javapoet.ClassName.get('java.time.format', 'DateTimeFormatter'),
+        def field = io.github.joke.percolate.javapoet.FieldSpec.builder(
+                io.github.joke.percolate.javapoet.ClassName.get('java.time.format', 'DateTimeFormatter'),
                 'DATE_TIME_FORMATTER',
                 javax.lang.model.element.Modifier.PRIVATE, javax.lang.model.element.Modifier.STATIC,
                 javax.lang.model.element.Modifier.FINAL)
-                .initializer('$T.ofPattern($S)', com.palantir.javapoet.ClassName.get('java.time.format', 'DateTimeFormatter'), 'yyyy-MM-dd')
+                .initializer('$T.ofPattern($S)', io.github.joke.percolate.javapoet.ClassName.get('java.time.format', 'DateTimeFormatter'), 'yyyy-MM-dd')
                 .build()
 
         when:

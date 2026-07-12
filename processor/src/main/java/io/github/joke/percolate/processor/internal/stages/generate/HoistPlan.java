@@ -1,7 +1,7 @@
 package io.github.joke.percolate.processor.internal.stages.generate;
 
-import com.palantir.javapoet.CodeBlock;
-import com.palantir.javapoet.NameAllocator;
+import io.github.joke.percolate.javapoet.CodeBlock;
+import io.github.joke.percolate.javapoet.NameAllocator;
 import io.github.joke.percolate.processor.internal.graph.ExtractedPlan;
 import io.github.joke.percolate.processor.internal.graph.MapperGraph;
 import io.github.joke.percolate.processor.internal.graph.Operation;

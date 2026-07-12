@@ -62,7 +62,7 @@ class MethodCallBridgeSpec extends Specification {
         param.asType() >> paramType
         ctx.isAssignable(target, target) >> true
         ctx.isSameType(target, target) >> true
-        receiver.asExpression() >> com.palantir.javapoet.CodeBlock.of('obj')
+        receiver.asExpression() >> io.github.joke.percolate.javapoet.CodeBlock.of('obj')
 
         when:
         def specs = new MethodCallBridge().expand(Demands.forTarget(target), ctx).toList()

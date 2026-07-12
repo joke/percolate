@@ -1,6 +1,6 @@
 package io.github.joke.percolate.spi.builtins;
 
-import com.palantir.javapoet.CodeBlock;
+import io.github.joke.percolate.javapoet.CodeBlock;
 import io.github.joke.percolate.spi.ResolveCtx;
 import java.util.Optional;
 import java.util.stream.Collectors;

@@ -8,7 +8,7 @@ This spec defines the strategy author surface for the expansion engine: immutabl
 
 ### Requirement: SPI package isolation
 
-The percolate-spi Gradle module SHALL ship a package `io.github.joke.percolate.spi` containing exactly the strategy-author surface: two author interfaces (`ExpansionStrategy` and the source-facing `SourceProjection`) plus the `Container` base and the `Conversion` / `Accessor` archetype bases; the immutable result/context types (`OperationSpec`, `Port`, `PortType`, `Demand`, `Directive`, `ChildScopeSpec`, `Nullability`); the `ResolveCtx` interface; the codegen interfaces (`Codegen`, `OperationCodegen`, `ScopeCodegen`, `IncomingValues`); the `Receiver` / `ThisReceiver` / `CallableMethods` / `MethodCandidate` types; the `LiteralCoercion` helper; and the `TypeProbe`, `Containers`, and `Weights` utilities. The module SHALL depend only on JDK types plus `com.palantir.javapoet` (because `CodeBlock` is part of the codegen interface surface). It SHALL NOT depend on `percolate-annotations` or `percolate-processor`.
+The percolate-spi Gradle module SHALL ship a package `io.github.joke.percolate.spi` containing exactly the strategy-author surface: two author interfaces (`ExpansionStrategy` and the source-facing `SourceProjection`) plus the `Container` base and the `Conversion` / `Accessor` archetype bases; the immutable result/context types (`OperationSpec`, `Port`, `PortType`, `Demand`, `Directive`, `ChildScopeSpec`, `Nullability`); the `ResolveCtx` interface; the codegen interfaces (`Codegen`, `OperationCodegen`, `ScopeCodegen`, `IncomingValues`); the `Receiver` / `ThisReceiver` / `CallableMethods` / `MethodCandidate` types; the `LiteralCoercion` helper; and the `TypeProbe`, `Containers`, and `Weights` utilities. The module SHALL depend only on JDK types plus the relocated `percolate-javapoet` module — the codegen interface surface's `CodeBlock` is `io.github.joke.percolate.javapoet.CodeBlock` (see `javapoet-relocation`). It SHALL NOT depend on `com.palantir.javapoet`, `percolate-annotations`, or `percolate-processor`.
 
 The package SHALL NOT contain `ExpansionStep`, `Slot`, `Frontier`, `EdgeCodegen`, `GroupCodegen`, `VarNames`, `Intent`, `ElementScope`, `Bridge`, `GroupTarget`, `PathSegmentResolver`, `BridgeStep`, `GroupBuild`, `ResolvedSegment`, `ScopeTransition`, `SourceStep`, `Step`, or `ElementSeed` — these are removed or replaced by the unified `OperationSpec` / `Port` / `Demand` / `OperationCodegen` surface.
 
@@ -35,7 +35,7 @@ Built-in strategies SHALL ship from a separate Gradle module `percolate-strategi
 #### Scenario: SPI module has no dependency on annotations or processor
 - **WHEN** `spi/build.gradle` is inspected
 - **THEN** it declares neither `project(':annotations')` nor `project(':processor')` on any `compile` / `implementation` / `api` configuration
-- **AND** its only non-JDK `api` dependency is `com.palantir.javapoet:javapoet`
+- **AND** its only non-JDK `api` dependency is `project(':percolate-javapoet')`, and it declares no dependency on `com.palantir.javapoet:javapoet`
 
 ### Requirement: ExpansionStrategy interface
 
@@ -192,7 +192,7 @@ processor SHALL NOT use a `ThreadLocal` to back any accessor.
 The production implementation (`CompileResolveCtx`) SHALL be the **only** engine-side type code that
 touches real javac to answer a seam question — it delegates each seam method to `Types`/`Elements`. A
 strategy author SHALL be able to write a complete strategy by importing only
-`io.github.joke.percolate.spi.*`, `com.palantir.javapoet.*`, and JDK types — **no `javax.lang.model` import
+`io.github.joke.percolate.spi.*`, `io.github.joke.percolate.javapoet.*`, and JDK types — **no `javax.lang.model` import
 is needed to ask a type question** (though a strategy MAY still hold a `TypeMirror`/`Element` value as an
 opaque token without importing `Types`/`Elements`).
 

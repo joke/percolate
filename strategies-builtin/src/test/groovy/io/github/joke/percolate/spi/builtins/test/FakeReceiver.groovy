@@ -1,6 +1,6 @@
 package io.github.joke.percolate.spi.builtins.test
 
-import com.palantir.javapoet.CodeBlock
+import io.github.joke.percolate.javapoet.CodeBlock
 import io.github.joke.percolate.spi.Receiver
 
 final class FakeReceiver implements Receiver {

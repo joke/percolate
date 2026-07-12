@@ -61,8 +61,14 @@ class ModuleBoundariesSpec extends Specification {
     JavaClasses imported
 
     def setupSpec() {
+        // Change relocate-javapoet-as-spi-api: the relocated io.github.joke.percolate.javapoet
+        // package sits under ROOT purely to avoid a foreign processorpath package clash - it is
+        // third-party JavaPoet internals, not percolate's own code, so it is excluded from every
+        // rule below (e.g. its own visitor classes legitimately extend javax.lang.model.util types).
+        ImportOption notJavaPoetRelocation = { location -> !location.contains('/io/github/joke/percolate/javapoet/') }
         imported = new ClassFileImporter()
                 .withImportOption(ImportOption.Predefined.DO_NOT_INCLUDE_TESTS)
+                .withImportOption(notJavaPoetRelocation)
                 .importPackages(ROOT)
     }
 

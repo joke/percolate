@@ -1,6 +1,6 @@
 package io.github.joke.percolate.spi;
 
-import com.palantir.javapoet.CodeBlock;
+import io.github.joke.percolate.javapoet.CodeBlock;
 import java.util.List;
 import java.util.Optional;
 import java.util.stream.Stream;

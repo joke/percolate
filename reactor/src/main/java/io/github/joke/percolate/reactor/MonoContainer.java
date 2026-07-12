@@ -1,7 +1,7 @@
 package io.github.joke.percolate.reactor;
 
 import com.google.auto.service.AutoService;
-import com.palantir.javapoet.CodeBlock;
+import io.github.joke.percolate.javapoet.CodeBlock;
 import io.github.joke.percolate.spi.Container;
 import io.github.joke.percolate.spi.ExpansionStrategy;
 import io.github.joke.percolate.spi.ResolveCtx;

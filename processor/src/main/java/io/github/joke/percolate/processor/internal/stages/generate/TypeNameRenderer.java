@@ -1,6 +1,6 @@
 package io.github.joke.percolate.processor.internal.stages.generate;
 
-import com.palantir.javapoet.TypeName;
+import io.github.joke.percolate.javapoet.TypeName;
 import javax.lang.model.type.TypeMirror;
 
 /**

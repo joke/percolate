@@ -1,12 +1,12 @@
 package io.github.joke.percolate.processor.internal.stages.generate;
 
-import com.palantir.javapoet.AnnotationSpec;
-import com.palantir.javapoet.ClassName;
-import com.palantir.javapoet.JavaFile;
-import com.palantir.javapoet.MethodSpec;
-import com.palantir.javapoet.ParameterSpec;
-import com.palantir.javapoet.TypeName;
-import com.palantir.javapoet.TypeSpec;
+import io.github.joke.percolate.javapoet.AnnotationSpec;
+import io.github.joke.percolate.javapoet.ClassName;
+import io.github.joke.percolate.javapoet.JavaFile;
+import io.github.joke.percolate.javapoet.MethodSpec;
+import io.github.joke.percolate.javapoet.ParameterSpec;
+import io.github.joke.percolate.javapoet.TypeName;
+import io.github.joke.percolate.javapoet.TypeSpec;
 import io.github.joke.percolate.processor.MapperContext;
 import io.github.joke.percolate.processor.ProcessorOptions;
 import jakarta.inject.Inject;

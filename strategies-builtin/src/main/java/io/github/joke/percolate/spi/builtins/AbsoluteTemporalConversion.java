@@ -1,8 +1,8 @@
 package io.github.joke.percolate.spi.builtins;
 
 import com.google.auto.service.AutoService;
-import com.palantir.javapoet.ClassName;
-import com.palantir.javapoet.CodeBlock;
+import io.github.joke.percolate.javapoet.ClassName;
+import io.github.joke.percolate.javapoet.CodeBlock;
 import io.github.joke.percolate.spi.Conversion;
 import io.github.joke.percolate.spi.ExpansionStrategy;
 import io.github.joke.percolate.spi.OperationCodegen;

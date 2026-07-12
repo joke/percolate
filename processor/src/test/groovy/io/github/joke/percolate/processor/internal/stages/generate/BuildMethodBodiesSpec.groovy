@@ -1,7 +1,7 @@
 package io.github.joke.percolate.processor.internal.stages.generate
 
-import com.palantir.javapoet.ClassName
-import com.palantir.javapoet.CodeBlock
+import io.github.joke.percolate.javapoet.ClassName
+import io.github.joke.percolate.javapoet.CodeBlock
 import io.github.joke.percolate.processor.MapperContext
 import io.github.joke.percolate.processor.ProcessorOptions
 import io.github.joke.percolate.processor.internal.graph.AccessPath

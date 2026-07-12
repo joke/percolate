@@ -243,8 +243,11 @@ subprojects { project ->
 
     // Consumer-facing Maven publication. Applied only by modules that opt into 'maven-publish'.
     // The starter publishes as 'percolate'; every other publishable module as 'percolate-<name>'.
+    // percolate-javapoet already carries its published name as the project name, so it is exempt
+    // from the prefix (matching the starter's own exemption) rather than becoming 'percolate-percolate-javapoet'.
     pluginManager.withPlugin('maven-publish') {
-        def publishedArtifactId = project.name == 'percolate' ? 'percolate' : "percolate-${project.name}"
+        def selfNamedArtifacts = ['percolate', 'percolate-javapoet']
+        def publishedArtifactId = selfNamedArtifacts.contains(project.name) ? project.name : "percolate-${project.name}"
         pluginManager.withPlugin('java') {
             publishing {
                 publications {

@@ -2,8 +2,8 @@ package io.github.joke.percolate.processor.internal.stages.generate;
 
 import static java.util.stream.Collectors.toUnmodifiableList;
 
-import com.palantir.javapoet.CodeBlock;
-import com.palantir.javapoet.TypeName;
+import io.github.joke.percolate.javapoet.CodeBlock;
+import io.github.joke.percolate.javapoet.TypeName;
 import io.github.joke.percolate.processor.MapperContext;
 import io.github.joke.percolate.processor.ProcessorOptions;
 import io.github.joke.percolate.processor.internal.graph.ChildScope;

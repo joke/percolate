@@ -2,7 +2,7 @@
 
 Defines the strategy-author surface for percolate: `Bridge`, `SourceStep`, `GroupTarget`, plus value types (`Step`, `BridgeStep`, `Slot`, `GroupBuild`, `ElementSeed`), codegen abstractions (`EdgeCodegen`, `GroupCodegen`, `Receiver`, `ThisReceiver`, `VarNames`, `IncomingValues`), and utilities (`Containers`, `Weights`).
 
-The module depends only on the JDK and `com.palantir.javapoet:javapoet` (because `CodeBlock` is part of the strategy contract). It does NOT depend on `percolate-annotations` or `percolate-processor`.
+The module depends only on the JDK and the relocated `percolate-javapoet` (`io.github.joke.percolate.javapoet.CodeBlock` is part of the strategy contract). It does NOT depend on `percolate-annotations` or `percolate-processor`.
 
 Third-party strategy authors need only this module at compile time:
 

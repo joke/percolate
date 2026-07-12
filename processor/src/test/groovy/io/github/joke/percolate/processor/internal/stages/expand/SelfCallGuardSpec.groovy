@@ -1,6 +1,6 @@
 package io.github.joke.percolate.processor.internal.stages.expand
 
-import com.palantir.javapoet.CodeBlock
+import io.github.joke.percolate.javapoet.CodeBlock
 import io.github.joke.percolate.processor.internal.graph.AccessPath
 import io.github.joke.percolate.processor.internal.graph.AddValue
 import io.github.joke.percolate.processor.internal.graph.MethodScope

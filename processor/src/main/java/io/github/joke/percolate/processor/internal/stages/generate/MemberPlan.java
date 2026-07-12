@@ -5,11 +5,11 @@ import static javax.lang.model.element.Modifier.FINAL;
 import static javax.lang.model.element.Modifier.PRIVATE;
 import static javax.lang.model.element.Modifier.STATIC;
 
-import com.palantir.javapoet.ClassName;
-import com.palantir.javapoet.CodeBlock;
-import com.palantir.javapoet.FieldSpec;
-import com.palantir.javapoet.NameAllocator;
-import com.palantir.javapoet.TypeName;
+import io.github.joke.percolate.javapoet.ClassName;
+import io.github.joke.percolate.javapoet.CodeBlock;
+import io.github.joke.percolate.javapoet.FieldSpec;
+import io.github.joke.percolate.javapoet.NameAllocator;
+import io.github.joke.percolate.javapoet.TypeName;
 import io.github.joke.percolate.processor.internal.graph.ExtractedPlan;
 import io.github.joke.percolate.processor.internal.graph.MapperGraph;
 import io.github.joke.percolate.processor.internal.graph.Operation;

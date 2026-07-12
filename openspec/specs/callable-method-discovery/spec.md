@@ -128,7 +128,7 @@ public interface Receiver {
 }
 ```
 
-`asExpression()` SHALL return a `com.palantir.javapoet.CodeBlock` that renders the receiver's call-expression form (e.g. `this`, or for a future cross-mapper `FieldReceiver`, `this.fieldName`).
+`asExpression()` SHALL return an `io.github.joke.percolate.javapoet.CodeBlock` (the relocated JavaPoet type) that renders the receiver's call-expression form (e.g. `this`, or for a future cross-mapper `FieldReceiver`, `this.fieldName`).
 
 The processor SHALL ship exactly one v1 implementation: `ThisReceiver`. `ThisReceiver.asExpression()` SHALL return `CodeBlock.of("this")`. `ThisReceiver` is a singleton or stateless instance; the discovery stage attaches it to every `MethodCandidate` produced in v1.
 

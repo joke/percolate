@@ -18,7 +18,7 @@ dependencies {
     implementation platform(project(':dependencies'))
 
     api platform(project(':dependencies'))
-    api 'com.palantir.javapoet:javapoet'
+    api project(':percolate-javapoet')
 
     testFixturesAnnotationProcessor platform(project(':dependencies'))
     testFixturesAnnotationProcessor 'org.projectlombok:lombok'
