@@ -12,18 +12,18 @@ A Java annotation processor that generates bean mappers
 Percolate is a compile-time-only tool: it runs during annotation processing and the generated mappers
 have **no runtime dependency** on percolate. Add the `percolate` convenience starter to your
 `annotationProcessor` configuration — it bundles the engine and the builtin strategies — and the
-annotations to `compileOnly`. Versions are managed by the `percolate-bom` platform.
+annotations to `compileOnly`. Versions are managed by the `bom` platform.
 
 ```groovy
 dependencies {
-    annotationProcessor platform('io.github.joke.percolate:percolate-bom:<version>')
+    annotationProcessor platform('io.github.joke.percolate:bom:<version>')
     annotationProcessor 'io.github.joke.percolate:percolate'
 
-    compileOnly platform('io.github.joke.percolate:percolate-bom:<version>')
-    compileOnly 'io.github.joke.percolate:percolate-annotations'
+    compileOnly platform('io.github.joke.percolate:bom:<version>')
+    compileOnly 'io.github.joke.percolate:annotations'
 
     // optional: reactive (Flux/Mono) container support
-    // annotationProcessor 'io.github.joke.percolate:percolate-reactor'
+    // annotationProcessor 'io.github.joke.percolate:reactor'
 }
 ```
 

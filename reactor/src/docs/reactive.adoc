@@ -1,7 +1,7 @@
 = Reactive containers
 :navtitle: Reactive containers
 
-The optional `percolate-reactor` module adds Project Reactor's `Flux` and `Mono` to the
+The optional `reactor` module adds Project Reactor's `Flux` and `Mono` to the
 xref:collections.adoc[supported container kinds]. Percolate maps them like any other container —
 element-by-element through a mapper method — but composes the pipeline with Reactor operators so the mapping
 **stays reactive end to end**: no `Stream`, no `block()`, no eager collection.
@@ -33,7 +33,7 @@ reduces to a `Mono` via `single()` or `collectList()`) — always without leavin
 
 == Adding the reactor module
 
-`percolate-reactor` is an optional add-on: put it on the `annotationProcessor` classpath alongside the
+`reactor` is an optional add-on: put it on the `annotationProcessor` classpath alongside the
 `percolate` starter and the `Flux`/`Mono` strategies join the builtins. See
 xref:getting-started.adoc[Getting started] for the BOM and starter setup.
 

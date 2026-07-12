@@ -3,12 +3,13 @@ plugins {
     id 'groovy'
     id 'maven-publish'
     id 'info.solidsoft.pitest'
+    id 'io.freefair.lombok'
 }
 
 dependencies {
     annotationProcessor platform(project(':dependencies'))
-    annotationProcessor 'com.google.auto.service:auto-service'
     annotationProcessor 'org.projectlombok:lombok'
+    annotationProcessor 'com.google.auto.service:auto-service'
 
     compileOnly platform(project(':dependencies'))
     compileOnly 'com.google.auto.service:auto-service-annotations'

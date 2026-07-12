@@ -3,6 +3,7 @@ plugins {
     id 'groovy'
     id 'maven-publish'
     id 'info.solidsoft.pitest'
+    id 'io.freefair.lombok'
 }
 
 // Engine branch-coverage gate (change: harden-engine-as-library, task 4.3). The jacoco gate measures the UNIT

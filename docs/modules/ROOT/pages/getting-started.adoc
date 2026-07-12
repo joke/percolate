@@ -7,26 +7,26 @@ This page adds percolate to a Maven or Gradle build and walks through a first ma
 
 Percolate is a **compile-time-only** tool. You need two things on the build:
 
-* the **annotations** (`percolate-annotations`) on the compile classpath — `@Mapper` and `@Map`; and
+* the **annotations** (`annotations`) on the compile classpath — `@Mapper` and `@Map`; and
 * the **annotation processor** (the `percolate` starter, which bundles the engine and the built-in
   strategies) on the annotation-processor path.
 
 The generated mapper has **no runtime dependency** on percolate. Versions of percolate's own modules are
-managed by the `percolate-bom` platform, so you pin the version once.
+managed by the `bom` platform, so you pin the version once.
 
 == Gradle
 
 [source,groovy,subs="+attributes"]
 ----
 dependencies {
-    annotationProcessor platform('io.github.joke.percolate:percolate-bom:{percolate-version}')
+    annotationProcessor platform('io.github.joke.percolate:bom:{percolate-version}')
     annotationProcessor 'io.github.joke.percolate:percolate'
 
-    compileOnly platform('io.github.joke.percolate:percolate-bom:{percolate-version}')
-    compileOnly 'io.github.joke.percolate:percolate-annotations'
+    compileOnly platform('io.github.joke.percolate:bom:{percolate-version}')
+    compileOnly 'io.github.joke.percolate:annotations'
 
     // optional: reactive (Flux/Mono) container support
-    // annotationProcessor 'io.github.joke.percolate:percolate-reactor'
+    // annotationProcessor 'io.github.joke.percolate:reactor'
 }
 ----
 
@@ -41,7 +41,7 @@ The BOM is imported under `dependencyManagement`; the processor is supplied thro
   <dependencies>
     <dependency>
       <groupId>io.github.joke.percolate</groupId>
-      <artifactId>percolate-bom</artifactId>
+      <artifactId>bom</artifactId>
       <version>{percolate-version}</version>
       <type>pom</type>
       <scope>import</scope>
@@ -52,7 +52,7 @@ The BOM is imported under `dependencyManagement`; the processor is supplied thro
 <dependencies>
   <dependency>
     <groupId>io.github.joke.percolate</groupId>
-    <artifactId>percolate-annotations</artifactId>
+    <artifactId>annotations</artifactId>
     <scope>provided</scope>
   </dependency>
 </dependencies>
@@ -72,7 +72,7 @@ The BOM is imported under `dependencyManagement`; the processor is supplied thro
           <!-- optional: reactive (Flux/Mono) container support
           <path>
             <groupId>io.github.joke.percolate</groupId>
-            <artifactId>percolate-reactor</artifactId>
+            <artifactId>reactor</artifactId>
             <version>{percolate-version}</version>
           </path>
           -->

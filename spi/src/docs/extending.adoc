@@ -3,7 +3,7 @@
 
 The consumer pages describe what percolate does out of the box. This page is for authors who want to teach
 percolate something new. It is a map of the extension model, not a full contract reference — the
-authoritative, versioned contract is the `percolate-spi` module.
+authoritative, versioned contract is the `spi` module.
 
 == Everything is a strategy
 
@@ -20,7 +20,7 @@ percolate treats it exactly like a built-in.
 
 A strategy implements an SPI interface (for value-producing strategies, `ExpansionStrategy`) and registers
 itself with Google `@AutoService` so the `ServiceLoader` finds it. Rather than a fictional skeleton, here is
-a real one: `percolate-reactor`'s bridge from a synchronous `Optional<T>` to a reactive `Mono<T>`, via
+a real one: `reactor`'s bridge from a synchronous `Optional<T>` to a reactive `Mono<T>`, via
 `Mono.justOrEmpty`:
 
 [source,java]
@@ -40,7 +40,7 @@ Two principles keep extensions composable:
 
 == A third-party strategy, exactly like a built-in
 
-`percolate-reactor` is not special-cased by the engine at all — it is just another jar on the
+`reactor` is not special-cased by the engine at all — it is just another jar on the
 annotation-processor classpath, alongside the `percolate` starter:
 
 [source,java]
@@ -56,20 +56,20 @@ include::example$extending/PreferenceMapperImpl.java[tag=wrap]
 ----
 
 `JustOrEmpty` is discovered via `ServiceLoader` and its candidate operation competes and wins on cost like
-any built-in's — nothing here required `percolate-reactor` to be known to the engine in advance. Your own
+any built-in's — nothing here required `reactor` to be known to the engine in advance. Your own
 strategy module joins percolate the same way.
 
 == Depending on the SPI
 
-A strategy author needs only `percolate-spi` at compile time (it depends solely on the JDK and JavaPoet,
+A strategy author needs only `spi` at compile time (it depends solely on the JDK and JavaPoet,
 because `CodeBlock` is part of the contract — it does not drag in the annotations or the processor).
-Versions are managed by the `percolate-bom` platform.
+Versions are managed by the `bom` platform.
 
 [source,groovy,subs="+attributes"]
 ----
 dependencies {
-    implementation platform('io.github.joke.percolate:percolate-bom:{percolate-version}')
-    implementation 'io.github.joke.percolate:percolate-spi'
+    implementation platform('io.github.joke.percolate:bom:{percolate-version}')
+    implementation 'io.github.joke.percolate:spi'
 
     // ServiceLoader registration
     compileOnly 'com.google.auto.service:auto-service-annotations'
@@ -82,13 +82,13 @@ starter, and your strategy participates automatically.
 
 == Reference material
 
-* The `percolate-spi` module — the published contract: the strategy interfaces, the value types, and the
+* The `spi` module — the published contract: the strategy interfaces, the value types, and the
   codegen abstractions.
-* The `percolate-strategies-builtin` module — the built-in strategies, worth reading as reference
+* The `strategies-builtin` module — the built-in strategies, worth reading as reference
   implementations of the SPI.
 
 [NOTE]
 ====
-`percolate-spi` is a published, versioned contract. Changes to it are either non-breaking additions or
+`spi` is a published, versioned contract. Changes to it are either non-breaking additions or
 arrive with a breaking version bump.
 ====

@@ -12,7 +12,7 @@ The CI `publish` job SHALL run only when the `release-please` job reports `relea
 #### Scenario: Release PR merge triggers the publish job
 
 - **WHEN** the release-please job reports `release_created = true` for a merged release PR
-- **THEN** the `publish` job runs `./gradlew check` followed by `./gradlew publish` against the tagged commit
+- **THEN** the `publish` job runs `./gradlew check` followed by `./gradlew publishToMavenCentral` against the tagged commit
 
 #### Scenario: No snapshot version is ever published
 

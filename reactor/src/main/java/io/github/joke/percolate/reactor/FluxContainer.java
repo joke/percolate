@@ -44,8 +44,7 @@ public final class FluxContainer extends Container {
     @Override
     protected TypeElement intermediateErasure(final ResolveCtx ctx) {
         return Objects.requireNonNull(
-                ctx.typeElementNamed(FLUX),
-                "reactor-core must be on the compile classpath when percolate-reactor is active");
+                ctx.typeElementNamed(FLUX), "reactor-core must be on the compile classpath when reactor is active");
     }
 
     @Override

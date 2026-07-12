@@ -6,6 +6,10 @@ plugins {
     id 'org.danilopianini.cpd' apply false
     id 'info.solidsoft.pitest' apply false
     id 'org.antora'
+    id 'org.shipkit.shipkit-auto-version'
+    id 'io.github.sgtsilvio.gradle.maven-central-publishing' apply false
+    id 'io.github.sgtsilvio.gradle.metadata' apply false
+    id 'io.freefair.lombok' apply false
 }
 
 // The Antora user manual is provisioned and run by the org.antora plugin on a managed Node runtime,
@@ -38,7 +42,7 @@ tasks.named('antora') {
 
 subprojects { project ->
     group = 'io.github.joke.percolate'
-    version = '0.1.0-SNAPSHOT'
+    version = rootProject.version
 
     repositories {
         mavenCentral()
@@ -98,6 +102,17 @@ subprojects { project ->
         }
         tasks.withType(Test).configureEach {
             maxParallelForks = Runtime.runtime.availableProcessors().intdiv(2) ?: 1
+        }
+    }
+
+    // io.freefair.lombok wires javadoc to read delomboked (expanded, Lombok-free) source automatically, so
+    // Lombok-generated members and the onConstructor_=@Inject trick resolve correctly under javadoc's own parser -
+    // unlike raw source, which broke javadoc across every Lombok-using module (surfaced by task 5.3 turning on
+    // withJavadocJar() for the first time). Pin the version explicitly: the plugin's own default (1.18.44) is
+    // older than the version this build already pins via the internal ':dependencies' platform.
+    pluginManager.withPlugin('io.freefair.lombok') {
+        lombok {
+            version = '1.18.46'
         }
     }
 
@@ -242,42 +257,69 @@ subprojects { project ->
     }
 
     // Consumer-facing Maven publication. Applied only by modules that opt into 'maven-publish'.
-    // The starter publishes as 'percolate'; every other publishable module as 'percolate-<name>'.
-    // percolate-javapoet already carries its published name as the project name, so it is exempt
-    // from the prefix (matching the starter's own exemption) rather than becoming 'percolate-percolate-javapoet'.
+    // artifactId is left at maven-publish's own default (project.name): the group already carries
+    // 'io.github.joke.percolate', so no per-module prefix or exception list is needed.
     pluginManager.withPlugin('maven-publish') {
-        def selfNamedArtifacts = ['percolate', 'percolate-javapoet']
-        def publishedArtifactId = selfNamedArtifacts.contains(project.name) ? project.name : "percolate-${project.name}"
+        // Declarative POM metadata (io.github.sgtsilvio.gradle.metadata), replacing hand-written per-module
+        // pom{} population. license/developer/github coordinates are identical for every module (one repo, one
+        // author); readableName is left at its structural default (project.name) rather than a per-module
+        // exception list. github.repo is pinned to rootProject.name: every publishable module lives in the same
+        // 'percolate' repository, so the default (per-module project.name) convention would be wrong here.
+        pluginManager.apply 'io.github.sgtsilvio.gradle.metadata'
+        description = 'A Java annotation processor that generates bean mappers'
+        metadata {
+            readableName = project.name
+            license { apache2() }
+            developers {
+                register('joke') {
+                    fullName = 'Joke de Buhr'
+                    email = 'joke@xckk.de'
+                }
+            }
+            github {
+                org = 'joke'
+                repo = rootProject.name
+                pages()
+                issues()
+            }
+        }
+
+        // Publish to Maven Central via the Central Portal API (io.github.sgtsilvio.gradle.maven-central-publishing);
+        // its `publishToMavenCentral` task talks to the Portal directly, so no `publishing.repositories` entry is
+        // needed or added here - Central Portal only, no GitHub Packages / legacy OSSRH staging URL.
+        pluginManager.apply 'io.github.sgtsilvio.gradle.maven-central-publishing'
+        pluginManager.apply 'signing'
+        signing {
+            // Only require signing keys for a Central Portal publish, not for a local publishToMavenLocal
+            // verification run - mirrors the same gate the author's spock-deepmock project already uses.
+            required { gradle.taskGraph.allTasks.any { it.name.contains('MavenCentral') } }
+            useInMemoryPgpKeys(findProperty('signingKey') as String, findProperty('signingPassword') as String)
+        }
+
         pluginManager.withPlugin('java') {
+            // Maven Central requires sources and javadoc jars alongside the main artifact.
+            java {
+                withJavadocJar()
+                withSourcesJar()
+            }
             publishing {
                 publications {
                     maven(MavenPublication) {
-                        artifactId = publishedArtifactId
                         from components.java
-                        // Pin concrete versions resolved from the build, so the POM needs no version platform.
-                        versionMapping {
-                            usage('java-api') { fromResolutionResult() }
-                            usage('java-runtime') { fromResolutionResult() }
-                        }
-                        // Drop the internal ':dependencies' platform's BOM-import: with versions pinned above the
-                        // import is redundant, and keeping it would leak internal constraints onto consumers (and
-                        // force us to publish the internal platform). Leaves consumer POMs self-contained.
-                        pom.withXml {
-                            asNode().dependencyManagement.each { it.parent().remove(it) }
-                        }
                     }
                 }
             }
+            signing { sign publishing.publications.maven }
         }
         pluginManager.withPlugin('java-platform') {
             publishing {
                 publications {
                     maven(MavenPublication) {
-                        artifactId = publishedArtifactId
                         from components.javaPlatform
                     }
                 }
             }
+            signing { sign publishing.publications.maven }
         }
     }
 }

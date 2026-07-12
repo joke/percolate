@@ -1,0 +1,45 @@
+name: release
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  release-please:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+    outputs:
+      release_created: ${{ steps.release.outputs.release_created }}
+      tag_name: ${{ steps.release.outputs.tag_name }}
+    steps:
+    - uses: GoogleCloudPlatform/release-please-action@v4.4
+      id: release
+      with:
+        release-type: simple
+        token: ${{ secrets.RELEASE_PLEASE }}
+
+  # Publishes to Maven Central only when release-please actually cut a release (release_created) - an
+  # ordinary push to main that merely updates the pending release PR never reaches this job, and no
+  # -SNAPSHOT version is ever published.
+  publish:
+    needs: release-please
+    if: ${{ needs.release-please.outputs.release_created }}
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v7
+      with:
+        ref: ${{ needs.release-please.outputs.tag_name }}
+    - uses: jdx/mise-action@v4
+    - uses: gradle/actions/setup-gradle@v5
+    - run: ./gradlew check
+    - run: ./gradlew publishToMavenCentral
+      env:
+        ORG_GRADLE_PROJECT_mavenCentralUsername: ${{ secrets.mavenCentralUsername }}
+        ORG_GRADLE_PROJECT_mavenCentralPassword: ${{ secrets.mavenCentralPassword }}
+        ORG_GRADLE_PROJECT_signingKey: ${{ secrets.signingKey }}
+        ORG_GRADLE_PROJECT_signingPassword: ${{ secrets.signingPassword }}

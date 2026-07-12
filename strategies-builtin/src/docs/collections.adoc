@@ -91,7 +91,7 @@ include::example$collections/TeamMapperImpl.java[tag=toRoster]
   xref:optionals.adoc[Optionals] for wrap/unwrap on their own.
 
 | `Flux`, `Mono` (reactive)
-| Available when the optional `percolate-reactor` module is on the annotation-processor path. Reactive
+| Available when the optional `reactor` module is on the annotation-processor path. Reactive
   containers compose over their own stream intermediate.
 |===
 
@@ -101,7 +101,7 @@ Because every kind composes over the same stream intermediate, percolate also br
 without inventing a dedicated composer — for example `Optional<Set<X>>` flattens into `Set<X>`, and
 `List<Set<X>>` converts into `Set<List<X>>` element-wise. It never invents an *unsound* crossing, such as
 collapsing an asynchronous `Flux` into a synchronous `List` (that upward crossing requires the opt-in
-`percolate-reactor-blocking` module — see xref:reactive.adoc[Reactive containers]).
+`reactor-blocking` module — see xref:reactive.adoc[Reactive containers]).
 
 == Where to next
 

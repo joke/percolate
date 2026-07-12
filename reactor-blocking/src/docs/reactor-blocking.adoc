@@ -3,10 +3,10 @@
 
 xref:reactive.adoc[Reactive containers] never invents an *unsound* crossing on its own — collapsing an
 asynchronous `Flux`/`Mono` into a synchronous target is a deliberate, opt-in choice. The optional
-`percolate-reactor-blocking` module adds exactly that: the upward bridge from a reactive source to a
+`reactor-blocking` module adds exactly that: the upward bridge from a reactive source to a
 blocking, synchronous target.
 
-Add it alongside `percolate-reactor` on the `annotationProcessor` classpath and a reactive source can feed a
+Add it alongside `reactor` on the `annotationProcessor` classpath and a reactive source can feed a
 plain scalar, `List`, `Optional`, or `Stream` target — percolate blocks only at that one boundary, then maps
 as usual:
 
