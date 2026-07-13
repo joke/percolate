@@ -60,7 +60,7 @@ tasks.named('pmdTest') {
 
 // The forced test-task serialisation (maxParallelForks = 1, parallel execution disabled) that used to live here is
 // gone (change cutover-strategies-to-mock-seam): it existed only because the unit specs shared one non-thread-safe
-// static TypeUniverse JavacTask. Every unit spec is now mock-based over the ResolveCtx seam, so — like spi and
+// static javac substrate. Every unit spec is now mock-based over the ResolveCtx seam, so — like spi and
 // processor after their own rewrites — a parallel run is deterministic. The e2e/integration suite (tagged
 // 'integration', real javac via compile-testing) runs in the separate integrationTest task and is unaffected.
 

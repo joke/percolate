@@ -1,26 +1,23 @@
 package io.github.joke.percolate.processor.internal.stages.discover;
 
-import static java.util.stream.Collectors.toUnmodifiableList;
-import static javax.lang.model.element.Modifier.ABSTRACT;
-
-import com.google.auto.common.MoreElements;
 import io.github.joke.percolate.processor.MapperContext;
 import io.github.joke.percolate.processor.internal.stages.Stage;
 import io.github.joke.percolate.processor.model.MapperShape;
 import jakarta.inject.Inject;
-import java.util.ArrayList;
-import java.util.List;
-import javax.lang.model.element.ExecutableElement;
 import javax.lang.model.element.TypeElement;
-import javax.lang.model.util.Elements;
-import javax.lang.model.util.Types;
 import lombok.RequiredArgsConstructor;
 
+/**
+ * Reduces a mapper {@code TypeElement} to a {@link MapperShape} of its abstract, non-{@code Object} methods — the
+ * methods the mapper must implement. The genuinely compiler-backed member enumeration lives in the thin
+ * {@link AbstractMethodReader}; the pure keep/drop decision lives in {@link AbstractMethodFilter}. This stage is thin
+ * glue between them.
+ */
 @RequiredArgsConstructor(onConstructor_ = @Inject)
 public final class DiscoverAbstractMethodsStage implements Stage {
 
-    private final Elements elements;
-    private final Types types;
+    private final AbstractMethodReader reader;
+    private final AbstractMethodFilter filter;
 
     @Override
     public void run(final MapperContext ctx) {
@@ -29,26 +26,6 @@ public final class DiscoverAbstractMethodsStage implements Stage {
     }
 
     MapperShape apply(final TypeElement typeElement) {
-        final var objectElement = elements.getTypeElement("java.lang.Object");
-        final var rawMethods = MoreElements.getLocalAndInheritedMethods(typeElement, types, elements);
-        return filter(typeElement, new ArrayList<>(rawMethods), objectElement);
-    }
-
-    MapperShape filter(
-            final TypeElement typeElement, final List<ExecutableElement> methods, final TypeElement objectElement) {
-        final var abstractMethods = methods.stream()
-                .filter(this::isAbstract)
-                .filter(m -> !isObjectMethod(m, objectElement))
-                .collect(toUnmodifiableList());
-        return new MapperShape(typeElement, abstractMethods);
-    }
-
-    boolean isAbstract(final ExecutableElement method) {
-        return method.getModifiers().contains(ABSTRACT);
-    }
-
-    boolean isObjectMethod(final ExecutableElement method, final TypeElement objectElement) {
-        final var enclosing = method.getEnclosingElement();
-        return enclosing != null && enclosing.equals(objectElement);
+        return new MapperShape(typeElement, filter.abstractMethods(reader.readMethods(typeElement)));
     }
 }

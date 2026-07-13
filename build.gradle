@@ -148,8 +148,9 @@ subprojects { project ->
             timestampedReports = false
             // Threaded by default (change type-query-seam, task 5.3): the mocked/faked-only unit suites carry no
             // shared, non-thread-safe javac substrate, so a parallel minion run is deterministic. A module that
-            // still shares one (e.g. strategies-builtin's TypeUniverse, until its own rewrite) can override this
-            // per-module with -PpitestThreads=1 rather than serialising everyone through the shared root block.
+            // still shared one could override this per-module with -PpitestThreads=1 rather than serialising
+            // everyone through the shared root block; none does now (the last javac substrate, the per-spec
+            // PrivateTypeUniverse, was deleted by change dissolve-private-type-universe).
             threads = (project.findProperty('pitestThreads') ?: Runtime.runtime.availableProcessors()) as int
             jvmArgs = ['-XX:+EnableDynamicAgentLoading']
             // Mutation guards (change: harden-engine-as-library; ratcheted for type-query-seam task 5.4 — processor's

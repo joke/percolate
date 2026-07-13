@@ -1,75 +1,41 @@
 package io.github.joke.percolate.processor.internal.stages.discover
 
 import io.github.joke.percolate.processor.MapperContext
-import io.github.joke.percolate.processor.test.fixtures.CallableFixtures
-import io.github.joke.percolate.processor.test.fixtures.Human
-import io.github.joke.percolate.processor.test.fixtures.Person
-import io.github.joke.percolate.spi.ThisReceiver
-import io.github.joke.percolate.spi.test.PrivateTypeUniverse
-import spock.lang.Shared
+import io.github.joke.percolate.spi.CallableMethods
 import spock.lang.Specification
 import spock.lang.Tag
 
-import javax.lang.model.type.TypeKind
+import javax.lang.model.element.TypeElement
 
 /**
- * {@link DiscoverCallableMethodsStage} seam, unit-tested directly: {@code run} indexes the mapper type's
- * single-parameter, non-{@code Object} methods by return type; {@code CallableMethods.producing} then answers with the
- * candidates whose return type is assignable to the demanded output, each carrying the {@link ThisReceiver}.
- *
- * <p>Unit-tested over a {@link PrivateTypeUniverse} (change {@code type-query-seam}) — a per-spec, non-shared javac
- * substrate — so no {@code @Isolated} serialisation is needed (this is a discovery-adapter seam, genuinely
- * compiler-backed by design, but its own compiler instance never races another spec's).
+ * {@link DiscoverCallableMethodsStage} glue, unit-tested mock-only: the stage indexes the mapper type's members
+ * through the {@link CallableMethodIndexer} and installs the {@link CallableMethodFilter}'s {@code CallableMethods}
+ * view on the context. The collaborators are mocked; the {@code CandidateDescriptor} and {@code CallableMethods} are
+ * opaque, never-stubbed tokens. The indexer's javac member enumeration and the filter's producing/assignability logic
+ * are covered by their own specs and the compile-based feature-e2e layer — no javac substrate here.
  */
 @Tag('unit')
 class DiscoverCallableMethodsStageSpec extends Specification {
 
-    @Shared PrivateTypeUniverse javac = new PrivateTypeUniverse()
+    CallableMethodIndexer indexer = Mock()
+    CallableMethodFilter filter = Mock()
+    DiscoverCallableMethodsStage stage = new DiscoverCallableMethodsStage(indexer, filter)
 
-    DiscoverCallableMethodsStage stage = new DiscoverCallableMethodsStage(javac.elements(), javac.types())
-
-    def setupSpec() {
-        // prime the fixture + its methods' parameter/return closures single-threaded (see ExpandStageDriverSpec)
-        javac.of(Person)
-        javac.of(Human)
-        javac.of(CallableFixtures)
-    }
-
-    def 'run indexes only single-parameter methods; producing returns Human-assignable candidates with a this-receiver'() {
-        given:
-        def ctx = new MapperContext(javac.of(CallableFixtures))
-
-        when:
-        stage.run(ctx)
-        def candidates = ctx.callableMethods.producing(javac.of(Human).asType()).toList()
-
-        then: 'only makeHuman(Person) qualifies — noArg (zero-param) and pair (two-param) are excluded'
-        candidates.collect { it.method.simpleName.toString() } == ['makeHuman']
-
-        and: 'the candidate is invoked on the mapper itself'
-        candidates[0].receiver == ThisReceiver.INSTANCE
-    }
-
-    def 'producing filters by assignable return type'() {
-        given:
-        def ctx = new MapperContext(javac.of(CallableFixtures))
+    def 'run indexes the mapper type and installs the filtered callable methods'() {
+        TypeElement mapperType = Mock()
+        CandidateDescriptor descriptor = Mock()
+        CallableMethods callableMethods = Mock()
+        def ctx = new MapperContext(mapperType)
 
         when:
         stage.run(ctx)
 
-        then: 'a String demand returns describe(Person), not the Human producers'
-        ctx.callableMethods.producing(javac.of(String).asType()).toList()
-                .collect { it.method.simpleName.toString() } == ['describe']
-    }
+        then:
+        1 * indexer.index(mapperType) >> [descriptor]
+        1 * filter.filter([descriptor]) >> callableMethods
+        0 * _
 
-    def 'Object methods are excluded even though equals(Object) is single-parameter'() {
-        given:
-        def ctx = new MapperContext(javac.of(CallableFixtures))
-
-        when:
-        stage.run(ctx)
-
-        then: 'no fixture method returns boolean, so a non-empty result here would mean equals(Object) leaked in'
-        ctx.callableMethods.producing(javac.types().getPrimitiveType(TypeKind.BOOLEAN)).toList().empty
+        expect:
+        ctx.callableMethods.is(callableMethods)
     }
 }

@@ -1,88 +1,61 @@
 package io.github.joke.percolate.processor.internal.stages.discover
 
 import io.github.joke.percolate.processor.MapperContext
-import io.github.joke.percolate.processor.test.fixtures.Human
-import io.github.joke.percolate.processor.test.fixtures.Person
-import io.github.joke.percolate.processor.test.fixtures.PersonMapper
-import io.github.joke.percolate.spi.test.PrivateTypeUniverse
-import spock.lang.Shared
 import spock.lang.Specification
 import spock.lang.Tag
 
-import javax.lang.model.element.ElementKind
 import javax.lang.model.element.ExecutableElement
+import javax.lang.model.element.TypeElement
 
 /**
- * {@link DiscoverAbstractMethodsStage} seam, unit-tested directly: the mapper {@code TypeElement} (read off a compiled
- * {@code @Mapper} fixture via {@link PrivateTypeUniverse}, no compile) is reduced to a {@code MapperShape} of its
- * abstract, non-{@code Object} methods. Each case isolates a step — the whole reduction, the {@code run} wiring, and
- * the {@code isAbstract}/{@code isObjectMethod}/{@code filter} predicates.
+ * {@link DiscoverAbstractMethodsStage} glue, unit-tested mock-only: the stage reads the mapper type's members through
+ * the {@link AbstractMethodReader} and reduces them to a {@code MapperShape} of the {@link AbstractMethodFilter}'s
+ * kept methods, installing it on the context. The collaborators are mocked; every {@code AbstractMethodDescriptor} and
+ * {@code ExecutableElement} is an opaque, never-stubbed token. The reader's javac member enumeration and the filter's
+ * keep/drop logic are covered by their own specs and the compile-based feature-e2e layer — no javac substrate here.
  */
 @Tag('unit')
 class DiscoverAbstractMethodsStageSpec extends Specification {
 
-    @Shared PrivateTypeUniverse javac = new PrivateTypeUniverse()
+    AbstractMethodReader reader = Mock()
+    AbstractMethodFilter filter = Mock()
+    DiscoverAbstractMethodsStage stage = new DiscoverAbstractMethodsStage(reader, filter)
 
-    DiscoverAbstractMethodsStage stage = new DiscoverAbstractMethodsStage(javac.elements(), javac.types())
+    def 'apply reduces the type members to a shape of the filter-kept abstract methods'() {
+        TypeElement mapperType = Mock()
+        ExecutableElement kept = Mock()
+        AbstractMethodDescriptor descriptor = Mock()
 
-    def setupSpec() {
-        // prime the mapper + its method's parameter/return fixture closures single-threaded (see ExpandStageDriverSpec)
-        javac.of(Person)
-        javac.of(Human)
-        javac.of(PersonMapper)
-    }
-
-    def 'reduces a @Mapper interface to its single abstract method, excluding Object methods'() {
         when:
-        def shape = stage.apply(javac.of(PersonMapper))
+        def shape = stage.apply(mapperType)
 
         then:
-        shape.type == javac.of(PersonMapper)
-        shape.abstractMethods.collect { it.simpleName.toString() } == ['map']
+        1 * reader.readMethods(mapperType) >> [descriptor]
+        1 * filter.abstractMethods([descriptor]) >> [kept]
+        0 * _
+
+        expect:
+        shape.type.is(mapperType)
+        shape.abstractMethods == [kept]
     }
 
     def 'run installs the discovered shape on the context'() {
-        given:
-        def ctx = new MapperContext(javac.of(PersonMapper))
+        TypeElement mapperType = Mock()
+        ExecutableElement kept = Mock()
+        AbstractMethodDescriptor descriptor = Mock()
+        def ctx = new MapperContext(mapperType)
 
         when:
         stage.run(ctx)
 
         then:
+        1 * reader.readMethods(mapperType) >> [descriptor]
+        1 * filter.abstractMethods([descriptor]) >> [kept]
+        0 * _
+
+        expect:
         ctx.shape != null
-        ctx.shape.abstractMethods.collect { it.simpleName.toString() } == ['map']
-    }
-
-    def 'isAbstract distinguishes an abstract method from a concrete one'() {
-        expect:
-        stage.isAbstract(method(PersonMapper, 'map'))
-        !stage.isAbstract(method(Object, 'toString'))
-    }
-
-    def 'isObjectMethod is true only for a method declared on Object'() {
-        given:
-        def objectType = javac.of(Object)
-
-        expect:
-        stage.isObjectMethod(method(Object, 'toString'), objectType)
-        !stage.isObjectMethod(method(PersonMapper, 'map'), objectType)
-    }
-
-    def 'filter keeps abstract non-Object methods and drops the rest'() {
-        given:
-        def objectType = javac.of(Object)
-        def methods = [method(PersonMapper, 'map'), method(Object, 'toString')]
-
-        when:
-        def shape = stage.filter(javac.of(PersonMapper), methods, objectType)
-
-        then:
-        shape.abstractMethods == [method(PersonMapper, 'map')]
-    }
-
-    private ExecutableElement method(final Class<?> type, final String name) {
-        javac.of(type).enclosedElements.find {
-            it.kind == ElementKind.METHOD && it.simpleName.toString() == name
-        } as ExecutableElement
+        ctx.shape.type.is(mapperType)
+        ctx.shape.abstractMethods == [kept]
     }
 }

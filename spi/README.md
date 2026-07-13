@@ -10,15 +10,12 @@ Third-party strategy authors need only this module at compile time:
 implementation 'io.github.joke.percolate:spi'
 ```
 
-For testing strategies against the same type substrate the built-ins use:
-
-```groovy
-testImplementation testFixtures(project(':spi'))
-```
-
-This exposes `TypeUniverse` and `PrivateTypeUniverse` in `io.github.joke.percolate.spi.test` — real, javac-backed
-`ResolveCtx` substrates kept transitionally for the `strategies-builtin` specs not yet rewritten against a mocked
-`ResolveCtx` (change `type-query-seam`). New unit specs should prefer `ResolveCtx ctx = Mock()` (or, for
-algorithm-heavy specs, a hand-written javac-free fake) over either.
+Strategy specs need no shared type substrate: `spi`'s `testFixtures` export **no** javac-backed
+(`JavacTask`/`Types`/`Elements`) type at all. The former real-javac `ResolveCtx` substrates — `HarnessResolveCtx`,
+`TypeUniverse`, and the per-spec `PrivateTypeUniverse` — have all been deleted (changes `type-query-seam`,
+`cutover-strategies-to-mock-seam`, and `dissolve-private-type-universe`). A unit spec drives its subject against a
+mocked seam (`ResolveCtx ctx = Mock()`), stubbing the type questions it asks; a genuinely compiler-backed
+`TypeMirror` (e.g. JavaPoet's `TypeName.get(mirror)` rendering) is exercised by the compile-based feature-e2e layer
+instead.
 
 From this change forward, `spi` is a published contract. Changes to it are either non-breaking additions or breaking version bumps.

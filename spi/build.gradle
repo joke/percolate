@@ -54,10 +54,10 @@ tasks.named('compileTestJava') {
     options.compilerArgs << '-Apercolate.docTags=true'
 }
 
-// The serialised-execution workaround for the shared TypeUniverse JavacTask race is gone (change type-query-seam,
-// Phase 5): every spi unit spec now drives a mocked/faked ResolveCtx (TypeUniverseSpec — the fixture's own
-// self-test — is the sole remaining unit spec touching the shared substrate, and Spock does not run a spec's own
-// feature methods concurrently by default), so threaded pitest is safe without maxParallelForks/parallel-disable.
+// The serialised-execution workaround for the old shared-javac JavacTask race is gone (change type-query-seam,
+// Phase 5): every spi unit spec now drives a mocked/faked ResolveCtx, and spi's testFixtures export no javac
+// substrate at all (change dissolve-private-type-universe deleted the last one, PrivateTypeUniverse), so threaded
+// pitest is safe without maxParallelForks/parallel-disable.
 
 // Module-specific pitest thresholds (change type-query-seam, task 6.3) — pitest had never run on spi before this
 // phase, so these are a first-measurement ratchet floor, not parity with processor's (that bar came from a full

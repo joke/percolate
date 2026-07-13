@@ -3,154 +3,96 @@ package io.github.joke.percolate.processor.internal.stages.discover
 import io.github.joke.percolate.processor.MapperContext
 import io.github.joke.percolate.processor.internal.graph.MethodScope
 import io.github.joke.percolate.processor.model.MapperShape
-import io.github.joke.percolate.processor.test.fixtures.DirectiveFixtures
-import io.github.joke.percolate.processor.test.fixtures.Human
-import io.github.joke.percolate.processor.test.fixtures.Person
-import io.github.joke.percolate.spi.test.PrivateTypeUniverse
-import spock.lang.Shared
+import io.github.joke.percolate.processor.model.MappingDirective
 import spock.lang.Specification
 import spock.lang.Tag
 
-import javax.lang.model.element.ElementKind
+import javax.lang.model.element.AnnotationMirror
+import javax.lang.model.element.AnnotationValue
 import javax.lang.model.element.ExecutableElement
+import javax.lang.model.element.TypeElement
 
 /**
- * {@link DiscoverMappingsStage} seam, unit-tested directly: the {@code @Map}/{@code @MapList} mirrors are read off the
- * compiled {@code DirectiveFixtures} type via {@link PrivateTypeUniverse} (CLASS-retained, so present in bytecode —
- * no annotation-processing round). Presence of {@code source}/{@code constant}/{@code defaultValue} is decided
- * against the {@code Map.UNSET} sentinel with the annotation's declared defaults; an empty string is present, not
- * absent.
+ * {@link DiscoverMappingsStage} glue, unit-tested mock-only: the stage threads a method's mirrors through the
+ * {@link AnnotationDirectiveReader}, maps each {@link RawDirective} through the {@link MappingDirectiveBuilder}, and
+ * installs the {@code MapperMappings} plus a per-method-scope {@code GoalSpec} on the context. The collaborators are
+ * mocked; every {@code AnnotationMirror}/{@code ExecutableElement}/{@code RawDirective} is an opaque, never-stubbed
+ * token. The reader's own javac reading and the builder's presence logic are covered by their own specs and the
+ * compile-based feature-e2e layer — no javac substrate here.
  */
 @Tag('unit')
 class DiscoverMappingsStageSpec extends Specification {
 
-    @Shared PrivateTypeUniverse javac = new PrivateTypeUniverse()
-    @Shared DiscoverMappingsStage stage = new DiscoverMappingsStage(javac.elements())
+    AnnotationDirectiveReader reader = Mock()
+    MappingDirectiveBuilder builder = Mock()
+    DiscoverMappingsStage stage = new DiscoverMappingsStage(reader, builder)
 
-    def setupSpec() {
-        // prime the fixture + its methods' parameter/return closures single-threaded (see ExpandStageDriverSpec)
-        javac.of(Person)
-        javac.of(Human)
-        javac.of(DirectiveFixtures)
-    }
+    def 'extractDirectives threads the mirrors through the reader and maps each raw directive through the builder'() {
+        AnnotationMirror mirror = Mock()
+        List<AnnotationMirror> mirrors = [mirror]
+        RawDirective rawA = Mock()
+        RawDirective rawB = Mock()
+        def first = directive('first')
+        def second = directive('second')
 
-    def 'a source directive with a default is discovered with both present and no constant'() {
         when:
-        def directives = stage.extractDirectives(method('sourceWithDefault').annotationMirrors)
+        def result = stage.extractDirectives(mirrors)
 
         then:
-        directives.size() == 1
-        def directive = directives[0]
-        directive.target == 'name'
-        directive.hasSource()
-        directive.source == 'in.name'
-        directive.hasDefaultValue()
-        directive.defaultValue == 'unknown'
-        !directive.hasConstant()
-    }
+        1 * reader.extractRawDirectives(mirrors) >> [rawA, rawB]
+        1 * builder.toDirective(rawA) >> first
+        1 * builder.toDirective(rawB) >> second
+        0 * _
 
-    def 'a constant directive is discovered with a present constant and no source'() {
-        when:
-        def directives = stage.extractDirectives(method('constantOnly').annotationMirrors)
-
-        then:
-        directives.size() == 1
-        directives[0].hasConstant()
-        directives[0].constant == 'ACTIVE'
-        !directives[0].hasSource()
-        directives[0].source == null
-    }
-
-    def 'an empty-string constant is present, not absent (sentinel, not isEmpty)'() {
-        when:
-        def directive = stage.extractDirectives(method('emptyConstant').annotationMirrors)[0]
-
-        then:
-        directive.hasConstant()
-        directive.constant == ''
-        !directive.hasSource()
-    }
-
-    def 'a format directive is discovered with format present and zone absent'() {
-        when:
-        def directive = stage.extractDirectives(method('formatted').annotationMirrors)[0]
-
-        then:
-        directive.hasFormat()
-        directive.format == 'yyyy-MM-dd'
-        !directive.hasZone()
-        directive.zone == null
-    }
-
-    def 'a zone directive is discovered with zone present'() {
-        when:
-        def directive = stage.extractDirectives(method('zoned').annotationMirrors)[0]
-
-        then:
-        directive.hasZone()
-        directive.zone == 'Europe/Berlin'
-    }
-
-    def 'absent format and zone are reported absent'() {
-        when:
-        def directive = stage.extractDirectives(method('sourceWithDefault').annotationMirrors)[0]
-
-        then:
-        !directive.hasFormat()
-        !directive.hasZone()
-        directive.format == null
-        directive.zone == null
-    }
-
-    def 'repeated @Map directives are unwrapped from the @MapList container, in order'() {
-        when:
-        def directives = stage.extractDirectives(method('repeated').annotationMirrors)
-
-        then:
-        directives*.target == ['first', 'second']
-        directives.every { it.hasSource() && !it.hasConstant() }
-    }
-
-    def 'a method with no @Map yields no directives'() {
         expect:
-        stage.extractDirectives(method('none').annotationMirrors).empty
+        result == [first, second]
     }
 
-    def 'run installs the mappings and a per-method-scope goal spec carrying every declared binding'() {
-        given:
-        def ctx = new MapperContext(javac.of(DirectiveFixtures))
-        ctx.shape = new MapperShape(javac.of(DirectiveFixtures), [method('repeated')])
+    def 'run installs the mappings and a per-method-scope goal spec carrying the declared binding'() {
+        TypeElement mapperType = Mock()
+        ExecutableElement method = Mock()
+        AnnotationMirror mirror = Mock()
+        List<AnnotationMirror> mirrors = [mirror]
+        RawDirective raw = Mock()
+        def ctx = new MapperContext(mapperType)
+        ctx.shape = new MapperShape(mapperType, [method])
 
         when:
         stage.run(ctx)
 
-        then: 'the goal spec is reachable by the method scope and declares both children'
-        ctx.mappings != null
-        def goal = ctx.goalSpecs[new MethodScope(method('repeated'))]
-        goal != null
-        goal.declaredChildren('') == ['first', 'second'] as Set
-        goal.bindingFor('first').present
-        goal.bindingFor('second').present
-    }
+        then:
+        1 * method.annotationMirrors >> mirrors
+        1 * reader.extractRawDirectives(mirrors) >> [raw]
+        1 * builder.toDirective(raw) >> directive('first')
+        0 * _
 
-    def 'a non-@Map, non-@MapList annotation contributes no directive'() {
-        expect: 'the @Deprecated mirror on sink() is neither @Map nor @MapList, so it is skipped'
-        stage.extractDirectives(method('sink').annotationMirrors).empty
+        expect: 'the goal spec is reachable by the method scope and declares the child'
+        ctx.mappings != null
+        ctx.mappings.type.is(mapperType)
+        def goal = ctx.goalSpecs[new MethodScope(method)]
+        goal != null
+        goal.declaredChildren('') == ['first'] as Set
+        goal.bindingFor('first').present
     }
 
     def 'run is a no-op when discovery produced no shape'() {
-        def ctx = new MapperContext(javac.of(DirectiveFixtures))
+        TypeElement mapperType = Mock()
+        def ctx = new MapperContext(mapperType)
 
         when:
         stage.run(ctx)
 
         then:
+        0 * _
+
+        expect:
         ctx.mappings == null
     }
 
-    private ExecutableElement method(final String name) {
-        javac.of(DirectiveFixtures).enclosedElements.find {
-            it.kind == ElementKind.METHOD && it.simpleName.toString() == name
-        } as ExecutableElement
+    private MappingDirective directive(final String target) {
+        AnnotationMirror mirror = Mock()
+        AnnotationValue targetValue = Mock()
+        new MappingDirective(target, null, null, null, null, null,
+                mirror, targetValue, null, null, null, null, null)
     }
 }

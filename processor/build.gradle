@@ -36,7 +36,8 @@ dependencies {
     // No edge to any strategy module, and none to the compile harness: the engine is unit-tested at its own seams
     // (change: harden-engine-as-library) with no strategy, no FakeStrategy, and no @Mapper compile. Real engine↔
     // strategy integration lives in the feature-e2e layer. Bundling of the builtins for consumers is owned by the
-    // ':percolate' convenience starter. The seam tests build inputs on TypeUniverse (spi test-fixtures).
+    // ':percolate' convenience starter. The unit specs mock the ResolveCtx seam and drive pure cores on plain
+    // data — no javac substrate (change dissolve-private-type-universe deleted the last one, PrivateTypeUniverse).
 
     testImplementation platform(project(':dependencies'))
     testImplementation 'org.spockframework:spock-core'
@@ -69,6 +70,16 @@ def jacocoExcludes = [
         'io/github/joke/percolate/processor/internal/graph/DotRenderer*',
         // Generated Dagger wiring, not engine logic (mirrors the pitest excludedClasses filter added in task 4.3).
         'io/github/joke/percolate/processor/Dagger*',
+        // Change dissolve-private-type-universe (design D2/D3): the thin javax.lang.model read leaves and the
+        // TypeName.get(mirror) render/Filer-write leaf. Each fuses no decision logic — the pure cores
+        // (MappingDirectiveBuilder, AbstractMethodFilter, CallableMethodFilter/IndexCallableMethods,
+        // MapperTypeDecisions) were split out and unit-tested — so what remains is genuinely compiler-backed and
+        // is covered by the compile-based feature-e2e layer (real CompileResolveCtx), not honestly reachable by a
+        // unit test without a javac substrate. Mirrors the pure-rendering exclusions above; thresholds unchanged.
+        'io/github/joke/percolate/processor/internal/stages/discover/AnnotationDirectiveReader*',
+        'io/github/joke/percolate/processor/internal/stages/discover/AbstractMethodReader*',
+        'io/github/joke/percolate/processor/internal/stages/discover/CallableMethodIndexer*',
+        'io/github/joke/percolate/processor/internal/stages/generate/AssembleMapperType*',
 ]
 tasks.withType(JacocoReport).configureEach {
     classDirectories.setFrom(classDirectories.files.collect { fileTree(dir: it, exclude: jacocoExcludes) })
@@ -87,6 +98,14 @@ pluginManager.withPlugin('info.solidsoft.pitest') {
                 'io.github.joke.percolate.processor.Dagger*',
                 'io.github.joke.percolate.processor.internal.stages.dump.*',
                 'io.github.joke.percolate.processor.internal.graph.DotRenderer',
+                // Change dissolve-private-type-universe (design D2/D3): the thin javax read leaves and the
+                // TypeName.get(mirror) render leaf — decision logic split into unit-tested pure cores, the
+                // compiler-backed residue covered by the compile-based feature-e2e layer (mirrors the jacoco
+                // exclusions above; thresholds unchanged, never lowered).
+                'io.github.joke.percolate.processor.internal.stages.discover.AnnotationDirectiveReader',
+                'io.github.joke.percolate.processor.internal.stages.discover.AbstractMethodReader',
+                'io.github.joke.percolate.processor.internal.stages.discover.CallableMethodIndexer',
+                'io.github.joke.percolate.processor.internal.stages.generate.AssembleMapperType',
         ]
     }
 }

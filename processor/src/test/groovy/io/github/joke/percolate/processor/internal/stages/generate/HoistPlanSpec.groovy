@@ -34,7 +34,7 @@ import javax.lang.model.type.TypeMirror
  * <p>Unit-tested mock-only: graph Values carry a plain opaque {@code Mock(TypeMirror)} — the hoist decision never
  * inspects type structure — except {@code lambdaName}'s {@code typeBase} dispatch, which is boundary-exempt
  * (structurally inspects a raw {@link TypeMirror}, like {@code DotRenderer}) and so stubs that shape locally via
- * {@link #declaredType(String)}, with no shared {@code PrivateTypeUniverse}/{@code FakeType} substrate.
+ * {@link #declaredType(String)}, with no shared javac/{@code FakeType} substrate.
  */
 @Tag('unit')
 class HoistPlanSpec extends Specification {

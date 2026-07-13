@@ -13,7 +13,6 @@ import jakarta.inject.Inject;
 import java.io.IOException;
 import javax.annotation.processing.Filer;
 import javax.annotation.processing.Generated;
-import javax.lang.model.element.ElementKind;
 import javax.lang.model.element.ExecutableElement;
 import javax.lang.model.element.Modifier;
 import javax.lang.model.element.VariableElement;
@@ -29,6 +28,7 @@ public final class AssembleMapperType {
     private final Filer filer;
     private final Elements elements;
     private final ProcessorOptions options;
+    private final MapperTypeDecisions decisions;
 
     void assemble(final MapperContext ctx, final MethodBodies methodBodies) throws IOException {
         final var mapperType = ctx.getMapperType();
@@ -37,12 +37,12 @@ public final class AssembleMapperType {
                 elements.getPackageOf(mapperType).getQualifiedName().toString();
 
         final var typeBuilder = TypeSpec.classBuilder(simpleName)
-                .addModifiers(classModifiers())
+                .addModifiers(decisions.publicModifiers(options.isClassesFinal()))
                 .addAnnotation(generatedAnnotation())
                 .addFields(methodBodies.getMembers())
                 .addMethod(emptyPublicConstructor());
 
-        if (mapperType.getKind() == ElementKind.INTERFACE) {
+        if (decisions.isInterface(mapperType.getKind())) {
             typeBuilder.addSuperinterface(ClassName.get(mapperType));
         } else {
             typeBuilder.superclass(TypeName.get(mapperType.asType()));
@@ -51,12 +51,6 @@ public final class AssembleMapperType {
         methodBodies.getBodies().forEach(body -> typeBuilder.addMethod(overrideMethod(body)));
 
         JavaFile.builder(packageName, typeBuilder.build()).build().writeTo(filer);
-    }
-
-    Modifier[] classModifiers() {
-        return options.isClassesFinal()
-                ? new Modifier[] {Modifier.PUBLIC, Modifier.FINAL}
-                : new Modifier[] {Modifier.PUBLIC};
     }
 
     static AnnotationSpec generatedAnnotation() {
@@ -72,7 +66,7 @@ public final class AssembleMapperType {
     MethodSpec overrideMethod(final MethodImpl impl) {
         final ExecutableElement method = impl.getMethod();
         final var builder = MethodSpec.methodBuilder(method.getSimpleName().toString())
-                .addModifiers(methodModifiers())
+                .addModifiers(decisions.publicModifiers(options.isMethodsFinal()))
                 .addAnnotation(Override.class)
                 .returns(returnTypeName(method))
                 .addCode(impl.getBody());
@@ -81,19 +75,12 @@ public final class AssembleMapperType {
         return builder.build();
     }
 
-    Modifier[] methodModifiers() {
-        return options.isMethodsFinal()
-                ? new Modifier[] {Modifier.PUBLIC, Modifier.FINAL}
-                : new Modifier[] {Modifier.PUBLIC};
-    }
-
     ParameterSpec parameterSpec(final VariableElement parameter) {
-        final var builder = ParameterSpec.builder(
-                TypeName.get(parameter.asType()), parameter.getSimpleName().toString());
-        if (options.isParametersFinal()) {
-            builder.addModifiers(Modifier.FINAL);
-        }
-        return builder.build();
+        return ParameterSpec.builder(
+                        TypeName.get(parameter.asType()),
+                        parameter.getSimpleName().toString())
+                .addModifiers(decisions.parameterModifiers(options.isParametersFinal()))
+                .build();
     }
 
     static TypeName returnTypeName(final ExecutableElement method) {

@@ -1,7 +1,7 @@
 # expansion-test-harness Specification
 
 ## Purpose
-This spec defines the test infrastructure for the expansion engine: the `assembleExpansionPipeline` factory that wires an `ExpandStage`, the `ResolveCtx` type-query seam that `processor` and `spi` unit specs mock or fake instead of standing up a shared javac substrate (change `type-query-seam`, completed by `cutover-strategies-to-mock-seam` which deleted the last `TypeUniverse` consumers), the per-spec `PrivateTypeUniverse` fixture kept only for the `processor` compiler-boundary specs, and the module-location invariant that keeps engine-bound test helpers in the processor module. Engine tests drive the stage directly through the factory (compiling fixtures with `com.google.testing.compile`) and assert over the bipartite `MapperGraph` / extracted plan; there is no standalone `ExpansionHarness`/`ExpansionResult`/`ExpansionAssertions` façade.
+This spec defines the test infrastructure for the expansion engine: the `assembleExpansionPipeline` factory that wires an `ExpandStage`, the `ResolveCtx` type-query seam that `processor` and `spi` unit specs mock or fake instead of standing up a shared javac substrate (change `type-query-seam`, completed by `cutover-strategies-to-mock-seam` which deleted the last `TypeUniverse` consumers), the per-spec `PrivateTypeUniverse` fixture now also deleted (change `dissolve-private-type-universe`, which decomposed the four `processor` compiler-boundary specs into javac-free pure cores plus compile-e2e-covered readers), and the module-location invariant that keeps engine-bound test helpers in the processor module. Engine tests drive the stage directly through the factory (compiling fixtures with `com.google.testing.compile`) and assert over the bipartite `MapperGraph` / extracted plan; there is no standalone `ExpansionHarness`/`ExpansionResult`/`ExpansionAssertions` façade.
 
 ## Requirements
 
@@ -74,13 +74,28 @@ its irreducible self-recursion — not through a `FakeResolveCtx`.
 - **WHEN** the unit specs are inspected
 - **THEN** no spec imports `net.jqwik`; property-shaped cases are covered by `where:` tables
 
+### Requirement: Discovery stages separate javax reading from pure logic
+
+The discovery stages (`DiscoverAbstractMethodsStage`, `DiscoverMappingsStage`, `DiscoverCallableMethodsStage`) SHALL each be decomposed so that the raw `javax.lang.model` read (member enumeration via `getLocalAndInheritedMethods`/`getAllMembers`, `@Map`/`@MapList` `AnnotationMirror` reading) lives in a **thin reader** collaborator, and the stage's **pure decision logic** (`Map.UNSET`-sentinel directive presence, `@MapList` ordering, `MappingDirective` assembly, `isAbstract`/`isObjectMethod` filtering, single-parameter/return-type filtering and assignability) lives in a collaborator unit-testable **without javac**. The pure core SHALL be exercised on **plain data** (raw strings, plain method/candidate descriptors), passing any `javax.lang.model` value (`AnnotationValue`, `TypeMirror`, `Element`) through as a **never-stubbed opaque token**. The thin reader SHALL be covered by the compile-based feature-e2e layer (real `CompileResolveCtx`), not by a unit-test javac substrate. No discovery-stage unit spec SHALL construct a `JavacTask`, a `PrivateTypeUniverse`, or a `FakeResolveCtx`/`FakeType`.
+
+#### Scenario: A discovery stage's pure core is unit-tested on plain data
+
+- **WHEN** a discovery stage's pure decision logic (e.g. `Map.UNSET` presence, method filtering, assignability) is unit-tested
+- **THEN** the spec drives the pure collaborator with plain data, constructs no `JavacTask`/`PrivateTypeUniverse`/`FakeType`, and treats any passed `AnnotationValue`/`TypeMirror`/`Element` as an opaque never-stubbed token
+
+#### Scenario: A discovery stage's javax reader is covered by compile e2e
+
+- **WHEN** the thin javax reader (member enumeration, `@Map`/`@MapList` mirror reading) is exercised
+- **THEN** it is covered by the compile-based feature-e2e layer compiling a real `@Mapper` through `CompileResolveCtx`, with no unit-test javac substrate
+
 ### Requirement: Codegen unit tests need no shared javac substrate
 
-Once the codegen stages (`AssembleMapperType`, `BuildMethodBodies`) are decomposed, their pure assembly logic SHALL be unit-tested against mocked seams, and the only residue requiring a genuinely compiler-backed `TypeMirror` — a JavaPoet `TypeName.get(mirror)` rendering leaf — SHALL be covered by the compile-based feature-e2e layer, not by a shared unit-test javac substrate. `PrivateTypeUniverse` SHALL be reduced to that leaf's needs or removed outright; it SHALL NOT back any `processor` engine-logic unit spec.
+The codegen stages (`AssembleMapperType`, `BuildMethodBodies`) are decomposed, and their pure assembly logic SHALL be unit-tested against mocked seams. The only residue requiring a genuinely compiler-backed `TypeMirror` — a JavaPoet `TypeName.get(mirror)` rendering leaf — SHALL be covered by the compile-based feature-e2e layer (driving the real `CompileResolveCtx`), not by any unit-test javac substrate. `PrivateTypeUniverse` is **removed outright**: no `processor` unit spec — engine-logic or codegen-boundary — SHALL construct a `PrivateTypeUniverse`, a `JavacTask`, or any `Types`/`Elements` pair.
 
-#### Scenario: PrivateTypeUniverse no longer backs engine-logic unit specs
-- **WHEN** the `processor` unit specs for decomposed stages are inspected
-- **THEN** none of them constructs a `PrivateTypeUniverse` for engine-logic assertions; any surviving use is confined to a compile-tested codegen `TypeName.get` leaf
+#### Scenario: No processor unit spec constructs PrivateTypeUniverse
+- **WHEN** the `processor` unit specs (`@Tag('unit')`) are inspected
+- **THEN** none of them imports or constructs `io.github.joke.percolate.spi.test.PrivateTypeUniverse`, and none stands up a `JavacTask`
+- **AND** the real-mirror `TypeName.get(mirror)` rendering leaf is exercised only by the compile-based feature-e2e layer
 
 #### Scenario: Codegen assembly logic is mock-tested
 - **WHEN** a decomposed codegen unit (an extracted method-signature or method-body assembler) is unit-tested
@@ -91,12 +106,13 @@ Once the codegen stages (`AssembleMapperType`, `BuildMethodBodies`) are decompos
 Every `processor` and `spi` unit test SHALL exercise its subject against a mocked or faked `ResolveCtx`
 (see "Unit tests mock the ResolveCtx seam"), needing no shared **javac** type-system fixture. No published
 Gradle module SHALL exist whose sole purpose is to host engine-test infrastructure. `spi` SHALL export no
-`testFixtures` type whose purpose is a shared javac substrate — `HarnessResolveCtx` (which handed strategy
-specs a `ResolveCtx` backed by real `Types`/`Elements`) is deleted, and the shared-static **`TypeUniverse`
-fixture is now also deleted** (see the REMOVED "TypeUniverse fixture"), its last code consumers — the
-`strategies-builtin` unit specs — having migrated to the mocked seam. The per-spec `PrivateTypeUniverse`
-`testFixtures` export **remains**, scoped to the `processor` compiler-boundary specs (`discover`,
-`AssembleMapperType`) that genuinely need real mirrors.
+`testFixtures` type whose purpose is a javac substrate: `HarnessResolveCtx` (which handed strategy specs a
+`ResolveCtx` backed by real `Types`/`Elements`) is deleted, the shared-static `TypeUniverse` fixture is
+deleted, and the per-spec **`PrivateTypeUniverse` fixture is now also deleted** — its last consumers, the
+four `processor` compiler-boundary specs (`DiscoverAbstractMethodsStageSpec`, `DiscoverMappingsStageSpec`,
+`DiscoverCallableMethodsStageSpec`, `AssembleMapperTypeSpec`), having migrated to the mocked/faked seam,
+with the sole genuinely-compiler-backed `TypeName.get(mirror)` leaf covered by the compile-based
+feature-e2e layer instead. `spi`'s `testFixtures` export **no** javac-backed type after this change.
 
 Engine-bound helpers that a **compile-based** engine/e2e test still needs (`HarnessScope`, `TestFiler`, and the
 Java `fixtures`) MAY remain co-located under `processor/src/test/` because they depend on engine internals
@@ -108,10 +124,10 @@ other module. The e2e/doc compile tests continue to exercise the seam's real-jav
 - **WHEN** `settings.gradle` is inspected
 - **THEN** it does NOT include any module whose sole purpose is to host test infrastructure for the expansion engine
 
-#### Scenario: HarnessResolveCtx and TypeUniverse are gone; PrivateTypeUniverse remains for the processor boundary
+#### Scenario: HarnessResolveCtx, TypeUniverse, and PrivateTypeUniverse are all gone
 - **WHEN** `spi`'s `testFixtures` are inspected
-- **THEN** neither `io.github.joke.percolate.spi.test.HarnessResolveCtx` nor `io.github.joke.percolate.spi.test.TypeUniverse` exists
-- **AND** `io.github.joke.percolate.spi.test.PrivateTypeUniverse` still exists, consumed only by the `processor` `discover`/`AssembleMapperType` boundary specs
+- **THEN** none of `io.github.joke.percolate.spi.test.HarnessResolveCtx`, `io.github.joke.percolate.spi.test.TypeUniverse`, or `io.github.joke.percolate.spi.test.PrivateTypeUniverse` exists
+- **AND** `spi`'s `testFixtures` export no javac-backed (`JavacTask`/`Types`/`Elements`) type at all
 
 #### Scenario: Compile-bound engine helpers stay next to the engine tests
 - **WHEN** the source tree is inspected
