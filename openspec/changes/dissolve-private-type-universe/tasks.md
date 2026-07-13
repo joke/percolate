@@ -45,4 +45,4 @@
 - [x] 7.2 Run the full `:processor:pitest` (threaded, deterministic across cleared-history runs); confirm every floor is held or raised, never lowered.
 - [x] 7.3 Run `percolate-smoke:smokeRun` and rebuild the doc-e2e outputs; confirm generated code and doc examples are byte-identical (behaviour-preserving decomposition).
 - [x] 7.4 Run `./gradlew check` and resolve every violation — NEVER continue with a failing gate (confirm any Spotless/Guava-worker flake against unmodified `main` via `git stash` before attributing it here).
-- [ ] 7.5 Commit the completed change with `/commit-commands:commit`.
+- [x] 7.5 Commit the completed change with `/commit-commands:commit`.
