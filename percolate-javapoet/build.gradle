@@ -4,12 +4,14 @@ plugins {
     id 'maven-publish'
 }
 
-// Source-free relocation module (design D1/D3/D4): shades com.palantir.javapoet:javapoet into
-// io.github.joke.percolate.javapoet so spi/processor/strategies never share the exact upstream
-// package with a foreign annotation processor on the same processorpath. The upstream jar is a
-// compileOnly (never api/implementation) input, so it never reaches apiElements/runtimeElements'
-// dependency set — that keeps the published POM free of a com.palantir.javapoet dependency (the
-// swallow invariant) while shadowJar still bundles+relocates its classes.
+// Relocation + selective-overlay module (design D1/D3/D4; overlay added by change doc-tag-whole-methods):
+// shades com.palantir.javapoet:javapoet into io.github.joke.percolate.javapoet so spi/processor/strategies
+// never share the exact upstream package with a foreign annotation processor on the same processorpath. The
+// upstream jar is a compileOnly (never api/implementation) input, so it never reaches apiElements/
+// runtimeElements' dependency set — that keeps the published POM free of a com.palantir.javapoet dependency
+// (the swallow invariant) while shadowJar still bundles+relocates its classes. It additionally carries ONE
+// vendored source overlay (com/palantir/javapoet/MethodSpec.java) that adds whole-method AsciiDoc include-tag
+// bracketing; the overlay wins over the upstream twin during shading (see the shadowJar duplicates rule).
 dependencies {
     compileOnly platform(project(':dependencies'))
     compileOnly 'com.palantir.javapoet:javapoet'
@@ -21,6 +23,24 @@ tasks.named('shadowJar') {
     // that extends it, carrying the exact same (single) upstream dependency.
     configurations.set([project.configurations.compileClasspath])
     relocate 'com.palantir.javapoet', 'io.github.joke.percolate.javapoet'
+    // The MethodSpec overlay collides with upstream's copy at the same pre-relocation path. Shadow processes
+    // project files before dependency files, so EXCLUDE (first-wins) keeps OUR overlay and drops upstream's;
+    // relocation then renames the survivor. Scoped to MethodSpec* only — the rest of the jar keeps the default
+    // strategy. Duplicate handling runs before relocation, so the pattern is the pre-relocation path.
+    filesMatching('com/palantir/javapoet/MethodSpec*.class') {
+        duplicatesStrategy = DuplicatesStrategy.EXCLUDE
+    }
+}
+
+// The MethodSpec overlay is vendored third-party code (upstream 0.16.0 + one additive `docTag`), not
+// percolate house code — exempt it from the house gates rather than rewrite upstream to our style, so
+// re-vendoring on a JavaPoet bump stays mechanical (design D6). error-prone's excludedPaths also covers
+// NullAway + RequireExplicitNullMarking for the vendored package. Spotless still formats it deterministically.
+tasks.withType(Pmd).configureEach {
+    exclude '**/com/palantir/javapoet/**'
+}
+tasks.withType(JavaCompile).configureEach {
+    options.errorprone.excludedPaths = '.*/com/palantir/javapoet/.*'
 }
 
 // Shadow's own optional variant (SHADOW_RUNTIME_ELEMENTS) is not used: it would carry the 'shadow'
@@ -42,7 +62,9 @@ configurations {
     }
 }
 
-// No source, no tests: nothing for branch-coverage verification to measure.
+// The only source is the vendored third-party MethodSpec overlay; holding vendored code to our branch-coverage
+// floor is wrong (design D6), so coverage verification stays off. The overlay's added behaviour is pinned by
+// the docTags-on generation e2e fixtures (change doc-tag-whole-methods, task 3) and a focused processor spec.
 tasks.named('jacocoTestCoverageVerification') {
     enabled = false
 }

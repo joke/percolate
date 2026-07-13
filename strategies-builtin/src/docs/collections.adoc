@@ -20,7 +20,7 @@ stream pipeline and delegates each element to `toView`:
 
 [source,java]
 ----
-include::example$collections/TeamMapperImpl.java[tag=map]
+include::example$collections/TeamMapperImpl.java[tag=map,indent=0]
 ----
 
 == Cross-kind: `Set` to `List`
@@ -31,7 +31,7 @@ needed since the element type is unchanged:
 
 [source,java]
 ----
-include::example$collections/TeamMapperImpl.java[tag=toSortedTags]
+include::example$collections/TeamMapperImpl.java[tag=toSortedTags,indent=0]
 ----
 
 == A `Stream` source composes the same way
@@ -41,7 +41,7 @@ A `Stream` is a container like any other — it needs no special handling on eit
 
 [source,java]
 ----
-include::example$collections/TeamMapperImpl.java[tag=toUniqueTags]
+include::example$collections/TeamMapperImpl.java[tag=toUniqueTags,indent=0]
 ----
 
 == Presence composed inside a container
@@ -52,7 +52,7 @@ in, so only the *present* values survive. `toPresentTags` converts `List<Optiona
 
 [source,java]
 ----
-include::example$collections/TeamMapperImpl.java[tag=toPresentTags]
+include::example$collections/TeamMapperImpl.java[tag=toPresentTags,indent=0]
 ----
 
 Notice percolate reuses `toUniqueTags` for the `Stream<String> → Set<String>` half of the pipeline — the
@@ -68,7 +68,7 @@ with `toView`, collect into a `Set`, then wrap the result in an `Optional`:
 
 [source,java]
 ----
-include::example$collections/TeamMapperImpl.java[tag=toRoster]
+include::example$collections/TeamMapperImpl.java[tag=toRoster,indent=0]
 ----
 
 == Supported container kinds

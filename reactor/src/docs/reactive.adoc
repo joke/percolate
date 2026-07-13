@@ -22,7 +22,7 @@ percolate generates:
 
 [source,java]
 ----
-include::example$reactive/FeedMapperImpl.java[tag=map]
+include::example$reactive/FeedMapperImpl.java[tag=map,indent=0]
 ----
 
 Percolate composes a `flux.map(...)` over the element method: the `Flux<Article>` is mapped element-wise

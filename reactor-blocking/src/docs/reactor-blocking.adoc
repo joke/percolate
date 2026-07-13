@@ -12,9 +12,9 @@ as usual:
 
 [source,java]
 ----
-include::example$reactor-blocking/PersonMapperImpl.java[tag=map]
+include::example$reactor-blocking/PersonMapperImpl.java[tag=map,indent=0]
 
-include::example$reactor-blocking/PersonMapperImpl.java[tag=toDao]
+include::example$reactor-blocking/PersonMapperImpl.java[tag=toDao,indent=0]
 ----
 
 A `Mono<PersonDTO>` source reduces to a scalar `PersonDAO` target via `.block()`, then the blocked value is

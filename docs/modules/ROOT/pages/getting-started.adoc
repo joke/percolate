@@ -104,7 +104,7 @@ and constructs the target:
 
 [source,java]
 ----
-include::example$gettingstarted/PersonMapperImpl.java[tag=map]
+include::example$gettingstarted/PersonMapperImpl.java[tag=map,indent=0]
 ----
 
 [IMPORTANT]

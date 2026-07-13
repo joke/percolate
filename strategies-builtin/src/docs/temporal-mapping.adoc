@@ -19,7 +19,7 @@ read:
 
 [source,java]
 ----
-include::example$temporal/TemporalMapperImpl.java[tag=toInstant]
+include::example$temporal/TemporalMapperImpl.java[tag=toInstant,indent=0]
 ----
 
 A cross-*spoke* pair in the same family composes through the hub automatically. `toDate` converts
@@ -28,7 +28,7 @@ nothing dedicated is authored for this exact pair:
 
 [source,java]
 ----
-include::example$temporal/TemporalMapperImpl.java[tag=toDate]
+include::example$temporal/TemporalMapperImpl.java[tag=toDate,indent=0]
 ----
 
 == The no-truncation guarantee
@@ -55,7 +55,7 @@ With neither a directive nor the compiler option, `toLocalDateTime` defers to th
 
 [source,java]
 ----
-include::example$temporal/TemporalMapperImpl.java[tag=toLocalDateTime]
+include::example$temporal/TemporalMapperImpl.java[tag=toLocalDateTime,indent=0]
 ----
 
 A directive-declared zone is frozen into the generated code instead — `toBerlinTime` always reads
@@ -63,7 +63,7 @@ A directive-declared zone is frozen into the generated code instead — `toBerli
 
 [source,java]
 ----
-include::example$temporal/TemporalMapperImpl.java[tag=toBerlinTime]
+include::example$temporal/TemporalMapperImpl.java[tag=toBerlinTime,indent=0]
 ----
 
 [NOTE]
@@ -82,9 +82,9 @@ pattern — immutable and thread-safe, so every call site reuses the same instan
 
 [source,java]
 ----
-include::example$temporal/TemporalMapperImpl.java[tag=parseDate]
+include::example$temporal/TemporalMapperImpl.java[tag=parseDate,indent=0]
 
-include::example$temporal/TemporalMapperImpl.java[tag=formatDate]
+include::example$temporal/TemporalMapperImpl.java[tag=formatDate,indent=0]
 ----
 
 `parseDate` and `formatDate` above share the exact same pattern, so the generated type declares only *one*
@@ -92,7 +92,7 @@ include::example$temporal/TemporalMapperImpl.java[tag=formatDate]
 
 [source,java]
 ----
-include::example$temporal/TemporalMapperImpl.java[]
+include::example$temporal/TemporalMapperImpl.java[tags=**]
 ----
 
 For `java.util.Date`/`java.sql.*` targets, `@Map(format = …)` instead constructs a fresh

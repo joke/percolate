@@ -18,7 +18,7 @@ message so a runtime failure points straight at the offending field:
 
 [source,java]
 ----
-include::example$nullness/OrderMapperImpl.java[tag=map]
+include::example$nullness/OrderMapperImpl.java[tag=map,indent=0]
 ----
 
 A present `trackingCode` flows through unchanged; an absent one throws immediately, with the message

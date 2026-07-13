@@ -52,7 +52,7 @@ Percolate generates:
 
 [source,java]
 ----
-include::example$extending/PreferenceMapperImpl.java[tag=wrap]
+include::example$extending/PreferenceMapperImpl.java[tag=wrap,indent=0]
 ----
 
 `JustOrEmpty` is discovered via `ServiceLoader` and its candidate operation competes and wins on cost like

@@ -34,9 +34,11 @@ import javax.lang.model.type.TypeMirror
 import java.util.stream.Stream
 
 /**
- * {@link BuildMethodBodies} seam, unit-tested directly: {@code build}/{@code renderMethod}/{@code docTagged} are
- * pure wiring, exercised over mocked collaborators (design {@code decompose-engine-stages}, Phase 3 — the codegen
- * exemplar). {@link BuildMethodBodies.Walk}'s own assembly logic is covered by {@link WalkSpec}.
+ * {@link BuildMethodBodies} seam, unit-tested directly: {@code build}/{@code renderMethod} are pure wiring,
+ * exercised over mocked collaborators (design {@code decompose-engine-stages}, Phase 3 — the codegen exemplar).
+ * Method bodies are emitted untagged here; whole-method docTag bracketing now lives on the {@code MethodSpec}
+ * builder in {@link AssembleMapperType} (change {@code doc-tag-whole-methods}). {@link BuildMethodBodies.Walk}'s
+ * own assembly logic is covered by {@link WalkSpec}.
  */
 @Tag('unit')
 class BuildMethodBodiesSpec extends Specification {
@@ -83,30 +85,9 @@ class BuildMethodBodiesSpec extends Specification {
         result.members.empty
     }
 
-    def 'docTagged returns the body unchanged when the docTags option is off'() {
-        def body = CodeBlock.of('return x;\n')
-
-        expect:
-        engine(false).docTagged(body, method).is(body)
-    }
-
-    def 'docTagged brackets the body in AsciiDoc include tags named after the method when the option is on'() {
-        def body = CodeBlock.of('return x;\n')
-
-        when:
-        def result = engine(true).docTagged(body, method)
-
-        then:
-        1 * method.simpleName >> Stub(Name) { toString() >> 'map' }
-        0 * _
-
-        expect:
-        result.toString() == '// tag::map[]\nreturn x;\n// end::map[]\n'
-    }
-
     // ---- helpers ----------------------------------------------------------------------------------------------
 
-    private BuildMethodBodies engine(final boolean docTags = false) {
+    private BuildMethodBodies engine() {
         new BuildMethodBodies(ProcessorOptions.builder()
                 .debugGraphs(false)
                 .customNullableAnnotations([] as Set)
@@ -115,7 +96,7 @@ class BuildMethodBodiesSpec extends Specification {
                 .parametersFinal(false)
                 .methodsFinal(false)
                 .classesFinal(false)
-                .docTags(docTags)
+                .docTags(false)
                 .timeZone(Optional.empty())
                 .build())
     }

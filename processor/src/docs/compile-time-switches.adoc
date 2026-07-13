@@ -81,7 +81,7 @@ Every local percolate hoists — here, each constructor argument — is declared
 
 [source,java]
 ----
-include::example$switches/locals-final/ProductMapperImpl.java[tag=map]
+include::example$switches/locals-final/ProductMapperImpl.java[tag=map,indent=0]
 ----
 
 == `percolate.locals.var`
@@ -90,7 +90,7 @@ The same hoisted locals, declared with `var` instead of an explicit type:
 
 [source,java]
 ----
-include::example$switches/locals-var/ProductMapperImpl.java[tag=map]
+include::example$switches/locals-var/ProductMapperImpl.java[tag=map,indent=0]
 ----
 
 == `percolate.parameters.final`
@@ -99,14 +99,14 @@ Off by default — a generated method's parameters carry no `final`:
 
 [source,java]
 ----
-include::example$switches/parameters-final-off/ProductMapperImpl.java[tag=map]
+include::example$switches/parameters-final-off/ProductMapperImpl.java[tag=map,indent=0]
 ----
 
 With the option on, every parameter is declared `final`:
 
 [source,java]
 ----
-include::example$switches/parameters-final-on/ProductMapperImpl.java[tag=map]
+include::example$switches/parameters-final-on/ProductMapperImpl.java[tag=map,indent=0]
 ----
 
 == `percolate.methods.final`
@@ -115,14 +115,14 @@ Off by default:
 
 [source,java]
 ----
-include::example$switches/methods-final-off/ProductMapperImpl.java[tag=map]
+include::example$switches/methods-final-off/ProductMapperImpl.java[tag=map,indent=0]
 ----
 
 With the option on, the generated `@Override` method is declared `final`:
 
 [source,java]
 ----
-include::example$switches/methods-final-on/ProductMapperImpl.java[tag=map]
+include::example$switches/methods-final-on/ProductMapperImpl.java[tag=map,indent=0]
 ----
 
 == `percolate.classes.final`
@@ -160,7 +160,7 @@ is unguarded:
 
 [source,java]
 ----
-include::example$switches/nullable-unregistered/NullableMapperImpl.java[tag=map]
+include::example$switches/nullable-unregistered/NullableMapperImpl.java[tag=map,indent=0]
 ----
 
 Passed as `-Apercolate.nullable.annotations=examples.switches.CustomNullable`, percolate treats it exactly
@@ -169,7 +169,7 @@ crossing:
 
 [source,java]
 ----
-include::example$switches/nullable-registered/NullableMapperImpl.java[tag=map]
+include::example$switches/nullable-registered/NullableMapperImpl.java[tag=map,indent=0]
 ----
 
 Registering an annotation is additive — JSpecify's own `@Nullable` keeps working alongside it.
@@ -199,7 +199,7 @@ Unset, the generated code defers to the consumer's own runtime default zone:
 
 [source,java]
 ----
-include::example$switches/time-zone-unset/ZonedMapperImpl.java[tag=toLocalDateTime]
+include::example$switches/time-zone-unset/ZonedMapperImpl.java[tag=toLocalDateTime,indent=0]
 ----
 
 Passed as `-Apercolate.time.zone=Europe/Berlin`, that zone is frozen into the generated code instead — every
@@ -207,7 +207,7 @@ mapper compiled with this option shares the same project-wide default:
 
 [source,java]
 ----
-include::example$switches/time-zone-set/ZonedMapperImpl.java[tag=toLocalDateTime]
+include::example$switches/time-zone-set/ZonedMapperImpl.java[tag=toLocalDateTime,indent=0]
 ----
 
 A directive-declared `@Map(zone = …)` still wins over this option when both are present.

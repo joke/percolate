@@ -14,7 +14,6 @@ import io.github.joke.percolate.processor.internal.graph.MethodScope;
 import io.github.joke.percolate.processor.internal.graph.Operation;
 import io.github.joke.percolate.processor.internal.graph.SourceLocation;
 import io.github.joke.percolate.processor.internal.graph.Value;
-import io.github.joke.percolate.spi.DocTags;
 import io.github.joke.percolate.spi.OperationCodegen;
 import io.github.joke.percolate.spi.ScopeCodegen;
 import jakarta.inject.Inject;
@@ -72,20 +71,7 @@ public final class BuildMethodBodies {
         final var hoist = HoistPlan.forMethod(graph, plan, root, reserved);
         final var style = new LocalStyle(options.isLocalsFinal(), options.isLocalsVar());
         final var body = new Walk(graph, plan, hoist, memberPlan, style, new TypeNameRenderer()).renderMethodBody(root);
-        return new MethodImpl(method, docTagged(body, method), Set.of());
-    }
-
-    /**
-     * When the {@code docTags} option is on, bracket the method body with AsciiDoc include-tag comments named after
-     * the method (the pure tag-wrapping lives in {@link DocTags}), so a documentation build can
-     * {@code include::[tag=<method>]} the generated body. Off by default, so ordinary consumer output is
-     * byte-for-byte unchanged.
-     */
-    CodeBlock docTagged(final CodeBlock body, final ExecutableElement method) {
-        if (!options.isDocTags()) {
-            return body;
-        }
-        return DocTags.wrap(body, method.getSimpleName().toString());
+        return new MethodImpl(method, body, Set.of());
     }
 
     /**

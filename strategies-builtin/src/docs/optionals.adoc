@@ -17,7 +17,7 @@ directly — a `null` source becomes an empty `Optional`, not a thrown exception
 
 [source,java]
 ----
-include::example$optionals/PreferencesMapperImpl.java[tag=wrapBio]
+include::example$optionals/PreferencesMapperImpl.java[tag=wrapBio,indent=0]
 ----
 
 == Unwrap into a non-null target: absence throws
@@ -27,7 +27,7 @@ nothing to fall back to, so percolate emits `orElseThrow()`:
 
 [source,java]
 ----
-include::example$optionals/PreferencesMapperImpl.java[tag=unwrapHandle]
+include::example$optionals/PreferencesMapperImpl.java[tag=unwrapHandle,indent=0]
 ----
 
 == Unwrap into a nullable target: absence becomes `null`
@@ -37,7 +37,7 @@ target itself tolerates absence, percolate emits `orElse(null)` rather than thro
 
 [source,java]
 ----
-include::example$optionals/PreferencesMapperImpl.java[tag=unwrapNickname]
+include::example$optionals/PreferencesMapperImpl.java[tag=unwrapNickname,indent=0]
 ----
 
 == Composed with a container

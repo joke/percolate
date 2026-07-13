@@ -13,7 +13,7 @@ percolate generates:
 
 [source,java]
 ----
-include::example$mapannotation/AccountMapperImpl.java[tag=map]
+include::example$mapannotation/AccountMapperImpl.java[tag=map,indent=0]
 ----
 
 == Members

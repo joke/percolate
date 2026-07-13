@@ -16,9 +16,9 @@ abstract, percolate also generates its body:
 
 [source,java]
 ----
-include::example$conversion/CustomerMapperImpl.java[tag=map]
+include::example$conversion/CustomerMapperImpl.java[tag=map,indent=0]
 
-include::example$conversion/CustomerMapperImpl.java[tag=toView]
+include::example$conversion/CustomerMapperImpl.java[tag=toView,indent=0]
 ----
 
 == How a method is chosen

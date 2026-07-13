@@ -17,7 +17,7 @@ method returns a `String`, so percolate calls it:
 
 [source,java]
 ----
-include::example$defaultmethod/ProductMapperImpl.java[tag=map]
+include::example$defaultmethod/ProductMapperImpl.java[tag=map,indent=0]
 ----
 
 `formatPrice` itself is left exactly as you wrote it.

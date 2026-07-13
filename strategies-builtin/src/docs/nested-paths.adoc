@@ -20,7 +20,7 @@ percolate generates:
 
 [source,java]
 ----
-include::example$nested/ProfileMapperImpl.java[tag=map]
+include::example$nested/ProfileMapperImpl.java[tag=map,indent=0]
 ----
 
 == Source paths descend through accessors
@@ -42,7 +42,7 @@ include::example$pathaccess/ContactMapper.java[tag=mapper]
 
 [source,java]
 ----
-include::example$pathaccess/ContactMapperImpl.java[tag=map]
+include::example$pathaccess/ContactMapperImpl.java[tag=map,indent=0]
 ----
 
 When more than one form matches the same segment name, percolate prefers a getter over a record/fluent

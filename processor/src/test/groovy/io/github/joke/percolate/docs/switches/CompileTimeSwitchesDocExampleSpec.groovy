@@ -27,7 +27,7 @@ class CompileTimeSwitchesDocExampleSpec extends Specification {
     private static final JavaFileObject CUSTOM_NULLABLE = forResource('examples/switches/CustomNullable.java')
     private static final JavaFileObject ZONED_MAPPER = forResource('examples/switches/ZonedMapper.java')
 
-    def 'percolate.docTags wraps each generated method body in include-tags, off by default'() {
+    def 'percolate.docTags brackets each whole generated method in include-tags, off by default'() {
         when:
         Compilation off = PercolateCompiler.compile(PRODUCT_MAPPER)
         Compilation on = PercolateCompiler.compileWith(['-Apercolate.docTags=true'], PRODUCT_MAPPER)
@@ -40,6 +40,10 @@ class CompileTimeSwitchesDocExampleSpec extends Specification {
         !offContent.contains('tag::map[]')
         onContent.contains('tag::map[]')
         onContent.contains('end::map[]')
+        // whole-method bracketing (change doc-tag-whole-methods): the opening tag precedes the method
+        // signature and the closing tag follows it, so an include renders the complete method, not just its body
+        onContent.indexOf('tag::map[]') < onContent.indexOf('ProductView map(')
+        onContent.indexOf('ProductView map(') < onContent.indexOf('end::map[]')
 
         and:
         materialise('doctags-off/ProductMapperImpl.java', offContent)

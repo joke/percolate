@@ -69,7 +69,11 @@ public final class AssembleMapperType {
                 .addModifiers(decisions.publicModifiers(options.isMethodsFinal()))
                 .addAnnotation(Override.class)
                 .returns(returnTypeName(method))
-                .addCode(impl.getBody());
+                .addCode(impl.getBody())
+                // percolate: when docTags is on, bracket the WHOLE generated method (signature through
+                // closing brace) so a documentation include renders the complete method. Null off-path ⇒
+                // consumer output byte-for-byte unchanged (change doc-tag-whole-methods).
+                .docTag(options.isDocTags() ? method.getSimpleName().toString() : null);
         method.getThrownTypes().forEach(t -> builder.addException(TypeName.get(t)));
         method.getParameters().forEach(p -> builder.addParameter(parameterSpec(p)));
         return builder.build();

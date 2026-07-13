@@ -1,14 +1,4 @@
-# JavaPoet Relocation Spec
-
-## Purpose
-
-Annotation processors share one classloader on a consumer's processorpath. If another processor
-contributes a different `com.palantir.javapoet` version, the version percolate compiled against can be
-silently substituted, producing a `LinkageError`/`NoSuchMethodError` at annotation-processing time. This
-spec defines the `percolate-javapoet` relocation module that shades upstream JavaPoet into percolate's own
-namespace so percolate is immune to a foreign JavaPoet version on a shared processorpath.
-
-## Requirements
+## MODIFIED Requirements
 
 ### Requirement: Relocated JavaPoet module
 
@@ -25,6 +15,8 @@ The project SHALL provide a Gradle module `percolate-javapoet` that repackages `
 - **WHEN** a relocated type that references a compiler mirror is inspected (for example `TypeName.get(javax.lang.model.type.TypeMirror)`)
 - **THEN** its `javax.lang.model.*` parameter and return types are unchanged
 
+## ADDED Requirements
+
 ### Requirement: Relocated JavaPoet class overlay
 
 `percolate-javapoet` MAY replace an individual upstream JavaPoet class with a percolate-owned **overlay** in order to add codegen behaviour the upstream class does not expose (specifically, `MethodSpec` gains the ability to bracket a whole method with leading/trailing AsciiDoc include-tag comments — see the `code-generation` capability). An overlaid class SHALL be authored under `src/main/java/com/palantir/javapoet/` so it compiles against the upstream API with package-private access and is relocated to `io.github.joke.percolate.javapoet` alongside every other class. The overlay SHALL win over its upstream twin during shading via **project-files-first ordering** plus `DuplicatesStrategy.EXCLUDE` scoped to the overlaid class's path; the shaded jar SHALL therefore contain exactly one copy of the overlaid class, the percolate one. The overlay SHALL preserve the relocation and full-swallow invariants (it introduces no `com.palantir.javapoet` dependency and no unrelocated class) and SHALL change only the behaviour it documents, leaving the rest of the class's observable behaviour equivalent to upstream.
@@ -38,32 +30,3 @@ The project SHALL provide a Gradle module `percolate-javapoet` that repackages `
 
 - **WHEN** the `percolate-javapoet` POM/metadata and the shaded jar are inspected with the overlay present
 - **THEN** no dependency on `com.palantir.javapoet:javapoet` is declared and no class under `com.palantir.javapoet` remains
-
-### Requirement: Upstream JavaPoet is fully swallowed
-
-`percolate-javapoet` SHALL fully absorb upstream JavaPoet: its published POM and Gradle metadata SHALL declare **zero** dependency on `com.palantir.javapoet`, and no module that depends on `percolate-javapoet` SHALL receive `com.palantir.javapoet` on any compile or runtime classpath. This guarantees percolate is immune to another annotation processor contributing a different `com.palantir.javapoet` version to a shared processorpath.
-
-#### Scenario: Published metadata declares no upstream dependency
-
-- **WHEN** the `percolate-javapoet` POM and Gradle metadata are inspected
-- **THEN** they declare no dependency on `com.palantir.javapoet:javapoet`
-
-#### Scenario: Original package is absent from downstream classpaths
-
-- **WHEN** the resolved compile and runtime classpaths of any percolate module that depends on `percolate-javapoet` are inspected
-- **THEN** no artifact or class in the `com.palantir.javapoet` package is present
-
-### Requirement: Percolate codegen speaks the relocated package
-
-All percolate production code that renders generated output — the `percolate-spi` public codegen surface, the `processor`, and the strategy modules (`strategies-builtin`, `reactor`, `reactor-blocking`) — SHALL reference JavaPoet through `io.github.joke.percolate.javapoet` and SHALL NOT import `com.palantir.javapoet`. Each of these modules SHALL obtain JavaPoet via `percolate-javapoet` (directly or transitively) and SHALL NOT declare a direct dependency on `com.palantir.javapoet:javapoet`.
-
-#### Scenario: No production source imports the upstream package
-
-- **WHEN** the production sources of spi, processor, strategies-builtin, reactor, and reactor-blocking are inspected
-- **THEN** no import statement references `com.palantir.javapoet`
-
-#### Scenario: No module declares the upstream dependency
-
-- **WHEN** the build files of spi, processor, strategies-builtin, reactor, and reactor-blocking are inspected
-- **THEN** none declares `com.palantir.javapoet:javapoet`
-- **AND** each resolves JavaPoet through `percolate-javapoet`
