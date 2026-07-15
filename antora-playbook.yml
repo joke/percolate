@@ -15,6 +15,11 @@ ui:
   bundle:
     url: https://gitlab.com/antora/antora-ui-default/-/jobs/artifacts/HEAD/raw/build/ui-bundle.zip?job=bundle-stable
     snapshot: true
+  # Overlays docs/supplemental-ui/ onto the extracted bundle. The only file it replaces is
+  # partials/header-content.hbs, which strips the bundle's hardcoded demo navbar (Home/Products/Services/
+  # Download, all dead links) and the mobile burger that toggled it open — everything else on the bundle
+  # (styles, scripts, the version-dropdown partials) stays on the stock, upstream-maintained path.
+  supplemental_files: docs/supplemental-ui
 
 antora:
   extensions:

@@ -55,6 +55,71 @@ include::example$gettingstarted/PersonMapper.java[tag=mapper]
 `map(Person)` is abstract, so percolate generates it. A `default` helper on the same interface would be
 left as-is but remain callable from generated code.
 
+== Abstract classes
+
+A `@Mapper` type can be an abstract class instead of an interface. Discovery and generation work the same
+way — the only difference is the generated `<MapperName>Impl` `extends` the mapper rather than implementing
+it.
+
+[source,java]
+----
+include::example$abstractclass/VehicleMapper.java[tag=mapper]
+----
+
+Given these beans:
+
+[source,java]
+----
+include::example$abstractclass/VehicleMapper.java[tag=model]
+----
+
+percolate generates `VehicleMapperImpl extends VehicleMapper`:
+
+[source,java]
+----
+include::example$abstractclass/VehicleMapperImpl.java[tag=map,indent=0]
+----
+
+== Hierarchies
+
+Discovery is not limited to methods declared directly on the `@Mapper` type — it walks the **full**
+inheritance graph, so an abstract method inherited from a super-interface or an abstract super-class is
+generated exactly like one declared locally. The super-type does not need `@Mapper` itself; only the type
+percolate is asked to generate does.
+
+Here, `BillingConversions` is a plain interface (not `@Mapper`) with one abstract mapping method
+(`mapLineItem`) and one `default` method:
+
+[source,java]
+----
+include::example$hierarchy/InvoiceMapper.java[tag=base]
+----
+
+`InvoiceMapper` is the `@Mapper` type. It implements `BillingConversions` and adds its own abstract mapping
+method (`map`, unrelated to `mapLineItem`) and its own concrete method:
+
+[source,java]
+----
+include::example$hierarchy/InvoiceMapper.java[tag=mapper]
+----
+
+Given these beans:
+
+[source,java]
+----
+include::example$hierarchy/InvoiceMapper.java[tag=model]
+----
+
+The generated `InvoiceMapperImpl` implements **both** abstract methods — `map`, declared on `InvoiceMapper`
+itself, and `mapLineItem`, inherited from `BillingConversions` — while `reference` (the `default` method)
+and `normalizeId` (the abstract class's own concrete method) are left alone and remain callable as
+conversions:
+
+[source,java]
+----
+include::example$hierarchy/InvoiceMapperImpl.java[tags=**]
+----
+
 == Where to next
 
 * xref:map-annotation.adoc[The `@Map` annotation] — describe each target field.
