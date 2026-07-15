@@ -41,17 +41,15 @@ The project SHALL provide a Gradle module `percolate-javapoet` that repackages `
 
 ### Requirement: Upstream JavaPoet is fully swallowed
 
-`percolate-javapoet` SHALL fully absorb upstream JavaPoet: its published POM and Gradle metadata SHALL declare **zero** dependency on `com.palantir.javapoet`, and no module that depends on `percolate-javapoet` SHALL receive `com.palantir.javapoet` on any compile or runtime classpath. This guarantees percolate is immune to another annotation processor contributing a different `com.palantir.javapoet` version to a shared processorpath.
+`percolate-javapoet` SHALL fully absorb upstream JavaPoet: its published POM and Gradle metadata SHALL
+declare **zero** dependency on `com.palantir.javapoet`. This guarantees percolate's own published artifact
+is immune to another annotation processor contributing a different `com.palantir.javapoet` version to a
+shared processorpath.
 
 #### Scenario: Published metadata declares no upstream dependency
 
 - **WHEN** the `percolate-javapoet` POM and Gradle metadata are inspected
 - **THEN** they declare no dependency on `com.palantir.javapoet:javapoet`
-
-#### Scenario: Original package is absent from downstream classpaths
-
-- **WHEN** the resolved compile and runtime classpaths of any percolate module that depends on `percolate-javapoet` are inspected
-- **THEN** no artifact or class in the `com.palantir.javapoet` package is present
 
 ### Requirement: Percolate codegen speaks the relocated package
 
