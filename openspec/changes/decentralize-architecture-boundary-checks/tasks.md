@@ -53,4 +53,4 @@
       clear ArchUnit violation message, then remove the throwaway class — proves the relocated rule actually
       catches what it's supposed to, not just that it compiles.
 - [x] 5.4 Run `./gradlew check` and confirm it passes with no violations.
-- [ ] 5.5 Commit the completed change with `/commit-commands:commit`.
+- [x] 5.5 Commit the completed change with `/commit-commands:commit`.
