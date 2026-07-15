@@ -15,17 +15,20 @@ import spock.lang.Shared
 import spock.lang.Specification
 import spock.lang.Tag
 
-import java.nio.file.Paths
-
 import static com.tngtech.archunit.lang.syntax.ArchRuleDefinition.classes
 import static com.tngtech.archunit.lang.syntax.ArchRuleDefinition.methods
 import static com.tngtech.archunit.lang.syntax.ArchRuleDefinition.noClasses
 import static com.tngtech.archunit.library.dependencies.SlicesRuleDefinition.slices
 
 /**
- * Production-scope module boundaries, enforced over every percolate module's main classes. The
- * encapsulation rule (no external code reaches a processor `internal` package) and its forced test
- * relocations are added once the engine's internal split exists.
+ * The genuinely cross-module architecture rules — each needs to see more than one module together
+ * (inter-module layering, strategy myopia, acyclicity, the {@code javax.lang.model.util} confinement, the
+ * {@code spi.builtins}-spanning size/private-method ceiling) — so this suite is the one place that can
+ * enforce them. The "no class outside the engine reaches a processor internal package" rule used to live
+ * here too; it moved into each strategy module's own test suite (change
+ * decentralize-architecture-boundary-checks), since a strategy module already has everything that rule
+ * needs — its own classes plus {@code processor}'s — on its own ordinary classpath, without this module
+ * reaching into sibling build output.
  */
 @Tag('unit')
 class ModuleBoundariesSpec extends Specification {
@@ -178,24 +181,6 @@ class ModuleBoundariesSpec extends Specification {
         classes().that().resideInAnyPackage(DECOMPOSED_ENGINE_PACKAGES)
                 .should(sizeCeiling)
                 .check(imported)
-
-        then:
-        notThrown(AssertionError)
-    }
-
-    def 'no class outside the engine reaches a processor internal package'() {
-        given: 'the strategy modules\' main + test classes, which the normal classpath does not carry'
-        final String probe = System.getProperty('percolate.boundaryProbeClasses')
-        final List<java.nio.file.Path> dirs = probe.split(java.util.regex.Pattern.quote(File.pathSeparator))
-                .findAll { !it.empty }
-                .collect { Paths.get(it) }
-                .findAll { java.nio.file.Files.isDirectory(it) }
-        final JavaClasses candidates = new ClassFileImporter().importPaths(dirs)
-
-        when:
-        noClasses().that().resideOutsideOfPackage(ROOT + '.processor..')
-                .should().dependOnClassesThat().resideInAPackage(ROOT + '.processor.internal..')
-                .check(candidates)
 
         then:
         notThrown(AssertionError)

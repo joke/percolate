@@ -1,10 +1,15 @@
 plugins {
     id 'groovy'
+    id 'java-test-fixtures'
 }
 
 // Cross-module architecture rules (ArchUnit). Test-only, never published. It takes every percolate
-// module on its test classpath so ArchUnit can import their classes and assert the declared
-// boundaries; the standard `test` task wires the rules into `./gradlew check`.
+// module on its test classpath so ArchUnit can import their classes and assert the genuinely
+// cross-module rules (inter-module layering, strategy myopia, acyclicity, the javax.lang.model.util
+// confinement, the spi.builtins-spanning size/private-method ceiling). Per-module-repeatable rules —
+// like "no class outside the engine reaches processor.internal" — instead run inside the module they
+// check, against that module's own already-available classpath, built on the shared rule library this
+// module publishes as testFixtures (see EncapsulationRules).
 dependencies {
     testImplementation platform(project(':dependencies'))
     testImplementation project(':annotations')
@@ -17,65 +22,13 @@ dependencies {
     testImplementation 'com.tngtech.archunit:archunit'
     testImplementation 'org.apache.groovy:groovy'
     testImplementation 'org.spockframework:spock-core'
-}
 
-// The encapsulation rule must see other modules' TEST classes (e.g. a strategy spec reaching into an
-// engine internal package), which never appear on the normal classpath. Pass the strategy modules'
-// main+test class directories explicitly so ArchUnit can import them via paths. Resolved to absolute
-// path strings at configuration time so the configuration cache stays happy.
-def boundaryProbeModules = [':strategies-builtin', ':reactor', ':reactor-blocking']
-def boundaryProbeLayout = ['classes/java/main', 'classes/groovy/main', 'classes/java/test', 'classes/groovy/test']
-tasks.named('test') {
-    boundaryProbeModules.each { dependsOn "${it}:testClasses" }
-    def probeDirs = boundaryProbeModules.collectMany { path ->
-        def buildDir = project(path).layout.buildDirectory
-        boundaryProbeLayout.collect { buildDir.dir(it).get().asFile }
-    }
-    inputs.files(probeDirs).withPropertyName('boundaryProbeClasses').optional()
-    systemProperty 'percolate.boundaryProbeClasses', probeDirs*.absolutePath.join(File.pathSeparator)
+    testFixturesImplementation platform(project(':dependencies'))
+    testFixturesImplementation 'com.tngtech.archunit:archunit'
+    testFixturesImplementation 'org.apache.groovy:groovy'
 }
 
 // No production code lives here, so branch-coverage verification has nothing to measure.
 tasks.named('jacocoTestCoverageVerification') {
     enabled = false
-}
-
-// Change relocate-javapoet-as-spi-api, task 4.2 (design D3 - the swallow invariant): ArchUnit only
-// sees bytecode, so it cannot prove upstream JavaPoet is absent from a module's resolved dependency
-// graph - a module could import nothing but still carry com.palantir.javapoet transitively on its
-// classpath. Resolve the five cutover modules' own compile/runtime classpaths directly and fail if
-// the upstream group ever resolves onto them. Resolved eagerly at configuration time (into a plain
-// String list, not a Configuration/Project reference): Gradle's project-isolation locking forbids
-// resolving another project's configuration from within a task action at execution time, and the
-// configuration cache separately forbids a task action from calling Task.project.
-def swallowProbeModules = [':spi', ':processor', ':strategies-builtin', ':reactor', ':reactor-blocking']
-def swallowProbeConfigurations = ['compileClasspath', 'runtimeClasspath']
-
-// A bare project(path) reference does not force that project to evaluate under configuration-on-
-// demand; without this, the probed modules' 'java' plugin (and its compileClasspath/runtimeClasspath
-// configurations) may not exist yet when the eager resolution below runs.
-swallowProbeModules.each { path -> evaluationDependsOn(path) }
-
-def javaPoetOffenders = swallowProbeModules.collectMany { path ->
-    swallowProbeConfigurations.collectMany { configName ->
-        project(path).configurations.getByName(configName).resolvedConfiguration
-                .resolvedArtifacts
-                .findAll { it.moduleVersion.id.group == 'com.palantir.javapoet' }
-                .collect { "${path}:${configName} -> ${it.moduleVersion.id}" as String }
-    }
-}
-
-tasks.register('verifyJavaPoetSwallowed') {
-    swallowProbeModules.each { path -> dependsOn "${path}:jar" }
-    doLast {
-        if (!javaPoetOffenders.empty) {
-            throw new GradleException(
-                    "com.palantir.javapoet leaked onto a downstream classpath (swallow invariant violated): "
-                            + javaPoetOffenders.join(', '))
-        }
-    }
-}
-
-tasks.named('check') {
-    dependsOn 'verifyJavaPoetSwallowed'
 }

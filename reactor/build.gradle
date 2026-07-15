@@ -28,6 +28,8 @@ dependencies {
     testImplementation 'org.mockito:mockito-junit-jupiter'
     testImplementation 'org.jspecify:jspecify'
     testImplementation 'io.projectreactor:reactor-core'
+    testImplementation testFixtures(project(':architecture-tests'))
+    testImplementation 'com.tngtech.archunit:archunit'
 
     testRuntimeOnly 'net.bytebuddy:byte-buddy'
     testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
