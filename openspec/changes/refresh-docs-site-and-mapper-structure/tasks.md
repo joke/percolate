@@ -46,4 +46,4 @@
       correctly, with no unresolved `include::`, no leaked `// tag::`/`// end::` marker comments in the
       hierarchy whole-class listing, and no leaked in-class indentation on tagged method snippets.
 - [x] 4.3 Run `./gradlew check` and confirm it passes with no violations.
-- [ ] 4.4 Commit the completed change with `/commit-commands:commit`.
+- [x] 4.4 Commit the completed change with `/commit-commands:commit`.
