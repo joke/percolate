@@ -5,7 +5,8 @@ on:
     branches: [main]
 
 permissions:
-  contents: read
+  contents: write
+  pull-requests: write
 
 jobs:
   release-please:
@@ -21,7 +22,6 @@ jobs:
       id: release
       with:
         release-type: simple
-        token: ${{ secrets.RELEASE_PLEASE }}
 
   # Publishes to Maven Central only when release-please actually cut a release (release_created) - an
   # ordinary push to main that merely updates the pending release PR never reaches this job, and no
