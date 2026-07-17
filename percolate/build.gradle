@@ -1,6 +1,6 @@
 plugins {
     id 'java-library'
-    id 'maven-publish'
+    id 'io.github.sgtsilvio.gradle.maven-central-publishing'
 }
 
 // Convenience starter: a single coordinate that puts the engine + builtin strategies on the

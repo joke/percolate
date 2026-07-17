@@ -1,7 +1,7 @@
 plugins {
     id 'java'
     id 'groovy'
-    id 'maven-publish'
+    id 'io.github.sgtsilvio.gradle.maven-central-publishing'
     id 'io.freefair.lombok'
 }
 

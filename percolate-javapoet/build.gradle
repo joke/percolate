@@ -1,7 +1,7 @@
 plugins {
     id 'java-library'
     id 'com.gradleup.shadow'
-    id 'maven-publish'
+    id 'io.github.sgtsilvio.gradle.maven-central-publishing'
 }
 
 // Relocation + selective-overlay module (design D1/D3/D4; overlay added by change doc-tag-whole-methods):
