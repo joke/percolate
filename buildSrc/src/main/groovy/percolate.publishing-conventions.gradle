@@ -1,0 +1,81 @@
+// Consumer-facing Maven publication. Applied only by modules that opt into
+// 'io.github.sgtsilvio.gradle.maven-central-publishing' - the plugin a module actually declares.
+// It applies 'maven-publish' and 'signing' itself (verified against the installed jar; its own
+// README understates this), so this convention only ever reacts to those two below, it never applies them.
+// artifactId is left at maven-publish's own default (project.name): the group already carries
+// 'io.github.joke.percolate', so no per-module prefix or exception list is needed.
+pluginManager.withPlugin('io.github.sgtsilvio.gradle.maven-central-publishing') {
+    // io.github.sgtsilvio.gradle.metadata always travels with Central publishing here, so it is
+    // cascaded as an additional plugin rather than declared by a module directly.
+    pluginManager.apply 'io.github.sgtsilvio.gradle.metadata'
+}
+
+// Declarative POM metadata, replacing hand-written per-module pom{} population. license/developer/
+// github coordinates are identical for every module (one repo, one author); readableName is left at
+// its structural default (project.name) rather than a per-module exception list. github.repo is
+// pinned to rootProject.name: every publishable module lives in the same 'percolate' repository, so
+// the default (per-module project.name) convention would be wrong here.
+pluginManager.withPlugin('io.github.sgtsilvio.gradle.metadata') {
+    description = 'A Java annotation processor that generates bean mappers'
+    metadata {
+        readableName = project.name
+        license { apache2() }
+        developers {
+            register('joke') {
+                fullName = 'Joke de Buhr'
+                email = 'joke@xckk.de'
+            }
+        }
+        github {
+            org = 'joke'
+            repo = rootProject.name
+            pages()
+            issues()
+        }
+    }
+}
+
+// Publish to Maven Central via the Central Portal API (io.github.sgtsilvio.gradle.maven-central-publishing);
+// its `publishToMavenCentral` task talks to the Portal directly, so no `publishing.repositories` entry is
+// needed or added here - Central Portal only, no GitHub Packages / legacy OSSRH staging URL.
+pluginManager.withPlugin('maven-publish') {
+    pluginManager.withPlugin('java') {
+        // Maven Central requires sources and javadoc jars alongside the main artifact.
+        java {
+            withJavadocJar()
+            withSourcesJar()
+        }
+        publishing {
+            publications {
+                maven(MavenPublication) {
+                    from components.java
+                }
+            }
+        }
+    }
+    pluginManager.withPlugin('java-platform') {
+        publishing {
+            publications {
+                maven(MavenPublication) {
+                    from components.javaPlatform
+                }
+            }
+        }
+    }
+}
+
+pluginManager.withPlugin('signing') {
+    signing {
+        // Only require signing keys for a Central Portal publish, not for a local publishToMavenLocal
+        // verification run - mirrors the same gate the author's spock-deepmock project already uses.
+        required { gradle.taskGraph.allTasks.any { it.name.contains('MavenCentral') } }
+        // Delegates to the local gpg/gpg-agent, populated in CI by importing a real key
+        // (crazy-max/ghaction-import-gpg) rather than passing key material through Gradle properties.
+        useGpgCmd()
+    }
+    // The 'maven' publication is registered by whichever of the java/java-platform branches above
+    // applies, so signing it is written once here rather than duplicated in both branches.
+    pluginManager.withPlugin('maven-publish') {
+        signing { sign publishing.publications.maven }
+    }
+}

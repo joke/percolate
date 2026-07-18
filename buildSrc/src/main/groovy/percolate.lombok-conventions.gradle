@@ -1,0 +1,10 @@
+// io.freefair.lombok wires javadoc to read delomboked (expanded, Lombok-free) source automatically, so
+// Lombok-generated members and the onConstructor_=@Inject trick resolve correctly under javadoc's own parser -
+// unlike raw source, which broke javadoc across every Lombok-using module (surfaced by task 5.3 turning on
+// withJavadocJar() for the first time). Pin the version explicitly: the plugin's own default (1.18.44) is
+// older than the version this build already pins via the internal ':dependencies' platform.
+pluginManager.withPlugin('io.freefair.lombok') {
+    lombok {
+        version = '1.18.46'
+    }
+}

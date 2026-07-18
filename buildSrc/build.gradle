@@ -1,0 +1,20 @@
+plugins {
+    id 'groovy-gradle-plugin'
+}
+
+// buildSrc is a separate Gradle build: it does not see the root build's settings.gradle
+// pluginManagement block, so every plugin a percolate.*-conventions script applies via
+// pluginManager.apply(...) needs its implementation artifact declared here explicitly,
+// kept in sync with the matching version pin in the root build's settings.gradle.
+repositories {
+    gradlePluginPortal()
+    mavenCentral()
+}
+
+dependencies {
+    implementation 'com.diffplug.spotless:spotless-plugin-gradle:8.8.0'
+    implementation 'com.palantir.baseline:gradle-baseline-java:7.5.0'
+    implementation 'net.ltgt.gradle:gradle-errorprone-plugin:5.1.0'
+    implementation 'net.ltgt.gradle:gradle-nullaway-plugin:3.0.0'
+    implementation 'io.github.sgtsilvio.gradle:gradle-metadata:0.7.0'
+}

@@ -1,5 +1,7 @@
 plugins {
     id 'java'
+    id 'percolate.base-conventions'
+    id 'percolate.java-conventions'
 }
 
 // A consumer-shaped module. Percolate is compile-time-only, so the starter goes on annotationProcessor

@@ -1,0 +1,127 @@
+pluginManager.withPlugin('java-base') {
+    pluginManager.apply 'com.diffplug.spotless'
+    pluginManager.apply 'com.palantir.baseline-encoding'
+    pluginManager.apply 'com.palantir.baseline-java-compiler-diagnostics'
+    pluginManager.apply 'com.palantir.baseline-java-properties'
+    pluginManager.apply 'com.palantir.baseline-module-jvm-args'
+    pluginManager.apply 'jacoco'
+    pluginManager.apply 'net.ltgt.errorprone'
+    pluginManager.apply 'pmd'
+//        pluginManager.apply 'org.danilopianini.cpd'
+    // pluginManager.apply 'com.palantir.baseline-format'
+    tasks.withType(JavaCompile).configureEach {
+        options.release = 11
+        options.compilerArgs << '-Werror'
+        options.fork = true
+        options.forkOptions.jvmArgs += [
+                '--sun-misc-unsafe-memory-access=allow'
+        ]
+    }
+}
+
+pluginManager.withPlugin('com.diffplug.spotless') {
+    spotless {
+        java {
+            forbidWildcardImports()
+            removeUnusedImports()
+            palantirJavaFormat('2.87.0')
+        }
+    }
+}
+
+pluginManager.withPlugin('java') {
+    pluginManager.apply 'com.palantir.baseline-test-heap'
+    pluginManager.apply 'com.palantir.baseline-testing'
+
+    tasks.named('test') {
+        useJUnitPlatform {
+            includeTags 'unit'
+        }
+    }
+
+    tasks.register('integrationTest', Test) {
+        useJUnitPlatform {
+            includeTags 'integration'
+        }
+        testClassesDirs = sourceSets.test.output.classesDirs
+        classpath = sourceSets.test.runtimeClasspath
+    }
+
+    tasks.named('check') {
+        dependsOn 'integrationTest'
+    }
+    tasks.withType(Test).configureEach {
+        maxParallelForks = Runtime.runtime.availableProcessors().intdiv(2) ?: 1
+    }
+}
+
+pluginManager.withPlugin('jacoco') {
+    tasks.withType(JacocoReport).configureEach {
+        dependsOn test
+        dependsOn tasks.matching { it.name == 'integrationTest' }
+        executionData.from fileTree(buildDir).include('jacoco/*.exec')
+        reports {
+            xml.required = true
+        }
+    }
+    tasks.withType(JacocoCoverageVerification).configureEach {
+        violationRules {
+            rule {
+                limit {
+                    counter = 'BRANCH'
+                    value = 'COVEREDRATIO'
+                    // Per-module floor; defaults to 0.6. A module raises (or, while a ratchet is in
+                    // flight, temporarily lowers) its own bar via ext.branchCoverageMinimum.
+                    minimum = project.findProperty('branchCoverageMinimum') ?: 0.6
+                }
+            }
+        }
+    }
+    tasks.withType(Test).configureEach {
+        finalizedBy jacocoTestReport
+    }
+    tasks.named('check') {
+        dependsOn jacocoTestCoverageVerification
+    }
+}
+
+pluginManager.withPlugin('pmd') {
+    pmd {
+        consoleOutput = false
+        toolVersion = '7.26.0' // keep in sync with below
+        rulesMinimumPriority = 5
+        ruleSets = ["$rootDir/.pmd.xml"]
+    }
+}
+
+pluginManager.withPlugin('net.ltgt.errorprone') {
+    pluginManager.apply 'net.ltgt.nullaway'
+    dependencies {
+        errorprone('com.google.errorprone:error_prone_core:2.49.0')
+    }
+    tasks.withType(JavaCompile).configureEach {
+        options.errorprone {
+            disableWarningsInGeneratedCode = true
+        }
+    }
+}
+
+pluginManager.withPlugin('net.ltgt.nullaway') {
+    dependencies {
+        errorprone('com.uber.nullaway:nullaway:0.13.4')
+    }
+    tasks.withType(JavaCompile).configureEach {
+        options.errorprone {
+            error('RequireExplicitNullMarking')
+            nullaway {
+                error()
+                onlyNullMarked = true
+                treatGeneratedAsUnannotated = true
+                jspecifyMode = true
+                suggestSuppressions = true
+                checkContracts = true
+                acknowledgeRestrictiveAnnotations = true
+            }
+        }
+    }
+}

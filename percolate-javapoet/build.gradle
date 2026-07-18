@@ -2,6 +2,9 @@ plugins {
     id 'java-library'
     id 'com.gradleup.shadow'
     id 'io.github.sgtsilvio.gradle.maven-central-publishing'
+    id 'percolate.base-conventions'
+    id 'percolate.java-conventions'
+    id 'percolate.publishing-conventions'
 }
 
 // Relocation + selective-overlay module (design D1/D3/D4; overlay added by change doc-tag-whole-methods):
