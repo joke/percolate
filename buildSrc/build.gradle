@@ -3,9 +3,9 @@ plugins {
 }
 
 // buildSrc is a separate Gradle build: it does not see the root build's settings.gradle
-// pluginManagement block, so every plugin a percolate.*-conventions script applies via
-// pluginManager.apply(...) needs its implementation artifact declared here explicitly,
-// kept in sync with the matching version pin in the root build's settings.gradle.
+// pluginManagement block, so every plugin percolate.conventions applies via pluginManager.apply(...)
+// needs its implementation artifact declared here explicitly, kept in sync with the matching
+// version pin in the root build's settings.gradle.
 repositories {
     gradlePluginPortal()
     mavenCentral()

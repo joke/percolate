@@ -1,8 +1,6 @@
 plugins {
     id 'groovy'
-    id 'percolate.base-conventions'
-    id 'percolate.java-conventions'
-    id 'percolate.groovy-conventions'
+    id 'percolate.conventions'
 }
 
 // World-2 compile harness (PercolateCompiler). Strategy-agnostic: depends on the engine and

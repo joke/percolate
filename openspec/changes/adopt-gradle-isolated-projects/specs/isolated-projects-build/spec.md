@@ -1,18 +1,18 @@
 ## ADDED Requirements
 
-### Requirement: Cross-module build configuration lives in buildSrc convention plugins
+### Requirement: Cross-module build configuration lives in a single buildSrc convention plugin
 
-Root `build.gradle` SHALL NOT contain a `subprojects { }` or `allprojects { }` block. All cross-module configuration (compiler settings, static analysis, test wiring, publishing) SHALL be defined as precompiled Groovy script convention plugins under `buildSrc/`, applied explicitly by each module's own `plugins { }` block.
+Root `build.gradle` SHALL NOT contain a `subprojects { }` or `allprojects { }` block. All cross-module configuration (compiler settings, static analysis, test wiring, publishing) SHALL be defined in a single precompiled Groovy script convention plugin under `buildSrc/` (`percolate.conventions`), applied by each module's own `plugins { }` block as one explicit id. Splitting this configuration across multiple convention plugins, each requiring its own per-module `id` entry, SHALL NOT be reintroduced — doing so once already multiplied per-module boilerplate beyond what the single root-script block it replaced required, for composability no module used.
 
 #### Scenario: Root build.gradle has no cross-project configuration block
 
 - **WHEN** root `build.gradle` is inspected
 - **THEN** it contains no `subprojects { }` or `allprojects { }` block
 
-#### Scenario: A module opts into a convention by declaring its plugin id
+#### Scenario: A module opts into every applicable convention with one id
 
 - **WHEN** any module's `build.gradle` `plugins { }` block is inspected
-- **THEN** every cross-module convention that applies to it (base, java, groovy, lombok, pitest, publishing, as applicable to that module's own plugin choices) is present as an explicit `id 'percolate.<name>-conventions'` entry
+- **THEN** exactly one `id 'percolate.conventions'` entry is present (for any module that wants cross-module conventions at all), not multiple `percolate.*-conventions` entries
 
 ### Requirement: Build configuration is Isolated Projects-ready, pending a known third-party blocker
 

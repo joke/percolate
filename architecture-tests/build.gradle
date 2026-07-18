@@ -1,9 +1,7 @@
 plugins {
     id 'groovy'
     id 'java-test-fixtures'
-    id 'percolate.base-conventions'
-    id 'percolate.java-conventions'
-    id 'percolate.groovy-conventions'
+    id 'percolate.conventions'
 }
 
 // Cross-module architecture rules (ArchUnit). Test-only, never published. It takes every percolate

@@ -1,6 +1,6 @@
 plugins {
     id 'java-platform'
-    id 'percolate.base-conventions'
+    id 'percolate.conventions'
 }
 
 javaPlatform {

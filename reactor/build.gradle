@@ -3,11 +3,7 @@ plugins {
     id 'groovy'
     id 'io.github.sgtsilvio.gradle.maven-central-publishing'
     id 'io.freefair.lombok'
-    id 'percolate.base-conventions'
-    id 'percolate.java-conventions'
-    id 'percolate.groovy-conventions'
-    id 'percolate.lombok-conventions'
-    id 'percolate.publishing-conventions'
+    id 'percolate.conventions'
 }
 
 dependencies {

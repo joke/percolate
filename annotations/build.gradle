@@ -1,9 +1,7 @@
 plugins {
     id 'java-library'
     id 'io.github.sgtsilvio.gradle.maven-central-publishing'
-    id 'percolate.base-conventions'
-    id 'percolate.java-conventions'
-    id 'percolate.publishing-conventions'
+    id 'percolate.conventions'
 }
 
 dependencies {

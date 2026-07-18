@@ -1,0 +1,306 @@
+group = 'io.github.joke.percolate'
+
+repositories {
+    mavenCentral()
+}
+
+// Each project computes its own version directly from git tag history, rather than reading
+// rootProject.version (which would itself be the cross-project access Isolated Projects forbids -
+// see restructure-publishing-plugin-wiring's sibling reasoning). This replaces
+// org.shipkit.shipkit-auto-version: same git-tags-are-the-single-source-of-truth design, but
+// config-cache safe, and degrades gracefully instead of hard-failing when no tag exists yet
+// (this repo currently has zero tags - no release has ever been cut).
+def isCleanTag = providers.exec {
+    workingDir = rootDir
+    commandLine 'git', 'describe', '--tags', '--exact-match'
+    ignoreExitValue = true
+}.result.get().exitValue == 0
+
+def describeAlways = providers.exec {
+    workingDir = rootDir
+    commandLine 'git', 'describe', '--tags', '--always'
+    ignoreExitValue = true
+}.standardOutput.asText.map { it.trim() }.getOrElse('unspecified')
+
+version = isCleanTag ? describeAlways : "${describeAlways}-SNAPSHOT"
+
+pluginManager.withPlugin('java-base') {
+    pluginManager.apply 'com.diffplug.spotless'
+    pluginManager.apply 'com.palantir.baseline-encoding'
+    pluginManager.apply 'com.palantir.baseline-java-compiler-diagnostics'
+    pluginManager.apply 'com.palantir.baseline-java-properties'
+    pluginManager.apply 'com.palantir.baseline-module-jvm-args'
+    pluginManager.apply 'jacoco'
+    pluginManager.apply 'net.ltgt.errorprone'
+    pluginManager.apply 'pmd'
+//        pluginManager.apply 'org.danilopianini.cpd'
+    // pluginManager.apply 'com.palantir.baseline-format'
+    tasks.withType(JavaCompile).configureEach {
+        options.release = 11
+        options.compilerArgs << '-Werror'
+        options.fork = true
+        options.forkOptions.jvmArgs += [
+                '--sun-misc-unsafe-memory-access=allow'
+        ]
+    }
+}
+
+pluginManager.withPlugin('com.diffplug.spotless') {
+    spotless {
+        java {
+            forbidWildcardImports()
+            removeUnusedImports()
+            palantirJavaFormat('2.87.0')
+        }
+    }
+}
+
+pluginManager.withPlugin('java') {
+    pluginManager.apply 'com.palantir.baseline-test-heap'
+    pluginManager.apply 'com.palantir.baseline-testing'
+
+    tasks.named('test') {
+        useJUnitPlatform {
+            includeTags 'unit'
+        }
+    }
+
+    tasks.register('integrationTest', Test) {
+        useJUnitPlatform {
+            includeTags 'integration'
+        }
+        testClassesDirs = sourceSets.test.output.classesDirs
+        classpath = sourceSets.test.runtimeClasspath
+    }
+
+    tasks.named('check') {
+        dependsOn 'integrationTest'
+    }
+    tasks.withType(Test).configureEach {
+        maxParallelForks = Runtime.runtime.availableProcessors().intdiv(2) ?: 1
+    }
+}
+
+// io.freefair.lombok wires javadoc to read delomboked (expanded, Lombok-free) source automatically, so
+// Lombok-generated members and the onConstructor_=@Inject trick resolve correctly under javadoc's own parser -
+// unlike raw source, which broke javadoc across every Lombok-using module (surfaced by task 5.3 turning on
+// withJavadocJar() for the first time). Pin the version explicitly: the plugin's own default (1.18.44) is
+// older than the version this build already pins via the internal ':dependencies' platform.
+pluginManager.withPlugin('io.freefair.lombok') {
+    lombok {
+        version = '1.18.46'
+    }
+}
+
+pluginManager.withPlugin('groovy') {
+    pluginManager.apply 'codenarc'
+    codenarc {
+        configFile = file("$rootDir/.codenarc.groovy")
+        maxPriority1Violations = 0
+        maxPriority2Violations = 0
+        maxPriority3Violations = 0
+    }
+    dependencies {
+        // buildSrc is a separate Gradle build and cannot reach the root build's ':dependencies'
+        // platform project, so CodeNarc's version is pinned directly here instead - kept in sync
+        // with the 'org.codenarc:CodeNarc' entry in dependencies/build.gradle.
+        codenarc 'org.codenarc:CodeNarc:3.7.0-groovy-4.0'
+    }
+    tasks.withType(CodeNarc).configureEach {
+        reports {
+            xml.required = false
+            html.required = true
+            text.required = true
+        }
+    }
+}
+
+pluginManager.withPlugin('info.solidsoft.pitest') {
+    pitest {
+        outputFormats = ['XML', 'HTML']
+        pitestVersion = '1.25.1'
+        junit5PluginVersion = '1.2.3'
+        mutators = ['ALL']
+        enableDefaultIncrementalAnalysis = true
+        includedGroups = ['unit']
+        timestampedReports = false
+        // Threaded by default (change type-query-seam, task 5.3): the mocked/faked-only unit suites carry no
+        // shared, non-thread-safe javac substrate, so a parallel minion run is deterministic. A module that
+        // still shared one could override this per-module with -PpitestThreads=1 rather than serialising
+        // everyone through the shared root block; none does now (the last javac substrate, the per-spec
+        // PrivateTypeUniverse, was deleted by change dissolve-private-type-universe).
+        threads = (project.findProperty('pitestThreads') ?: Runtime.runtime.availableProcessors()) as int
+        jvmArgs = ['-XX:+EnableDynamicAgentLoading']
+        // Mutation guards (change: harden-engine-as-library; ratcheted for type-query-seam task 5.4 — processor's
+        // unit specs are now mock/fake-only, no shared-static javac, deterministic across two cleared-history
+        // threaded runs: 95% line coverage, 85% killed, 89% test strength). Ratchet FLOORS — deliberately set
+        // below the current measured score so the build fails on a regression but main is never red.
+        // failWhenNoMutations catches a misconfigured run that mutates nothing.
+        failWhenNoMutations = true
+        mutationThreshold = 83
+        coverageThreshold = 92
+        testStrengthThreshold = 87
+    }
+    dependencies {
+        pitest 'org.pitest:pitest-history-plugin:0.0.1'
+        // @CoverageIgnore / @DoNotMutate escape hatches for pitest. compileOnly: they steer mutation analysis
+        // only, never ship. Use sparingly — only where a mutant is genuinely un-killable, each one justified.
+        compileOnly 'com.groupcdg:pitest-annotations:1.1.4'
+    }
+    // Task 4.3 (harden-engine-as-library): the mutation gate runs under check. Incremental analysis keeps a
+    // warm repeat run fast (~50s cold on the unit suite); a score below the ratchet floor fails the build.
+    tasks.named('check') { dependsOn 'pitest' }
+}
+
+pluginManager.withPlugin('jacoco') {
+    tasks.withType(JacocoReport).configureEach {
+        dependsOn test
+        dependsOn tasks.matching { it.name == 'integrationTest' }
+        executionData.from fileTree(buildDir).include('jacoco/*.exec')
+        reports {
+            xml.required = true
+        }
+    }
+    tasks.withType(JacocoCoverageVerification).configureEach {
+        violationRules {
+            rule {
+                limit {
+                    counter = 'BRANCH'
+                    value = 'COVEREDRATIO'
+                    // Per-module floor; defaults to 0.6. A module raises (or, while a ratchet is in
+                    // flight, temporarily lowers) its own bar via ext.branchCoverageMinimum.
+                    minimum = project.findProperty('branchCoverageMinimum') ?: 0.6
+                }
+            }
+        }
+    }
+    tasks.withType(Test).configureEach {
+        finalizedBy jacocoTestReport
+    }
+    tasks.named('check') {
+        dependsOn jacocoTestCoverageVerification
+    }
+}
+
+pluginManager.withPlugin('pmd') {
+    pmd {
+        consoleOutput = false
+        toolVersion = '7.26.0' // keep in sync with below
+        rulesMinimumPriority = 5
+        ruleSets = ["$rootDir/.pmd.xml"]
+    }
+}
+
+pluginManager.withPlugin('net.ltgt.errorprone') {
+    pluginManager.apply 'net.ltgt.nullaway'
+    dependencies {
+        errorprone('com.google.errorprone:error_prone_core:2.49.0')
+    }
+    tasks.withType(JavaCompile).configureEach {
+        options.errorprone {
+            disableWarningsInGeneratedCode = true
+        }
+    }
+}
+
+pluginManager.withPlugin('net.ltgt.nullaway') {
+    dependencies {
+        errorprone('com.uber.nullaway:nullaway:0.13.4')
+    }
+    tasks.withType(JavaCompile).configureEach {
+        options.errorprone {
+            error('RequireExplicitNullMarking')
+            nullaway {
+                error()
+                onlyNullMarked = true
+                treatGeneratedAsUnannotated = true
+                jspecifyMode = true
+                suggestSuppressions = true
+                checkContracts = true
+                acknowledgeRestrictiveAnnotations = true
+            }
+        }
+    }
+}
+
+// Consumer-facing Maven publication. Applied only by modules that opt into
+// 'io.github.sgtsilvio.gradle.maven-central-publishing' - the plugin a module actually declares.
+// It applies 'maven-publish' and 'signing' itself (verified against the installed jar; its own
+// README understates this), so this convention only ever reacts to those two below, it never applies them.
+// artifactId is left at maven-publish's own default (project.name): the group already carries
+// 'io.github.joke.percolate', so no per-module prefix or exception list is needed.
+pluginManager.withPlugin('io.github.sgtsilvio.gradle.maven-central-publishing') {
+    // io.github.sgtsilvio.gradle.metadata always travels with Central publishing here, so it is
+    // cascaded as an additional plugin rather than declared by a module directly.
+    pluginManager.apply 'io.github.sgtsilvio.gradle.metadata'
+}
+
+// Declarative POM metadata, replacing hand-written per-module pom{} population. license/developer/
+// github coordinates are identical for every module (one repo, one author); readableName is left at
+// its structural default (project.name) rather than a per-module exception list. github.repo is
+// pinned to rootProject.name: every publishable module lives in the same 'percolate' repository, so
+// the default (per-module project.name) convention would be wrong here.
+pluginManager.withPlugin('io.github.sgtsilvio.gradle.metadata') {
+    description = 'A Java annotation processor that generates bean mappers'
+    metadata {
+        readableName = project.name
+        license { apache2() }
+        developers {
+            register('joke') {
+                fullName = 'Joke de Buhr'
+                email = 'joke@xckk.de'
+            }
+        }
+        github {
+            org = 'joke'
+            repo = rootProject.name
+            pages()
+            issues()
+        }
+    }
+}
+
+// Publish to Maven Central via the Central Portal API (io.github.sgtsilvio.gradle.maven-central-publishing);
+// its `publishToMavenCentral` task talks to the Portal directly, so no `publishing.repositories` entry is
+// needed or added here - Central Portal only, no GitHub Packages / legacy OSSRH staging URL.
+pluginManager.withPlugin('maven-publish') {
+    pluginManager.withPlugin('java') {
+        // Maven Central requires sources and javadoc jars alongside the main artifact.
+        java {
+            withJavadocJar()
+            withSourcesJar()
+        }
+        publishing {
+            publications {
+                maven(MavenPublication) {
+                    from components.java
+                }
+            }
+        }
+    }
+    pluginManager.withPlugin('java-platform') {
+        publishing {
+            publications {
+                maven(MavenPublication) {
+                    from components.javaPlatform
+                }
+            }
+        }
+    }
+}
+
+pluginManager.withPlugin('signing') {
+    signing {
+        // Only require signing keys for a Central Portal publish, not for a local publishToMavenLocal
+        // verification run - mirrors the same gate the author's spock-deepmock project already uses.
+        required { gradle.taskGraph.allTasks.any { it.name.contains('MavenCentral') } }
+        // Delegates to the local gpg/gpg-agent, populated in CI by importing a real key
+        // (crazy-max/ghaction-import-gpg) rather than passing key material through Gradle properties.
+        useGpgCmd()
+    }
+    // The 'maven' publication is registered by whichever of the java/java-platform branches above
+    // applies, so signing it is written once here rather than duplicated in both branches.
+    pluginManager.withPlugin('maven-publish') {
+        signing { sign publishing.publications.maven }
+    }
+}
