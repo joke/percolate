@@ -2,7 +2,7 @@
 
 ### Requirement: Version derived from git tags
 
-`project.version` SHALL be computed from git tag history at Gradle configure time (via a `providers.exec()`-based `git describe` computation in the `percolate.base-conventions` convention plugin), not from a hardcoded string in `build.gradle`. Every subproject SHALL share the single computed version, matching the existing single-version model of the build. The computation SHALL be configuration-cache compatible and SHALL NOT hard-fail when no git tag exists in the repository — a commit with no tag history SHALL resolve to a `-SNAPSHOT`-suffixed version instead.
+`project.version` SHALL be computed from git tag history at Gradle configure time (via a `providers.exec()`-based `git describe` computation in the `percolate.conventions` convention plugin), not from a hardcoded string in `build.gradle`. Every subproject SHALL share the single computed version, matching the existing single-version model of the build. The computation SHALL be configuration-cache compatible and SHALL NOT hard-fail when no git tag exists in the repository — a commit with no tag history SHALL resolve to a `-SNAPSHOT`-suffixed version instead.
 
 #### Scenario: Build reads version from the latest release tag
 
