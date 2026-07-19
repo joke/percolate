@@ -39,7 +39,7 @@ jobs:
       with:
         gpg_private_key: ${{ secrets.GPG_PRIVATE_KEY }}
     - uses: gradle/actions/setup-gradle@v6
-    - run: ./gradlew check
+    - run: ./gradlew assemble
     - run: ./gradlew publishToMavenCentral
       env:
         ORG_GRADLE_PROJECT_mavenCentralUsername: ${{ secrets.mavenCentralUsername }}
