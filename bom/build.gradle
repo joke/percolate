@@ -4,8 +4,6 @@ plugins {
     id 'percolate.conventions'
 }
 
-// Consumer Bill of Materials: manages versions of percolate's OWN published artifacts.
-// Distinct from the internal ':dependencies' platform, which pins third-party versions.
 dependencies {
     constraints {
         api project(':annotations')

@@ -4,9 +4,6 @@ plugins {
     id 'percolate.conventions'
 }
 
-// Convenience starter: a single coordinate that puts the engine + builtin strategies on the
-// consumer's annotationProcessor classpath. Percolate is compile-time-only, so consumers add this
-// to `annotationProcessor`, not to a runtime configuration.
 dependencies {
     api project(':processor')
     api project(':strategies-builtin')

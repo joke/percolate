@@ -6,9 +6,6 @@ plugins {
     id 'io.freefair.lombok' apply false
 }
 
-// The Antora user manual is provisioned and run by the org.antora plugin on a managed Node runtime,
-// so the site build is a `./gradlew antora` task that participates in the Gradle graph (replacing the
-// mise npm:antora pin). The collector extension is installed in Antora's own Node context via packages.
 antora {
     version = '3.1.15'
     playbook = 'antora-playbook.yml'
@@ -18,12 +15,6 @@ antora {
     ]
 }
 
-// Two doc-example patterns feed the collector (change features-as-documentation, design D2): the real-source
-// examples generate output as an ordinary compileTestJava side effect (annotation processing), while the
-// compile-time-switches reference (processor, design D4) genuinely needs compile-testing — comparing an option
-// on vs off needs multiple compilations of the same fixture — so its doc-e2e materialises generated source as a
-// side effect of the integrationTest suite instead. The site build depends on both so the collector always
-// scans fresh output.
 tasks.named('antora') {
     dependsOn ':strategies-builtin:integrationTest'
     dependsOn ':strategies-builtin:compileTestJava'

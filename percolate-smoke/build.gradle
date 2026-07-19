@@ -3,24 +3,16 @@ plugins {
     id 'percolate.conventions'
 }
 
-// A consumer-shaped module. Percolate is compile-time-only, so the starter goes on annotationProcessor
-// and the annotations on compileOnly. project() deps resolve against the EXACT build outputs, so this
-// exercises starter aggregation + builtin-backed generation + behaviour + zero-runtime-footprint as a
-// one-pass `./gradlew check` gate — no publishing, no mavenLocal.
 dependencies {
     annotationProcessor project(':percolate')
     compileOnly project(':annotations')
     compileOnly 'org.jspecify:jspecify:1.0.0'
 }
 
-// No unit tests here (the smoke runs the generated mapper directly), so the inherited branch-coverage
-// gate has nothing to measure.
 tasks.named('jacocoTestCoverageVerification') {
     enabled = false
 }
 
-// Runs the generated mapper on the MAIN runtime classpath, which carries no percolate artifact —
-// proving both that the assembled product generates a working mapper and that the footprint is zero.
 tasks.register('smokeRun', JavaExec) {
     classpath = sourceSets.main.runtimeClasspath
     mainClass = 'com.example.smoke.SmokeMain'

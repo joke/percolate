@@ -35,10 +35,6 @@ dependencies {
     testImplementation 'org.jspecify:jspecify'
     testImplementation testFixtures(project(':spi'))
 
-    // Doc-e2e only (change features-as-documentation, design D4): the Extending page's worked example is a real,
-    // separately-shipped strategy module (reactor) added exactly as a consumer would — alongside the percolate
-    // starter — to prove a third-party strategy needs no special engine wiring. Test->main edges only; the unit
-    // suite stays strategy-free.
     testAnnotationProcessor project(':percolate')
     testAnnotationProcessor project(':reactor')
     testImplementation project(':annotations')
@@ -48,33 +44,11 @@ dependencies {
     testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
 }
 
-// Doc example (change features-as-documentation, design D2): the real @Mapper source under src/test/java is
-// compiled by the ordinary compileTestJava task, docTags on so the generated method body is include::-able.
 tasks.named('compileTestJava') {
     options.release = 17
     options.compilerArgs << '-Apercolate.docTags=true'
 }
 
-// The serialised-execution workaround for the old shared-javac JavacTask race is gone (change type-query-seam,
-// Phase 5): every spi unit spec now drives a mocked/faked ResolveCtx, and spi's testFixtures export no javac
-// substrate at all (change dissolve-private-type-universe deleted the last one, PrivateTypeUniverse), so threaded
-// pitest is safe without maxParallelForks/parallel-disable.
-
-// Module-specific pitest thresholds (change type-query-seam, task 6.3) — pitest had never run on spi before this
-// phase, so these are a first-measurement ratchet floor, not parity with processor's (that bar came from a full
-// unit-spec rewrite across every class over several iterations; this phase rewrote the 8 real-javac specs plus a
-// few small new ones for previously-untested pure forwarders — SourceProjection/OperationSpec/ChildScopeSpec/
-// PortType/Weights/Nullability/DocTags were already covered or out of this phase's scope).
-//
-// Measured across several cleared-history runs: line coverage held stable at 72% once builds were clean; the
-// mutation-kill/test-strength numbers varied run to run (16-26% killed, 24-40% test strength) even with
-// `enableDefaultIncrementalAnalysis` off and `threads = 1` — ruling out both incremental-analysis staleness and
-// minion-thread races as the cause (JUnit pass/fail itself is 100% reproducible: 8/8 identical `test` runs). The
-// residual variance is PIT's own test-to-mutant attribution when several tests cover the same line with differing
-// assertion strength (a real spike stub with `1 * ctx.method(...)` kills more than a bare `expect:` on a return
-// value) — not a shared-substrate race like the one this change eliminates elsewhere. Floors set with margin below
-// the observed worst case; tightening them further is follow-up work (strengthen assertions; investigate the PIT
-// attribution variance directly), not blocking for this phase.
 pluginManager.withPlugin('info.solidsoft.pitest') {
     pitest {
         mutationThreshold = 10

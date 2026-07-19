@@ -4,13 +4,6 @@ plugins {
     id 'percolate.conventions'
 }
 
-// Cross-module architecture rules (ArchUnit). Test-only, never published. It takes every percolate
-// module on its test classpath so ArchUnit can import their classes and assert the genuinely
-// cross-module rules (inter-module layering, strategy myopia, acyclicity, the javax.lang.model.util
-// confinement, the spi.builtins-spanning size/private-method ceiling). Per-module-repeatable rules —
-// like "no class outside the engine reaches processor.internal" — instead run inside the module they
-// check, against that module's own already-available classpath, built on the shared rule library this
-// module publishes as testFixtures (see EncapsulationRules).
 dependencies {
     testImplementation platform(project(':dependencies'))
     testImplementation project(':annotations')
@@ -23,13 +16,13 @@ dependencies {
     testImplementation 'com.tngtech.archunit:archunit'
     testImplementation 'org.apache.groovy:groovy'
     testImplementation 'org.spockframework:spock-core'
+    testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
 
     testFixturesImplementation platform(project(':dependencies'))
     testFixturesImplementation 'com.tngtech.archunit:archunit'
     testFixturesImplementation 'org.apache.groovy:groovy'
 }
 
-// No production code lives here, so branch-coverage verification has nothing to measure.
 tasks.named('jacocoTestCoverageVerification') {
     enabled = false
 }
