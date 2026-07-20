@@ -57,4 +57,17 @@ class DirectAssignSpec extends Specification {
         specs[0].ports[0].nullness == Nullability.NULLABLE
         specs[0].outputNullness == Nullability.NULLABLE
     }
+
+    def 'is labeled assign and renders the identity of its single input'() {
+        when:
+        def specs = new DirectAssign().expand(Demands.forTarget(target), ctx).toList()
+
+        then:
+        specs[0].label == 'assign'
+        specs[0].codegen.render(singleInput(io.github.joke.percolate.javapoet.CodeBlock.of('$N', 'x'))).toString() == 'x'
+    }
+
+    private static io.github.joke.percolate.spi.IncomingValues singleInput(final io.github.joke.percolate.javapoet.CodeBlock value) {
+        [single: { -> value }] as io.github.joke.percolate.spi.IncomingValues
+    }
 }

@@ -134,4 +134,36 @@ class WidenPrimitiveSpec extends Specification {
         expect:
         new WidenPrimitive().expand(Demands.forTarget(integerType), ctx).toList().empty
     }
+
+    def 'wideningStep carries the from-primitive as its input, weighted STEP, labeled with the glyph arrow'() {
+        TypeMirror longType = Mock()
+        TypeMirror intType = Mock()
+        longType.toString() >> 'long'
+        intType.toString() >> 'int'
+        ctx.primitiveType(TypeKind.INT) >> intType
+
+        expect:
+        def step = WidenPrimitive.wideningStep(TypeKind.INT, longType, ctx)
+        step.inputType.is(intType)
+        step.weight == Weights.STEP
+        step.label == 'int→long'
+    }
+
+    def 'conversions dispatches a narrower-eligible target to one step per narrower kind'() {
+        TypeMirror shortType = Mock()
+        TypeMirror byteType = Mock()
+        ctx.kind(shortType) >> TypeKind.SHORT
+        ctx.primitiveType(TypeKind.BYTE) >> byteType
+
+        expect:
+        new WidenPrimitive().conversions(shortType, ctx).toList().size() == 1
+    }
+
+    def 'conversions dispatches a target with no widening lattice entry to an empty stream'() {
+        TypeMirror byteType = Mock()
+        ctx.kind(byteType) >> TypeKind.BYTE
+
+        expect:
+        new WidenPrimitive().conversions(byteType, ctx).toList().empty
+    }
 }

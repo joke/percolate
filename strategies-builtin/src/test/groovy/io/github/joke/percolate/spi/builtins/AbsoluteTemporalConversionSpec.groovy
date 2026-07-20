@@ -122,9 +122,110 @@ class AbsoluteTemporalConversionSpec extends Specification {
         new AbsoluteTemporalConversion().expand(Demands.forTarget(localTimeType), ctx).toList().empty
     }
 
+    def 'toInstantByMethod returns empty when the spoke type is not resolvable'() {
+        ResolveCtx freshCtx = Mock()
+
+        expect:
+        AbsoluteTemporalConversion.toInstantByMethod('java.util.Date', freshCtx).empty
+    }
+
+    def 'toInstantByMethod returns empty when Instant itself is not resolvable'() {
+        ResolveCtx freshCtx = Mock()
+        TypeElement dateElement = Mock()
+        freshCtx.typeElementNamed('java.util.Date') >> dateElement
+
+        expect:
+        AbsoluteTemporalConversion.toInstantByMethod('java.util.Date', freshCtx).empty
+    }
+
+    def 'toInstantSteps skips a spoke that fails to resolve, keeping the rest'() {
+        ResolveCtx freshCtx = Mock()
+        element(freshCtx, 'java.time.Instant', instantType)
+        element(freshCtx, 'java.sql.Timestamp', timestampType)
+        element(freshCtx, 'java.time.OffsetDateTime', offsetDateTimeType)
+        element(freshCtx, 'java.time.ZonedDateTime', zonedDateTimeType)
+
+        expect:
+        AbsoluteTemporalConversion.toInstantSteps(freshCtx).toList().size() == 3
+    }
+
+    def 'isMethodSpoke is true only for Date/Timestamp'() {
+        ctx.isType(dateType, 'java.util.Date') >> true
+        ctx.isType(offsetDateTimeType, 'java.util.Date') >> false
+        ctx.isType(offsetDateTimeType, 'java.sql.Timestamp') >> false
+
+        expect:
+        AbsoluteTemporalConversion.isMethodSpoke(dateType, ctx)
+        !AbsoluteTemporalConversion.isMethodSpoke(offsetDateTimeType, ctx)
+    }
+
+    def 'fixedOffsetMethodName maps OffsetDateTime to atOffset, ZonedDateTime to atZone, else empty'() {
+        ctx.isType(offsetDateTimeType, 'java.time.OffsetDateTime') >> true
+        ctx.isType(zonedDateTimeType, 'java.time.OffsetDateTime') >> false
+        ctx.isType(zonedDateTimeType, 'java.time.ZonedDateTime') >> true
+        ctx.isType(dateType, 'java.time.OffsetDateTime') >> false
+        ctx.isType(dateType, 'java.time.ZonedDateTime') >> false
+
+        expect:
+        AbsoluteTemporalConversion.fixedOffsetMethodName(offsetDateTimeType, ctx) == Optional.of('atOffset')
+        AbsoluteTemporalConversion.fixedOffsetMethodName(zonedDateTimeType, ctx) == Optional.of('atZone')
+        AbsoluteTemporalConversion.fixedOffsetMethodName(dateType, ctx).empty
+    }
+
+    def 'fromInstantByFactory returns empty when Instant is not resolvable'() {
+        ResolveCtx freshCtx = Mock()
+
+        expect:
+        AbsoluteTemporalConversion.fromInstantByFactory(dateType, freshCtx).empty
+    }
+
+    def 'fromInstantAtFixedOffset returns empty when Instant is not resolvable'() {
+        ResolveCtx freshCtx = Mock()
+
+        expect:
+        AbsoluteTemporalConversion.fromInstantAtFixedOffset(offsetDateTimeType, freshCtx, 'atOffset').empty
+    }
+
+    def 'fromInstantStep dispatches a method-spoke target to the factory form, sourced from Instant'() {
+        ctx.isType(dateType, 'java.util.Date') >> true
+
+        expect:
+        AbsoluteTemporalConversion.fromInstantStep(dateType, ctx).get().inputType.is(instantType)
+    }
+
+    def 'fromInstantStep dispatches a non-spoke, non-fixed-offset target to empty'() {
+        TypeMirror stringType = Mock()
+        ctx.isType(stringType, 'java.util.Date') >> false
+        ctx.isType(stringType, 'java.sql.Timestamp') >> false
+        ctx.isType(stringType, 'java.time.OffsetDateTime') >> false
+        ctx.isType(stringType, 'java.time.ZonedDateTime') >> false
+
+        expect:
+        AbsoluteTemporalConversion.fromInstantStep(stringType, ctx).empty
+    }
+
+    def 'conversions dispatches an Instant target to the four toInstantSteps'() {
+        ctx.isType(instantType, 'java.time.Instant') >> true
+
+        expect:
+        new AbsoluteTemporalConversion().conversions(instantType, ctx).toList().size() == 4
+    }
+
+    def 'conversions dispatches a non-Instant target through fromInstantStep'() {
+        ctx.isType(dateType, 'java.time.Instant') >> false
+        ctx.isType(dateType, 'java.util.Date') >> true
+
+        expect:
+        new AbsoluteTemporalConversion().conversions(dateType, ctx).toList().size() == 1
+    }
+
     private void element(final String fqn, final TypeMirror type) {
+        element(ctx, fqn, type)
+    }
+
+    private void element(final ResolveCtx targetCtx, final String fqn, final TypeMirror type) {
         TypeElement typeElement = Mock()
         typeElement.asType() >> type
-        ctx.typeElementNamed(fqn) >> typeElement
+        targetCtx.typeElementNamed(fqn) >> typeElement
     }
 }

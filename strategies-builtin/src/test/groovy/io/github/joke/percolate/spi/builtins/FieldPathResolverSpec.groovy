@@ -92,7 +92,65 @@ class FieldPathResolverSpec extends Specification {
         new FieldPathResolver().descend(Demands.descend(parentType, 'DEFAULT'), ctx).toList().empty
     }
 
+    def 'isVisibleField is true only for a non-private, non-static field'() {
+        VariableElement field = Mock()
+        ctx.isField(field) >> true
+        ctx.isPrivate(field) >> false
+        ctx.isStatic(field) >> false
+
+        expect:
+        new FieldPathResolver().isVisibleField(field, ctx)
+    }
+
+    def 'isVisibleField is false when the member is not a field at all'() {
+        VariableElement field = Mock()
+        ctx.isField(field) >> false
+
+        expect:
+        !new FieldPathResolver().isVisibleField(field, ctx)
+    }
+
+    def 'matchField rejects a visible field whose name does not match the segment'() {
+        VariableElement field = Mock()
+        ctx.isField(field) >> true
+        ctx.isPrivate(field) >> false
+        ctx.isStatic(field) >> false
+        field.simpleName >> nameOf('other')
+
+        expect:
+        new FieldPathResolver().matchField(field, 'value', ctx).empty
+    }
+
+    def 'matchField matches a visible field whose name matches the segment exactly'() {
+        VariableElement field = Mock()
+        ctx.isField(field) >> true
+        ctx.isPrivate(field) >> false
+        ctx.isStatic(field) >> false
+        field.simpleName >> nameOf('value')
+
+        expect:
+        new FieldPathResolver().matchField(field, 'value', ctx).get().is(field)
+    }
+
+    def 'step renders a plain field access and carries the STEP_FIELD weight'() {
+        VariableElement field = Mock()
+        TypeMirror fieldType = Mock()
+        field.asType() >> fieldType
+
+        expect:
+        def step = FieldPathResolver.step(field, 'value')
+        step.outputType.is(fieldType)
+        step.member.is(field)
+        step.label == '.value'
+        step.weight == Weights.STEP_FIELD
+        io.github.joke.percolate.javapoet.CodeBlock.of('$L\n', step.codegen.render(singleInput(io.github.joke.percolate.javapoet.CodeBlock.of('$N', 'p')))).toString().contains('p.value')
+    }
+
     private static Name nameOf(final String value) {
         [contentEquals: { CharSequence cs -> cs.toString() == value }, toString: { value }] as Name
+    }
+
+    private static io.github.joke.percolate.spi.IncomingValues singleInput(final io.github.joke.percolate.javapoet.CodeBlock value) {
+        [single: { -> value }] as io.github.joke.percolate.spi.IncomingValues
     }
 }

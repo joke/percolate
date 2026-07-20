@@ -78,7 +78,89 @@ class PrimitiveWrapperConversionSpec extends Specification {
         new PrimitiveWrapperConversion().expand(Demands.forTarget(stringType), ctx).toList().empty
     }
 
+    def 'box renders a $T.valueOf(...) call and carries the given primitive as its input'() {
+        TypeMirror wrapperTarget = Mock()
+        TypeMirror primitive = Mock()
+
+        expect:
+        def step = PrimitiveWrapperConversion.box(wrapperTarget, primitive)
+        step.inputType.is(primitive)
+        step.weight == Weights.STEP
+    }
+
+    def 'unbox picks the accessor named after the primitive kind and renders a chained call'() {
+        TypeMirror primitiveTarget = Mock()
+        TypeMirror wrapper = Mock()
+        ctx.boxed(primitiveTarget) >> wrapper
+        ctx.kind(primitiveTarget) >> TypeKind.LONG
+
+        expect:
+        def step = PrimitiveWrapperConversion.unbox(primitiveTarget, ctx)
+        step.inputType.is(wrapper)
+        step.weight == Weights.STEP
+        io.github.joke.percolate.javapoet.CodeBlock.of('$L\n', step.codegen.render(singleInput(io.github.joke.percolate.javapoet.CodeBlock.of('$N', 'w'))))
+                .toString().contains('w.longValue()')
+    }
+
+    def 'unboxedOrNull returns null when the target is not a declared type at all'() {
+        TypeMirror target = Mock()
+        ctx.asTypeElement(target) >> Optional.empty()
+
+        expect:
+        PrimitiveWrapperConversion.unboxedOrNull(target, ctx) == null
+    }
+
+    def 'unboxedOrNull returns null for a declared, non-wrapper type'() {
+        TypeMirror target = Mock()
+        TypeElement element = Mock()
+        ctx.asTypeElement(target) >> Optional.of(element)
+        element.qualifiedName >> nameOf('java.lang.String')
+
+        expect:
+        PrimitiveWrapperConversion.unboxedOrNull(target, ctx) == null
+    }
+
+    def 'unboxedOrNull returns the unboxed primitive for a wrapper type'() {
+        TypeMirror target = Mock()
+        TypeElement element = Mock()
+        TypeMirror primitive = Mock()
+        ctx.asTypeElement(target) >> Optional.of(element)
+        element.qualifiedName >> nameOf('java.lang.Integer')
+        ctx.unboxed(target) >> primitive
+
+        expect:
+        PrimitiveWrapperConversion.unboxedOrNull(target, ctx).is(primitive)
+    }
+
+    def 'conversions dispatches a primitive target to a single unbox step'() {
+        TypeMirror intType = Mock()
+        TypeMirror integerType = Mock()
+        ctx.isPrimitive(intType) >> true
+        ctx.boxed(intType) >> integerType
+        ctx.kind(intType) >> TypeKind.INT
+
+        expect:
+        def steps = new PrimitiveWrapperConversion().conversions(intType, ctx).toList()
+        steps.size() == 1
+        steps[0].inputType.is(integerType)
+    }
+
+    def 'conversions dispatches a non-primitive, non-wrapper target to an empty stream'() {
+        TypeMirror stringType = Mock()
+        TypeElement stringElement = Mock()
+        ctx.isPrimitive(stringType) >> false
+        ctx.asTypeElement(stringType) >> Optional.of(stringElement)
+        stringElement.qualifiedName >> nameOf('java.lang.String')
+
+        expect:
+        new PrimitiveWrapperConversion().conversions(stringType, ctx).toList().empty
+    }
+
     private static Name nameOf(final String value) {
         [contentEquals: { CharSequence cs -> cs.toString() == value }, toString: { value }] as Name
+    }
+
+    private static io.github.joke.percolate.spi.IncomingValues singleInput(final io.github.joke.percolate.javapoet.CodeBlock value) {
+        [single: { -> value }] as io.github.joke.percolate.spi.IncomingValues
     }
 }

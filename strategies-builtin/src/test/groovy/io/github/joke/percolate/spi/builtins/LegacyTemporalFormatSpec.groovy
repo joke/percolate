@@ -101,6 +101,61 @@ class LegacyTemporalFormatSpec extends Specification {
         new LegacyTemporalFormat().expand(Demands.withFormat(intType, 'yyyy-MM-dd'), ctx).toList().empty
     }
 
+    def 'formatStep returns empty when the legacy source type is not resolvable'() {
+        ResolveCtx freshCtx = Mock()
+
+        expect:
+        LegacyTemporalFormat.formatStep('java.util.Date', stringType, 'p', freshCtx).empty
+    }
+
+    def 'legacyTargetKind is false for Date, true for Timestamp, empty otherwise'() {
+        TypeMirror otherType = Mock()
+        ctx.isType(dateType, 'java.util.Date') >> true
+        ctx.isType(timestampType, 'java.util.Date') >> false
+        ctx.isType(timestampType, 'java.sql.Timestamp') >> true
+        ctx.isType(otherType, 'java.util.Date') >> false
+        ctx.isType(otherType, 'java.sql.Timestamp') >> false
+
+        expect:
+        LegacyTemporalFormat.legacyTargetKind(dateType, ctx) == Optional.of(false)
+        LegacyTemporalFormat.legacyTargetKind(timestampType, ctx) == Optional.of(true)
+        LegacyTemporalFormat.legacyTargetKind(otherType, ctx).empty
+    }
+
+    def 'parseStep returns empty when the target is neither Date nor Timestamp'() {
+        TypeMirror otherType = Mock()
+        ctx.isType(otherType, 'java.util.Date') >> false
+        ctx.isType(otherType, 'java.sql.Timestamp') >> false
+
+        expect:
+        LegacyTemporalFormat.parseStep(otherType, 'p', ctx).empty
+    }
+
+    def 'parseStep returns empty when String itself is not resolvable'() {
+        ResolveCtx freshCtx = Mock()
+        freshCtx.isType(dateType, 'java.util.Date') >> true
+
+        expect:
+        LegacyTemporalFormat.parseStep(dateType, 'p', freshCtx).empty
+    }
+
+    def 'dateParseCodegen renders a fresh SimpleDateFormat parse, wrapping the checked exception'() {
+        expect:
+        def rendered = LegacyTemporalFormat.dateParseCodegen('yyyy-MM-dd').render(singleInput(CodeBlock.of('s'))).toString()
+        rendered.contains('SimpleDateFormat("yyyy-MM-dd")')
+        rendered.contains('.parse(s)')
+        rendered.contains('ParseException')
+        rendered.contains('RuntimeException')
+    }
+
+    def 'timestampParseCodegen wraps a parsed Date in a new Timestamp'() {
+        expect:
+        def rendered = LegacyTemporalFormat.timestampParseCodegen('yyyy-MM-dd').render(singleInput(CodeBlock.of('s'))).toString()
+        rendered.contains('new java.sql.Timestamp(')
+        rendered.contains('SimpleDateFormat("yyyy-MM-dd")')
+        rendered.contains('.getTime())')
+    }
+
     private void element(final String fqn, final TypeMirror type) {
         TypeElement typeElement = Mock()
         typeElement.asType() >> type

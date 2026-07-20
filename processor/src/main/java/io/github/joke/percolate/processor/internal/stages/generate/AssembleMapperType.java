@@ -1,5 +1,6 @@
 package io.github.joke.percolate.processor.internal.stages.generate;
 
+import com.groupcdg.pitest.annotations.CoverageIgnore;
 import io.github.joke.percolate.javapoet.AnnotationSpec;
 import io.github.joke.percolate.javapoet.ClassName;
 import io.github.joke.percolate.javapoet.JavaFile;
@@ -20,6 +21,13 @@ import javax.lang.model.type.TypeKind;
 import javax.lang.model.util.Elements;
 import lombok.RequiredArgsConstructor;
 
+/**
+ * Assembles and writes the generated mapper implementation via JavaPoet and the {@link Filer}. The thin
+ * {@code javax.lang.model}/{@code Filer} leaf of code generation: covered end-to-end by the compile-based
+ * feature-e2e layer, not by a unit-test javac substrate — its decision logic lives in {@link MapperTypeDecisions},
+ * which is unit-tested directly.
+ */
+@CoverageIgnore
 @RequiredArgsConstructor(onConstructor_ = @Inject)
 public final class AssembleMapperType {
 

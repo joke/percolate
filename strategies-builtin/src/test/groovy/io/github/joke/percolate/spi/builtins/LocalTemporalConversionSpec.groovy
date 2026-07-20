@@ -68,6 +68,42 @@ class LocalTemporalConversionSpec extends Specification {
         new LocalTemporalConversion().expand(Demands.forTarget(instantType), ctx).toList().empty
     }
 
+    def 'atStartOfDayStep returns empty when LocalDate is not resolvable'() {
+        ResolveCtx freshCtx = Mock()
+        TypeElement localDateTimeElement = Mock()
+        freshCtx.typeElementNamed('java.time.LocalDateTime') >> localDateTimeElement
+
+        expect:
+        LocalTemporalConversion.atStartOfDayStep(freshCtx).empty
+    }
+
+    def 'atStartOfDayStep returns empty when LocalDateTime is not resolvable'() {
+        ResolveCtx freshCtx = Mock()
+        TypeElement localDateElement = Mock()
+        freshCtx.typeElementNamed('java.time.LocalDate') >> localDateElement
+
+        expect:
+        LocalTemporalConversion.atStartOfDayStep(freshCtx).empty
+    }
+
+    def 'toLocalDateStep returns empty when LocalDate is not resolvable'() {
+        ResolveCtx freshCtx = Mock()
+        TypeElement localDateTimeElement = Mock()
+        freshCtx.typeElementNamed('java.time.LocalDateTime') >> localDateTimeElement
+
+        expect:
+        LocalTemporalConversion.toLocalDateStep(freshCtx).empty
+    }
+
+    def 'toLocalDateStep returns empty when LocalDateTime is not resolvable'() {
+        ResolveCtx freshCtx = Mock()
+        TypeElement localDateElement = Mock()
+        freshCtx.typeElementNamed('java.time.LocalDate') >> localDateElement
+
+        expect:
+        LocalTemporalConversion.toLocalDateStep(freshCtx).empty
+    }
+
     private static IncomingValues singleInput(final CodeBlock value) {
         [single: { -> value }] as IncomingValues
     }

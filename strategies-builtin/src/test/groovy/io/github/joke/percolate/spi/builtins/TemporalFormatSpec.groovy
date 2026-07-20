@@ -117,6 +117,39 @@ class TemporalFormatSpec extends Specification {
         new TemporalFormat().expand(Demands.withFormat(intType, 'yyyy-MM-dd'), ctx).toList().empty
     }
 
+    def 'formatterRequest builds a DateTimeFormatter member request keyed by the pattern'() {
+        expect:
+        def request = TemporalFormat.formatterRequest('yyyy-MM-dd')
+        request.fieldType.toString() == 'java.time.format.DateTimeFormatter'
+        request.initializer.toString() == 'java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd")'
+        request.dedupKey == 'temporal-format:yyyy-MM-dd'
+    }
+
+    def 'formatStep returns empty when the roster source type is not resolvable'() {
+        ResolveCtx freshCtx = Mock()
+
+        expect:
+        TemporalFormat.formatStep('java.time.LocalDate', stringType, TemporalFormat.formatterRequest('p'), freshCtx).empty
+    }
+
+    def 'parseStep returns empty when the target is not a roster type'() {
+        TypeMirror intType = Mock()
+
+        expect:
+        TemporalFormat.parseStep(intType, TemporalFormat.formatterRequest('p'), ctx).empty
+    }
+
+    def 'parseStep returns empty when String itself is not resolvable'() {
+        ResolveCtx freshCtx = Mock()
+        TypeElement localDateElement = Mock()
+        localDateElement.asType() >> localDateType
+        freshCtx.typeElementNamed('java.time.LocalDate') >> localDateElement
+        freshCtx.isType(localDateType, 'java.time.LocalDate') >> true
+
+        expect:
+        TemporalFormat.parseStep(localDateType, TemporalFormat.formatterRequest('p'), freshCtx).empty
+    }
+
     private void element(final String fqn, final TypeMirror type) {
         TypeElement typeElement = Mock()
         typeElement.asType() >> type

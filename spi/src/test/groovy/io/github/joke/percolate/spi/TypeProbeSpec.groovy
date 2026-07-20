@@ -17,7 +17,7 @@ class TypeProbeSpec extends Specification {
     ResolveCtx ctx = Mock()
     TypeMirror type = Mock()
 
-    def 'asTypeElement delegates to the seam'() {
+    def 'asTypeElement delegates to the seam, present case'() {
         TypeElement element = Mock()
         ctx.asTypeElement(type) >> Optional.of(element)
 
@@ -25,18 +25,39 @@ class TypeProbeSpec extends Specification {
         TypeProbe.asTypeElement(type, ctx).get().is(element)
     }
 
-    def 'isType delegates to the seam'() {
+    def 'asTypeElement delegates to the seam, empty case'() {
+        ctx.asTypeElement(type) >> Optional.empty()
+
+        expect:
+        !TypeProbe.asTypeElement(type, ctx).present
+    }
+
+    def 'isType delegates to the seam, true case'() {
         ctx.isType(type, 'java.util.List') >> true
 
         expect:
         TypeProbe.isType(type, 'java.util.List', ctx)
     }
 
-    def 'isEnum delegates to the seam'() {
+    def 'isType delegates to the seam, false case'() {
+        ctx.isType(type, 'java.util.List') >> false
+
+        expect:
+        !TypeProbe.isType(type, 'java.util.List', ctx)
+    }
+
+    def 'isEnum delegates to the seam, true case'() {
         ctx.isEnum(type) >> true
 
         expect:
         TypeProbe.isEnum(type, ctx)
+    }
+
+    def 'isEnum delegates to the seam, false case'() {
+        ctx.isEnum(type) >> false
+
+        expect:
+        !TypeProbe.isEnum(type, ctx)
     }
 
     def 'simpleName delegates to the seam'() {

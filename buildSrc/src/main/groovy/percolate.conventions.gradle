@@ -20,7 +20,6 @@ version = isCleanTag ? describeAlways : "${describeAlways}-SNAPSHOT"
 
 pluginManager.withPlugin('java-base') {
     pluginManager.apply 'com.diffplug.spotless'
-    pluginManager.apply 'jacoco'
     pluginManager.apply 'net.ltgt.errorprone'
     pluginManager.apply 'pmd'
     tasks.withType(JavaCompile).configureEach {
@@ -48,6 +47,7 @@ pluginManager.withPlugin('com.diffplug.spotless') {
 }
 
 pluginManager.withPlugin('java') {
+    pluginManager.apply 'info.solidsoft.pitest'
     tasks.withType(Test).configureEach {
         maxHeapSize = '2g'
         jvmArgs '-XX:+HeapDumpOnOutOfMemoryError', '-XX:+CrashOnOutOfMemoryError'
@@ -113,43 +113,15 @@ pluginManager.withPlugin('info.solidsoft.pitest') {
         threads = Runtime.runtime.availableProcessors()
         jvmArgs = ['-XX:+EnableDynamicAgentLoading']
         failWhenNoMutations = true
-        mutationThreshold = 83
-        coverageThreshold = 92
-        testStrengthThreshold = 87
+        mutationThreshold = 85
+        coverageThreshold = 95
+        testStrengthThreshold = 90
     }
     dependencies {
         pitest 'org.pitest:pitest-history-plugin:0.0.1'
         compileOnly 'com.groupcdg:pitest-annotations:1.1.4'
     }
     tasks.named('check') { dependsOn 'pitest' }
-}
-
-pluginManager.withPlugin('jacoco') {
-    tasks.withType(JacocoReport).configureEach {
-        dependsOn test
-        dependsOn tasks.matching { it.name == 'integrationTest' }
-        executionData.from fileTree(buildDir).include('jacoco/*.exec')
-        reports {
-            xml.required = true
-        }
-    }
-    tasks.withType(JacocoCoverageVerification).configureEach {
-        violationRules {
-            rule {
-                limit {
-                    counter = 'BRANCH'
-                    value = 'COVEREDRATIO'
-                    minimum = project.findProperty('branchCoverageMinimum') ?: 0.6
-                }
-            }
-        }
-    }
-    tasks.withType(Test).configureEach {
-        finalizedBy jacocoTestReport
-    }
-    tasks.named('check') {
-        dependsOn jacocoTestCoverageVerification
-    }
 }
 
 pluginManager.withPlugin('pmd') {

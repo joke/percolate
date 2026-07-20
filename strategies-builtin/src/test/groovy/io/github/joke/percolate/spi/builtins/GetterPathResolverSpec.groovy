@@ -1,5 +1,6 @@
 package io.github.joke.percolate.spi.builtins
 
+import io.github.joke.percolate.javapoet.CodeBlock
 import io.github.joke.percolate.spi.Nullability
 import io.github.joke.percolate.spi.OperationCodegen
 import io.github.joke.percolate.spi.ResolveCtx
@@ -123,7 +124,101 @@ class GetterPathResolverSpec extends Specification {
         new GetterPathResolver().descend(Demands.descend(parentType, 'length'), ctx).toList().empty
     }
 
+    def 'capitalize upper-cases the first character and leaves the rest, empty stays empty'() {
+        expect:
+        GetterPathResolver.capitalize('name') == 'Name'
+        GetterPathResolver.capitalize('Name') == 'Name'
+        GetterPathResolver.capitalize('') == ''
+    }
+
+    def 'matchGetter delegates to a zero-arg method named exactly getterName'() {
+        ExecutableElement member = Mock()
+        TypeElement enclosing = Mock()
+        ctx.isMethod(member) >> true
+        member.parameters >> []
+        member.simpleName >> nameOf('getName')
+        member.enclosingElement >> enclosing
+        enclosing.qualifiedName >> nameOf('io.example.Person')
+
+        expect:
+        new GetterPathResolver().matchGetter(member, 'getName', ctx).get().is(member)
+    }
+
+    def 'matchBooleanIs rejects a no-arg isX method whose return type is not boolean'() {
+        ExecutableElement member = Mock()
+        TypeElement enclosing = Mock()
+        TypeMirror returnType = Mock()
+        ctx.isMethod(member) >> true
+        member.parameters >> []
+        member.simpleName >> nameOf('isName')
+        member.enclosingElement >> enclosing
+        enclosing.qualifiedName >> nameOf('io.example.Person')
+        member.returnType >> returnType
+        ctx.kind(returnType) >> TypeKind.INT
+        ctx.qualifiedName(returnType) >> 'int'
+
+        expect:
+        new GetterPathResolver().matchBooleanIs(member, 'isName', ctx).empty
+    }
+
+    def 'matchBooleanIs matches a no-arg isX method returning primitive boolean'() {
+        ExecutableElement member = Mock()
+        TypeElement enclosing = Mock()
+        TypeMirror returnType = Mock()
+        ctx.isMethod(member) >> true
+        member.parameters >> []
+        member.simpleName >> nameOf('isFlag')
+        member.enclosingElement >> enclosing
+        enclosing.qualifiedName >> nameOf('io.example.Person')
+        member.returnType >> returnType
+        ctx.kind(returnType) >> TypeKind.BOOLEAN
+
+        expect:
+        new GetterPathResolver().matchBooleanIs(member, 'isFlag', ctx).get().is(member)
+    }
+
+    def 'isBooleanReturn is true for the java.lang.Boolean wrapper return type'() {
+        ExecutableElement method = Mock()
+        TypeMirror returnType = Mock()
+        method.returnType >> returnType
+        ctx.kind(returnType) >> TypeKind.DECLARED
+        ctx.qualifiedName(returnType) >> 'java.lang.Boolean'
+
+        expect:
+        new GetterPathResolver().isBooleanReturn(method, ctx)
+    }
+
+    def 'isBooleanReturn is false for a non-boolean declared return type'() {
+        ExecutableElement method = Mock()
+        TypeMirror returnType = Mock()
+        method.returnType >> returnType
+        ctx.kind(returnType) >> TypeKind.DECLARED
+        ctx.qualifiedName(returnType) >> 'java.lang.String'
+
+        expect:
+        !new GetterPathResolver().isBooleanReturn(method, ctx)
+    }
+
+    def 'step renders a zero-arg method call named after the method, weighted STEP_GETTER'() {
+        ExecutableElement method = Mock()
+        TypeMirror returnType = Mock()
+        method.returnType >> returnType
+        method.simpleName >> nameOf('getName')
+
+        expect:
+        def step = GetterPathResolver.step(method)
+        step.outputType.is(returnType)
+        step.member.is(method)
+        step.label == 'getName()'
+        step.weight == Weights.STEP_GETTER
+        CodeBlock.of('$L\n', step.codegen.render(singleInput(CodeBlock.of('$N', 'p')))).toString().contains('p.getName()')
+    }
+
     private static Name nameOf(final String value) {
         [contentEquals: { CharSequence cs -> cs.toString() == value }, toString: { value }] as Name
+    }
+
+    private static io.github.joke.percolate.spi.IncomingValues singleInput(final CodeBlock value) {
+        [single: { -> value }] as io.github.joke.percolate.spi.IncomingValues
     }
 }

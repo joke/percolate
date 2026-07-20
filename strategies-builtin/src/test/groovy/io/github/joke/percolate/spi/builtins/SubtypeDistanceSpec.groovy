@@ -51,4 +51,51 @@ class SubtypeDistanceSpec extends Specification {
         expect:
         new SubtypeDistance().between(from, to, ctx) == 2
     }
+
+    def 'bfsDistance returns 0 immediately when start and target are the same type'() {
+        ctx.isSameType(from, to) >> true
+
+        expect:
+        new SubtypeDistance().bfsDistance(from, to, ctx) == 0
+    }
+
+    def 'bfsDistance finds the target at the first hop, distance 1'() {
+        ctx.isSameType(from, to) >> false
+        ctx.isDeclared(from) >> true
+        ctx.superclassOf(from) >> to
+        ctx.isDeclared(to) >> true
+        ctx.isSameType(to, to) >> true
+
+        expect:
+        new SubtypeDistance().bfsDistance(from, to, ctx) == 1
+    }
+
+    def 'bfsDistance returns 0 when the start type is not declared (no supertype to walk)'() {
+        ctx.isSameType(from, to) >> false
+        ctx.isDeclared(from) >> false
+
+        expect:
+        new SubtypeDistance().bfsDistance(from, to, ctx) == 0
+    }
+
+    def 'bfsDistance returns 0 when the direct supertype is not declared (dead end)'() {
+        TypeMirror mid = Mock()
+        ctx.isSameType(from, to) >> false
+        ctx.isDeclared(from) >> true
+        ctx.superclassOf(from) >> mid
+        ctx.isDeclared(mid) >> false
+
+        expect:
+        new SubtypeDistance().bfsDistance(from, to, ctx) == 0
+    }
+
+    def 'bfsDistance returns 0 when the supertype chain cycles back to an already-visited type'() {
+        ctx.isSameType(from, to) >> false
+        ctx.isDeclared(from) >> true
+        ctx.superclassOf(from) >> from
+        ctx.isDeclared(from) >> true
+
+        expect:
+        new SubtypeDistance().bfsDistance(from, to, ctx) == 0
+    }
 }

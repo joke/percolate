@@ -80,4 +80,29 @@ class StreamMapSpec extends Specification {
         expect:
         new StreamMap().expand(Demands.forTarget(listOfString), ctx).toList().empty
     }
+
+    def 'declines when java.util.stream.Stream itself is not resolvable'() {
+        ctx.isStream(streamOfString) >> true
+        ctx.typeElementNamed('java.util.stream.Stream') >> null
+
+        expect:
+        new StreamMap().expand(Demands.forTarget(streamOfString), ctx).toList().empty
+    }
+
+    def 'the flatMap child element-out is the demanded target itself (flattening a wrapper element stream)'() {
+        ctx.isStream(streamOfString) >> true
+        ctx.typeElementNamed('java.util.stream.Stream') >> streamElement
+        ctx.typeArgument(streamOfString, 0) >> stringType
+        streamElement.asType() >> streamRawType
+
+        when:
+        def specs = new StreamMap().expand(Demands.forTarget(streamOfString), ctx).toList()
+
+        then:
+        def flatMap = specs.find { it.label == 'flatMap' }
+        flatMap.childScope.get().elementOut.is(streamOfString)
+
+        and: 'map is labeled map, flatMap is labeled flatMap'
+        specs*.label as Set == ['map', 'flatMap'] as Set
+    }
 }

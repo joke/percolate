@@ -121,4 +121,49 @@ class OptionalContainerSpec extends Specification {
         CodeBlock.of('$L\n', new OptionalContainer().unwrap().get().render(CodeBlock.of('$N', 'o'), Nullability.NULLABLE)).toString().contains('orElse(null)')
         CodeBlock.of('$L\n', new OptionalContainer().unwrap().get().render(CodeBlock.of('$N', 'o'), Nullability.NON_NULL)).toString().contains('orElseThrow')
     }
+
+    def 'matches delegates the optional-kind question to the seam'() {
+        ctx.isOptional(optionalOfString) >> true
+
+        expect:
+        new OptionalContainer().matches(optionalOfString, ctx)
+    }
+
+    def 'a non-optional target does not match'() {
+        ctx.isOptional(optionalOfString) >> false
+
+        expect:
+        !new OptionalContainer().matches(optionalOfString, ctx)
+    }
+
+    def 'element extracts the sole type argument via the seam'() {
+        ctx.typeArgument(optionalOfString, 0) >> stringType
+
+        expect:
+        new OptionalContainer().element(optionalOfString, ctx).is(stringType)
+    }
+
+    def 'kindErasure resolves java.util.Optional through the seam'() {
+        ctx.typeElementNamed('java.util.Optional') >> optionalElement
+
+        expect:
+        new OptionalContainer().kindErasure(ctx).get().is(optionalElement)
+    }
+
+    def 'kindErasure is empty when java.util.Optional is not resolvable'() {
+        ctx.typeElementNamed('java.util.Optional') >> null
+
+        expect:
+        new OptionalContainer().kindErasure(ctx).empty
+    }
+
+    def 'has no collect — supplying no collect is what makes the kind a presence wrapper'() {
+        expect:
+        new OptionalContainer().collect().empty
+    }
+
+    def 'wrapNullness is NULLABLE — ofNullable is null-safe'() {
+        expect:
+        new OptionalContainer().wrapNullness() == Nullability.NULLABLE
+    }
 }

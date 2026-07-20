@@ -2,12 +2,9 @@ plugins {
     id 'java'
     id 'groovy'
     id 'io.github.sgtsilvio.gradle.maven-central-publishing'
-    id 'info.solidsoft.pitest'
     id 'io.freefair.lombok'
     id 'percolate.conventions'
 }
-
-ext.branchCoverageMinimum = 0.95
 
 dependencies {
     annotationProcessor platform(project(':dependencies'))
@@ -42,34 +39,4 @@ dependencies {
     testRuntimeOnly 'net.bytebuddy:byte-buddy'
     testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
     testRuntimeOnly 'org.mockito:mockito-junit-jupiter'
-}
-
-def jacocoExcludes = [
-        'io/github/joke/percolate/processor/internal/stages/dump/**',
-        'io/github/joke/percolate/processor/internal/graph/DotRenderer*',
-        'io/github/joke/percolate/processor/Dagger*',
-        'io/github/joke/percolate/processor/internal/stages/discover/AnnotationDirectiveReader*',
-        'io/github/joke/percolate/processor/internal/stages/discover/AbstractMethodReader*',
-        'io/github/joke/percolate/processor/internal/stages/discover/CallableMethodIndexer*',
-        'io/github/joke/percolate/processor/internal/stages/generate/AssembleMapperType*',
-]
-tasks.withType(JacocoReport).configureEach {
-    classDirectories.setFrom(classDirectories.files.collect { fileTree(dir: it, exclude: jacocoExcludes) })
-}
-tasks.withType(JacocoCoverageVerification).configureEach {
-    classDirectories.setFrom(classDirectories.files.collect { fileTree(dir: it, exclude: jacocoExcludes) })
-}
-
-pluginManager.withPlugin('info.solidsoft.pitest') {
-    pitest {
-        excludedClasses = [
-                'io.github.joke.percolate.processor.Dagger*',
-                'io.github.joke.percolate.processor.internal.stages.dump.*',
-                'io.github.joke.percolate.processor.internal.graph.DotRenderer',
-                'io.github.joke.percolate.processor.internal.stages.discover.AnnotationDirectiveReader',
-                'io.github.joke.percolate.processor.internal.stages.discover.AbstractMethodReader',
-                'io.github.joke.percolate.processor.internal.stages.discover.CallableMethodIndexer',
-                'io.github.joke.percolate.processor.internal.stages.generate.AssembleMapperType',
-        ]
-    }
 }

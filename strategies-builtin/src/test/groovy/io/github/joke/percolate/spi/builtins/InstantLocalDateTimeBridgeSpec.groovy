@@ -111,6 +111,67 @@ class InstantLocalDateTimeBridgeSpec extends Specification {
         new InstantLocalDateTimeBridge().expand(Demands.forTarget(stringType), ctx).toList().empty
     }
 
+    def 'toLocalDateTimeSpec returns empty when Instant is not resolvable'() {
+        ResolveCtx freshCtx = Mock()
+        TypeElement localDateTimeElement = Mock()
+        freshCtx.typeElementNamed('java.time.LocalDateTime') >> localDateTimeElement
+
+        expect:
+        InstantLocalDateTimeBridge.toLocalDateTimeSpec(Demands.forTarget(localDateTimeType), localDateTimeType, freshCtx).empty
+    }
+
+    def 'toLocalDateTimeSpec returns empty when LocalDateTime is not resolvable'() {
+        ResolveCtx freshCtx = Mock()
+        TypeElement instantElement = Mock()
+        freshCtx.typeElementNamed('java.time.Instant') >> instantElement
+
+        expect:
+        InstantLocalDateTimeBridge.toLocalDateTimeSpec(Demands.forTarget(localDateTimeType), localDateTimeType, freshCtx).empty
+    }
+
+    def 'toInstantSpec returns empty when Instant is not resolvable'() {
+        ResolveCtx freshCtx = Mock()
+        TypeElement localDateTimeElement = Mock()
+        freshCtx.typeElementNamed('java.time.LocalDateTime') >> localDateTimeElement
+
+        expect:
+        InstantLocalDateTimeBridge.toInstantSpec(Demands.forTarget(instantType), instantType, freshCtx).empty
+    }
+
+    def 'toInstantSpec returns empty when LocalDateTime is not resolvable'() {
+        ResolveCtx freshCtx = Mock()
+        TypeElement instantElement = Mock()
+        freshCtx.typeElementNamed('java.time.Instant') >> instantElement
+
+        expect:
+        InstantLocalDateTimeBridge.toInstantSpec(Demands.forTarget(instantType), instantType, freshCtx).empty
+    }
+
+    def 'consumedKeys is the zone key when a directive zone is present, else empty'() {
+        expect:
+        InstantLocalDateTimeBridge.consumedKeys(Optional.of('UTC')) == ['zone'] as Set
+        InstantLocalDateTimeBridge.consumedKeys(Optional.empty()) == [] as Set
+    }
+
+    def 'resolveZone prefers a present directive zone, frozen as ZoneId.of'() {
+        expect:
+        InstantLocalDateTimeBridge.resolveZone(Optional.of('Europe/Berlin'), ctx).toString() == 'java.time.ZoneId.of("Europe/Berlin")'
+    }
+
+    def 'resolveZone falls back to the configured processor option when no directive zone is present'() {
+        ctx.configuredTimeZone() >> Optional.of('UTC')
+
+        expect:
+        InstantLocalDateTimeBridge.resolveZone(Optional.empty(), ctx).toString() == 'java.time.ZoneId.of("UTC")'
+    }
+
+    def 'resolveZone defers to generated systemDefault() when neither directive nor configured zone is present'() {
+        ctx.configuredTimeZone() >> Optional.empty()
+
+        expect:
+        InstantLocalDateTimeBridge.resolveZone(Optional.empty(), ctx).toString() == 'java.time.ZoneId.systemDefault()'
+    }
+
     private static IncomingValues singleInput(final CodeBlock value) {
         [single: { -> value }] as IncomingValues
     }

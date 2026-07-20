@@ -11,6 +11,7 @@ import javax.lang.model.type.DeclaredType;
 import javax.lang.model.type.TypeKind;
 import javax.lang.model.type.TypeMirror;
 import lombok.NoArgsConstructor;
+import org.jetbrains.annotations.VisibleForTesting;
 import org.jgrapht.Graph;
 import org.jgrapht.nio.Attribute;
 import org.jgrapht.nio.DefaultAttribute;
@@ -50,7 +51,8 @@ public final class DotRenderer {
         return writer.toString();
     }
 
-    private static Map<String, Attribute> vertexAttributes(final GraphVertex vertex, final boolean dimmed) {
+    @VisibleForTesting
+    static Map<String, Attribute> vertexAttributes(final GraphVertex vertex, final boolean dimmed) {
         final var attrs = new LinkedHashMap<String, Attribute>();
         if (vertex instanceof Operation) {
             final var operation = (Operation) vertex;
@@ -78,7 +80,8 @@ public final class DotRenderer {
         return attrs;
     }
 
-    private static String valueLabel(final Value value) {
+    @VisibleForTesting
+    static String valueLabel(final Value value) {
         final var typeSegment = value.getType()
                 .map(type -> formatType(type, value.getNullness().orElse(null)))
                 .orElse(UNKNOWN_TYPE);
@@ -91,14 +94,16 @@ public final class DotRenderer {
      * own annotation declares it nullable (non-null is the unmarked JSpecify default). Non-declared kinds
      * (primitives, arrays, wildcards) fall back to their text form, unmarked.
      */
-    private static String formatType(final TypeMirror type, final @Nullable Nullability topNullness) {
+    @VisibleForTesting
+    static String formatType(final TypeMirror type, final @Nullable Nullability topNullness) {
         if (type.getKind() != TypeKind.DECLARED) {
             return body(type);
         }
         return body(type) + topMark(topNullness);
     }
 
-    private static String body(final TypeMirror type) {
+    @VisibleForTesting
+    static String body(final TypeMirror type) {
         if (type.getKind() != TypeKind.DECLARED) {
             return type.toString();
         }
@@ -116,7 +121,8 @@ public final class DotRenderer {
         return body(type) + (nullnessOf(type) == Nullability.NULLABLE ? "?" : "");
     }
 
-    private static String topMark(final @Nullable Nullability nullness) {
+    @VisibleForTesting
+    static String topMark(final @Nullable Nullability nullness) {
         if (nullness == Nullability.NULLABLE) {
             return "?";
         }
@@ -132,7 +138,8 @@ public final class DotRenderer {
         return nullable ? Nullability.NULLABLE : Nullability.NON_NULL;
     }
 
-    private static String fillColor(final Value value) {
+    @VisibleForTesting
+    static String fillColor(final Value value) {
         final var loc = value.getLoc();
         if (loc instanceof SourceLocation) {
             return SOURCE_FILL;
@@ -150,7 +157,8 @@ public final class DotRenderer {
         return DefaultAttribute.createAttribute(value);
     }
 
-    private static String quote(final String value) {
+    @VisibleForTesting
+    static String quote(final String value) {
         final var escaped = value.replace("\\", "\\\\").replace("\"", "\\\"");
         return '"' + escaped + '"';
     }

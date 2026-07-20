@@ -28,6 +28,8 @@ class ResolveCtxSpec extends Specification {
     @Shared TypeElement stringElement = Stub(TypeElement)
     @Shared TypeElement integerElement = Stub(TypeElement)
     @Shared TypeElement listElement = Stub(TypeElement)
+    @Shared TypeElement setElement = Stub(TypeElement)
+    @Shared TypeElement streamElement = Stub(TypeElement)
     @Shared TypeElement optionalElement = Stub(TypeElement)
     @Shared TypeElement collectionElement = Stub(TypeElement)
     @Shared TypeElement iterableElement = Stub(TypeElement)
@@ -51,6 +53,8 @@ class ResolveCtxSpec extends Specification {
     @Shared TypeMirror stringArray = FakeType.array(STRING)
     @Shared TypeMirror listOfString = FakeType.declared(listElement, STRING)
     @Shared TypeMirror listOfInteger = FakeType.declared(listElement, INTEGER)
+    @Shared TypeMirror setOfString = FakeType.declared(setElement, STRING)
+    @Shared TypeMirror streamOfString = FakeType.declared(streamElement, STRING)
     @Shared TypeMirror optionalOfString = FakeType.declared(optionalElement, STRING)
     @Shared TypeMirror memberFixture = FakeType.declared(memberFixtureElement)
     @Shared TypeMirror memberFixtureBase = FakeType.declared(memberFixtureBaseElement)
@@ -64,6 +68,8 @@ class ResolveCtxSpec extends Specification {
         stringElement.superclass >> objectType
         integerElement.asType() >> INTEGER
         listElement.asType() >> FakeType.declared(listElement)
+        setElement.asType() >> FakeType.declared(setElement)
+        streamElement.asType() >> FakeType.declared(streamElement)
         optionalElement.asType() >> FakeType.declared(optionalElement)
         collectionElement.asType() >> FakeType.declared(collectionElement)
         iterableElement.asType() >> FakeType.declared(iterableElement)
@@ -74,6 +80,8 @@ class ResolveCtxSpec extends Specification {
         ctx.named('java.lang.String', stringElement)
         ctx.named('java.lang.Integer', integerElement)
         ctx.named('java.util.List', listElement)
+        ctx.named('java.util.Set', setElement)
+        ctx.named('java.util.stream.Stream', streamElement)
         ctx.named('java.util.Optional', optionalElement)
         ctx.named('java.util.Collection', collectionElement)
         ctx.named('java.lang.Iterable', iterableElement)
@@ -123,6 +131,7 @@ class ResolveCtxSpec extends Specification {
     def 'kind/isPrimitive/isArray/isDeclared/isTypeVariable classify a type'() {
         expect:
         ctx.kind(INT) == TypeKind.INT
+        ctx.kind(STRING) == TypeKind.DECLARED
         ctx.isPrimitive(INT)
         !ctx.isPrimitive(STRING)
         ctx.isArray(stringArray)
@@ -219,14 +228,19 @@ class ResolveCtxSpec extends Specification {
         expect:
         ctx.isList(listOfString)
         !ctx.isList(STRING)
+        ctx.isSet(setOfString)
+        !ctx.isSet(STRING)
         ctx.isOptional(optionalOfString)
         !ctx.isOptional(STRING)
+        ctx.isStream(streamOfString)
+        !ctx.isStream(STRING)
         ctx.isCollection(listOfString)
         !ctx.isCollection(STRING)
         ctx.isIterable(listOfString)
         !ctx.isIterable(STRING)
         ctx.isType(listOfString, 'java.util.List')
         !ctx.isType(INT, 'java.util.List')
+        !ctx.isType(listOfString, 'not.a.real.Type')
     }
 
     def 'isEnum recognises an enum declaration and rejects others'() {
@@ -239,6 +253,7 @@ class ResolveCtxSpec extends Specification {
         expect:
         ctx.isReferenceType(STRING)
         ctx.isReferenceType(stringArray)
+        ctx.isReferenceType(FakeType.marker(TypeKind.TYPEVAR))
         !ctx.isReferenceType(INT)
     }
 

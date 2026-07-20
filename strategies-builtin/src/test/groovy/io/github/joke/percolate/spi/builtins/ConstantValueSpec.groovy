@@ -54,6 +54,30 @@ class ConstantValueSpec extends Specification {
         specs[0].outputType.is(intType)
     }
 
+    def 'the label and rendered codegen are the exact coerced literal text'() {
+        intType.kind >> TypeKind.INT
+
+        when:
+        def specs = new ConstantValue().expand(Demands.withConstant(intType, '7'), ctx).toList()
+
+        then:
+        specs[0].label == '7'
+        specs[0].codegen.render(null).toString() == '7'
+    }
+
+    def 'constantSpec wires a zero-port, STEP-weighted, NON_NULL spec whose label is the literal text'() {
+        def literal = io.github.joke.percolate.javapoet.CodeBlock.of('42L')
+
+        expect:
+        def spec = ConstantValue.constantSpec(longType, literal)
+        spec.label == '42L'
+        spec.ports.empty
+        spec.outputType.is(longType)
+        spec.outputNullness == Nullability.NON_NULL
+        spec.weight == Weights.STEP
+        spec.codegen.render(null).toString() == '42L'
+    }
+
     def 'emits nothing without a constant'() {
         expect:
         new ConstantValue().expand(Demands.forTarget(longType), ctx).toList().empty

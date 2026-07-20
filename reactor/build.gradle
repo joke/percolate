@@ -36,16 +36,6 @@ dependencies {
     testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
 }
 
-tasks.named('jacocoTestCoverageVerification') {
-    enabled = false
-}
-
-tasks.named('test') {
-    maxParallelForks = 1
-    systemProperty 'junit.jupiter.execution.parallel.enabled', 'false'
-    systemProperty 'spock.parallel.threads', '0'
-}
-
 tasks.named('compileTestJava') {
     options.release = 17
 }

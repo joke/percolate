@@ -109,4 +109,48 @@ class ListContainerSpec extends Specification {
         expect:
         new ListContainer().expand(Demands.forTarget(setOfString), ctx).toList().empty
     }
+
+    def 'element extracts the sole type argument via the seam'() {
+        ctx.typeArgument(listOfString, 0) >> stringType
+
+        expect:
+        new ListContainer().element(listOfString, ctx).is(stringType)
+    }
+
+    def 'factoryType is exactly java.util.List, the single-element wrap factory and kind'() {
+        expect:
+        new ListContainer().factoryType() == List
+    }
+
+    def 'collector renders Collectors.toList() exactly'() {
+        expect:
+        new ListContainer().collector().toString() == 'java.util.stream.Collectors.toList()'
+    }
+
+    def 'kindErasure resolves java.util.List through the seam'() {
+        ctx.typeElementNamed('java.util.List') >> listElement
+
+        expect:
+        new ListContainer().kindErasure(ctx).get().is(listElement)
+    }
+
+    def 'kindErasure is empty when java.util.List is not resolvable'() {
+        ctx.typeElementNamed('java.util.List') >> null
+
+        expect:
+        new ListContainer().kindErasure(ctx).empty
+    }
+
+    def 'intermediateErasure resolves java.util.stream.Stream through the seam'() {
+        ctx.typeElementNamed('java.util.stream.Stream') >> streamElement
+
+        expect:
+        new ListContainer().intermediateErasure(ctx).is(streamElement)
+    }
+
+    def 'wrap renders List.of(...) around the scalar'() {
+        expect:
+        CodeBlock.of('$L\n', new ListContainer().wrap().get().render(CodeBlock.of('$N', 'x')))
+                .toString().contains('List.of(x)')
+    }
 }

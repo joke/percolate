@@ -80,6 +80,123 @@ class DotRendererSpec extends Specification {
         dot.contains('#D7F0D0')
     }
 
+    def 'quote: escapes an embedded quote after doubling a literal backslash'() {
+        expect:
+        DotRenderer.quote('a\\b"c') == '"a\\\\b\\"c"'
+    }
+
+    def 'valueLabel: combines the location segment with the formatted type'() {
+        def value = new Value(new SourceLocation(AccessPath.of('addr')), scope, Optional.of(STRING), Optional.of(Nullability.NON_NULL))
+
+        expect:
+        DotRenderer.valueLabel(value) == new SourceLocation(AccessPath.of('addr')).segment() + '\\nString!'
+    }
+
+    def 'valueLabel: an untyped value falls back to the unknown-type marker'() {
+        def value = new Value(new SourceLocation(AccessPath.of('addr')), scope, Optional.empty(), Optional.empty())
+
+        expect:
+        DotRenderer.valueLabel(value) == new SourceLocation(AccessPath.of('addr')).segment() + '\\n?'
+    }
+
+    def 'formatType: a non-declared kind (e.g. a primitive) renders unmarked regardless of nullness'() {
+        def primitive = Stub(TypeMirror) { getKind() >> TypeKind.INT; toString() >> 'int' }
+
+        expect:
+        DotRenderer.formatType(primitive, Nullability.NON_NULL) == 'int'
+    }
+
+    def 'formatType: a declared type carries its top-level nullness mark'() {
+        expect:
+        DotRenderer.formatType(STRING, Nullability.NULLABLE) == 'String?'
+    }
+
+    def 'formatType: unset (null) nullness carries no mark at all'() {
+        expect:
+        DotRenderer.formatType(STRING, null) == 'String'
+    }
+
+    def 'body: a non-declared type falls back to its raw toString'() {
+        def raw = Stub(TypeMirror) { getKind() >> TypeKind.INT; toString() >> 'int' }
+
+        expect:
+        DotRenderer.body(raw) == 'int'
+    }
+
+    def 'body: a declared type with type arguments renders simple-name generics, marking a nullable argument'() {
+        def nullableArg = Stub(DeclaredType) {
+            getKind() >> TypeKind.DECLARED
+            getTypeArguments() >> []
+            asElement() >> Stub(TypeElement) { getSimpleName() >> Stub(Name) { toString() >> 'String' } }
+            getAnnotationMirrors() >> [nullableAnnotationMirror()]
+        }
+        def nonNullArg = declaredType('Integer')
+        def list = Stub(DeclaredType) {
+            getKind() >> TypeKind.DECLARED
+            getTypeArguments() >> [nullableArg, nonNullArg]
+            asElement() >> Stub(TypeElement) { getSimpleName() >> Stub(Name) { toString() >> 'Map' } }
+        }
+
+        expect:
+        DotRenderer.body(list) == 'Map<String?, Integer>'
+    }
+
+    def 'topMark: NULLABLE renders ?, NON_NULL renders !, unset renders nothing'() {
+        expect:
+        DotRenderer.topMark(Nullability.NULLABLE) == '?'
+        DotRenderer.topMark(Nullability.NON_NULL) == '!'
+        DotRenderer.topMark(null) == ''
+    }
+
+    def 'fillColor: each location kind renders its own fill, with a fallback for anything else'() {
+        expect:
+        DotRenderer.fillColor(valueAt(new SourceLocation(AccessPath.of('s')))) == '#CFE8FF'
+        DotRenderer.fillColor(valueAt(new TargetLocation(TargetPath.of('t')))) == '#D7F0D0'
+        DotRenderer.fillColor(valueAt(new ElementLocation())) == '#FFE0B3'
+        DotRenderer.fillColor(valueAt(new ConstantLocation('k'))) == 'white'
+    }
+
+    def 'vertexAttributes: an Operation is a filled grey box labelled with its weight'() {
+        def operation = graph.apply(new AddOperation('new Address', Stub(Codegen), 3, false,
+                [port('street', STRING)], target('addr', STRING), Optional.empty(), [] as Set, []))
+
+        expect:
+        DotRenderer.vertexAttributes(operation, false) == [
+                label    : 'new Address (3)',
+                shape    : 'box',
+                style    : 'filled',
+                fillcolor: '#EEEEEE',
+        ].collectEntries { k, v -> [(k): attrValue(v)] }
+    }
+
+    def 'vertexAttributes: dimming overrides style and fill for both Operations and Values'() {
+        def operation = graph.apply(new AddOperation('new Address', Stub(Codegen), 3, false,
+                [port('street', STRING)], target('addr', STRING), Optional.empty(), [] as Set, []))
+        def value = valueAt(new SourceLocation(AccessPath.of('s')))
+
+        expect:
+        DotRenderer.vertexAttributes(operation, true).style.value == 'filled,dashed'
+        DotRenderer.vertexAttributes(operation, true).fillcolor.value == '#DDDDDD'
+        DotRenderer.vertexAttributes(value, true).style.value == 'filled,dashed'
+        DotRenderer.vertexAttributes(value, true).fillcolor.value == '#DDDDDD'
+    }
+
+    private static Object attrValue(final String value) {
+        org.jgrapht.nio.DefaultAttribute.createAttribute(value)
+    }
+
+    private Value valueAt(final Location loc) {
+        new Value(loc, scope, Optional.of(STRING), Optional.of(Nullability.NON_NULL))
+    }
+
+    private javax.lang.model.element.AnnotationMirror nullableAnnotationMirror() {
+        Stub(javax.lang.model.element.AnnotationMirror) {
+            getAnnotationType() >> Stub(DeclaredType) {
+                asElement() >> Stub(TypeElement) { getSimpleName() >> Stub(Name) { contentEquals('Nullable') >> true } }
+            }
+        }
+    }
+
     private AddValue leaf(final String slot, final TypeMirror type) {
         new AddValue(scope, new SourceLocation(AccessPath.of(slot)), type, Nullability.NON_NULL)
     }

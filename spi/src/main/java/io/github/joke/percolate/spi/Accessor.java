@@ -7,6 +7,7 @@ import javax.lang.model.element.Element;
 import javax.lang.model.element.TypeElement;
 import javax.lang.model.type.TypeMirror;
 import lombok.Value;
+import org.jetbrains.annotations.VisibleForTesting;
 
 /**
  * Convenience base for the recurring <b>source-accessor</b> shape (design D6, source-path resolution): a strategy that
@@ -34,7 +35,8 @@ public abstract class Accessor implements ExpansionStrategy {
                 .stream();
     }
 
-    private OperationSpec toSpec(final Step step, final DescendDemand demand) {
+    @VisibleForTesting
+    protected OperationSpec toSpec(final Step step, final DescendDemand demand) {
         final var port = new Port(VALUE_ROLE, demand.parentType(), Nullability.NON_NULL);
         final var nullness = demand.nullnessOf(step.getOutputType(), step.getMember());
         return OperationSpec.of(

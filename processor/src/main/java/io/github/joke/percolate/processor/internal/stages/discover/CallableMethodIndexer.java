@@ -2,6 +2,7 @@ package io.github.joke.percolate.processor.internal.stages.discover;
 
 import static java.util.stream.Collectors.toUnmodifiableList;
 
+import com.groupcdg.pitest.annotations.CoverageIgnore;
 import jakarta.inject.Inject;
 import java.util.List;
 import javax.lang.model.element.Element;
@@ -17,6 +18,7 @@ import lombok.RequiredArgsConstructor;
  * name here so the {@link CallableMethodFilter} needs no {@code javax} comparison. Covered end-to-end by the
  * compile-based feature-e2e layer, not by a unit-test javac substrate.
  */
+@CoverageIgnore
 @RequiredArgsConstructor(onConstructor_ = @Inject)
 final class CallableMethodIndexer {
 

@@ -105,7 +105,51 @@ class MethodPathResolverSpec extends Specification {
         new MethodPathResolver().descend(Demands.descend(parentType, 'length'), ctx).toList().empty
     }
 
+    def 'matchAccessor rejects a method whose name does not match the segment'() {
+        ExecutableElement method = Mock()
+        TypeElement enclosing = Mock()
+        ctx.isMethod(method) >> true
+        method.parameters >> []
+        method.enclosingElement >> enclosing
+        enclosing.qualifiedName >> nameOf('io.example.Person')
+        method.simpleName >> nameOf('other')
+
+        expect:
+        new MethodPathResolver().matchAccessor(method, 'street', ctx).empty
+    }
+
+    def 'matchAccessor matches a no-arg method whose name equals the segment exactly'() {
+        ExecutableElement method = Mock()
+        TypeElement enclosing = Mock()
+        ctx.isMethod(method) >> true
+        method.parameters >> []
+        method.enclosingElement >> enclosing
+        enclosing.qualifiedName >> nameOf('io.example.Person')
+        method.simpleName >> nameOf('street')
+
+        expect:
+        new MethodPathResolver().matchAccessor(method, 'street', ctx).get().is(method)
+    }
+
+    def 'step renders a zero-arg method call named after the segment and carries the STEP_METHOD weight'() {
+        ExecutableElement method = Mock()
+        TypeMirror returnType = Mock()
+        method.returnType >> returnType
+
+        expect:
+        def step = MethodPathResolver.step(method, 'street')
+        step.outputType.is(returnType)
+        step.member.is(method)
+        step.label == 'street()'
+        step.weight == Weights.STEP_METHOD
+        io.github.joke.percolate.javapoet.CodeBlock.of('$L\n', step.codegen.render(singleInput(io.github.joke.percolate.javapoet.CodeBlock.of('$N', 'p')))).toString().contains('p.street()')
+    }
+
     private static Name nameOf(final String value) {
         [contentEquals: { CharSequence cs -> cs.toString() == value }, toString: { value }] as Name
+    }
+
+    private static io.github.joke.percolate.spi.IncomingValues singleInput(final io.github.joke.percolate.javapoet.CodeBlock value) {
+        [single: { -> value }] as io.github.joke.percolate.spi.IncomingValues
     }
 }

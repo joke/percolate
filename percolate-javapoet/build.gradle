@@ -41,6 +41,6 @@ configurations {
     }
 }
 
-tasks.named('jacocoTestCoverageVerification') {
+tasks.named('pitest') {
     enabled = false
 }

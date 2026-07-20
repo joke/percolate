@@ -46,6 +46,21 @@ class ConversionSpec extends Specification {
         new TestConversion(stringType, integerType).expand(demand(stringType), ctx).toList().empty
     }
 
+    def 'the base wires every authored conversion when several inputs produce the same target'() {
+        TypeMirror booleanType = Mock()
+
+        when:
+        def specs = new TestTwoWayConversion(stringType, booleanType, integerType).expand(demand(integerType), ctx).toList()
+
+        then:
+        specs.size() == 2
+        specs*.label as Set == ['String→Integer', 'Boolean→Integer'] as Set
+        specs.every { it.outputType.is(integerType) }
+        specs.every { it.outputNullness == Nullability.NON_NULL }
+        specs.find { it.label == 'String→Integer' }.ports[0].type.is(stringType)
+        specs.find { it.label == 'Boolean→Integer' }.ports[0].type.is(booleanType)
+    }
+
     private static ProduceDemand demand(final TypeMirror target) {
         [
                 targetType      : { target },
@@ -74,6 +89,31 @@ class ConversionSpec extends Specification {
             }
             def codegen = { IncomingValues inputs -> CodeBlock.of('$T.valueOf($L)', Integer, inputs.single()) } as OperationCodegen
             Stream.of(new Step(stringType, 'String→Integer', Weights.STEP, codegen))
+        }
+    }
+
+    /** Offers two conversions (String and Boolean) producing the same authored target. */
+    static class TestTwoWayConversion extends Conversion {
+        private final TypeMirror stringType
+        private final TypeMirror booleanType
+        private final TypeMirror integerType
+
+        TestTwoWayConversion(final TypeMirror stringType, final TypeMirror booleanType, final TypeMirror integerType) {
+            this.stringType = stringType
+            this.booleanType = booleanType
+            this.integerType = integerType
+        }
+
+        @Override
+        protected Stream<Step> conversions(final TypeMirror target, final ResolveCtx c) {
+            if (!target.is(integerType)) {
+                return Stream.empty()
+            }
+            def stringCodegen = { IncomingValues inputs -> CodeBlock.of('$T.valueOf($L)', Integer, inputs.single()) } as OperationCodegen
+            def booleanCodegen = { IncomingValues inputs -> CodeBlock.of('$L ? 1 : 0', inputs.single()) } as OperationCodegen
+            Stream.of(
+                    new Step(stringType, 'String→Integer', Weights.STEP, stringCodegen),
+                    new Step(booleanType, 'Boolean→Integer', Weights.STEP, booleanCodegen))
         }
     }
 }

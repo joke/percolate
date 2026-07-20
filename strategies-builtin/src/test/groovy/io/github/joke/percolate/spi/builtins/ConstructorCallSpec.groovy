@@ -98,6 +98,53 @@ class ConstructorCallSpec extends Specification {
         new ConstructorCall().expand(Demands.assembling(targetType, ['x'] as Set), ctx).toList().empty
     }
 
+    def 'a leaf demand (no declared children) is never assembled, even for a declared target'() {
+        ctx.asTypeElement(targetType) >> Optional.of(typeElement)
+
+        expect:
+        new ConstructorCall().expand(Demands.forTarget(targetType), ctx).toList().empty
+    }
+
+    def 'rejects a non-constructor member'() {
+        ExecutableElement method = Mock()
+        ctx.asTypeElement(targetType) >> Optional.of(typeElement)
+        ctx.membersOf(typeElement) >> Stream.of(method)
+        ctx.isConstructor(method) >> false
+
+        expect:
+        new ConstructorCall().expand(Demands.assembling(targetType, ['x'] as Set), ctx).toList().empty
+    }
+
+    def 'parameterNames collects each constructor parameter simple name into an unordered set'() {
+        ExecutableElement ctor = Mock()
+        VariableElement numberParam = Mock()
+        VariableElement streetParam = Mock()
+        ctor.parameters >> [numberParam, streetParam]
+        numberParam.simpleName >> nameOf('number')
+        streetParam.simpleName >> nameOf('street')
+
+        expect:
+        ConstructorCall.parameterNames(ctor) == ['number', 'street'] as Set
+    }
+
+    def 'parameterNames is empty for a zero-arg constructor'() {
+        ExecutableElement ctor = Mock()
+        ctor.parameters >> []
+
+        expect:
+        ConstructorCall.parameterNames(ctor).empty
+    }
+
+    def 'constructorLabel composes new TypeName(portType, portType, ...) from the simple names'() {
+        TypeMirror intType = Mock()
+        intType.toString() >> 'int'
+        def port = Port.subTarget('number', intType, Nullability.NON_NULL)
+        typeElement.simpleName >> nameOf('Address')
+
+        expect:
+        ConstructorCall.constructorLabel(typeElement, [port]) == 'new Address(int)'
+    }
+
     private static Name nameOf(final String value) {
         [contentEquals: { CharSequence cs -> cs.toString() == value }, toString: { value }] as Name
     }

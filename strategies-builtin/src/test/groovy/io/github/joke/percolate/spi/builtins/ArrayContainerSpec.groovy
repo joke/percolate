@@ -79,4 +79,42 @@ class ArrayContainerSpec extends Specification {
         expect:
         new ArrayContainer().expand(Demands.forTarget(stringType), ctx).toList().empty
     }
+
+    def 'matches delegates the array-kind question to the seam'() {
+        ctx.isArray(stringArray) >> true
+
+        expect:
+        new ArrayContainer().matches(stringArray, ctx)
+    }
+
+    def 'a non-array target does not match'() {
+        ctx.isArray(stringArray) >> false
+
+        expect:
+        !new ArrayContainer().matches(stringArray, ctx)
+    }
+
+    def 'element reads the array component type via the seam'() {
+        ctx.arrayComponent(stringArray) >> stringType
+
+        expect:
+        new ArrayContainer().element(stringArray, ctx).is(stringType)
+    }
+
+    def 'kindErasure is always empty — an array has no declared erasure'() {
+        expect:
+        new ArrayContainer().kindErasure(ctx).empty
+    }
+
+    def 'containerOf reflects an array type of the element via the seam'() {
+        ctx.arrayType(stringType) >> stringArray
+
+        expect:
+        new ArrayContainer().containerOf(stringType, ctx).get().is(stringArray)
+    }
+
+    def 'has no wrap (arrays have no synchronous single-element factory)'() {
+        expect:
+        new ArrayContainer().wrap().empty
+    }
 }

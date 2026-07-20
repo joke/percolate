@@ -12,14 +12,32 @@ class ExpansionStrategySpec extends Specification {
 
     ExpansionStrategy strategy = new ExpansionStrategy() {}
 
-    def 'expand defaults to an empty stream'() {
+    def 'expand defaults to an empty stream, touching neither the demand nor the seam'() {
+        ProduceDemand demand = Mock()
+        ResolveCtx ctx = Mock()
+
+        when:
+        def result = strategy.expand(demand, ctx)
+
+        then:
+        0 * _
+
         expect:
-        strategy.expand(Mock(ProduceDemand), Mock(ResolveCtx)).toList().empty
+        result.toList() == []
     }
 
-    def 'descend defaults to an empty stream'() {
+    def 'descend defaults to an empty stream, touching neither the demand nor the seam'() {
+        DescendDemand demand = Mock()
+        ResolveCtx ctx = Mock()
+
+        when:
+        def result = strategy.descend(demand, ctx)
+
+        then:
+        0 * _
+
         expect:
-        strategy.descend(Mock(DescendDemand), Mock(ResolveCtx)).toList().empty
+        result.toList() == []
     }
 
     def 'priority defaults to zero'() {

@@ -9,7 +9,7 @@ dependencies {
     compileOnly 'org.jspecify:jspecify:1.0.0'
 }
 
-tasks.named('jacocoTestCoverageVerification') {
+tasks.named('pitest') {
     enabled = false
 }
 

@@ -12,3 +12,7 @@ dependencies {
     implementation 'com.google.testing.compile:compile-testing'
     implementation 'org.spockframework:spock-core'
 }
+
+tasks.named('pitest') {
+    enabled = false
+}

@@ -3,6 +3,7 @@ package io.github.joke.percolate.processor.internal.stages.discover;
 import static com.google.auto.common.AnnotationMirrors.getAnnotationValue;
 import static java.util.stream.Collectors.toUnmodifiableList;
 
+import com.groupcdg.pitest.annotations.CoverageIgnore;
 import io.github.joke.percolate.Map;
 import io.github.joke.percolate.MapList;
 import jakarta.inject.Inject;
@@ -23,6 +24,7 @@ import lombok.RequiredArgsConstructor;
  * reader is exercised end-to-end by the compile-based feature-e2e layer (real {@code CompileResolveCtx}), not by a
  * unit-test javac substrate.
  */
+@CoverageIgnore
 @RequiredArgsConstructor(onConstructor_ = @Inject)
 final class AnnotationDirectiveReader {
 

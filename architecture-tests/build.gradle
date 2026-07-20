@@ -23,6 +23,6 @@ dependencies {
     testFixturesImplementation 'org.apache.groovy:groovy'
 }
 
-tasks.named('jacocoTestCoverageVerification') {
+tasks.named('pitest') {
     enabled = false
 }

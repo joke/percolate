@@ -62,6 +62,35 @@ class AccessorSpec extends Specification {
         new TestAccessor(integerType).descend(descend(stringType, 'missing'), ctx).toList().empty
     }
 
+    def 'toSpec wires the step into a one-port OperationSpec, typed by demand.parentType and the nullness oracle'() {
+        TypeMirror parentType = Mock()
+        TypeMirror outputType = Mock()
+        Element member = Mock()
+        OperationCodegen codegen = Mock()
+        def step = new Accessor.Step(outputType, member, 'label()', 4, codegen)
+        DescendDemand demand = [
+                parentType    : { parentType },
+                parentNullness: { Nullability.NON_NULL },
+                segment       : { 'known' },
+                nullnessOf    : { TypeMirror t, Element m -> (t.is(outputType) && m.is(member)) ? Nullability.NULLABLE : Nullability.UNKNOWN },
+        ] as DescendDemand
+
+        when:
+        def spec = new TestAccessor(outputType).toSpec(step, demand)
+
+        then:
+        spec.label == 'label()'
+        spec.weight == 4
+        spec.codegen.is(codegen)
+        spec.childScope.empty
+        spec.ports.size() == 1
+        spec.ports[0].name == 'value'
+        spec.ports[0].type.is(parentType)
+        spec.ports[0].nullness == Nullability.NON_NULL
+        spec.outputType.is(outputType)
+        spec.outputNullness == Nullability.NULLABLE
+    }
+
     private static DescendDemand descend(final TypeMirror parent, final String segment) {
         [
                 parentType    : { parent },

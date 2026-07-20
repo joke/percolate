@@ -2,7 +2,6 @@ plugins {
     id 'java'
     id 'groovy'
     id 'io.github.sgtsilvio.gradle.maven-central-publishing'
-    id 'info.solidsoft.pitest'
     id 'io.freefair.lombok'
     id 'percolate.conventions'
 }
@@ -38,10 +37,6 @@ dependencies {
     testAnnotationProcessor project(':percolate')
 }
 
-tasks.named('jacocoTestCoverageVerification') {
-    enabled = false
-}
-
 tasks.named('pmdTest') {
     exclude 'io/github/joke/percolate/docs/**'
 }
@@ -49,12 +44,4 @@ tasks.named('pmdTest') {
 tasks.named('compileTestJava') {
     options.release = 17
     options.compilerArgs << '-Apercolate.docTags=true'
-}
-
-pluginManager.withPlugin('info.solidsoft.pitest') {
-    pitest {
-        mutationThreshold = 10
-        coverageThreshold = 60
-        testStrengthThreshold = 15
-    }
 }

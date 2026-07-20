@@ -8,3 +8,7 @@ dependencies {
     api project(':processor')
     api project(':strategies-builtin')
 }
+
+tasks.named('pitest') {
+    enabled = false
+}

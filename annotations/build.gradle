@@ -8,3 +8,7 @@ dependencies {
     compileOnly platform(project(':dependencies'))
     compileOnly 'org.jspecify:jspecify'
 }
+
+tasks.named('pitest') {
+    enabled = false
+}

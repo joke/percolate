@@ -150,6 +150,84 @@ class NullnessCrossingSpec extends Specification {
         specs.every { it.partial }
     }
 
+    def 'requireNonNullGuard is empty when the target is not NON_NULL-guarded'() {
+        DeclaredType stringType = Mock()
+
+        expect:
+        NullnessCrossing.requireNonNullGuard(stringType, 'name', false, ctx).toList().empty
+    }
+
+    def 'requireNonNullGuard is empty when the target is not declared even if guarded'() {
+        TypeMirror primitiveType = Mock()
+        ctx.isDeclared(primitiveType) >> false
+
+        expect:
+        NullnessCrossing.requireNonNullGuard(primitiveType, 'name', true, ctx).toList().empty
+    }
+
+    def 'requireNonNullGuard emits one requireNonNull spec when guarded and declared'() {
+        DeclaredType stringType = Mock()
+        ctx.isDeclared(stringType) >> true
+
+        expect:
+        NullnessCrossing.requireNonNullGuard(stringType, 'name', true, ctx).toList().size() == 1
+    }
+
+    def 'requireNonNull builds a partial NOOP spec whose message names the slot'() {
+        DeclaredType stringType = Mock()
+
+        expect:
+        def spec = NullnessCrossing.requireNonNull(stringType, 'name')
+        spec.partial
+        spec.weight == Weights.NOOP
+        spec.outputType.is(stringType)
+        spec.outputNullness == Nullability.NON_NULL
+        spec.codegen.render(singleInput(CodeBlock.of('$N', 'src'))).toString().contains("slot 'name'")
+    }
+
+    def 'coalesceSpec builds a total NOOP spec reusing the from-type at the given nullness'() {
+        DeclaredType stringType = Mock()
+        OperationCodegen codegen = { inputs -> CodeBlock.of('x') }
+
+        expect:
+        def spec = NullnessCrossing.coalesceSpec(stringType, Nullability.NULLABLE, stringType, codegen)
+        !spec.partial
+        spec.label == 'coalesce'
+        spec.weight == Weights.NOOP
+        spec.ports[0].nullness == Nullability.NULLABLE
+        spec.ports[0].sourcing == Port.Sourcing.REUSE
+        spec.outputNullness == Nullability.NON_NULL
+    }
+
+    def 'optionalOf is empty for a non-reference element'() {
+        TypeMirror primitiveType = Mock()
+        ctx.isReferenceType(primitiveType) >> false
+
+        expect:
+        NullnessCrossing.optionalOf(primitiveType, ctx).empty
+    }
+
+    def 'optionalOf is empty when Optional itself is not resolvable'() {
+        DeclaredType stringType = Mock()
+        ctx.isReferenceType(stringType) >> true
+        ctx.typeElementNamed('java.util.Optional') >> null
+
+        expect:
+        NullnessCrossing.optionalOf(stringType, ctx).empty
+    }
+
+    def 'optionalOf wraps a reference element in Optional when resolvable'() {
+        DeclaredType stringType = Mock()
+        TypeElement optionalElement = Mock()
+        TypeMirror optionalOfString = Mock()
+        ctx.isReferenceType(stringType) >> true
+        ctx.typeElementNamed('java.util.Optional') >> optionalElement
+        ctx.declaredType(optionalElement, stringType) >> optionalOfString
+
+        expect:
+        NullnessCrossing.optionalOf(stringType, ctx).get().is(optionalOfString)
+    }
+
     private static Name nameOf(final String value) {
         [contentEquals: { CharSequence cs -> cs.toString() == value }, toString: { value }] as Name
     }

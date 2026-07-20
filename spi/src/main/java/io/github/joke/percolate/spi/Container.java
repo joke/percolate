@@ -6,6 +6,7 @@ import java.util.Optional;
 import java.util.stream.Stream;
 import javax.lang.model.element.TypeElement;
 import javax.lang.model.type.TypeMirror;
+import org.jetbrains.annotations.VisibleForTesting;
 
 /**
  * The single base a developer extends to declare a container in <b>one</b> class (design D5/D8). The author supplies a
@@ -156,7 +157,8 @@ public abstract class Container implements ExpansionStrategy, SourceProjection {
         return intermediateOf(element(source, ctx), ctx).stream();
     }
 
-    private void produceMyKind(final TypeMirror to, final ResolveCtx ctx, final Stream.Builder<OperationSpec> specs) {
+    @VisibleForTesting
+    protected void produceMyKind(final TypeMirror to, final ResolveCtx ctx, final Stream.Builder<OperationSpec> specs) {
         final var elementOut = element(to, ctx);
         collect().ifPresent(close -> intermediateOf(elementOut, ctx)
                 .ifPresent(intermediate -> specs.add(OperationSpec.of(
@@ -183,7 +185,8 @@ public abstract class Container implements ExpansionStrategy, SourceProjection {
         }));
     }
 
-    private void iterateInto(final TypeMirror to, final ResolveCtx ctx, final Stream.Builder<OperationSpec> specs) {
+    @VisibleForTesting
+    protected void iterateInto(final TypeMirror to, final ResolveCtx ctx, final Stream.Builder<OperationSpec> specs) {
         iterate().ifPresent(open -> containerOf(intermediateElement(to, ctx), ctx)
                 .ifPresent(source -> specs.add(OperationSpec.of(
                         "iterate",
@@ -194,7 +197,8 @@ public abstract class Container implements ExpansionStrategy, SourceProjection {
                         Nullability.NON_NULL))));
     }
 
-    private void unwrapInto(
+    @VisibleForTesting
+    protected void unwrapInto(
             final TypeMirror to,
             final ProduceDemand demand,
             final ResolveCtx ctx,
@@ -215,24 +219,28 @@ public abstract class Container implements ExpansionStrategy, SourceProjection {
 
     // ---- intermediate derivation (from the author-declared intermediateErasure; names no kind) ----------------
 
-    private boolean isIntermediate(final TypeMirror type, final ResolveCtx ctx) {
+    @VisibleForTesting
+    protected boolean isIntermediate(final TypeMirror type, final ResolveCtx ctx) {
         return ctx.isDeclared(type)
                 && ctx.isSameType(
                         ctx.erasure(type), ctx.erasure(intermediateErasure(ctx).asType()));
     }
 
-    private static TypeMirror intermediateElement(final TypeMirror intermediate, final ResolveCtx ctx) {
+    @VisibleForTesting
+    protected static TypeMirror intermediateElement(final TypeMirror intermediate, final ResolveCtx ctx) {
         return ctx.typeArgument(intermediate, 0);
     }
 
-    private Optional<TypeMirror> intermediateOf(final TypeMirror element, final ResolveCtx ctx) {
+    @VisibleForTesting
+    protected Optional<TypeMirror> intermediateOf(final TypeMirror element, final ResolveCtx ctx) {
         if (!ctx.isReferenceType(element)) {
             return Optional.empty();
         }
         return Optional.of(ctx.declaredType(intermediateErasure(ctx), element));
     }
 
-    private static OperationCodegen unary(final UnarySnippet snippet) {
+    @VisibleForTesting
+    protected static OperationCodegen unary(final UnarySnippet snippet) {
         return inputs -> snippet.render(inputs.single());
     }
 }

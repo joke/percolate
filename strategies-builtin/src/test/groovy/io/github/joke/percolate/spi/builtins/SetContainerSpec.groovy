@@ -88,4 +88,48 @@ class SetContainerSpec extends Specification {
         expect:
         new SetContainer().expand(Demands.forTarget(listOfString), ctx).toList().empty
     }
+
+    def 'matches delegates the set-kind question to the seam'() {
+        ctx.isSet(setOfString) >> true
+
+        expect:
+        new SetContainer().matches(setOfString, ctx)
+    }
+
+    def 'a non-set target does not match'() {
+        ctx.isSet(setOfString) >> false
+
+        expect:
+        !new SetContainer().matches(setOfString, ctx)
+    }
+
+    def 'element extracts the sole type argument via the seam'() {
+        ctx.typeArgument(setOfString, 0) >> stringType
+
+        expect:
+        new SetContainer().element(setOfString, ctx).is(stringType)
+    }
+
+    def 'factoryType is exactly java.util.Set, the single-element wrap factory and kind'() {
+        expect:
+        new SetContainer().factoryType() == Set
+    }
+
+    def 'collector renders Collectors.toSet() exactly'() {
+        expect:
+        new SetContainer().collector().toString() == 'java.util.stream.Collectors.toSet()'
+    }
+
+    def 'kindErasure resolves java.util.Set through the seam'() {
+        ctx.typeElementNamed('java.util.Set') >> setElement
+
+        expect:
+        new SetContainer().kindErasure(ctx).get().is(setElement)
+    }
+
+    def 'wrap renders Set.of(...) around the scalar'() {
+        expect:
+        CodeBlock.of('$L\n', new SetContainer().wrap().get().render(CodeBlock.of('$N', 'x')))
+                .toString().contains('Set.of(x)')
+    }
 }
