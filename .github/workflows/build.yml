@@ -11,6 +11,8 @@ permissions:
 
 jobs:
   build:
+    # release-please PRs only ever touch CHANGELOG.md - a full check is superfluous there.
+    if: ${{ !startsWith(github.head_ref, 'release-please--') }}
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v7
