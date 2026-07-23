@@ -32,4 +32,4 @@
 - [x] 4.1 Run `percolate-smoke`'s `smokeRun` (real `javac -processorpath` compilation through the shaded `processor` jar) and confirm the generated mapper compiles and behaves as before.
 - [x] 4.2 Confirm PMD/error-prone pass on `processor` without new exclusions beyond fixing the hand-written `DotRenderer` (see 2.1) for PMD's `ConsecutiveLiteralAppends`/`InefficientStringBuffering` rules (built each line as a plain `String` first, then a single `.append(...)` call).
 - [x] 4.3 Run `./gradlew check` for the whole build and confirm it is green (unit tests, integration tests, pitest, ArchUnit, spotless, PMD, CodeNarc). Caught and fixed along the way: `reactor`/`reactor-blocking` integration test failures (the Shadow consumable-variant bug, 2.6) and `architecture-tests` (`ModuleBoundariesSpec`, 3.3).
-- [ ] 4.4 Commit the completed change with `/commit-commands:commit`.
+- [x] 4.4 Commit the completed change with `/commit-commands:commit`.
