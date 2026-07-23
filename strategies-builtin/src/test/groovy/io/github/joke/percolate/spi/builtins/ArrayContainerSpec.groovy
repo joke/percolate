@@ -1,6 +1,6 @@
 package io.github.joke.percolate.spi.builtins
 
-import io.github.joke.percolate.javapoet.CodeBlock
+import io.github.joke.percolate.lib.javapoet.CodeBlock
 import io.github.joke.percolate.spi.OperationCodegen
 import io.github.joke.percolate.spi.ResolveCtx
 import io.github.joke.percolate.spi.Weights

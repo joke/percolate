@@ -66,7 +66,7 @@ class ConstantValueSpec extends Specification {
     }
 
     def 'constantSpec wires a zero-port, STEP-weighted, NON_NULL spec whose label is the literal text'() {
-        def literal = io.github.joke.percolate.javapoet.CodeBlock.of('42L')
+        def literal = io.github.joke.percolate.lib.javapoet.CodeBlock.of('42L')
 
         expect:
         def spec = ConstantValue.constantSpec(longType, literal)

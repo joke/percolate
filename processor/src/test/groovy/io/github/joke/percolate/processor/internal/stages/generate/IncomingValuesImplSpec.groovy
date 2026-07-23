@@ -1,6 +1,6 @@
 package io.github.joke.percolate.processor.internal.stages.generate
 
-import io.github.joke.percolate.javapoet.CodeBlock
+import io.github.joke.percolate.lib.javapoet.CodeBlock
 import spock.lang.Specification
 import spock.lang.Tag
 

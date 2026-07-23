@@ -64,10 +64,10 @@ class DirectAssignSpec extends Specification {
 
         then:
         specs[0].label == 'assign'
-        specs[0].codegen.render(singleInput(io.github.joke.percolate.javapoet.CodeBlock.of('$N', 'x'))).toString() == 'x'
+        specs[0].codegen.render(singleInput(io.github.joke.percolate.lib.javapoet.CodeBlock.of('$N', 'x'))).toString() == 'x'
     }
 
-    private static io.github.joke.percolate.spi.IncomingValues singleInput(final io.github.joke.percolate.javapoet.CodeBlock value) {
+    private static io.github.joke.percolate.spi.IncomingValues singleInput(final io.github.joke.percolate.lib.javapoet.CodeBlock value) {
         [single: { -> value }] as io.github.joke.percolate.spi.IncomingValues
     }
 }

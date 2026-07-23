@@ -1,7 +1,7 @@
 package io.github.joke.percolate.processor.internal.stages.generate
 
-import io.github.joke.percolate.javapoet.ClassName
-import io.github.joke.percolate.javapoet.CodeBlock
+import io.github.joke.percolate.lib.javapoet.ClassName
+import io.github.joke.percolate.lib.javapoet.CodeBlock
 import io.github.joke.percolate.processor.internal.graph.AddOperation
 import io.github.joke.percolate.processor.internal.graph.AddValue
 import io.github.joke.percolate.processor.internal.graph.ExtractedPlan
@@ -125,7 +125,7 @@ class MemberPlanSpec extends Specification {
 
     def 'memberBase falls back to "member" for a non-ClassName field type (e.g. a primitive)'() {
         expect:
-        MemberPlan.memberBase(io.github.joke.percolate.javapoet.TypeName.INT) == 'member'
+        MemberPlan.memberBase(io.github.joke.percolate.lib.javapoet.TypeName.INT) == 'member'
     }
 
     private Value target(final String slot) {

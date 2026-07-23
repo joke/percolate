@@ -1,6 +1,6 @@
 package io.github.joke.percolate.spi;
 
-import io.github.joke.percolate.javapoet.CodeBlock;
+import io.github.joke.percolate.lib.javapoet.CodeBlock;
 
 /**
  * The code-generation handle of a scalar (non-container) {@link OperationSpec}: it renders the operation's

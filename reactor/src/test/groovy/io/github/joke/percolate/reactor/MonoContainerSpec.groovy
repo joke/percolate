@@ -1,6 +1,6 @@
 package io.github.joke.percolate.reactor
 
-import io.github.joke.percolate.javapoet.CodeBlock
+import io.github.joke.percolate.lib.javapoet.CodeBlock
 import io.github.joke.percolate.spi.ResolveCtx
 import spock.lang.Specification
 import spock.lang.Tag

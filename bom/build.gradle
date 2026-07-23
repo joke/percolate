@@ -8,7 +8,7 @@ dependencies {
     constraints {
         api project(':annotations')
         api project(':percolate')
-        api project(':percolate-javapoet')
+        api project(':lib:javapoet')
         api project(':processor')
         api project(':spi')
         api project(':strategies-builtin')

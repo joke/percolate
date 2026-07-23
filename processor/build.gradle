@@ -1,9 +1,40 @@
 plugins {
     id 'java'
     id 'groovy'
+    id 'com.gradleup.shadow'
     id 'io.github.sgtsilvio.gradle.maven-central-publishing'
     id 'io.freefair.lombok'
     id 'percolate.conventions'
+}
+
+// jgrapht-core/auto-common/dagger (and their own internal-only runtime dependencies: jheaps/apfloat,
+// guava) are internal-only - never cross the spi<->processor boundary - and get shaded+relocated
+// into processor's own jar (see the shade-processor-internal-deps change) instead of being published
+// as external dependencies. jgrapht-io is dropped entirely rather than shaded: DotRenderer only ever
+// used it for DOT text assembly (debug-only output gated behind -Apercolate.debugGraphs), which is
+// now hand-written directly, avoiding jgrapht-io's own antlr-runtime/commons-text/commons-lang3
+// dependencies altogether.
+// jakarta.inject-api/javax.inject are the one exception: dagger.internal.Provider directly
+// implements both JSR-330 Provider interfaces, so they're needed, unrelocated, at runtime - but
+// as a tiny, extremely stable spec API that effectively never changes, they're kept as ordinary
+// declared dependencies rather than shaded. A dedicated configuration keeps the shadowJar merge
+// set to exactly what needs shading - unlike percolate-javapoet, processor's compileClasspath
+// also carries spi/annotations (and, transitively, lib:javapoet), which must NOT be bundled here.
+// A standalone configuration (NOT extended by compileOnly/implementation) so its exclude rules
+// only ever narrow the shadowJar merge set, never processor's own compileClasspath resolution.
+configurations {
+    shaded {
+        exclude group: 'jakarta.inject', module: 'jakarta.inject-api'
+        exclude group: 'javax.inject', module: 'javax.inject'
+        // Compile-time-only annotation markers pulled in by Guava/auto-common; not resolved at
+        // ordinary runtime classloading, and jsr305's javax.annotation package must never be
+        // relocated (it would also catch javax.annotation.processing.* from the JDK).
+        exclude group: 'com.google.code.findbugs', module: 'jsr305'
+        exclude group: 'org.checkerframework', module: 'checker-qual'
+        exclude group: 'com.google.errorprone', module: 'error_prone_annotations'
+        exclude group: 'com.google.j2objc', module: 'j2objc-annotations'
+        exclude group: 'com.google.guava', module: 'listenablefuture'
+    }
 }
 
 dependencies {
@@ -12,6 +43,7 @@ dependencies {
     annotationProcessor 'com.google.auto.service:auto-service'
     annotationProcessor 'com.google.dagger:dagger-compiler'
 
+    compileOnly platform(project(':dependencies'))
     compileOnly project(':annotations')
 
     compileOnly 'com.google.auto.service:auto-service-annotations'
@@ -19,17 +51,38 @@ dependencies {
     compileOnly 'org.jspecify:jspecify'
     compileOnly 'org.projectlombok:lombok'
 
-    implementation platform(project(':dependencies'))
+    // Visible to processor's own compilation (Dagger-generated sources included); versions come
+    // from the platform via compileClasspath's merged constraints (compileOnly's platform import
+    // above - kept off `implementation` so it never leaks as an import into the published POM).
+    compileOnly 'org.jgrapht:jgrapht-core'
+    compileOnly 'com.google.auto:auto-common'
+    compileOnly 'com.google.dagger:dagger'
+
+    // The same three artifacts, resolved standalone so the shadowJar merge set is exactly this
+    // (plus their own internal-only runtime dependencies) and nothing from the rest of
+    // processor's compileClasspath (spi, annotations, lib:javapoet, ...).
+    shaded platform(project(':dependencies'))
+    shaded 'org.jgrapht:jgrapht-core'
+    shaded 'com.google.auto:auto-common'
+    shaded 'com.google.dagger:dagger'
+
+    // Kept unshaded: a stable JSR-330 spec API; dagger.internal.Provider's own class hierarchy
+    // needs it resolvable at runtime (see the `shaded` exclusions above).
+    implementation 'jakarta.inject:jakarta.inject-api:2.0.1'
+    implementation 'javax.inject:javax.inject:1'
+
     implementation project(':annotations')
     implementation project(':spi')
-    implementation 'org.jgrapht:jgrapht-core'
-    implementation 'org.jgrapht:jgrapht-io'
-    implementation 'com.google.auto:auto-common'
-    implementation 'com.google.dagger:dagger'
 
     testImplementation platform(project(':dependencies'))
     testImplementation 'org.spockframework:spock-core'
     testImplementation 'org.assertj:assertj-core'
+    // Real (unrelocated) copies for tests that exercise actual jgrapht/dagger runtime behavior
+    // (e.g. PercolateProcessorSpec builds a real Dagger component) - shading only applies to the
+    // published shadowJar, not the ordinary test classpath.
+    testImplementation 'org.jgrapht:jgrapht-core'
+    testImplementation 'com.google.auto:auto-common'
+    testImplementation 'com.google.dagger:dagger'
     testImplementation testFixtures(project(':spi'))
 
     testImplementation project(':strategies-builtin')
@@ -39,4 +92,42 @@ dependencies {
     testRuntimeOnly 'net.bytebuddy:byte-buddy'
     testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
     testRuntimeOnly 'org.mockito:mockito-junit-jupiter'
+}
+
+tasks.named('shadowJar') {
+    archiveClassifier.set('')
+    configurations.set([project.configurations.shaded])
+    relocate 'org.jgrapht', 'io.github.joke.percolate.lib.jgrapht'
+    relocate 'org.jheaps', 'io.github.joke.percolate.lib.jheaps'
+    relocate 'org.apfloat', 'io.github.joke.percolate.lib.apfloat'
+    relocate 'com.google.auto.common', 'io.github.joke.percolate.lib.autocommon'
+    relocate 'com.google.common', 'io.github.joke.percolate.lib.guava'
+    // com.google.dagger is the Maven groupId, not the Java package - the dagger runtime's actual
+    // classes live under the top-level `dagger` package (dagger.Component, dagger.internal.*, ...).
+    relocate 'dagger', 'io.github.joke.percolate.lib.dagger'
+}
+
+shadow {
+    addShadowVariantIntoJavaComponent = false
+}
+
+// Shadow still registers shadowRuntimeElements/shadowApiElements as consumable configurations
+// regardless of addShadowVariantIntoJavaComponent (that flag only controls Gradle Module Metadata
+// publication). Left consumable, Gradle's variant matching for an ordinary in-build project(':processor')
+// dependency prefers them (org.gradle.dependency.bundling = shadowed) over the real runtimeElements/
+// apiElements below - and since Shadow's shadow variants declare zero dependencies (everything is
+// assumed bundled), every in-build consumer silently lost jakarta.inject/javax.inject/annotations/spi.
+// Making them non-consumable removes the ambiguity, leaving runtimeElements/apiElements as the only
+// candidate.
+configurations {
+    shadowRuntimeElements { canBeConsumed = false }
+    shadowApiElements { canBeConsumed = false }
+    apiElements {
+        outgoing.artifacts.clear()
+        outgoing.artifact(tasks.shadowJar)
+    }
+    runtimeElements {
+        outgoing.artifacts.clear()
+        outgoing.artifact(tasks.shadowJar)
+    }
 }

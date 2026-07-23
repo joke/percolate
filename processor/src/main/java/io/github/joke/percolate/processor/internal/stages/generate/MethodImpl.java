@@ -1,6 +1,6 @@
 package io.github.joke.percolate.processor.internal.stages.generate;
 
-import io.github.joke.percolate.javapoet.CodeBlock;
+import io.github.joke.percolate.lib.javapoet.CodeBlock;
 import java.util.Set;
 import javax.lang.model.element.ExecutableElement;
 import javax.lang.model.element.TypeElement;

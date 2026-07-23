@@ -1,6 +1,6 @@
 package io.github.joke.percolate.spi
 
-import io.github.joke.percolate.javapoet.CodeBlock
+import io.github.joke.percolate.lib.javapoet.CodeBlock
 import io.github.joke.percolate.spi.test.FakeResolveCtx
 import io.github.joke.percolate.spi.test.FakeType
 import spock.lang.Shared

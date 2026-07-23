@@ -1,6 +1,6 @@
 package io.github.joke.percolate.processor.internal.stages.validate
 
-import io.github.joke.percolate.javapoet.CodeBlock
+import io.github.joke.percolate.lib.javapoet.CodeBlock
 import io.github.joke.percolate.processor.Diagnostics
 import io.github.joke.percolate.processor.MapperContext
 import io.github.joke.percolate.processor.internal.graph.AccessPath

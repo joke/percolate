@@ -3,7 +3,7 @@ package io.github.joke.percolate.spi.builtins;
 import static java.util.stream.Collectors.toUnmodifiableList;
 
 import com.google.auto.service.AutoService;
-import io.github.joke.percolate.javapoet.CodeBlock;
+import io.github.joke.percolate.lib.javapoet.CodeBlock;
 import io.github.joke.percolate.spi.ExpansionStrategy;
 import io.github.joke.percolate.spi.MethodCandidate;
 import io.github.joke.percolate.spi.OperationCodegen;

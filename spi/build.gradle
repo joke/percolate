@@ -17,7 +17,7 @@ dependencies {
     compileOnly 'com.google.auto.service:auto-service-annotations'
     compileOnly 'org.jetbrains:annotations'
 
-    api project(':percolate-javapoet')
+    api project(':lib:javapoet')
 
     testFixturesAnnotationProcessor platform(project(':dependencies'))
     testFixturesAnnotationProcessor 'org.projectlombok:lombok'

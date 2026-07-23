@@ -1,6 +1,6 @@
 package io.github.joke.percolate.processor.internal.stages.generate;
 
-import io.github.joke.percolate.javapoet.CodeBlock;
+import io.github.joke.percolate.lib.javapoet.CodeBlock;
 import io.github.joke.percolate.spi.IncomingValues;
 import java.util.List;
 import java.util.Map;

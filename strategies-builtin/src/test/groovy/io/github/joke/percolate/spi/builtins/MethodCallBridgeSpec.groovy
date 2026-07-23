@@ -62,7 +62,7 @@ class MethodCallBridgeSpec extends Specification {
         param.asType() >> paramType
         ctx.isAssignable(target, target) >> true
         ctx.isSameType(target, target) >> true
-        receiver.asExpression() >> io.github.joke.percolate.javapoet.CodeBlock.of('obj')
+        receiver.asExpression() >> io.github.joke.percolate.lib.javapoet.CodeBlock.of('obj')
 
         when:
         def specs = new MethodCallBridge().expand(Demands.forTarget(target), ctx).toList()
@@ -145,15 +145,15 @@ class MethodCallBridgeSpec extends Specification {
         Receiver receiver = Mock()
         def candidate = new MethodCandidate(method, receiver)
         method.simpleName >> nameOf('concat')
-        receiver.asExpression() >> io.github.joke.percolate.javapoet.CodeBlock.of('obj')
+        receiver.asExpression() >> io.github.joke.percolate.lib.javapoet.CodeBlock.of('obj')
 
         expect:
-        def rendered = io.github.joke.percolate.javapoet.CodeBlock.of('$L\n',
-                new MethodCallBridge().renderCodegen(candidate).render(singleInput(io.github.joke.percolate.javapoet.CodeBlock.of('$N', 'x'))))
+        def rendered = io.github.joke.percolate.lib.javapoet.CodeBlock.of('$L\n',
+                new MethodCallBridge().renderCodegen(candidate).render(singleInput(io.github.joke.percolate.lib.javapoet.CodeBlock.of('$N', 'x'))))
         rendered.toString().contains('obj.concat(x)')
     }
 
-    private static io.github.joke.percolate.spi.IncomingValues singleInput(final io.github.joke.percolate.javapoet.CodeBlock value) {
+    private static io.github.joke.percolate.spi.IncomingValues singleInput(final io.github.joke.percolate.lib.javapoet.CodeBlock value) {
         [single: { -> value }] as io.github.joke.percolate.spi.IncomingValues
     }
 

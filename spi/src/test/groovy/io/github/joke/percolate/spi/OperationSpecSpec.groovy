@@ -1,7 +1,7 @@
 package io.github.joke.percolate.spi
 
-import io.github.joke.percolate.javapoet.CodeBlock
-import io.github.joke.percolate.javapoet.TypeName
+import io.github.joke.percolate.lib.javapoet.CodeBlock
+import io.github.joke.percolate.lib.javapoet.TypeName
 import spock.lang.Specification
 import spock.lang.Tag
 

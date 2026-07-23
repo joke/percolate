@@ -1,6 +1,6 @@
 package io.github.joke.percolate.processor.internal.stages.generate;
 
-import io.github.joke.percolate.javapoet.FieldSpec;
+import io.github.joke.percolate.lib.javapoet.FieldSpec;
 import java.util.List;
 import lombok.Value;
 

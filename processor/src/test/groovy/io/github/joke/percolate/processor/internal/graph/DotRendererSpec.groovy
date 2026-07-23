@@ -166,7 +166,7 @@ class DotRendererSpec extends Specification {
                 shape    : 'box',
                 style    : 'filled',
                 fillcolor: '#EEEEEE',
-        ].collectEntries { k, v -> [(k): attrValue(v)] }
+        ]
     }
 
     def 'vertexAttributes: dimming overrides style and fill for both Operations and Values'() {
@@ -175,14 +175,10 @@ class DotRendererSpec extends Specification {
         def value = valueAt(new SourceLocation(AccessPath.of('s')))
 
         expect:
-        DotRenderer.vertexAttributes(operation, true).style.value == 'filled,dashed'
-        DotRenderer.vertexAttributes(operation, true).fillcolor.value == '#DDDDDD'
-        DotRenderer.vertexAttributes(value, true).style.value == 'filled,dashed'
-        DotRenderer.vertexAttributes(value, true).fillcolor.value == '#DDDDDD'
-    }
-
-    private static Object attrValue(final String value) {
-        org.jgrapht.nio.DefaultAttribute.createAttribute(value)
+        DotRenderer.vertexAttributes(operation, true).style == 'filled,dashed'
+        DotRenderer.vertexAttributes(operation, true).fillcolor == '#DDDDDD'
+        DotRenderer.vertexAttributes(value, true).style == 'filled,dashed'
+        DotRenderer.vertexAttributes(value, true).fillcolor == '#DDDDDD'
     }
 
     private Value valueAt(final Location loc) {

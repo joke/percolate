@@ -23,9 +23,9 @@ class JavaPoetRelocationSpec extends Specification {
     JavaClasses imported
 
     def setupSpec() {
-        // The relocated io.github.joke.percolate.javapoet package itself is third-party JavaPoet
+        // The relocated io.github.joke.percolate.lib.javapoet package itself is third-party JavaPoet
         // internals (excluded so this rule checks percolate's own code, not the relocated library).
-        ImportOption notJavaPoetRelocation = { location -> !location.contains('/io/github/joke/percolate/javapoet/') }
+        ImportOption notJavaPoetRelocation = { location -> !location.contains('/io/github/joke/percolate/lib/javapoet/') }
         imported = new ClassFileImporter()
                 .withImportOption(ImportOption.Predefined.DO_NOT_INCLUDE_TESTS)
                 .withImportOption(notJavaPoetRelocation)

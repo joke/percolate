@@ -1,6 +1,6 @@
 package io.github.joke.percolate.processor.internal.stages.generate
 
-import io.github.joke.percolate.javapoet.MethodSpec
+import io.github.joke.percolate.lib.javapoet.MethodSpec
 import spock.lang.Specification
 import spock.lang.Tag
 
@@ -8,7 +8,7 @@ import javax.lang.model.element.Modifier
 
 // Pins the percolate MethodSpec overlay (change doc-tag-whole-methods): docTag brackets the WHOLE emitted
 // method with AsciiDoc include-tag comments, outside the braces, so a documentation include renders the
-// complete method. Exercised over the relocated io.github.joke.percolate.javapoet.MethodSpec, which proves
+// complete method. Exercised over the relocated io.github.joke.percolate.lib.javapoet.MethodSpec, which proves
 // the overlay won the shadow duplicate-merge (upstream MethodSpec has no docTag).
 @Tag('unit')
 class MethodSpecDocTagSpec extends Specification {

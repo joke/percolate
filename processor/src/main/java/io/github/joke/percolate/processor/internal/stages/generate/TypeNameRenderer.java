@@ -1,7 +1,7 @@
 package io.github.joke.percolate.processor.internal.stages.generate;
 
 import com.groupcdg.pitest.annotations.CoverageIgnore;
-import io.github.joke.percolate.javapoet.TypeName;
+import io.github.joke.percolate.lib.javapoet.TypeName;
 import javax.lang.model.type.TypeMirror;
 
 /**

@@ -13,7 +13,7 @@ dependencies {
 tasks.named('shadowJar') {
     archiveClassifier.set('')
     configurations.set([project.configurations.compileClasspath])
-    relocate 'com.palantir.javapoet', 'io.github.joke.percolate.javapoet'
+    relocate 'com.palantir.javapoet', 'io.github.joke.percolate.lib.javapoet'
     filesMatching('com/palantir/javapoet/MethodSpec*.class') {
         duplicatesStrategy = DuplicatesStrategy.EXCLUDE
     }

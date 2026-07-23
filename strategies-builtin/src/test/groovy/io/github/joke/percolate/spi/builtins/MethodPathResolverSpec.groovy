@@ -142,14 +142,14 @@ class MethodPathResolverSpec extends Specification {
         step.member.is(method)
         step.label == 'street()'
         step.weight == Weights.STEP_METHOD
-        io.github.joke.percolate.javapoet.CodeBlock.of('$L\n', step.codegen.render(singleInput(io.github.joke.percolate.javapoet.CodeBlock.of('$N', 'p')))).toString().contains('p.street()')
+        io.github.joke.percolate.lib.javapoet.CodeBlock.of('$L\n', step.codegen.render(singleInput(io.github.joke.percolate.lib.javapoet.CodeBlock.of('$N', 'p')))).toString().contains('p.street()')
     }
 
     private static Name nameOf(final String value) {
         [contentEquals: { CharSequence cs -> cs.toString() == value }, toString: { value }] as Name
     }
 
-    private static io.github.joke.percolate.spi.IncomingValues singleInput(final io.github.joke.percolate.javapoet.CodeBlock value) {
+    private static io.github.joke.percolate.spi.IncomingValues singleInput(final io.github.joke.percolate.lib.javapoet.CodeBlock value) {
         [single: { -> value }] as io.github.joke.percolate.spi.IncomingValues
     }
 }

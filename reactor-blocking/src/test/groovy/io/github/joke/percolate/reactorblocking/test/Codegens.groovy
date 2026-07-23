@@ -1,6 +1,6 @@
 package io.github.joke.percolate.reactorblocking.test
 
-import io.github.joke.percolate.javapoet.CodeBlock
+import io.github.joke.percolate.lib.javapoet.CodeBlock
 import io.github.joke.percolate.spi.IncomingValues
 
 /**

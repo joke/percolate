@@ -2,7 +2,6 @@ package io.github.joke.percolate.processor.internal.graph;
 
 import io.github.joke.percolate.spi.Nullability;
 import jakarta.inject.Inject;
-import java.io.StringWriter;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.function.Predicate;
@@ -13,9 +12,6 @@ import javax.lang.model.type.TypeMirror;
 import lombok.NoArgsConstructor;
 import org.jetbrains.annotations.VisibleForTesting;
 import org.jgrapht.Graph;
-import org.jgrapht.nio.Attribute;
-import org.jgrapht.nio.DefaultAttribute;
-import org.jgrapht.nio.dot.DOTExporter;
 import org.jspecify.annotations.Nullable;
 
 /**
@@ -23,8 +19,9 @@ import org.jspecify.annotations.Nullable;
  * their typed production {@code label}, {@link Value}s are ellipses labelled with location plus a readable type
  * (simple names + a JSpecify {@code ?}/{@code !} nullness mark per level), and {@link Dep} edges carry their port
  * id as a label. Vertices the caller marks {@code dimmed} (unreachable, by extraction cost) are greyed and dashed
- * rather than dropped, so a pruned over-emission stays distinguishable from the surviving plan. The JGraphT
- * {@link DOTExporter} owns statement structure and quoting; this class supplies only the attribute providers.
+ * rather than dropped, so a pruned over-emission stays distinguishable from the surviving plan. DOT is debug-only
+ * output (gated behind {@code -Apercolate.debugGraphs}), so this class writes the small statement/quoting subset
+ * of the format itself rather than pulling in a DOT-export library for it.
  */
 @NoArgsConstructor(onConstructor_ = @Inject)
 public final class DotRenderer {
@@ -42,41 +39,60 @@ public final class DotRenderer {
     /** Renders {@code scopeGraph} captioned with {@code caption}; {@code dimmed} vertices render greyed and dashed. */
     public String render(
             final Graph<GraphVertex, Dep> scopeGraph, final String caption, final Predicate<GraphVertex> dimmed) {
-        final var exporter = new DOTExporter<GraphVertex, Dep>(vertex -> quote(vertex.id()));
-        exporter.setGraphAttributeProvider(() -> Map.of(LABEL, attr(quote(caption))));
-        exporter.setVertexAttributeProvider(vertex -> vertexAttributes(vertex, dimmed.test(vertex)));
-        exporter.setEdgeAttributeProvider(DotRenderer::edgeAttributes);
-        final var writer = new StringWriter();
-        exporter.exportGraph(scopeGraph, writer);
-        return writer.toString();
+        final var dot = new StringBuilder("digraph G {\n");
+        final var labelLine = "  label=" + quote(caption) + ";\n";
+        dot.append(labelLine);
+        scopeGraph
+                .vertexSet()
+                .forEach(vertex ->
+                        appendStatement(dot, quote(vertex.id()), vertexAttributes(vertex, dimmed.test(vertex))));
+        scopeGraph.edgeSet().forEach(dep -> {
+            final var head = quote(scopeGraph.getEdgeSource(dep).id()) + " -> "
+                    + quote(scopeGraph.getEdgeTarget(dep).id());
+            appendStatement(dot, head, edgeAttributes(dep));
+        });
+        dot.append('}');
+        return dot.toString();
+    }
+
+    private static void appendStatement(final StringBuilder dot, final String head, final Map<String, String> attrs) {
+        final var bracket = attrs.isEmpty()
+                ? ""
+                : " ["
+                        + attrs.entrySet().stream()
+                                .map(entry -> entry.getKey() + "=" + quote(entry.getValue()))
+                                .collect(Collectors.joining(", "))
+                        + ']';
+        final var statementLine = "  " + head + bracket + ";\n";
+        dot.append(statementLine);
     }
 
     @VisibleForTesting
-    static Map<String, Attribute> vertexAttributes(final GraphVertex vertex, final boolean dimmed) {
-        final var attrs = new LinkedHashMap<String, Attribute>();
+    static Map<String, String> vertexAttributes(final GraphVertex vertex, final boolean dimmed) {
+        final var attrs = new LinkedHashMap<String, String>();
         if (vertex instanceof Operation) {
             final var operation = (Operation) vertex;
-            attrs.put(LABEL, attr(operation.getLabel() + " (" + operation.getWeight() + ")"));
-            attrs.put("shape", attr("box"));
-            attrs.put(STYLE, attr("filled"));
-            attrs.put(FILL, attr("#EEEEEE"));
+            attrs.put(LABEL, operation.getLabel() + " (" + operation.getWeight() + ")");
+            attrs.put("shape", "box");
+            attrs.put(STYLE, "filled");
+            attrs.put(FILL, "#EEEEEE");
         } else {
             final var value = (Value) vertex;
-            attrs.put(LABEL, attr(valueLabel(value)));
-            attrs.put("shape", attr("ellipse"));
-            attrs.put(STYLE, attr("filled"));
-            attrs.put(FILL, attr(fillColor(value)));
+            attrs.put(LABEL, valueLabel(value));
+            attrs.put("shape", "ellipse");
+            attrs.put(STYLE, "filled");
+            attrs.put(FILL, fillColor(value));
         }
         if (dimmed) {
-            attrs.put(STYLE, attr("filled,dashed"));
-            attrs.put(FILL, attr(DIM_FILL));
+            attrs.put(STYLE, "filled,dashed");
+            attrs.put(FILL, DIM_FILL);
         }
         return attrs;
     }
 
-    private static Map<String, Attribute> edgeAttributes(final Dep dep) {
-        final var attrs = new LinkedHashMap<String, Attribute>();
-        dep.getPortId().ifPresent(portId -> attrs.put(LABEL, attr(portId)));
+    private static Map<String, String> edgeAttributes(final Dep dep) {
+        final var attrs = new LinkedHashMap<String, String>();
+        dep.getPortId().ifPresent(portId -> attrs.put(LABEL, portId));
         return attrs;
     }
 
@@ -151,10 +167,6 @@ public final class DotRenderer {
             return ELEMENT_FILL;
         }
         return FALLBACK_FILL;
-    }
-
-    private static Attribute attr(final String value) {
-        return DefaultAttribute.createAttribute(value);
     }
 
     @VisibleForTesting

@@ -98,7 +98,7 @@ class PrimitiveWrapperConversionSpec extends Specification {
         def step = PrimitiveWrapperConversion.unbox(primitiveTarget, ctx)
         step.inputType.is(wrapper)
         step.weight == Weights.STEP
-        io.github.joke.percolate.javapoet.CodeBlock.of('$L\n', step.codegen.render(singleInput(io.github.joke.percolate.javapoet.CodeBlock.of('$N', 'w'))))
+        io.github.joke.percolate.lib.javapoet.CodeBlock.of('$L\n', step.codegen.render(singleInput(io.github.joke.percolate.lib.javapoet.CodeBlock.of('$N', 'w'))))
                 .toString().contains('w.longValue()')
     }
 
@@ -160,7 +160,7 @@ class PrimitiveWrapperConversionSpec extends Specification {
         [contentEquals: { CharSequence cs -> cs.toString() == value }, toString: { value }] as Name
     }
 
-    private static io.github.joke.percolate.spi.IncomingValues singleInput(final io.github.joke.percolate.javapoet.CodeBlock value) {
+    private static io.github.joke.percolate.spi.IncomingValues singleInput(final io.github.joke.percolate.lib.javapoet.CodeBlock value) {
         [single: { -> value }] as io.github.joke.percolate.spi.IncomingValues
     }
 }
