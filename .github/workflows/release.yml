@@ -38,6 +38,8 @@ jobs:
     - uses: crazy-max/ghaction-import-gpg@v7
       with:
         gpg_private_key: ${{ secrets.GPG_PRIVATE_KEY }}
+        passphrase: ${{ secrets.GPG_PASSPHRASE }}
+        fingerprint: ${{ secrets.GPG_FINGERPRINT }}
     - uses: gradle/actions/setup-gradle@v6
     - run: ./gradlew assemble
     - run: ./gradlew publishToMavenCentral
