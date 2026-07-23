@@ -41,7 +41,7 @@ jobs:
         passphrase: ${{ secrets.GPG_PASSPHRASE }}
         fingerprint: ${{ secrets.GPG_FINGERPRINT }}
     - uses: gradle/actions/setup-gradle@v6
-    - run: ./gradlew assemble
+    - run: ./gradlew generateMetadataFileForMavenPublication
     - run: ./gradlew publishToMavenCentral
       env:
         ORG_GRADLE_PROJECT_mavenCentralUsername: ${{ secrets.mavenCentralUsername }}
