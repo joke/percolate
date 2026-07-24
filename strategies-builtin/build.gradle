@@ -16,7 +16,6 @@ dependencies {
     compileOnly 'org.projectlombok:lombok'
     compileOnly 'org.jspecify:jspecify'
 
-    implementation platform(project(':dependencies'))
     implementation project(':spi')
 
     testImplementation platform(project(':dependencies'))

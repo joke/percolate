@@ -16,9 +16,12 @@ dependencies {
     compileOnly 'org.projectlombok:lombok'
     compileOnly 'org.jspecify:jspecify'
 
-    implementation platform(project(':dependencies'))
     implementation project(':spi')
-    implementation 'io.projectreactor:reactor-core'
+    // Kept off the ':dependencies' platform and pinned explicitly: ':dependencies' is never
+    // published, so a platform-only version would leak as an unresolvable dependencyManagement
+    // import (or vanish entirely) in this module's published POM. Matches the platform's own
+    // constraint in dependencies/build.gradle - bump both together.
+    implementation 'io.projectreactor:reactor-core:3.7.0'
 
     testImplementation platform(project(':dependencies'))
     testImplementation project(':processor')
