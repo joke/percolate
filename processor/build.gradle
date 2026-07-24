@@ -2,7 +2,7 @@ plugins {
     id 'java'
     id 'groovy'
     id 'com.gradleup.shadow'
-    id 'io.github.sgtsilvio.gradle.maven-central-publishing'
+    id 'maven-publish'
     id 'io.freefair.lombok'
     id 'percolate.conventions'
 }

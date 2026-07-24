@@ -1,7 +1,7 @@
 plugins {
     id 'java'
     id 'groovy'
-    id 'io.github.sgtsilvio.gradle.maven-central-publishing'
+    id 'maven-publish'
     id 'io.freefair.lombok'
     id 'percolate.conventions'
 }
@@ -15,13 +15,14 @@ dependencies {
     compileOnly 'com.google.auto.service:auto-service-annotations'
     compileOnly 'org.projectlombok:lombok'
     compileOnly 'org.jspecify:jspecify'
+    // reactor-core is a peer dependency: any consumer of this module is already writing
+    // Flux/Mono mapper code and so already depends on io.projectreactor:reactor-core itself.
+    // This module must not redistribute/pin a runtime version of its own - compileOnly keeps
+    // it off the published POM entirely (version supplied by the platform above, compile-time
+    // only) rather than leaking an internal version choice onto every consumer.
+    compileOnly 'io.projectreactor:reactor-core'
 
     implementation project(':spi')
-    // Kept off the ':dependencies' platform and pinned explicitly: ':dependencies' is never
-    // published, so a platform-only version would leak as an unresolvable dependencyManagement
-    // import (or vanish entirely) in this module's published POM. Matches the platform's own
-    // constraint in dependencies/build.gradle - bump both together.
-    implementation 'io.projectreactor:reactor-core:3.7.0'
 
     testImplementation platform(project(':dependencies'))
     testImplementation project(':processor')

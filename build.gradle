@@ -2,8 +2,18 @@ plugins {
     id 'org.danilopianini.cpd' apply false
     id 'info.solidsoft.pitest' apply false
     id 'org.antora'
-    id 'io.github.sgtsilvio.gradle.maven-central-publishing' apply false
     id 'io.freefair.lombok' apply false
+}
+
+// com.gradleup.nmcp.settings (applied in settings.gradle) implicitly applies
+// com.gradleup.nmcp.aggregation to this root project - configure the extension it registers
+// here rather than re-applying the plugin.
+nmcpAggregation {
+    // rootProject.name ('percolate') intentionally collides with the ':percolate' starter
+    // module's own project name (no per-module artifactId prefix - see the
+    // drop-percolate-artifactId-prefix design). Harmless for actual Central Portal
+    // coordinates, which key off group+artifactId, not simple project name.
+    allowDuplicateProjectNames.set(true)
 }
 
 antora {

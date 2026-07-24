@@ -2,7 +2,7 @@ plugins {
     id 'java-library'
     id 'groovy'
     id 'java-test-fixtures'
-    id 'io.github.sgtsilvio.gradle.maven-central-publishing'
+    id 'maven-publish'
     id 'io.freefair.lombok'
     id 'percolate.conventions'
 }
@@ -35,8 +35,13 @@ dependencies {
     testImplementation 'org.jspecify:jspecify'
     testImplementation testFixtures(project(':spi'))
 
+    testAnnotationProcessor platform(project(':dependencies'))
     testAnnotationProcessor project(':percolate')
     testAnnotationProcessor project(':reactor')
+    // reactor-core is compileOnly in :reactor (a peer dependency, not redistributed) - the
+    // annotation processor classpath needs its own copy to load reactor's Flux/Mono-referencing
+    // SPI classes during processing, separately from testImplementation below.
+    testAnnotationProcessor 'io.projectreactor:reactor-core'
     testImplementation project(':annotations')
     testImplementation 'io.projectreactor:reactor-core'
 

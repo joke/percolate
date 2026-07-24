@@ -10,9 +10,21 @@ pluginManagement {
         id 'org.antora' version '1.0.0'
         id 'info.solidsoft.pitest' version '1.19.0'
         id 'com.gradleup.shadow' version '9.6.1'
-        id 'io.github.sgtsilvio.gradle.maven-central-publishing' version '0.5.0'
+        id 'com.gradleup.nmcp.settings' version '1.6.1'
         id 'io.github.sgtsilvio.gradle.metadata' version '0.7.0'
         id 'io.freefair.lombok' version '9.5.0'
+    }
+}
+
+plugins {
+    id 'com.gradleup.nmcp.settings'
+}
+
+nmcpSettings {
+    centralPortal {
+        username = providers.gradleProperty('mavenCentralUsername')
+        password = providers.gradleProperty('mavenCentralPassword')
+        publishingType = 'AUTOMATIC'
     }
 }
 
