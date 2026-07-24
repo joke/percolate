@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.0.1](https://github.com/joke/percolate/compare/v1.0.0...v1.0.1) (2026-07-24)
+
+
+### Bug Fixes
+
+* **build:** shade processor's internal-only deps to fix Maven Central publish ([49b95c3](https://github.com/joke/percolate/commit/49b95c3d2f53f2d528f06486ea66ff0b9bc04868))
+
 ## 1.0.0 (2026-07-23)
 
 
