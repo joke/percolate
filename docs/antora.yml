@@ -1,8 +1,11 @@
 name: percolate
 title: Percolate
-# Unversioned while pre-1.0 with no release tags: clean URLs, a single honest version.
-# At the first release this adopts a concrete version and the tag-sourced dropdown populates.
-version:
+# Derived from the git ref (tag or branch) at aggregation time, e.g. v1.0.2 -> "v1.0.2", main -> "main".
+# Keeps each release tag's component version distinct without a manual bump-on-release step to forget
+# (mirrors shipkit-auto-version deriving the Gradle version from tags). A blank/null value here instead
+# resolves to the same empty-string version for every ref, which collides across tags and branches once
+# more than one ref is aggregated (see the v1.0.0/v1.0.1 exclusions in antora-playbook.yml).
+version: true
 nav:
 - modules/ROOT/nav.adoc
 asciidoc:

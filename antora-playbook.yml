@@ -8,7 +8,11 @@ content:
   - url: .
     branches: HEAD
       # Release tags become additional versions automatically once they exist (inert with zero tags).
-    tags: [v*.*.*]
+      # v1.0.0 and v1.0.1 are excluded: both were cut before docs/antora.yml switched to `version: true`,
+      # so their baked-in antora.yml still carries the old blank version field. That resolves to the same
+      # empty-string component version for both tags (and HEAD), which Antora rejects as a duplicate nav.
+      # Their tag commits are immutable and not being rewritten; versioned docs start at v1.0.2 onward.
+    tags: [v*.*.*, '!v1.0.0', '!v1.0.1']
     start_path: docs
 
 ui:
