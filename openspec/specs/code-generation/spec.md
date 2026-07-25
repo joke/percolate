@@ -222,6 +222,21 @@ grouping label, and SHALL NOT read `Nullability` to decide wiring.
 - **THEN** the body renders `return src.stream().map(e -> mapAddress(e)).collect(...)`, selecting the
   seeded root and ignoring dead typed siblings at the return location
 
+When the return-root Value's chosen producer carries a **`BodyCodegen`** rather than an
+`OperationCodegen`, `BuildMethodBodies` SHALL render that producer's **complete body verbatim** as the
+method body — it SHALL NOT wrap the output in `return <expr>;`. All expression-shaped
+(`OperationCodegen`) producers continue to render as `return <expr>;`. The generator SHALL dispatch
+**solely** on which codegen shape the producer supplied and SHALL make no code-generation choice of its
+own — it SHALL read no target Java version and no processor option to decide the body form.
+
+#### Scenario: A return-root BodyCodegen renders verbatim
+- **WHEN** the return-root's chosen producer carries a `BodyCodegen` (e.g. an enum conversion emitting a
+  `switch` body)
+- **THEN** `BuildMethodBodies` emits that producer's rendered body verbatim as the method body, with no
+  enclosing `return <expr>;`
+- **AND** the generator branches only on the codegen shape, reading no target Java version and no
+  processor option
+
 ### Requirement: Assembly arguments hoist to local variables
 
 The generate stage SHALL materialise a plan `Value` as a local variable declaration

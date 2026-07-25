@@ -1,4 +1,13 @@
-## ADDED Requirements
+# Enum Conversion Spec
+
+## Purpose
+
+Defines enum-to-enum mapping: a user-declared conversion method whose body percolate generates, with automatic
+same-name constant matching, `@MapEnum` per-constant overrides, and compile-time coverage safety (javac
+exhaustiveness on a Java 14+ target, percolate's own coverage validation on the Java 11 classic tier). The
+conversion is realised as an ordinary `ExpansionStrategy` via graph expansion — no dedicated processor stage.
+
+## Requirements
 
 ### Requirement: The @MapEnum annotation
 
@@ -85,7 +94,7 @@ an error.
 
 ### Requirement: The generated switch form is selected by the strategy from switch.style
 
-The generated conversion SHALL render as a classic switch statement (Java 11-compatible) or a modern arrow switch
+The generated conversion SHALL render as a classic switch statement (Java 11-compatible) or a modern switch
 expression, chosen by the `switch.style` option. `AUTO` SHALL select the modern arrow expression when the target
 `SourceVersion` is Java 14 or later and the classic statement otherwise. `CLASSIC` SHALL always render the classic
 statement; `ARROW` SHALL always render the modern expression. This selection SHALL be made by the enum conversion
