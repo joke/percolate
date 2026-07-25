@@ -31,4 +31,14 @@ public interface Scope {
     default Stream<InputDecl> inputDecls(final BiFunction<TypeMirror, Element, Nullability> nullness) {
         return Stream.empty();
     }
+
+    /**
+     * This scope's ambient environment (graph-expansion "Scopes carry an ambient environment that child scopes
+     * inherit"): a {@code MethodScope} declares one entry per {@code @Ambient} parameter of its method, a
+     * {@code ChildScope} inherits its parent's unchanged, and the mapper root declares none (the default). An
+     * {@code AMBIENT} port resolves against this uniformly, with no scope-kind branch.
+     */
+    default Stream<AmbientDecl> ambientDecls(final BiFunction<TypeMirror, Element, Nullability> nullness) {
+        return Stream.empty();
+    }
 }

@@ -14,20 +14,24 @@ import io.github.joke.percolate.spi.ResolveCtx;
 import io.github.joke.percolate.spi.Weights;
 import java.util.List;
 import java.util.stream.Stream;
+import javax.lang.model.element.ExecutableElement;
+import javax.lang.model.element.VariableElement;
 import javax.lang.model.type.TypeMirror;
 import lombok.NoArgsConstructor;
 
 /**
- * Produces the demanded type by calling a single-argument callable method that returns it: a one-port
- * {@link OperationSpec} whose port is the method argument, produced in turn from the in-scope source. The operation
- * renders {@code receiver.method(arg)}. The argument port's and produced value's nullness are resolved through the
- * demand oracle.
+ * Produces the demanded type by calling a callable method that returns it: an {@link OperationSpec} carrying one
+ * port per declared parameter, in declaration order — the single non-ambient parameter's port sourced as today,
+ * and each {@code @Ambient} parameter's port stamped {@code AMBIENT} with its key ({@code ctx.ambientKey}, design
+ * {@code ambient-parameters}). The strategy stays myopic: it stamps the mode and key only, never resolving the
+ * ambient environment or touching the graph. The operation renders {@code receiver.method(arg0, arg1, …)}, each
+ * argument rendered positionally by port name.
  */
 @AutoService(ExpansionStrategy.class)
 @NoArgsConstructor
 public final class MethodCallBridge implements ExpansionStrategy {
 
-    private static final int SINGLE_PARAM_COUNT = 1;
+    private static final int NON_AMBIENT_PARAM_COUNT = 1;
 
     private final SubtypeDistance subtypeDistance = new SubtypeDistance();
 
@@ -47,10 +51,16 @@ public final class MethodCallBridge implements ExpansionStrategy {
         return callableMethods.producing(targetType).collect(toUnmodifiableList()).stream()
                 .filter(candidate -> {
                     final var method = candidate.getMethod();
-                    return method.getParameters().size() == SINGLE_PARAM_COUNT
+                    return nonAmbientParameterCount(method, ctx) == NON_AMBIENT_PARAM_COUNT
                             && ctx.isAssignable(method.getReturnType(), targetType);
                 })
                 .map(candidate -> buildSpec(candidate, targetType, demand, ctx));
+    }
+
+    long nonAmbientParameterCount(final ExecutableElement method, final ResolveCtx ctx) {
+        return method.getParameters().stream()
+                .filter(param -> ctx.ambientKey(param).isEmpty())
+                .count();
     }
 
     OperationSpec buildSpec(
@@ -59,26 +69,39 @@ public final class MethodCallBridge implements ExpansionStrategy {
             final ProduceDemand demand,
             final ResolveCtx ctx) {
         final var method = candidate.getMethod();
-        final var param = method.getParameters().get(0);
         final var returnType = method.getReturnType();
         final var returnDistance = subtypeDistance.between(returnType, targetType, ctx);
         final var weight = Weights.METHOD + returnDistance;
-        final var port =
-                new Port(param.getSimpleName().toString(), param.asType(), demand.nullnessOf(param.asType(), param));
+        final var ports = method.getParameters().stream()
+                .map(param -> portFor(param, demand, ctx))
+                .collect(toUnmodifiableList());
         return OperationSpec.callOf(
                 method.getSimpleName() + "(…)",
-                renderCodegen(candidate),
+                renderCodegen(candidate, ports),
                 weight,
-                List.of(port),
+                ports,
                 returnType,
                 demand.nullnessOf(returnType, method),
                 method);
     }
 
-    OperationCodegen renderCodegen(final MethodCandidate candidate) {
+    Port portFor(final VariableElement param, final ProduceDemand demand, final ResolveCtx ctx) {
+        final var name = param.getSimpleName().toString();
+        final var type = param.asType();
+        final var nullness = demand.nullnessOf(type, param);
+        return ctx.ambientKey(param)
+                .map(key -> Port.ambient(name, type, nullness, key))
+                .orElseGet(() -> new Port(name, type, nullness));
+    }
+
+    OperationCodegen renderCodegen(final MethodCandidate candidate, final List<Port> ports) {
         final var receiver = candidate.getReceiver().asExpression();
         final var method = candidate.getMethod();
         final var methodName = method.getSimpleName().toString();
-        return inputs -> CodeBlock.of("$L$Z.$N($L)", receiver, methodName, inputs.single());
+        final var portNames = ports.stream().map(Port::getName).collect(toUnmodifiableList());
+        return inputs -> {
+            final var args = portNames.stream().map(inputs::byName).collect(CodeBlock.joining(", "));
+            return CodeBlock.of("$L$Z.$N($L)", receiver, methodName, args);
+        };
     }
 }

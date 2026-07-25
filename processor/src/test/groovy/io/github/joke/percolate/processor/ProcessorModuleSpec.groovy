@@ -10,6 +10,7 @@ import io.github.joke.percolate.processor.internal.stages.dump.DumpTransformsSta
 import io.github.joke.percolate.processor.internal.stages.expand.ExpandStage
 import io.github.joke.percolate.processor.internal.stages.generate.GenerateStage
 import io.github.joke.percolate.processor.internal.stages.validate.RealisationDiagnosticsStage
+import io.github.joke.percolate.processor.internal.stages.validate.ValidateAmbientBindingsStage
 import io.github.joke.percolate.processor.internal.stages.validate.ValidateConstantDefaultLegalityStage
 import io.github.joke.percolate.processor.internal.stages.validate.ValidateMappingShapeStage
 import io.github.joke.percolate.processor.internal.stages.validate.ValidateNoDuplicateTargetsStage
@@ -171,6 +172,7 @@ class ProcessorModuleSpec extends Specification {
         DumpFullGraphStage dumpFullGraph = Mock()
         DumpTransformsStage dumpTransforms = Mock()
         DumpPlanStage dumpPlan = Mock()
+        ValidateAmbientBindingsStage ambientBindings = Mock()
         ValidateConstantDefaultLegalityStage constantDefaultLegality = Mock()
         ValidateOptionConsumptionStage optionConsumption = Mock()
         RealisationDiagnosticsStage realisation = Mock()
@@ -179,14 +181,15 @@ class ProcessorModuleSpec extends Specification {
         when:
         def stages = ProcessorModule.stages(
                 [discoverA, discoverB], noDuplicateTargets, mappingShape, sourceParameters, enumOverrides, expand,
-                dumpFullGraph, dumpTransforms, dumpPlan, constantDefaultLegality, optionConsumption, realisation,
-                generate)
+                dumpFullGraph, dumpTransforms, dumpPlan, ambientBindings, constantDefaultLegality, optionConsumption,
+                realisation, generate)
 
         then:
         stages == [
                 discoverA, discoverB,
                 noDuplicateTargets, mappingShape, sourceParameters, enumOverrides,
                 expand,
+                ambientBindings,
                 constantDefaultLegality, optionConsumption, realisation,
                 dumpFullGraph, dumpTransforms, dumpPlan,
                 generate

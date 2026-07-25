@@ -13,7 +13,10 @@ import org.jspecify.annotations.Nullable;
  * {@code decompose-engine-stages}): {@code SUBTARGET} mints a deeper child-target demand; {@code REUSE} and
  * {@code REUSE_OR_MINT} both bind an in-scope source (directive-pinned first), differing only when none is found —
  * {@code REUSE} declines (returns {@code null}) while {@code REUSE_OR_MINT} mints a fresh intermediate at the output
- * location.
+ * location. {@code AMBIENT} resolves the port's key against the scope's ambient environment (verifying the
+ * binding's type), declining exactly like {@code REUSE} when the key is unbound or the type doesn't verify — the
+ * engine stays diagnostics-free; a downstream validation re-derives the same failure to report it loudly (design
+ * Decision 3: an unmatched ambient port must not merely vanish the way a declined {@code REUSE} does).
  */
 @RequiredArgsConstructor
 final class PortSourceResolver {
@@ -21,7 +24,7 @@ final class PortSourceResolver {
     private final SourceCandidates sourceCandidates;
     private final OperationLander operationLander;
 
-    /** The feeding {@link AddValue} for {@code port} on {@code output}, or {@code null} when a REUSE port finds none. */
+    /** The feeding {@link AddValue} for {@code port} on {@code output}, or {@code null} when the port finds no source. */
     @Nullable
     AddValue sourceForPort(
             final Value output, final String parentPath, final Port port, final @Nullable Value pinnedSource) {
@@ -29,6 +32,20 @@ final class PortSourceResolver {
             return new AddValue(
                     output.getScope(), Location.child(parentPath, port.getName()), port.getType(), port.getNullness());
         }
+        if (port.getSourcing() == Port.Sourcing.AMBIENT) {
+            return ambientAddValue(output, port);
+        }
+        return reuseOrMint(output, port, pinnedSource);
+    }
+
+    @Nullable
+    AddValue ambientAddValue(final Value output, final Port port) {
+        final var ambient = sourceCandidates.ambientSource(output.getScope(), port);
+        return ambient == null ? null : operationLander.reuse(ambient);
+    }
+
+    @Nullable
+    AddValue reuseOrMint(final Value output, final Port port, final @Nullable Value pinnedSource) {
         final var reused = sourceCandidates.matchingSource(output.getScope(), port, pinnedSource);
         if (reused != null) {
             return operationLander.reuse(reused);

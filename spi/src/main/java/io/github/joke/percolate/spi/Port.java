@@ -18,8 +18,12 @@ import org.jspecify.annotations.Nullable;
  *
  * <p>Each port declares an explicit {@link Sourcing} mode telling the engine how to bind its feeding value, so the
  * driver dispatches on a declared fact rather than reconstructing intent from a name-match or a boolean. The
- * three-argument and template constructors default to {@link Sourcing#REUSE_OR_MINT}; {@link #reuse} and
- * {@link #subTarget} build the other two modes.
+ * three-argument and template constructors default to {@link Sourcing#REUSE_OR_MINT}; {@link #reuse},
+ * {@link #subTarget}, and {@link #ambient} build the other three modes.
+ *
+ * <p>A port also carries a {@link #key}, meaningful only in {@link Sourcing#AMBIENT} mode: the ambient binding
+ * name the engine resolves against the enclosing scope's ambient environment. It is the empty string in every
+ * other mode.
  */
 @Value
 @AllArgsConstructor
@@ -36,31 +40,45 @@ public class Port {
     /** How the engine binds this port's feeding value — a declared fact, never reconstructed from a name-match. */
     Sourcing sourcing;
 
+    /** The ambient binding key, meaningful only in {@link Sourcing#AMBIENT} mode; the empty string otherwise. */
+    String key;
+
     /** A concrete port whose {@link #type} fully determines the feeding value (no type variable), {@code REUSE_OR_MINT}. */
     public Port(final String name, final TypeMirror type, final Nullability nullness) {
-        this(name, type, nullness, null, Sourcing.REUSE_OR_MINT);
+        this(name, type, nullness, null, Sourcing.REUSE_OR_MINT, "");
     }
 
     /** A type-variable port carrying a {@link PortType} {@code template} the engine grounds by match, {@code REUSE_OR_MINT}. */
     public Port(
             final String name, final TypeMirror type, final Nullability nullness, final @Nullable PortType template) {
-        this(name, type, nullness, template, Sourcing.REUSE_OR_MINT);
+        this(name, type, nullness, template, Sourcing.REUSE_OR_MINT, "");
     }
 
     /** A concrete {@link Sourcing#REUSE} port: bound to an in-scope source or the operation does not apply (never minted). */
     public static Port reuse(final String name, final TypeMirror type, final Nullability nullness) {
-        return new Port(name, type, nullness, null, Sourcing.REUSE);
+        return new Port(name, type, nullness, null, Sourcing.REUSE, "");
     }
 
     /** A concrete {@link Sourcing#SUBTARGET} port: a structural sub-target the engine demands at the child location. */
     public static Port subTarget(final String name, final TypeMirror type, final Nullability nullness) {
-        return new Port(name, type, nullness, null, Sourcing.SUBTARGET);
+        return new Port(name, type, nullness, null, Sourcing.SUBTARGET, "");
     }
 
     /**
-     * How the engine binds a port's feeding value. A closed set, but <b>extensible</b>: a future binding mode (e.g.
-     * binding a port by name to an ambient captured source) can be added beside these three without changing them or
-     * the strategies that declare them.
+     * A concrete {@link Sourcing#AMBIENT} port: the engine resolves {@code key} against the enclosing scope's
+     * ambient environment, verifies the binding's type, and binds it — or reports an error if the key is unbound.
+     * {@code key} MUST be non-empty.
+     */
+    public static Port ambient(final String name, final TypeMirror type, final Nullability nullness, final String key) {
+        if (key.isEmpty()) {
+            throw new IllegalArgumentException("an AMBIENT port requires a non-empty key");
+        }
+        return new Port(name, type, nullness, null, Sourcing.AMBIENT, key);
+    }
+
+    /**
+     * How the engine binds a port's feeding value. A closed set, but <b>extensible</b>: a further binding mode can
+     * be added beside these four without changing them or the strategies that declare them.
      */
     public enum Sourcing {
 
@@ -71,6 +89,13 @@ public class Port {
         REUSE,
 
         /** The default: bound to an in-scope source, else a fresh intermediate is minted at the output location. */
-        REUSE_OR_MINT
+        REUSE_OR_MINT,
+
+        /**
+         * The feeding value is the ambient binding registered under this port's {@link #key} in the enclosing
+         * scope's ambient environment. Unlike {@link #REUSE}, an unresolved key is an error, never a quiet
+         * non-application.
+         */
+        AMBIENT
     }
 }

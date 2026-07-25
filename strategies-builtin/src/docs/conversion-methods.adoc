@@ -23,7 +23,8 @@ include::example$conversion/CustomerMapperImpl.java[tag=toView,indent=0]
 
 == How a method is chosen
 
-* The method must take **exactly one argument** and return a type assignable to what is demanded.
+* The method must take **exactly one non-`@Ambient` argument** and return a type assignable to what is
+  demanded.
 * Methods are discovered across the whole mapper interface, including inherited ones.
 * Percolate prefers calling an existing method over inlining an equivalent assembly, so declaring a
   conversion method is enough to make nested mappings reuse it.
@@ -35,4 +36,8 @@ This is the mechanism behind element conversions in xref:collections.adoc[Collec
 ====
 A conversion that needs *custom logic* — formatting, parsing, a scalar transform percolate cannot assemble —
 is written as a `default` method instead. See xref:default-method-conversions.adoc[Default-method conversions].
+
+A conversion method that needs a value that is *not* derived from the mapped object — a tenant id, a locale,
+an object the whole conversion hangs off — declares it as an xref:ambient-parameters.adoc[`@Ambient`
+parameter] instead of a second ordinary argument.
 ====

@@ -1,0 +1,103 @@
+= @Ambient parameters
+:navtitle: @Ambient parameters
+
+A mapper method's parameters are not limited to the object being mapped. Annotate a parameter `@Ambient`
+and its value is threaded down the whole call chain — available to any conversion method reached from that
+mapping, by name.
+
+[source,java]
+----
+include::example$ambient/AmbientMapper.java[tag=mapper]
+----
+
+Given these beans:
+
+[source,java]
+----
+include::example$ambient/AmbientMapper.java[tag=model]
+----
+
+`order` is supplied by the caller, exactly like `customer`. `mapAddress` is a `default` conversion method
+that takes a *second* argument — the ambient `order` — which xref:conversion-methods.adoc[ordinary
+conversion methods] cannot do. Percolate calls it with both arguments:
+
+[source,java]
+----
+include::example$ambient/AmbientMapperImpl.java[tag=map,indent=0]
+----
+
+[TIP]
+====
+An `@Ambient` parameter is not special-cased out of ordinary sourcing: `orderRef` above is produced by an
+ordinary `@Map(source = "order.id")`, reading straight through the ambient parameter like any other.
+====
+
+== Keying
+
+An ambient binding is identified by a **key**, not a type. The key defaults to the parameter's own simple
+name; `@Ambient("key")` overrides it, letting a consumer name its own parameter differently while still
+binding the value a provider published:
+
+[source,java]
+----
+include::example$ambient/RenamedKeyMapper.java[tag=renamed-mapper]
+----
+
+`describe`'s own parameter is named `loc`, but `@Ambient("simon")` binds the `simon` key `map` published.
+The generated call still passes the *provider's* variable:
+
+[source,java]
+----
+include::example$ambient/RenamedKeyMapper.java[tag=map,indent=0]
+----
+
+The declared type is *verified* against the binding wherever a key resolves — never encoded into the key
+itself. Two ambient parameters may share a type as long as their keys differ; a key collision between two
+`@Ambient` parameters of the same method is rejected (see <<Errors>>).
+
+== Inside container and element lambdas
+
+A `ChildScope` — the per-element transform behind a collection or other container conversion — inherits its
+parent's ambient environment unchanged. Nothing extra is needed to reach an ambient from inside an element
+lambda:
+
+[source,java]
+----
+include::example$ambient/AmbientLambdaMapper.java[tag=lambda-mapper]
+----
+
+[source,java]
+----
+include::example$ambient/AmbientLambdaMapper.java[tag=map,indent=0]
+----
+
+The generated lambda closes over `store` like any effectively-final local variable — the same mechanism
+that makes an ordinary Java lambda capture a variable, not a percolate-specific one.
+
+== Errors
+
+`@Ambient` fails loudly rather than silently declining, because a quiet non-match would either select a
+different, unintended producer or surface as an unrelated "no plan" diagnostic pointing away from the actual
+mistake. Three mistakes are each reported with their own message naming the key:
+
+[cols="1,2"]
+|===
+| Mistake | What is reported
+
+| Two `@Ambient` parameters of one method resolve to the same key
+| A duplicate-key error naming the key.
+
+| A key resolves, but the binding's type is not assignable to the consuming parameter's declared type
+| A type-mismatch error naming the key and both types — never treated as a silent non-match.
+
+| A key has no binding anywhere it could be reached from
+| An unbound-key error naming the key — the compile fails outright, rather than the conversion method
+  quietly being skipped in favor of a costlier alternative (or a generic "no plan" message).
+|===
+
+== Where to next
+
+* xref:conversion-methods.adoc[Conversion methods] — how percolate chooses a method to call for a type
+  conversion, `@Ambient` parameters aside.
+* xref:default-method-conversions.adoc[Default-method conversions] — hand-written conversion logic, which
+  `@Ambient` parameters are equally at home in.

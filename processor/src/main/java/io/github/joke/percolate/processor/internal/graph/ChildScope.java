@@ -62,6 +62,12 @@ public final class ChildScope implements Scope {
         return Stream.of(getElementInput());
     }
 
+    /** Inherits the parent scope's ambient environment unchanged (graph-expansion "child scopes inherit"). */
+    @Override
+    public Stream<AmbientDecl> ambientDecls(final BiFunction<TypeMirror, Element, Nullability> nullness) {
+        return parentScope.ambientDecls(nullness);
+    }
+
     @Override
     public String encode() {
         return owner.id() + "::elem";

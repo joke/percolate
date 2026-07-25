@@ -43,6 +43,12 @@ final class SourceCandidates {
      * The in-scope source <em>types</em> — declared inputs plus discovered graph sources — that grounding-by-match
      * unifies a type-variable port against. The declared input types are available without materialising any
      * {@link Value}, so a template port grounds without the (producer-facing) candidate snapshot.
+     *
+     * <p>Deterministic by construction (graph-expansion "Type-matched source selection SHALL be deterministic"):
+     * declared inputs precede discovered graph sources, each in a stable order — {@link Scope#inputDecls} streams
+     * an ordered {@code List} in declaration order, and {@link MapperGraph#valuesIn} is sorted by {@link Value#id}.
+     * A same-typed pair of parameters is therefore always offered to {@link BindingEnumerator} in declaration
+     * order, so grounding-by-match over-emits and the extraction fold prunes ties in that same order.
      */
     List<TypeMirror> sourceTypes(final Scope scope) {
         return Stream.concat(
@@ -77,11 +83,35 @@ final class SourceCandidates {
         return matches(value.type(), value.nullness(), port);
     }
 
+    /**
+     * Deterministic by construction: {@link Scope#inputDecls} streams the scope's input declarations in
+     * declaration order (an ordered {@code List}, never a hash-ordered collection), so {@code findFirst()} always
+     * selects the earlier-declared match when two declarations — e.g. two same-typed parameters — both fit.
+     */
     @Nullable
     Value materialiseMatchingInput(final Scope scope, final Port port) {
         return scope.inputDecls(resolver::resolve)
                 .filter(decl -> matches(decl.getType(), decl.getNullness(), port))
                 .findFirst()
+                .map(decl -> applier.apply(
+                        graph, new AddValue(scope, decl.getLocation(), decl.getType(), decl.getNullness())))
+                .orElse(null);
+    }
+
+    /**
+     * The ambient {@link Value} feeding an {@code AMBIENT} port: the scope's ambient environment entry whose key
+     * equals {@code port.getKey()}, materialised at its own declaration — the same location an ordinary
+     * {@code @Map} source would resolve to for that parameter (design Decision 7). {@code null} when the key is
+     * unbound, or when it is bound but the binding's type is not assignable to the port's declared type (design
+     * Decision 2: verified, not encoded into the key). Either failure declines the port exactly like
+     * {@code REUSE} does; the loud, key-naming diagnostic is a downstream validation concern, not the engine's.
+     */
+    @Nullable
+    Value ambientSource(final Scope scope, final Port port) {
+        return scope.ambientDecls(resolver::resolve)
+                .filter(decl -> decl.getKey().equals(port.getKey()))
+                .findFirst()
+                .filter(decl -> resolveCtx.isAssignable(decl.getType(), port.getType()))
                 .map(decl -> applier.apply(
                         graph, new AddValue(scope, decl.getLocation(), decl.getType(), decl.getNullness())))
                 .orElse(null);

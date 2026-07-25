@@ -6,6 +6,7 @@ import java.util.function.BiFunction;
 import java.util.stream.Stream;
 import javax.lang.model.element.Element;
 import javax.lang.model.element.ExecutableElement;
+import javax.lang.model.element.VariableElement;
 import javax.lang.model.type.TypeMirror;
 import lombok.Value;
 
@@ -35,5 +36,28 @@ public class MethodScope implements Scope {
                         new SourceLocation(AccessPath.of(param.getSimpleName().toString())),
                         param.asType(),
                         nullness.apply(param.asType(), param)));
+    }
+
+    /**
+     * One ambient entry per {@code @Ambient} parameter, keyed per {@link AmbientKeys#keyOf}, at the same
+     * single-segment {@code SourceLocation} an ordinary {@code @Map} source would resolve to — so both paths
+     * materialise the identical graph {@link Value} for that parameter.
+     */
+    @Override
+    public Stream<AmbientDecl> ambientDecls(final BiFunction<TypeMirror, Element, Nullability> nullness) {
+        return method.getParameters().stream().flatMap(param -> ambientDecl(param, nullness).stream());
+    }
+
+    private Optional<AmbientDecl> ambientDecl(
+            final VariableElement param, final BiFunction<TypeMirror, Element, Nullability> nullness) {
+        final var key = AmbientKeys.keyOf(param);
+        if (key == null) {
+            return Optional.empty();
+        }
+        return Optional.of(new AmbientDecl(
+                key,
+                new SourceLocation(AccessPath.of(param.getSimpleName().toString())),
+                param.asType(),
+                nullness.apply(param.asType(), param)));
     }
 }

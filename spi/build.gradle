@@ -18,6 +18,7 @@ dependencies {
     compileOnly 'org.jetbrains:annotations'
 
     api project(':lib:javapoet')
+    implementation project(':annotations')
 
     testFixturesAnnotationProcessor platform(project(':dependencies'))
     testFixturesAnnotationProcessor 'org.projectlombok:lombok'
@@ -42,7 +43,6 @@ dependencies {
     // annotation processor classpath needs its own copy to load reactor's Flux/Mono-referencing
     // SPI classes during processing, separately from testImplementation below.
     testAnnotationProcessor 'io.projectreactor:reactor-core'
-    testImplementation project(':annotations')
     testImplementation 'io.projectreactor:reactor-core'
 
     testRuntimeOnly 'net.bytebuddy:byte-buddy'

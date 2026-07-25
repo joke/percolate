@@ -98,26 +98,36 @@ class CallableMethodFilterSpec extends Specification {
         result*.method == [method]
     }
 
-    def 'isCallable requires a single-parameter, non-Object METHOD'() {
+    def 'isCallable requires a non-Object METHOD whose non-ambient parameter count is exactly one'() {
         ExecutableElement method = Mock()
         TypeMirror returnType = Mock()
 
         expect:
-        filter.isCallable(candidate(kind, params, onObject, returnType, method)) == expected
+        filter.isCallable(candidate(kind, params, onObject, returnType, method, ambientKeys)) == expected
 
         where:
-        kind        | params | onObject | expected
-        METHOD      | 1      | false    | true
-        METHOD      | 0      | false    | false
-        METHOD      | 2      | false    | false
-        METHOD      | 1      | true     | false
-        FIELD       | 1      | false    | false
-        CONSTRUCTOR | 1      | false    | false
+        kind        | params | onObject | ambientKeys        | expected
+        METHOD      | 1      | false    | []                 | true
+        METHOD      | 0      | false    | []                 | false
+        METHOD      | 2      | false    | []                 | false
+        METHOD      | 1      | true     | []                 | false
+        FIELD       | 1      | false    | []                 | false
+        CONSTRUCTOR | 1      | false    | []                 | false
+        METHOD      | 2      | false    | ['order']          | true
+        METHOD      | 3      | false    | ['order', 'locale']| true
+        METHOD      | 1      | false    | ['order']          | false
+        METHOD      | 3      | false    | ['order']          | false
     }
 
     private CandidateDescriptor candidate(
             final ElementKind kind, final int parameterCount, final boolean enclosingIsObject,
             final TypeMirror returnType, final ExecutableElement method) {
-        new CandidateDescriptor(kind, parameterCount, enclosingIsObject, returnType, method)
+        candidate(kind, parameterCount, enclosingIsObject, returnType, method, [])
+    }
+
+    private CandidateDescriptor candidate(
+            final ElementKind kind, final int parameterCount, final boolean enclosingIsObject,
+            final TypeMirror returnType, final ExecutableElement method, final List<String> ambientKeys) {
+        new CandidateDescriptor(kind, parameterCount, enclosingIsObject, returnType, method, ambientKeys)
     }
 }

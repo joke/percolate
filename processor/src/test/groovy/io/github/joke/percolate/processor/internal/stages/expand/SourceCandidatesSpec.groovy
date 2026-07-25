@@ -2,6 +2,7 @@ package io.github.joke.percolate.processor.internal.stages.expand
 
 import io.github.joke.percolate.processor.internal.graph.AccessPath
 import io.github.joke.percolate.processor.internal.graph.AddValue
+import io.github.joke.percolate.processor.internal.graph.AmbientDecl
 import io.github.joke.percolate.processor.internal.graph.InputDecl
 import io.github.joke.percolate.processor.internal.graph.Location
 import io.github.joke.percolate.processor.internal.graph.MapperGraph
@@ -116,6 +117,17 @@ class SourceCandidatesSpec extends Specification {
         candidates.matchingSource(scope, port(personType, Nullability.NON_NULL), null) == null
     }
 
+    def 'matchingSource selects the earlier-declared input when two same-typed inputs both match'() {
+        resolveCtx.isSameType(personType, personType) >> true
+        def before = inputDecl(personType, Nullability.NON_NULL, leaf('before'))
+        def after = inputDecl(personType, Nullability.NON_NULL, leaf('after'))
+        scope.inputDecls(_) >> Stream.of(before, after)
+        def chosen = candidates.matchingSource(scope, port(personType, Nullability.NON_NULL), null)
+
+        expect:
+        chosen.loc == before.location
+    }
+
     // ---- sourceTypes -----------------------------------------------------------------------------------------
 
     def 'sourceTypes lists the declared parameter input types plus discovered graph sources'() {
@@ -126,6 +138,55 @@ class SourceCandidatesSpec extends Specification {
         expect:
         types.any { it.is(personType) }
         types.any { it.is(intType) }
+    }
+
+    def 'sourceTypes orders declared inputs before discovered graph sources, each in a stable order'() {
+        def firstDecl = inputDecl(personType, Nullability.NON_NULL, leaf('first'))
+        def secondDecl = inputDecl(intType, Nullability.NON_NULL, leaf('second'))
+        scope.inputDecls(_) >> Stream.of(firstDecl, secondDecl)
+        def firstGraphSource = source(access('g', 'a'), personType, Nullability.NON_NULL)
+        def secondGraphSource = source(access('g', 'b'), intType, Nullability.NON_NULL)
+
+        expect:
+        candidates.sourceTypes(scope) == [personType, intType, firstGraphSource.type(), secondGraphSource.type()]
+    }
+
+    // ---- ambientSource -----------------------------------------------------------------------------------------
+
+    def 'ambientSource materialises the binding whose key matches the port, when the type is assignable'() {
+        resolveCtx.isAssignable(personType, personType) >> true
+        scope.ambientDecls(_) >> Stream.of(ambientDecl('order', personType, Nullability.NON_NULL, leaf('order')))
+        def bound = candidates.ambientSource(scope, ambientPort('order', personType))
+
+        expect:
+        bound.loc == leaf('order')
+        bound.type.get().is(personType)
+    }
+
+    def 'ambientSource returns null when no binding matches the key'() {
+        scope.ambientDecls(_) >> Stream.of(ambientDecl('other', personType, Nullability.NON_NULL, leaf('other')))
+
+        expect:
+        candidates.ambientSource(scope, ambientPort('order', personType)) == null
+    }
+
+    def "ambientSource returns null when the binding's type is not assignable to the port's declared type"() {
+        resolveCtx.isAssignable(intType, personType) >> false
+        scope.ambientDecls(_) >> Stream.of(ambientDecl('order', intType, Nullability.NON_NULL, leaf('order')))
+
+        expect:
+        candidates.ambientSource(scope, ambientPort('order', personType)) == null
+    }
+
+    def 'ambientSource selects the earlier-declared binding when two entries share a key'() {
+        resolveCtx.isAssignable(personType, personType) >> true
+        def before = ambientDecl('order', personType, Nullability.NON_NULL, leaf('before'))
+        def after = ambientDecl('order', personType, Nullability.NON_NULL, leaf('after'))
+        scope.ambientDecls(_) >> Stream.of(before, after)
+        def bound = candidates.ambientSource(scope, ambientPort('order', personType))
+
+        expect:
+        bound.loc == leaf('before')
     }
 
     // ---- helpers ---------------------------------------------------------------------------------------------
@@ -156,5 +217,19 @@ class SourceCandidatesSpec extends Specification {
         decl.nullness >> nullness
         decl.location >> location
         decl
+    }
+
+    private AmbientDecl ambientDecl(
+            final String key, final TypeMirror type, final Nullability nullness, final Location location) {
+        def decl = Mock(AmbientDecl)
+        decl.key >> key
+        decl.type >> type
+        decl.nullness >> nullness
+        decl.location >> location
+        decl
+    }
+
+    private Port ambientPort(final String key, final TypeMirror type) {
+        Port.ambient(key, type, Nullability.NON_NULL, key)
     }
 }

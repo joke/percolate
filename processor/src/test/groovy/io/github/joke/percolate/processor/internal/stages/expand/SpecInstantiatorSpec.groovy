@@ -124,10 +124,10 @@ class SpecInstantiatorSpec extends Specification {
         instantiator.groundPort(port, [:]).is(port)
     }
 
-    def 'groundPort substitutes a template port\'s type via ground, preserving name, nullness, and sourcing mode'() {
+    def 'groundPort substitutes a template port\'s type via ground, preserving name, nullness, sourcing mode, and key'() {
         SpecInstantiator instantiator = Spy(constructorArgs: [ctx])
         def template = PortType.variable(0)
-        def port = new Port('src', Mock(TypeMirror), Nullability.NULLABLE, template, Port.Sourcing.SUBTARGET)
+        def port = new Port('src', Mock(TypeMirror), Nullability.NULLABLE, template, Port.Sourcing.SUBTARGET, 'k')
         def bindings = [:]
 
         when:
@@ -144,6 +144,7 @@ class SpecInstantiatorSpec extends Specification {
         grounded.nullness == Nullability.NULLABLE
         grounded.template == null
         grounded.sourcing == Port.Sourcing.SUBTARGET
+        grounded.key == 'k'
     }
 
     // ---- groundChild: substitutes each element type via groundOr, preserving nullness ----------------------------

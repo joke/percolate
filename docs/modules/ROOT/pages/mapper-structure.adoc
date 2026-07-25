@@ -12,8 +12,8 @@ Percolate implements every **abstract method** it discovers on the type:
 * abstract methods inherited from super-interfaces or an abstract super-class (with generic type
   arguments substituted).
 
-Each such method becomes a generated mapping; its return type is the target and its single parameter is the
-source.
+Each such method becomes a generated mapping; its return type is the target. A method may declare **any
+number of parameters** — see <<Multiple parameters>> below — each an independently named source root.
 
 == What percolate leaves alone
 
@@ -54,6 +54,45 @@ include::example$gettingstarted/PersonMapper.java[tag=mapper]
 
 `map(Person)` is abstract, so percolate generates it. A `default` helper on the same interface would be
 left as-is but remain callable from generated code.
+
+== Multiple parameters
+
+A mapper method may declare any number of parameters. Each parameter is an independently named source
+root, and every `@Map` directive names, in its source path's first segment, the parameter it descends from:
+
+[source,java]
+----
+include::example$multiparameter/TwoParamMapper.java[tag=twoparam-mapper]
+----
+
+Given these beans:
+
+[source,java]
+----
+include::example$multiparameter/TwoParamMapper.java[tag=twoparam-model]
+----
+
+percolate generates `customerName` from the `customer` root and `street` from the `address` root.
+
+Two parameters of the **same type** are legal too, because every source path names its root rather than
+relying on the parameter's type to disambiguate it:
+
+[source,java]
+----
+include::example$multiparameter/SameTypeMapper.java[tag=sametype-mapper]
+----
+
+A sub-target can also be assembled from **both** parameter roots at once:
+
+[source,java]
+----
+include::example$multiparameter/SubTargetMapper.java[tag=subtarget-mapper]
+----
+
+[source,java]
+----
+include::example$multiparameter/SubTargetMapper.java[tag=subtarget-model]
+----
 
 == Abstract classes
 

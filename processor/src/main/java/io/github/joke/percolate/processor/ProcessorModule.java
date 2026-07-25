@@ -15,6 +15,7 @@ import io.github.joke.percolate.processor.internal.stages.dump.DumpTransformsSta
 import io.github.joke.percolate.processor.internal.stages.expand.ExpandStage;
 import io.github.joke.percolate.processor.internal.stages.generate.GenerateStage;
 import io.github.joke.percolate.processor.internal.stages.validate.RealisationDiagnosticsStage;
+import io.github.joke.percolate.processor.internal.stages.validate.ValidateAmbientBindingsStage;
 import io.github.joke.percolate.processor.internal.stages.validate.ValidateConstantDefaultLegalityStage;
 import io.github.joke.percolate.processor.internal.stages.validate.ValidateEnumOverridesStage;
 import io.github.joke.percolate.processor.internal.stages.validate.ValidateMappingShapeStage;
@@ -142,6 +143,7 @@ public final class ProcessorModule {
             final DumpFullGraphStage dumpFullGraph,
             final DumpTransformsStage dumpTransforms,
             final DumpPlanStage dumpPlan,
+            final ValidateAmbientBindingsStage validateAmbientBindings,
             final ValidateConstantDefaultLegalityStage validateConstantDefaultLegality,
             final ValidateOptionConsumptionStage validateOptionConsumption,
             final RealisationDiagnosticsStage realisationDiagnostics,
@@ -154,6 +156,11 @@ public final class ProcessorModule {
                                 validateSourceParameters,
                                 validateEnumOverrides,
                                 expandStage,
+                                // Ambient bindings are checked right after expansion, before the generic
+                                // realisation diagnostic, so an unresolved AMBIENT port — which declines and
+                                // leaves nothing to inspect afterward — gets its own targeted message instead of
+                                // a "no plan" pointing away from the mistake.
+                                validateAmbientBindings,
                                 // Realisation outcome is computed before the Filer-writing stages (dumps,
                                 // generate) so they can skip a deferred round and write each artifact once.
                                 validateConstantDefaultLegality,

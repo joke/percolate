@@ -1,9 +1,12 @@
 package io.github.joke.percolate.spi.builtins
 
+import io.github.joke.percolate.lib.javapoet.CodeBlock
 import io.github.joke.percolate.spi.CallableMethods
+import io.github.joke.percolate.spi.IncomingValues
 import io.github.joke.percolate.spi.MethodCandidate
 import io.github.joke.percolate.spi.Nullability
 import io.github.joke.percolate.spi.OperationCodegen
+import io.github.joke.percolate.spi.Port
 import io.github.joke.percolate.spi.Receiver
 import io.github.joke.percolate.spi.ResolveCtx
 import io.github.joke.percolate.spi.Weights
@@ -19,10 +22,13 @@ import java.util.stream.Stream
 
 /**
  * {@link MethodCallBridge} unit-tested mock-only over the {@link ResolveCtx} type-query seam (change
- * {@code cutover-strategies-to-mock-seam}): candidate filtering and spec assembly are driven by a mocked
- * {@code CallableMethods}/{@code ResolveCtx} over opaque tokens. No javac. The subtype-distance walk it delegates to
- * is covered on its own in {@link SubtypeDistanceSpec}; here the seam supplies just enough (same-type, distance 0)
- * for the real {@link SubtypeDistance} collaborator to resolve without further stubbing.
+ * {@code cutover-strategies-to-mock-seam}, extended by {@code add-ambient-parameters}): candidate filtering and
+ * spec assembly are driven by a mocked {@code CallableMethods}/{@code ResolveCtx} over opaque tokens. No javac.
+ * The subtype-distance walk it delegates to is covered on its own in {@link SubtypeDistanceSpec}; here the seam
+ * supplies just enough (same-type, distance 0) for the real {@link SubtypeDistance} collaborator to resolve
+ * without further stubbing. An unstubbed {@code ctx.ambientKey(param)} on a plain (non-{@code @Ambient}) mocked
+ * parameter falls through to the real default method, which reads {@code param.getAnnotation(Ambient)} — {@code
+ * null} on an unstubbed mock — so a plain parameter needs no explicit ambient stubbing.
  */
 @Tag('unit')
 class MethodCallBridgeSpec extends Specification {
@@ -60,9 +66,10 @@ class MethodCallBridgeSpec extends Specification {
         method.simpleName >> nameOf('concat')
         param.simpleName >> nameOf('arg')
         param.asType() >> paramType
+        ctx.ambientKey(param) >> Optional.empty()
         ctx.isAssignable(target, target) >> true
         ctx.isSameType(target, target) >> true
-        receiver.asExpression() >> io.github.joke.percolate.lib.javapoet.CodeBlock.of('obj')
+        receiver.asExpression() >> CodeBlock.of('obj')
 
         when:
         def specs = new MethodCallBridge().expand(Demands.forTarget(target), ctx).toList()
@@ -73,6 +80,7 @@ class MethodCallBridgeSpec extends Specification {
         spec.childScope.empty
         spec.codegen instanceof OperationCodegen
         spec.ports.size() == 1
+        spec.ports[0].sourcing == Port.Sourcing.REUSE_OR_MINT
         spec.weight >= Weights.METHOD
         spec.outputType.is(target)
         spec.outputNullness == Nullability.NON_NULL
@@ -83,7 +91,7 @@ class MethodCallBridgeSpec extends Specification {
         new MethodCallBridge().expand(Demands.assembling(target, ['x'] as Set), ctx).toList().empty
     }
 
-    def 'rejects a candidate whose method takes more than one parameter'() {
+    def 'rejects a candidate whose method takes more than one non-ambient parameter'() {
         CallableMethods callableMethods = Mock()
         ExecutableElement method = Mock()
         VariableElement first = Mock()
@@ -93,9 +101,36 @@ class MethodCallBridgeSpec extends Specification {
         ctx.callableMethods() >> callableMethods
         callableMethods.producing(target) >> Stream.of(candidate)
         method.parameters >> [first, second]
+        ctx.ambientKey(first) >> Optional.empty()
+        ctx.ambientKey(second) >> Optional.empty()
 
         expect:
         new MethodCallBridge().expand(Demands.forTarget(target), ctx).toList().empty
+    }
+
+    def 'accepts a candidate with one ambient parameter alongside the single mapped parameter'() {
+        CallableMethods callableMethods = Mock()
+        ExecutableElement method = Mock()
+        VariableElement taxFactor = Mock()
+        VariableElement order = Mock()
+        Receiver receiver = Mock()
+        def candidate = new MethodCandidate(method, receiver)
+        ctx.callableMethods() >> callableMethods
+        callableMethods.producing(target) >> Stream.of(candidate)
+        method.parameters >> [taxFactor, order]
+        method.returnType >> target
+        method.simpleName >> nameOf('mapPrice')
+        taxFactor.simpleName >> nameOf('taxFactor')
+        taxFactor.asType() >> Mock(TypeMirror)
+        order.simpleName >> nameOf('order')
+        order.asType() >> Mock(TypeMirror)
+        ctx.ambientKey(taxFactor) >> Optional.empty()
+        ctx.ambientKey(order) >> Optional.of('order')
+        ctx.isAssignable(target, target) >> true
+        ctx.isSameType(target, target) >> true
+
+        expect:
+        new MethodCallBridge().expand(Demands.forTarget(target), ctx).toList().size() == 1
     }
 
     def 'rejects a candidate whose return type is not assignable to the demanded target'() {
@@ -109,6 +144,7 @@ class MethodCallBridgeSpec extends Specification {
         callableMethods.producing(target) >> Stream.of(candidate)
         method.parameters >> [param]
         method.returnType >> returnType
+        ctx.ambientKey(param) >> Optional.empty()
         ctx.isAssignable(returnType, target) >> false
 
         expect:
@@ -126,6 +162,7 @@ class MethodCallBridgeSpec extends Specification {
         method.simpleName >> nameOf('concat')
         param.simpleName >> nameOf('arg')
         param.asType() >> paramType
+        ctx.ambientKey(param) >> Optional.empty()
         ctx.isSameType(target, target) >> true
 
         expect:
@@ -140,21 +177,82 @@ class MethodCallBridgeSpec extends Specification {
         spec.callTarget.get().is(method)
     }
 
+    def 'buildSpec emits ports in declaration order, an AMBIENT port carrying its key beside the mapped one'() {
+        ExecutableElement method = Mock()
+        VariableElement taxFactor = Mock()
+        VariableElement order = Mock()
+        TypeMirror taxFactorType = Mock()
+        TypeMirror orderType = Mock()
+        Receiver receiver = Mock()
+        def candidate = new MethodCandidate(method, receiver)
+        method.parameters >> [taxFactor, order]
+        method.returnType >> target
+        method.simpleName >> nameOf('mapPrice')
+        taxFactor.simpleName >> nameOf('taxFactor')
+        taxFactor.asType() >> taxFactorType
+        order.simpleName >> nameOf('order')
+        order.asType() >> orderType
+        ctx.ambientKey(taxFactor) >> Optional.empty()
+        ctx.ambientKey(order) >> Optional.of('order')
+        ctx.isSameType(target, target) >> true
+
+        expect:
+        def spec = new MethodCallBridge().buildSpec(candidate, target, Demands.forTarget(target), ctx)
+        spec.ports.size() == 2
+        spec.ports[0].name == 'taxFactor'
+        spec.ports[0].sourcing == Port.Sourcing.REUSE_OR_MINT
+        spec.ports[0].key == ''
+        spec.ports[1].name == 'order'
+        spec.ports[1].sourcing == Port.Sourcing.AMBIENT
+        spec.ports[1].key == 'order'
+    }
+
     def 'renderCodegen renders receiver.method(arg) chained via the zero-width wrap marker'() {
         ExecutableElement method = Mock()
         Receiver receiver = Mock()
         def candidate = new MethodCandidate(method, receiver)
         method.simpleName >> nameOf('concat')
-        receiver.asExpression() >> io.github.joke.percolate.lib.javapoet.CodeBlock.of('obj')
+        receiver.asExpression() >> CodeBlock.of('obj')
+        def port = new Port('arg', Mock(TypeMirror), Nullability.NON_NULL)
 
         expect:
-        def rendered = io.github.joke.percolate.lib.javapoet.CodeBlock.of('$L\n',
-                new MethodCallBridge().renderCodegen(candidate).render(singleInput(io.github.joke.percolate.lib.javapoet.CodeBlock.of('$N', 'x'))))
+        def rendered = CodeBlock.of('$L\n',
+                new MethodCallBridge().renderCodegen(candidate, [port]).render(byNameInput(arg: CodeBlock.of('$N', 'x'))))
         rendered.toString().contains('obj.concat(x)')
     }
 
-    private static io.github.joke.percolate.spi.IncomingValues singleInput(final io.github.joke.percolate.lib.javapoet.CodeBlock value) {
-        [single: { -> value }] as io.github.joke.percolate.spi.IncomingValues
+    def 'renderCodegen renders multiple arguments positionally in declaration order — mapped then ambient'() {
+        ExecutableElement method = Mock()
+        Receiver receiver = Mock()
+        def candidate = new MethodCandidate(method, receiver)
+        method.simpleName >> nameOf('mapPrice')
+        receiver.asExpression() >> CodeBlock.of('obj')
+        def taxFactor = new Port('taxFactor', Mock(TypeMirror), Nullability.NON_NULL)
+        def order = Port.ambient('order', Mock(TypeMirror), Nullability.NON_NULL, 'order')
+
+        expect:
+        def rendered = CodeBlock.of('$L\n', new MethodCallBridge().renderCodegen(candidate, [taxFactor, order])
+                .render(byNameInput(taxFactor: CodeBlock.of('$N', 'tf'), order: CodeBlock.of('$N', 'ord'))))
+        rendered.toString().contains('mapPrice(tf, ord)')
+    }
+
+    def 'renderCodegen renders an ambient-first signature in declaration order too'() {
+        ExecutableElement method = Mock()
+        Receiver receiver = Mock()
+        def candidate = new MethodCandidate(method, receiver)
+        method.simpleName >> nameOf('mapPrice')
+        receiver.asExpression() >> CodeBlock.of('obj')
+        def order = Port.ambient('order', Mock(TypeMirror), Nullability.NON_NULL, 'order')
+        def taxFactor = new Port('taxFactor', Mock(TypeMirror), Nullability.NON_NULL)
+
+        expect:
+        def rendered = CodeBlock.of('$L\n', new MethodCallBridge().renderCodegen(candidate, [order, taxFactor])
+                .render(byNameInput(order: CodeBlock.of('$N', 'ord'), taxFactor: CodeBlock.of('$N', 'tf'))))
+        rendered.toString().contains('mapPrice(ord, tf)')
+    }
+
+    private static IncomingValues byNameInput(final Map<String, CodeBlock> values) {
+        [byName: { String slotName -> values[slotName] }] as IncomingValues
     }
 
     private static Name nameOf(final String value) {

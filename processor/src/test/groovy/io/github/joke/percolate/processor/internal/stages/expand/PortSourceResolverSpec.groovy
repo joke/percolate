@@ -94,6 +94,39 @@ class PortSourceResolverSpec extends Specification {
         result == new AddValue(scope, outputLoc, portType, Nullability.NON_NULL)
     }
 
+    def 'an AMBIENT port with a resolved binding reuses it, touching no REUSE/REUSE_OR_MINT path'() {
+        def port = Port.ambient('order', portType, Nullability.NON_NULL, 'order')
+        Value bound = Mock()
+        AddValue reused = new AddValue(scope, Mock(Location), portType, Nullability.NON_NULL)
+
+        when:
+        def result = resolver.sourceForPort(output, 'root', port, null)
+
+        then:
+        1 * output.getScope() >> scope
+        1 * sourceCandidates.ambientSource(scope, port) >> bound
+        1 * operationLander.reuse(bound) >> reused
+        0 * _
+
+        expect:
+        result.is(reused)
+    }
+
+    def 'an AMBIENT port with no resolvable binding declines — the operation does not apply'() {
+        def port = Port.ambient('order', portType, Nullability.NON_NULL, 'order')
+
+        when:
+        def result = resolver.sourceForPort(output, 'root', port, null)
+
+        then:
+        1 * output.getScope() >> scope
+        1 * sourceCandidates.ambientSource(scope, port) >> null
+        0 * operationLander._
+
+        expect:
+        result == null
+    }
+
     def 'a pinned source is passed through to SourceCandidates ranking'() {
         def port = new Port('src', portType, Nullability.NON_NULL)
         Value pinned = Mock()
