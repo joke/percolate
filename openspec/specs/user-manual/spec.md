@@ -2,7 +2,7 @@
 
 ## Purpose
 
-Defines the hosted, versioned Antora user manual for percolate. The manual is the integrated place a Java developer learns how to add percolate to a project (Maven and Gradle) and write a bean mapper, and it secondarily serves strategy authors via an Extending / SPI section. It builds as an Antora AsciiDoc site, derives its versions natively from this repository's git refs (no `mike`, `gh-pages`, or committed HTML), and deploys to GitHub Pages on every push to `main`. The documented feature set drives the end-to-end test set (see `e2e-test-architecture`), not the other way around: every feature section is backed by a compiled, behaviourally-asserted fixture, and every documented code example — input and generated output alike — is single-sourced via `include::` from that fixture, so a published snippet cannot silently drift from the code CI compiles. Each feature page is co-located in the module that owns its strategy, reaching the single Antora component via a collector `scan` import; `docs/` itself retains only the spine.
+Defines the hosted, single-version Antora user manual for percolate. The manual is the integrated place a Java developer learns how to add percolate to a project (Maven and Gradle) and write a bean mapper, and it secondarily serves strategy authors via an Extending / SPI section. It builds as an Antora AsciiDoc site from `HEAD` alone — deliberately unversioned, with no version selector and no version segment in page URLs (no `mike`, `gh-pages`, committed HTML, or tag aggregation) — and deploys to GitHub Pages on every push to `main`. Install snippets name the latest release tag, derived at build time, so a single-version site still points readers at a published artifact. The documented feature set drives the end-to-end test set (see `e2e-test-architecture`), not the other way around: every feature section is backed by a compiled, behaviourally-asserted fixture, and every documented code example — input and generated output alike — is single-sourced via `include::` from that fixture, so a published snippet cannot silently drift from the code CI compiles. Each feature page is co-located in the module that owns its strategy, reaching the single Antora component via a collector `scan` import; `docs/` itself retains only the spine.
 
 ## Requirements
 
@@ -12,7 +12,10 @@ The repository SHALL define an Antora documentation component under `docs/` (a `
 component descriptor and a `docs/modules/ROOT/` module with `nav.adoc` and `pages/`) plus a root
 `antora-playbook.yml`, such that running the Antora site generator produces a static HTML site. A build
 that contains an unresolved `include::`, a broken cross-reference, or a missing navigation target SHALL
-fail rather than emit a silently incomplete site.
+fail rather than emit a silently incomplete site. The site generator's failure tolerance SHALL be
+configured so that a reported problem at warning level or above causes a non-zero exit; reporting a
+problem while exiting successfully SHALL NOT be permitted. A build that does not exit successfully SHALL
+NOT publish.
 
 #### Scenario: A clean tree builds a site
 - **WHEN** the Antora site generator runs against `antora-playbook.yml` on a clean checkout
@@ -22,6 +25,14 @@ fail rather than emit a silently incomplete site.
 - **WHEN** a page references an `include::` target or `xref:` that does not resolve
 - **THEN** the Antora build reports the failure and does not exit successfully
 
+#### Scenario: A reported problem cannot pass silently
+- **WHEN** the site generator logs a problem at warning level or above
+- **THEN** the build exits non-zero rather than emitting a site and reporting success
+
+#### Scenario: A failed docs build does not deploy
+- **WHEN** the documentation build does not exit successfully
+- **THEN** no site artifact is published to GitHub Pages and the previously published site remains in place
+
 ### Requirement: The site navbar carries no placeholder demo content
 
 The site's top navbar SHALL NOT contain the stock `antora-ui-default` UI bundle's placeholder demo content
@@ -29,9 +40,9 @@ The site's top navbar SHALL NOT contain the stock `antora-ui-default` UI bundle'
 `href="#"`), nor the mobile burger control that toggled that content open (removed with it, since its
 target no longer exists and the bundle's own toggle script dereferences that target unconditionally). The
 real navbar brand link (site title) and the search box SHALL be preserved unchanged. No replacement nav item
-SHALL be added in place of the removed placeholder content; the site's version selector (see "Versioning is
-derived from git refs, not a separate publish tool") remains the sole mechanism for surfacing releases, and
-it is unaffected by this requirement.
+SHALL be added in place of the removed placeholder content. The site carries no version selector at all
+(see "The site is single-version and unversioned"), so this requirement has no interaction with one; the
+bundle's version-dropdown partials are left on their stock, upstream-maintained path regardless.
 
 #### Scenario: The built site's navbar has no placeholder demo links
 - **WHEN** the Antora site is built and its rendered header is inspected
@@ -44,25 +55,26 @@ it is unaffected by this requirement.
 - **THEN** it replaces only the header partial containing the placeholder content, leaving the UI bundle's
   version-dropdown partials on their stock, unmodified path
 
-### Requirement: Versioning is derived from git refs, not a separate publish tool
+### Requirement: The site is single-version and unversioned
 
-`antora-playbook.yml` SHALL source content from this repository's git refs: `HEAD` of the default branch
-as the current version, plus release tags as additional versions. The site's version selector SHALL be
-produced by Antora from those refs — without `mike`, a `gh-pages` branch, or committed HTML. With no
-release tags present, the site SHALL contain exactly one version.
+The user manual SHALL be published as exactly one version — the current state of the default branch — with
+no version selector and no version segment in page URLs. `antora-playbook.yml` SHALL source content only
+from `HEAD`, and `docs/antora.yml` SHALL declare an unversioned component. The playbook SHALL NOT filter or
+aggregate release tags, and the site SHALL NOT be assembled from a `gh-pages` branch, committed HTML, or
+any non-git versioning tool.
 
-#### Scenario: Current docs come from HEAD
-- **WHEN** the playbook content sources are inspected
-- **THEN** they include this repository with `HEAD` (or the default branch) as a content source, with
-  `start_path` pointing at `docs`
+#### Scenario: Only HEAD is aggregated
+- **WHEN** the playbook's content sources are inspected
+- **THEN** the sole source is this repository at `HEAD` with `start_path` pointing at `docs`
+- **AND** no tag filter is configured
 
-#### Scenario: No tags yields a single version
-- **WHEN** the site is built and no release tags exist
-- **THEN** exactly one version is produced and the build does not require any non-git versioning tool
+#### Scenario: Release tags do not produce additional versions
+- **WHEN** the site is built in a repository that has release tags
+- **THEN** exactly one version is produced and no tag appears as a selectable version
 
-#### Scenario: A release tag becomes an additional version
-- **WHEN** a release tag matching the playbook's tag filter exists
-- **THEN** the built site includes that tag as a selectable version alongside the current one
+#### Scenario: Page URLs carry no version segment
+- **WHEN** a built page's URL is inspected
+- **THEN** it contains no version path segment between the component name and the page name
 
 ### Requirement: The site deploys to GitHub Pages on every push to main
 
@@ -72,8 +84,10 @@ to `main`, builds the Antora site and publishes it to GitHub Pages via `actions/
 SHALL run only after the check job succeeds, so a build whose tests fail never publishes the site and no
 "roll back the docs" recovery is needed — the previously published site is simply left in place. The job
 SHALL grant `pages: write` and `id-token: write` permissions and SHALL check out full git history
-(`fetch-depth: 0`) so tags are available to Antora. The advertised documentation URL SHALL stay consistent
-across `README.md` and `.github/settings.yml`.
+(`fetch-depth: 0`) so the latest release tag is reachable for the install-snippet version derivation (see
+"Install snippets advertise the latest released version") — a shallow checkout would silently render a
+non-release placeholder. The advertised documentation URL SHALL stay consistent across `README.md` and
+`.github/settings.yml`.
 
 #### Scenario: Push to main triggers a deploy
 - **WHEN** the docs pipeline is inspected
@@ -109,6 +123,26 @@ conversions. Each feature section SHALL show a worked example, not a prose-only 
 #### Scenario: Integration documents both build tools
 - **WHEN** the integration page is read
 - **THEN** it shows adding percolate via the BOM, starter, and annotations for **both** Maven and Gradle
+
+### Requirement: Install snippets advertise the latest released version
+
+The version rendered into the manual's dependency and install snippets SHALL be derived at build time from
+the repository's latest release tag, not hand-maintained in a descriptor. It SHALL be the latest released
+version rather than the in-development version, so that a snippet never advertises an unpublished artifact.
+Where no release tag is reachable, the rendered value SHALL be visibly not a release version rather than a
+plausible-looking one.
+
+#### Scenario: The rendered version matches the latest release tag
+- **WHEN** the site is built in a repository whose latest release tag is `v1.2.3`
+- **THEN** the manual's install snippets render `1.2.3`
+
+#### Scenario: An in-development version is never advertised
+- **WHEN** the site is built from a commit past the latest release tag
+- **THEN** the install snippets still render the latest released version, not a `-SNAPSHOT` version
+
+#### Scenario: No hardcoded version remains in the component descriptor
+- **WHEN** `docs/antora.yml` is inspected
+- **THEN** it declares no literal version value for the install-snippet attribute
 
 #### Scenario: @Map members are fully documented
 - **WHEN** the `@Map` page is read
@@ -245,6 +279,23 @@ manual, not a subset.
 - **THEN** no page hand-writes a block presented as percolate's generated output — the previously hand-typed
   output blocks (conversion-methods, collections, map-annotation, reactive, and the rest) are all replaced
   by materialised `include::`s
+
+### Requirement: Documented generated output survives a build-cache hit
+
+Generated example output that pages `include::` SHALL be produced by a task that declares the directory it
+writes as a task output, so that a build-cache hit restores those files rather than silently skipping their
+creation. A build in which the producing tasks are satisfied from the build cache SHALL yield the same
+complete site as a build in which they execute.
+
+#### Scenario: A cache-satisfied build still produces a complete site
+- **WHEN** the tasks that materialise generated doc examples are satisfied from the build cache, with their
+  project build directories otherwise absent
+- **THEN** the materialised example files are present before the site is generated
+- **AND** the site builds successfully with every generated `include::` resolved
+
+#### Scenario: Materialisation directories are declared outputs
+- **WHEN** a task that materialises generated documentation examples is inspected
+- **THEN** the directory it writes is registered as a declared output of that task
 
 ### Requirement: Feature pages are co-located in their owning module
 
