@@ -40,6 +40,23 @@ class GoalSpecSpec extends Specification {
         GoalSpec.from([]).declaredChildren('anything').empty
     }
 
+    def 'the one-arg factory carries no enum overrides'() {
+        expect:
+        GoalSpec.from([directive('address.street', 'p.street')]).enumOverrides == []
+    }
+
+    def 'the two-arg factory carries the given enum overrides, in order, alongside the @Map bindings'() {
+        def overrides = [new EnumOverrideDirective('NEW', 'CREATED', null, null, null),
+                new EnumOverrideDirective('DONE', 'FULFILLED', null, null, null)]
+
+        when:
+        def spec = GoalSpec.from([directive('address.street', 'p.street')], overrides)
+
+        then:
+        spec.enumOverrides == overrides
+        spec.bindingFor('address.street').present
+    }
+
     private static MappingDirective directive(final String target, final String source) {
         new MappingDirective(target, source, null, null, null, null, null, null, null, null, null, null, null)
     }

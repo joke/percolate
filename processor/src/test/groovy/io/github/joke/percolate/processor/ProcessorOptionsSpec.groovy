@@ -1,5 +1,6 @@
 package io.github.joke.percolate.processor
 
+import io.github.joke.percolate.spi.SwitchStyle
 import spock.lang.Specification
 import spock.lang.Tag
 
@@ -65,6 +66,7 @@ class ProcessorOptionsSpec extends Specification {
                 .classesFinal(false)
                 .docTags(false)
                 .timeZone(Optional.empty())
+                .switchStyle(SwitchStyle.AUTO)
                 .build()
 
         when:
@@ -133,7 +135,7 @@ class ProcessorOptionsSpec extends Specification {
         options.localsVar
     }
 
-    def 'PercolateProcessor advertises exactly the nine recognised options'() {
+    def 'PercolateProcessor advertises exactly the ten recognised options'() {
         expect:
         new PercolateProcessor().supportedOptions == [
                 'percolate.debug.graphs',
@@ -144,8 +146,29 @@ class ProcessorOptionsSpec extends Specification {
                 'percolate.methods.final',
                 'percolate.classes.final',
                 'percolate.docTags',
-                'percolate.time.zone'
+                'percolate.time.zone',
+                'percolate.switch.style'
         ] as Set
+    }
+
+    def 'absent percolate.switch.style yields AUTO'() {
+        when:
+        def options = ProcessorOptions.from([:])
+
+        then:
+        options.switchStyle == SwitchStyle.AUTO
+    }
+
+    def 'percolate.switch.style parses a recognised value case-insensitively'() {
+        expect:
+        ProcessorOptions.from(['percolate.switch.style': 'classic']).switchStyle == SwitchStyle.CLASSIC
+        ProcessorOptions.from(['percolate.switch.style': 'ARROW']).switchStyle == SwitchStyle.ARROW
+        ProcessorOptions.from(['percolate.switch.style': 'Auto']).switchStyle == SwitchStyle.AUTO
+    }
+
+    def 'an unrecognised percolate.switch.style value falls back to AUTO'() {
+        expect:
+        ProcessorOptions.from(['percolate.switch.style': 'nonsense']).switchStyle == SwitchStyle.AUTO
     }
 
     def 'parameters.final, methods.final and classes.final default to false when absent'() {

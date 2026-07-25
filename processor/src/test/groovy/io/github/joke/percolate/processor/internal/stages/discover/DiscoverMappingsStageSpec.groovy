@@ -25,7 +25,8 @@ class DiscoverMappingsStageSpec extends Specification {
 
     AnnotationDirectiveReader reader = Mock()
     MappingDirectiveBuilder builder = Mock()
-    DiscoverMappingsStage stage = new DiscoverMappingsStage(reader, builder)
+    EnumOverrideReader enumOverrideReader = Mock()
+    DiscoverMappingsStage stage = new DiscoverMappingsStage(reader, builder, enumOverrideReader)
 
     def 'extractDirectives threads the mirrors through the reader and maps each raw directive through the builder'() {
         AnnotationMirror mirror = Mock()
@@ -61,9 +62,10 @@ class DiscoverMappingsStageSpec extends Specification {
         stage.run(ctx)
 
         then:
-        1 * method.annotationMirrors >> mirrors
+        2 * method.annotationMirrors >> mirrors
         1 * reader.extractRawDirectives(mirrors) >> [raw]
         1 * builder.toDirective(raw) >> directive('first')
+        1 * enumOverrideReader.extractOverrides(mirrors) >> []
         0 * _
 
         expect: 'the goal spec is reachable by the method scope and declares the child'
@@ -73,6 +75,7 @@ class DiscoverMappingsStageSpec extends Specification {
         goal != null
         goal.declaredChildren('') == ['first'] as Set
         goal.bindingFor('first').present
+        goal.enumOverrides == []
     }
 
     def 'run is a no-op when discovery produced no shape'() {

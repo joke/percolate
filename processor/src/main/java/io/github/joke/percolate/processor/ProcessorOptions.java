@@ -1,6 +1,8 @@
 package io.github.joke.percolate.processor;
 
+import io.github.joke.percolate.spi.SwitchStyle;
 import java.util.Arrays;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
@@ -20,6 +22,7 @@ public class ProcessorOptions {
     public static final String CLASSES_FINAL = "percolate.classes.final";
     public static final String DOC_TAGS = "percolate.docTags";
     public static final String TIME_ZONE = "percolate.time.zone";
+    public static final String SWITCH_STYLE = "percolate.switch.style";
 
     boolean debugGraphs;
     Set<String> customNullableAnnotations;
@@ -30,8 +33,10 @@ public class ProcessorOptions {
     boolean classesFinal;
     boolean docTags;
     Optional<String> timeZone;
+    SwitchStyle switchStyle;
 
     @Builder
+    @SuppressWarnings("PMD.ExcessiveParameterList")
     public ProcessorOptions(
             final boolean debugGraphs,
             final Set<String> customNullableAnnotations,
@@ -41,7 +46,8 @@ public class ProcessorOptions {
             final boolean methodsFinal,
             final boolean classesFinal,
             final boolean docTags,
-            final Optional<String> timeZone) {
+            final Optional<String> timeZone,
+            final SwitchStyle switchStyle) {
         this.debugGraphs = debugGraphs;
         this.customNullableAnnotations = Set.copyOf(customNullableAnnotations);
         this.localsFinal = localsFinal;
@@ -51,6 +57,7 @@ public class ProcessorOptions {
         this.classesFinal = classesFinal;
         this.docTags = docTags;
         this.timeZone = timeZone;
+        this.switchStyle = switchStyle;
     }
 
     static ProcessorOptions from(final Map<String, String> options) {
@@ -73,10 +80,23 @@ public class ProcessorOptions {
                 .classesFinal(flag(options, CLASSES_FINAL))
                 .docTags(flag(options, DOC_TAGS))
                 .timeZone(Optional.ofNullable(options.get(TIME_ZONE)))
+                .switchStyle(parseSwitchStyle(options))
                 .build();
     }
 
     private static boolean flag(final Map<String, String> options, final String key) {
         return "true".equalsIgnoreCase(options.getOrDefault(key, "false"));
+    }
+
+    private static SwitchStyle parseSwitchStyle(final Map<String, String> options) {
+        final var raw = options.get(SWITCH_STYLE);
+        if (raw == null) {
+            return SwitchStyle.AUTO;
+        }
+        try {
+            return SwitchStyle.valueOf(raw.toUpperCase(Locale.ROOT));
+        } catch (final IllegalArgumentException e) {
+            return SwitchStyle.AUTO;
+        }
     }
 }

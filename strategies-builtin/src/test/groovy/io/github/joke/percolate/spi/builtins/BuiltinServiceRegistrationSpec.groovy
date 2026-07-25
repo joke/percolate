@@ -43,6 +43,9 @@ class BuiltinServiceRegistrationSpec extends Specification {
         discovered.contains('io.github.joke.percolate.spi.builtins.InstantLocalDateTimeBridge')
         discovered.contains('io.github.joke.percolate.spi.builtins.TemporalFormat')
         discovered.contains('io.github.joke.percolate.spi.builtins.LegacyTemporalFormat')
+
+        // Enum-to-enum conversion (change add-enum-conversion-mapping)
+        discovered.contains('io.github.joke.percolate.spi.builtins.EnumConversion')
     }
 
     def 'the retired per-operation and per-SPI builtins are gone'() {

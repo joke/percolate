@@ -48,6 +48,12 @@ with a real before/after of its generated effect.
 | _(none)_
 | A project-wide default `ZoneId` for xref:temporal-mapping.adoc[temporal mapping]'s zone bridge, used
   whenever a binding declares no `@Map(zone = …)` of its own.
+
+| `percolate.switch.style`
+| `AUTO`
+| Chooses the switch form xref:enum-mapping.adoc[enum mapping] generates: a classic switch statement or a
+  modern, `default`-free switch expression. `AUTO` picks the modern expression on a Java 14+ target, else the
+  classic statement; `CLASSIC`/`ARROW` force one or the other regardless of target.
 |===
 
 The `docTags`, `locals.final`, `locals.var`, `parameters.final`, `methods.final`, and `classes.final`
@@ -212,7 +218,36 @@ include::example$switches/time-zone-set/ZonedMapperImpl.java[tag=toLocalDateTime
 
 A directive-declared `@Map(zone = …)` still wins over this option when both are present.
 
+== `percolate.switch.style`
+
+`EnumSwitchMapper.toOrderStatus` is an xref:enum-mapping.adoc[enum-to-enum conversion method]:
+
+[source,java]
+----
+include::example$switches/EnumSwitchMapper.java[tag=mapper]
+----
+
+Passed as `-Apercolate.switch.style=classic`, it renders a Java 11-compatible classic switch statement — every
+source constant must be covered, else code generation fails outright naming the gap:
+
+[source,java]
+----
+include::example$switches/switch-style-classic/EnumSwitchMapperImpl.java[tag=toOrderStatus,indent=0]
+----
+
+Passed as `-Apercolate.switch.style=arrow`, it renders a modern switch expression instead — no `default`, so
+the compiler's own exhaustiveness check rejects a forgotten constant:
+
+[source,java]
+----
+include::example$switches/switch-style-arrow/EnumSwitchMapperImpl.java[tag=toOrderStatus,indent=0]
+----
+
+Left unset (`AUTO`), the choice instead follows the compilation's own target `SourceVersion`: the modern
+expression on Java 14+, the classic statement on Java 11.
+
 == Where to next
 
 * xref:defaults-and-nullness.adoc[Defaults & nullness] — the crossing `percolate.nullable.annotations` extends.
 * xref:temporal-mapping.adoc[Temporal mapping] — the zone bridge `percolate.time.zone` configures.
+* xref:enum-mapping.adoc[Enum mapping] — the switch form `percolate.switch.style` configures.

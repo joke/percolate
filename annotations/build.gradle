@@ -1,5 +1,6 @@
 plugins {
     id 'java-library'
+    id 'groovy'
     id 'maven-publish'
     id 'percolate.conventions'
 }
@@ -7,6 +8,15 @@ plugins {
 dependencies {
     compileOnly platform(project(':dependencies'))
     compileOnly 'org.jspecify:jspecify'
+
+    testImplementation platform(project(':dependencies'))
+    testImplementation 'org.spockframework:spock-core'
+    testImplementation 'org.apache.groovy:groovy'
+    testImplementation 'com.google.testing.compile:compile-testing'
+    testImplementation 'org.jspecify:jspecify'
+
+    testRuntimeOnly 'net.bytebuddy:byte-buddy'
+    testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
 }
 
 tasks.named('pitest') {

@@ -6,6 +6,7 @@ import io.github.joke.percolate.processor.model.MapperShape
 import io.github.joke.percolate.processor.nullability.NullabilityResolver
 import io.github.joke.percolate.processor.test.FakeElements
 import io.github.joke.percolate.spi.Nullability
+import io.github.joke.percolate.spi.SwitchStyle
 import spock.lang.Specification
 import spock.lang.Tag
 
@@ -65,6 +66,7 @@ class ExpandStageSpec extends Specification {
                         .classesFinal(false)
                         .docTags(false)
                         .timeZone(Optional.empty())
+                        .switchStyle(SwitchStyle.AUTO)
                         .build())
     }
 }

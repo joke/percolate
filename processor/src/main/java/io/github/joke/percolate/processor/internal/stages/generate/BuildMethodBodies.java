@@ -14,8 +14,11 @@ import io.github.joke.percolate.processor.internal.graph.MethodScope;
 import io.github.joke.percolate.processor.internal.graph.Operation;
 import io.github.joke.percolate.processor.internal.graph.SourceLocation;
 import io.github.joke.percolate.processor.internal.graph.Value;
+import io.github.joke.percolate.spi.BodyCodegen;
 import io.github.joke.percolate.spi.OperationCodegen;
+import io.github.joke.percolate.spi.ResolveCtx;
 import io.github.joke.percolate.spi.ScopeCodegen;
+import io.github.joke.percolate.spi.SwitchStyle;
 import jakarta.inject.Inject;
 import java.util.ArrayList;
 import java.util.HashSet;
@@ -25,6 +28,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import javax.lang.model.SourceVersion;
 import javax.lang.model.element.ExecutableElement;
 import lombok.RequiredArgsConstructor;
 
@@ -44,17 +48,19 @@ import lombok.RequiredArgsConstructor;
 public final class BuildMethodBodies {
 
     private final ProcessorOptions options;
+    private final SourceVersion sourceVersion;
 
     MethodBodies build(final MapperContext ctx) {
         final var shape = ctx.getShape();
         final var graph = ctx.getGraph();
-        if (shape == null || graph == null) {
+        final var resolveCtx = ctx.getResolveCtx();
+        if (shape == null || graph == null || resolveCtx == null) {
             return new MethodBodies(List.of(), List.of());
         }
         final var plan = ExtractedPlan.extract(graph);
         final var memberPlan = MemberPlan.forMapper(graph, plan);
         final var bodies = shape.getAbstractMethods().stream()
-                .map(method -> renderMethod(graph, plan, memberPlan, method))
+                .map(method -> renderMethod(graph, plan, memberPlan, method, resolveCtx))
                 .collect(toUnmodifiableList());
         return new MethodBodies(bodies, memberPlan.fields());
     }
@@ -63,14 +69,25 @@ public final class BuildMethodBodies {
             final MapperGraph graph,
             final ExtractedPlan plan,
             final MemberPlan memberPlan,
-            final ExecutableElement method) {
+            final ExecutableElement method,
+            final ResolveCtx resolveCtx) {
         final var root = graph.returnRootIn(new MethodScope(method));
         final var reserved = method.getParameters().stream()
                 .map(parameter -> parameter.getSimpleName().toString())
                 .collect(toUnmodifiableList());
         final var hoist = HoistPlan.forMethod(graph, plan, root, reserved);
         final var style = new LocalStyle(options.isLocalsFinal(), options.isLocalsVar());
-        final var body = new Walk(graph, plan, hoist, memberPlan, style, new TypeNameRenderer()).renderMethodBody(root);
+        final var body = new Walk(
+                        graph,
+                        plan,
+                        hoist,
+                        memberPlan,
+                        style,
+                        new TypeNameRenderer(),
+                        resolveCtx,
+                        options.getSwitchStyle(),
+                        sourceVersion)
+                .renderMethodBody(root);
         return new MethodImpl(method, body, Set.of());
     }
 
@@ -91,6 +108,9 @@ public final class BuildMethodBodies {
         private final MemberPlan memberPlan;
         private final LocalStyle style;
         private final TypeNameRenderer typeNameRenderer;
+        private final ResolveCtx resolveCtx;
+        private final SwitchStyle switchStyle;
+        private final SourceVersion sourceVersion;
 
         @SuppressWarnings({"PMD.UseConcurrentHashMap", "IdentityHashMapUsage"})
         private final Map<Value, CodeBlock> lambdaVars = new IdentityHashMap<>();
@@ -101,17 +121,39 @@ public final class BuildMethodBodies {
                 final HoistPlan hoist,
                 final MemberPlan memberPlan,
                 final LocalStyle style,
-                final TypeNameRenderer typeNameRenderer) {
+                final TypeNameRenderer typeNameRenderer,
+                final ResolveCtx resolveCtx,
+                final SwitchStyle switchStyle,
+                final SourceVersion sourceVersion) {
             this.graph = graph;
             this.plan = plan;
             this.hoist = hoist;
             this.memberPlan = memberPlan;
             this.style = style;
             this.typeNameRenderer = typeNameRenderer;
+            this.resolveCtx = resolveCtx;
+            this.switchStyle = switchStyle;
+            this.sourceVersion = sourceVersion;
         }
 
-        /** The method body: the scope's local declarations, then {@code return <return-root expression>;}. */
+        /**
+         * The method body: when the return-root's chosen producer carries a {@link BodyCodegen}, its complete body
+         * renders verbatim (no enclosing {@code return <expr>;}) — dispatch is solely on which codegen shape the
+         * producer supplied, reading no target Java version and no processor option here. Otherwise the scope's
+         * local declarations, then {@code return <return-root expression>;}.
+         */
         CodeBlock renderMethodBody(final Value root) {
+            final var bodyRendered = BodyRenderContextImpl.renderIfBodyCodegen(
+                    graph,
+                    plan.chosenProducer(root),
+                    this::renderOperand,
+                    memberPlan,
+                    resolveCtx,
+                    switchStyle,
+                    sourceVersion);
+            if (bodyRendered.isPresent()) {
+                return bodyRendered.get();
+            }
             final var builder = CodeBlock.builder();
             for (final var value : hoistedInScope(root)) {
                 emitLocal(builder, value);

@@ -6,6 +6,7 @@ import io.github.joke.percolate.processor.model.GoalSpec;
 import io.github.joke.percolate.processor.model.MapperMappings;
 import io.github.joke.percolate.processor.model.MapperShape;
 import io.github.joke.percolate.spi.CallableMethods;
+import io.github.joke.percolate.spi.ResolveCtx;
 import jakarta.inject.Inject;
 import java.util.HashMap;
 import java.util.List;
@@ -25,6 +26,9 @@ public final class MapperContext {
     private @Nullable MapperMappings mappings;
     private @Nullable MapperGraph graph;
     private @Nullable CallableMethods callableMethods;
+
+    /** The per-mapper {@link ResolveCtx} the expansion driver built, reused by {@code generate} for {@code BodyCodegen} rendering. */
+    private @Nullable ResolveCtx resolveCtx;
 
     /**
      * The recorded realisation outcome: the closest-miss "no plan" messages for this mapper's

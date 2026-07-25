@@ -1,0 +1,61 @@
+= Enum mapping
+:navtitle: Enum mapping
+
+Percolate maps one `enum` to another through a user-declared **conversion method** — `Target toX(Source s)`,
+with both types `enum` — whose body percolate generates. A bean member of the target enum type bridges through
+that declared method automatically, exactly like any other xref:conversion-methods.adoc[conversion method]: no
+dedicated bridge machinery, no dedicated processor stage.
+
+[source,java]
+----
+include::example$enummapping/EnumMappingMapper.java[tag=mapper]
+----
+
+== Same-named constants map automatically
+
+A source constant whose simple name equals a constant name declared on the target enum needs no directive at
+all. `toStatus` maps every `StatusDto` constant to the identically-named `Status` constant:
+
+[source,java]
+----
+include::example$enummapping/EnumMappingMapperImpl.java[tag=toStatus,indent=0]
+----
+
+== `@MapEnum` for differently-named constants
+
+Where the two enums name a constant differently, a repeatable `@MapEnum(source = "…", target = "…")` overrides
+the same-name match for that source constant. `toOrderStatus` maps `MyStatus.NEW → OrderStatus.CREATED` and
+`MyStatus.COMPLETED → OrderStatus.FULFILLED`; `OrderStatus` is free to also declare `ARCHIVED`, a target
+constant no source constant maps to — an unreachable target constant is never an error:
+
+[source,java]
+----
+include::example$enummapping/EnumMappingMapperImpl.java[tag=toOrderStatus,indent=0]
+----
+
+== A bean member bridges through the declared method
+
+`Order.status` is `OrderStatus` and `OrderDto.status` is `MyStatus`; the generated `map` produces it by calling
+`toOrderStatus`, reusing the existing method-call bridge described in
+xref:conversion-methods.adoc[Conversion methods]:
+
+[source,java]
+----
+include::example$enummapping/EnumMappingMapperImpl.java[tag=map,indent=0]
+----
+
+== Compile-time coverage safety
+
+Every source constant must be covered by either a same-name match or a `@MapEnum` override; a source constant
+covered by neither fails the build. *How* that failure surfaces depends on the `-Apercolate.switch.style`
+compile-time switch (see xref:compile-time-switches.adoc[Compile-time switches]):
+
+* `ARROW` (the default on Java 14+) renders a modern switch **expression** with no `default` clause, so the
+  compiler's own exhaustiveness check rejects the uncovered constant — as seen above, neither generated method
+  needs a `default` arm.
+* `CLASSIC` (the default on Java 11, where the compiler does not check statement-switch totality) has percolate
+  validate coverage itself and report a diagnostic naming the uncovered constant.
+
+Either way, the drift between two enums that have grown apart is caught at **compile time** — never the
+`IllegalArgumentException` a hand-written `Target.valueOf(src.name())` would throw at runtime the moment a
+constant is renamed or added on one side.

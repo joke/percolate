@@ -17,17 +17,21 @@ import javax.lang.model.element.ExecutableElement;
 import lombok.RequiredArgsConstructor;
 
 /**
- * Discovers {@code @Map} and {@code @MapList} directives on mapper methods. The genuinely compiler-backed
- * {@link javax.lang.model.element.AnnotationMirror} walk lives in the thin {@link AnnotationDirectiveReader}; the pure
- * {@code Map.UNSET}-presence decision and {@link MappingDirective} assembly live in {@link MappingDirectiveBuilder}.
- * This stage is thin glue: it threads a method's mirrors through the reader, maps each {@link RawDirective} through the
- * builder, and installs the resulting {@link MapperMappings} and per-method-scope {@link GoalSpec}s on the context.
+ * Discovers {@code @Map}/{@code @MapList} and {@code @MapEnum}/{@code @MapEnumList} directives on mapper methods.
+ * The genuinely compiler-backed {@link javax.lang.model.element.AnnotationMirror} walks live in the thin
+ * {@link AnnotationDirectiveReader} and {@link EnumOverrideReader}; the pure {@code Map.UNSET}-presence decision and
+ * {@link MappingDirective} assembly live in {@link MappingDirectiveBuilder} ({@code @MapEnum} needs no such
+ * presence decision — both its members are mandatory). This stage is thin glue: it threads a method's mirrors
+ * through the readers, maps each {@link RawDirective} through the builder, and installs the resulting
+ * {@link MapperMappings} and per-method-scope {@link GoalSpec}s (which additionally carry the method's
+ * {@code @MapEnum} declarations) on the context.
  */
 @RequiredArgsConstructor(onConstructor_ = @Inject)
 public final class DiscoverMappingsStage implements Stage {
 
     private final AnnotationDirectiveReader reader;
     private final MappingDirectiveBuilder builder;
+    private final EnumOverrideReader enumOverrideReader;
 
     @Override
     public void run(final MapperContext ctx) {
@@ -38,7 +42,12 @@ public final class DiscoverMappingsStage implements Stage {
         final var mappings = apply(shape);
         ctx.setMappings(mappings);
         mappings.getMethods().forEach(method -> ctx.getGoalSpecs()
-                .put(new MethodScope(method.getMethod()), GoalSpec.from(method.getDirectives())));
+                .put(
+                        new MethodScope(method.getMethod()),
+                        GoalSpec.from(
+                                method.getDirectives(),
+                                enumOverrideReader.extractOverrides(
+                                        method.getMethod().getAnnotationMirrors()))));
     }
 
     MapperMappings apply(final MapperShape shape) {

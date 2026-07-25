@@ -12,7 +12,8 @@ import java.util.Optional;
  * <p>{@link #constant()}, {@link #defaultValue()}, {@link #format()}, and {@link #zone()} are reported
  * <strong>present</strong> only when the member is not the {@code Map.UNSET} sentinel; an empty string is a present
  * value, never absent. {@code ConstantValue} reads {@link #constant()} and {@code NullnessCrossing} reads
- * {@link #defaultValue()} through this surface; the temporal strategies read {@link #format()} and {@link #zone()}.
+ * {@link #defaultValue()} through this surface; the temporal strategies read {@link #format()} and {@link #zone()};
+ * the {@code enum-conversion} strategy reads {@link #enumOverrides()}.
  */
 public interface Directive {
 
@@ -30,4 +31,10 @@ public interface Directive {
 
     /** The {@code @Map} {@code zone} option (present — including the empty string — iff declared), else empty. */
     Optional<String> zone();
+
+    /**
+     * The ordered {@code @MapEnum} source-name → target-name override table declared on the conversion method this
+     * demand's binding belongs to; empty when no {@code @MapEnum} is declared. Inert for any non-enum production.
+     */
+    List<EnumOverride> enumOverrides();
 }

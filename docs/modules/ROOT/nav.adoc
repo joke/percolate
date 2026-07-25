@@ -12,5 +12,6 @@
 * Conversions
 ** xref:conversion-methods.adoc[Conversion methods]
 ** xref:default-method-conversions.adoc[Default-method conversions]
+** xref:enum-mapping.adoc[Enum mapping]
 * xref:compile-time-switches.adoc[Compile-time switches]
 * xref:extending.adoc[Extending (SPI)]

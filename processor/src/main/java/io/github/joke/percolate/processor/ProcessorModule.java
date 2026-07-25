@@ -16,6 +16,7 @@ import io.github.joke.percolate.processor.internal.stages.expand.ExpandStage;
 import io.github.joke.percolate.processor.internal.stages.generate.GenerateStage;
 import io.github.joke.percolate.processor.internal.stages.validate.RealisationDiagnosticsStage;
 import io.github.joke.percolate.processor.internal.stages.validate.ValidateConstantDefaultLegalityStage;
+import io.github.joke.percolate.processor.internal.stages.validate.ValidateEnumOverridesStage;
 import io.github.joke.percolate.processor.internal.stages.validate.ValidateMappingShapeStage;
 import io.github.joke.percolate.processor.internal.stages.validate.ValidateNoDuplicateTargetsStage;
 import io.github.joke.percolate.processor.internal.stages.validate.ValidateOptionConsumptionStage;
@@ -36,6 +37,7 @@ import java.util.stream.StreamSupport;
 import javax.annotation.processing.Filer;
 import javax.annotation.processing.Messager;
 import javax.annotation.processing.ProcessingEnvironment;
+import javax.lang.model.SourceVersion;
 import javax.lang.model.util.Elements;
 import javax.lang.model.util.Types;
 import lombok.EqualsAndHashCode;
@@ -71,6 +73,12 @@ public final class ProcessorModule {
     @Provides
     ProcessorOptions processorOptions() {
         return ProcessorOptions.from(processingEnvironment.getOptions());
+    }
+
+    /** The target {@link SourceVersion}, read once from the environment — the {@code enum-conversion} strategy's codegen resolves {@code switch.style}'s {@code AUTO} against it; the engine itself reads no version. */
+    @Provides
+    SourceVersion sourceVersion() {
+        return processingEnvironment.getSourceVersion();
     }
 
     @Provides
@@ -129,6 +137,7 @@ public final class ProcessorModule {
             final ValidateNoDuplicateTargetsStage validateNoDuplicateTargets,
             final ValidateMappingShapeStage validateMappingShape,
             final ValidateSourceParametersStage validateSourceParameters,
+            final ValidateEnumOverridesStage validateEnumOverrides,
             final ExpandStage expandStage,
             final DumpFullGraphStage dumpFullGraph,
             final DumpTransformsStage dumpTransforms,
@@ -143,6 +152,7 @@ public final class ProcessorModule {
                                 validateNoDuplicateTargets,
                                 validateMappingShape,
                                 validateSourceParameters,
+                                validateEnumOverrides,
                                 expandStage,
                                 // Realisation outcome is computed before the Filer-writing stages (dumps,
                                 // generate) so they can skip a deferred round and write each artifact once.

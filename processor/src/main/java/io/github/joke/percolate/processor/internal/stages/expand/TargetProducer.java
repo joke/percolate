@@ -6,6 +6,7 @@ import io.github.joke.percolate.processor.internal.graph.AccessPath;
 import io.github.joke.percolate.processor.internal.graph.Scope;
 import io.github.joke.percolate.processor.internal.graph.TargetLocation;
 import io.github.joke.percolate.processor.internal.graph.Value;
+import io.github.joke.percolate.processor.model.EnumOverrideDirective;
 import io.github.joke.percolate.processor.model.GoalSpec;
 import io.github.joke.percolate.processor.model.MappingDirective;
 import io.github.joke.percolate.processor.nullability.NullabilityResolver;
@@ -45,7 +46,7 @@ final class TargetProducer {
         final var goalSpec = goalSpecs.getOrDefault(scope, GoalSpec.from(List.of()));
         final var children = goalSpec.declaredChildren(path);
         final var binding = goalSpec.bindingFor(path);
-        final Optional<Directive> directive = binding.map(BindingDirective::from);
+        final var directive = directiveFor(binding, enumOverridesAt(goalSpec, path));
         final var demand = new DemandView(
                 value.type(),
                 value.nullness(),
@@ -58,6 +59,23 @@ final class TargetProducer {
                 .flatMap(spec -> grounding.ground(spec, sourceTypes))
                 .collect(toUnmodifiableList());
         return dedup(grounded);
+    }
+
+    /** The {@link Directive} for a binding: present iff a {@code @Map} directive or an enum override table exists. */
+    static Optional<Directive> directiveFor(
+            final Optional<MappingDirective> binding, final List<EnumOverrideDirective> enumOverrides) {
+        if (binding.isEmpty() && enumOverrides.isEmpty()) {
+            return Optional.empty();
+        }
+        return Optional.of(BindingDirective.from(binding, enumOverrides));
+    }
+
+    /**
+     * The method's {@code @MapEnum} table, in effect only for its own return demand (the empty root path) — the
+     * sole consumer of an enum-conversion method's directive; {@code @MapEnum} is method-level, not per-target-path.
+     */
+    static List<EnumOverrideDirective> enumOverridesAt(final GoalSpec goalSpec, final String path) {
+        return path.isEmpty() ? goalSpec.getEnumOverrides() : List.of();
     }
 
     /** The directive-pinned source path of the FREE demand {@code value}'s binding, or none. */

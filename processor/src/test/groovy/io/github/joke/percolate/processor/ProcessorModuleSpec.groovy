@@ -14,9 +14,11 @@ import io.github.joke.percolate.processor.internal.stages.validate.ValidateConst
 import io.github.joke.percolate.processor.internal.stages.validate.ValidateMappingShapeStage
 import io.github.joke.percolate.processor.internal.stages.validate.ValidateNoDuplicateTargetsStage
 import io.github.joke.percolate.processor.internal.stages.validate.ValidateOptionConsumptionStage
+import io.github.joke.percolate.processor.internal.stages.validate.ValidateEnumOverridesStage
 import io.github.joke.percolate.processor.internal.stages.validate.ValidateSourceParametersStage
 import io.github.joke.percolate.processor.nullability.JspecifyNullabilityResolver
 import io.github.joke.percolate.processor.nullability.NullabilityResolver
+import io.github.joke.percolate.spi.SwitchStyle
 import spock.lang.Specification
 import spock.lang.Subject
 import spock.lang.Tag
@@ -164,6 +166,7 @@ class ProcessorModuleSpec extends Specification {
         ValidateNoDuplicateTargetsStage noDuplicateTargets = Mock()
         ValidateMappingShapeStage mappingShape = Mock()
         ValidateSourceParametersStage sourceParameters = Mock()
+        ValidateEnumOverridesStage enumOverrides = Mock()
         ExpandStage expand = Mock()
         DumpFullGraphStage dumpFullGraph = Mock()
         DumpTransformsStage dumpTransforms = Mock()
@@ -175,14 +178,14 @@ class ProcessorModuleSpec extends Specification {
 
         when:
         def stages = ProcessorModule.stages(
-                [discoverA, discoverB], noDuplicateTargets, mappingShape, sourceParameters, expand,
+                [discoverA, discoverB], noDuplicateTargets, mappingShape, sourceParameters, enumOverrides, expand,
                 dumpFullGraph, dumpTransforms, dumpPlan, constantDefaultLegality, optionConsumption, realisation,
                 generate)
 
         then:
         stages == [
                 discoverA, discoverB,
-                noDuplicateTargets, mappingShape, sourceParameters,
+                noDuplicateTargets, mappingShape, sourceParameters, enumOverrides,
                 expand,
                 constantDefaultLegality, optionConsumption, realisation,
                 dumpFullGraph, dumpTransforms, dumpPlan,
@@ -201,6 +204,7 @@ class ProcessorModuleSpec extends Specification {
                 .classesFinal(false)
                 .docTags(false)
                 .timeZone(Optional.empty())
+                .switchStyle(SwitchStyle.AUTO)
                 .build()
     }
 }

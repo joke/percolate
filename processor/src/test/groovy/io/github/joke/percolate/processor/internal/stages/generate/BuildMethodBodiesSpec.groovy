@@ -20,13 +20,18 @@ import io.github.joke.percolate.processor.internal.graph.TargetLocation
 import io.github.joke.percolate.processor.internal.graph.TargetPath
 import io.github.joke.percolate.processor.internal.graph.Value
 import io.github.joke.percolate.processor.model.MapperShape
+import io.github.joke.percolate.spi.BodyCodegen
+import io.github.joke.percolate.spi.BodyRenderContext
 import io.github.joke.percolate.spi.Nullability
 import io.github.joke.percolate.spi.OperationCodegen
 import io.github.joke.percolate.spi.Port
+import io.github.joke.percolate.spi.ResolveCtx
 import io.github.joke.percolate.spi.ScopeCodegen
+import io.github.joke.percolate.spi.SwitchStyle
 import spock.lang.Specification
 import spock.lang.Tag
 
+import javax.lang.model.SourceVersion
 import javax.lang.model.element.ExecutableElement
 import javax.lang.model.element.Name
 import javax.lang.model.element.TypeElement
@@ -44,6 +49,7 @@ import java.util.stream.Stream
 class BuildMethodBodiesSpec extends Specification {
 
     def method = Mock(ExecutableElement)
+    ResolveCtx resolveCtx = Mock()
 
     def 'build returns no bodies when the shape is absent'() {
         def ctx = new MapperContext(Mock(TypeElement))
@@ -61,7 +67,16 @@ class BuildMethodBodiesSpec extends Specification {
         engine().build(ctx).bodies.empty
     }
 
-    def 'build renders one body per abstract method when both shape and graph are present'() {
+    def 'build returns no bodies when the resolveCtx is absent'() {
+        def ctx = new MapperContext(Mock(TypeElement))
+        ctx.shape = new MapperShape(Mock(TypeElement), [method])
+        ctx.graph = Mock(MapperGraph)
+
+        expect:
+        engine().build(ctx).bodies.empty
+    }
+
+    def 'build renders one body per abstract method when shape, graph, and resolveCtx are all present'() {
         method.simpleName >> Stub(Name) { toString() >> 'map' }
         method.parameters >> []
         def graph = new MapperGraph()
@@ -74,6 +89,7 @@ class BuildMethodBodiesSpec extends Specification {
         def ctx = new MapperContext(Mock(TypeElement))
         ctx.shape = new MapperShape(Mock(TypeElement), [method])
         ctx.graph = graph
+        ctx.resolveCtx = resolveCtx
 
         when:
         def result = engine().build(ctx)
@@ -98,7 +114,8 @@ class BuildMethodBodiesSpec extends Specification {
                 .classesFinal(false)
                 .docTags(false)
                 .timeZone(Optional.empty())
-                .build())
+                .switchStyle(SwitchStyle.AUTO)
+                .build(), SourceVersion.RELEASE_11)
     }
 }
 
@@ -119,6 +136,9 @@ class WalkSpec extends Specification {
     MemberPlan memberPlan = Mock()
     LocalStyle style = new LocalStyle(false, false)
     TypeNameRenderer typeNameRenderer = Mock()
+    ResolveCtx resolveCtx = Mock()
+    SwitchStyle switchStyle = SwitchStyle.AUTO
+    SourceVersion sourceVersion = SourceVersion.RELEASE_11
 
     // ---- renderLeaf: a bare leaf renders its bound lambda var or its source segment name -------------------------
 
@@ -239,7 +259,7 @@ class WalkSpec extends Specification {
     // ---- emitLocal: one hoisted declaration statement, isolated via Spy from renderInline/typeToken ----------------
 
     def 'emitLocal emits a final local when the style requires final'() {
-        def walk = Spy(BuildMethodBodies.Walk, constructorArgs: [graph, plan, hoist, memberPlan, new LocalStyle(true, false), typeNameRenderer])
+        def walk = Spy(BuildMethodBodies.Walk, constructorArgs: [graph, plan, hoist, memberPlan, new LocalStyle(true, false), typeNameRenderer, resolveCtx, switchStyle, sourceVersion])
         Value value = Mock()
         def builder = CodeBlock.builder()
 
@@ -258,7 +278,7 @@ class WalkSpec extends Specification {
     }
 
     def 'emitLocal emits a non-final local when the style does not require final'() {
-        def walk = Spy(BuildMethodBodies.Walk, constructorArgs: [graph, plan, hoist, memberPlan, new LocalStyle(false, false), typeNameRenderer])
+        def walk = Spy(BuildMethodBodies.Walk, constructorArgs: [graph, plan, hoist, memberPlan, new LocalStyle(false, false), typeNameRenderer, resolveCtx, switchStyle, sourceVersion])
         Value value = Mock()
         def builder = CodeBlock.builder()
 
@@ -497,6 +517,7 @@ class WalkSpec extends Specification {
         def result = walk.renderMethodBody(root)
 
         then:
+        1 * plan.chosenProducer(root) >> Optional.empty()
         1 * walk.hoistedInScope(root) >> []
         1 * walk.renderInline(root) >> CodeBlock.of('x')
         1 * walk._
@@ -515,6 +536,7 @@ class WalkSpec extends Specification {
         def result = walk.renderMethodBody(root)
 
         then:
+        1 * plan.chosenProducer(root) >> Optional.empty()
         1 * walk.hoistedInScope(root) >> [hoisted]
         1 * walk.emitLocal({ it != null }, hoisted) >> { CodeBlock.Builder builder, Value v -> builder.addStatement('var m = in') }
         1 * walk.renderInline(root) >> CodeBlock.of('m')
@@ -523,6 +545,39 @@ class WalkSpec extends Specification {
 
         expect:
         result.toString() == 'var m = in;\nreturn m;\n'
+    }
+
+    def 'renderMethodBody renders a BodyCodegen return-root producer verbatim, with no return wrap and no hoisting'() {
+        def walk = spyWalk()
+        Value root = Mock()
+        Operation operation = Mock()
+        Port port = new Port('value', Mock(TypeMirror), Nullability.NON_NULL)
+        Value source = Mock()
+        TypeMirror sourceType = Mock()
+        BodyCodegen codegen = Mock()
+        def rendered = CodeBlock.of('switch (x) {\n  default -> null;\n}\n')
+
+        when:
+        def result = walk.renderMethodBody(root)
+
+        then:
+        1 * plan.chosenProducer(root) >> Optional.of(operation)
+        1 * operation.codegen >> codegen
+        1 * operation.ports >> [port]
+        1 * graph.portSource(operation, 'value') >> Optional.of(source)
+        1 * walk.renderOperand(source) >> CodeBlock.of('x')
+        1 * source.type >> Optional.of(sourceType)
+        1 * operation.memberRequests >> []
+        1 * codegen.render { BodyRenderContext context ->
+            context.portType('value').is(sourceType) && context.resolveCtx().is(resolveCtx) &&
+                    context.switchStyle() == switchStyle && context.sourceVersion() == sourceVersion &&
+                    context.single().toString() == 'x'
+        } >> rendered
+        1 * walk._
+        0 * _
+
+        expect:
+        result.is(rendered)
     }
 
     def 'renderScopeBody stays an inline expression when the child scope hoists nothing'() {
@@ -610,10 +665,12 @@ class WalkSpec extends Specification {
     // ---- helpers ----------------------------------------------------------------------------------------------
 
     private BuildMethodBodies.Walk walk(final LocalStyle localStyle = style) {
-        new BuildMethodBodies.Walk(graph, plan, hoist, memberPlan, localStyle, typeNameRenderer)
+        new BuildMethodBodies.Walk(graph, plan, hoist, memberPlan, localStyle, typeNameRenderer, resolveCtx, switchStyle,
+                sourceVersion)
     }
 
     private BuildMethodBodies.Walk spyWalk() {
-        Spy(BuildMethodBodies.Walk, constructorArgs: [graph, plan, hoist, memberPlan, style, typeNameRenderer])
+        Spy(BuildMethodBodies.Walk, constructorArgs: [graph, plan, hoist, memberPlan, style, typeNameRenderer, resolveCtx,
+                switchStyle, sourceVersion])
     }
 }

@@ -30,6 +30,13 @@ public class GoalSpec {
     /** Exact dotted target path -> the leaf {@code @Map} directive bound there. */
     Map<String, MappingDirective> directiveByTarget;
 
+    /**
+     * The method's {@code @MapEnum} declarations, in source order. Unlike {@link #directiveByTarget}, this is
+     * method-level, not per-target-path: a conversion method's return demand is the sole consumer (its target path
+     * is always the empty root).
+     */
+    List<EnumOverrideDirective> enumOverrides;
+
     /** The declared child names at {@code parentPath} (empty when the level declares nothing). */
     public Set<String> declaredChildren(final String parentPath) {
         return childrenByLevel.getOrDefault(parentPath, Set.of());
@@ -40,9 +47,15 @@ public class GoalSpec {
         return Optional.ofNullable(directiveByTarget.get(targetPath));
     }
 
-    /** Derives the per-level goal spec from a method's validated directives (design D9). */
-    @SuppressWarnings("PMD.UseConcurrentHashMap") // single-threaded per-method derivation; insertion order matters
+    /** Derives the per-level goal spec from a method's validated {@code @Map} directives (design D9), with no {@code @MapEnum}. */
     public static GoalSpec from(final List<MappingDirective> directives) {
+        return from(directives, List.of());
+    }
+
+    /** Derives the per-level goal spec from a method's validated {@code @Map} directives (design D9) and {@code @MapEnum} declarations. */
+    @SuppressWarnings("PMD.UseConcurrentHashMap") // single-threaded per-method derivation; insertion order matters
+    public static GoalSpec from(
+            final List<MappingDirective> directives, final List<EnumOverrideDirective> enumOverrides) {
         final Map<String, Set<String>> levels = new LinkedHashMap<>();
         final Map<String, MappingDirective> bindings = new LinkedHashMap<>();
         for (final var directive : directives) {
@@ -53,7 +66,7 @@ public class GoalSpec {
                 levels.computeIfAbsent(parent, key -> new LinkedHashSet<>()).add(segments.get(i));
             }
         }
-        return new GoalSpec(levels, bindings);
+        return new GoalSpec(levels, bindings, List.copyOf(enumOverrides));
     }
 
     private static List<String> splitPath(final String path) {

@@ -1,0 +1,166 @@
+package io.github.joke.percolate.spi.builtins;
+
+import static java.util.stream.Collectors.toUnmodifiableList;
+
+import com.google.auto.service.AutoService;
+import io.github.joke.percolate.lib.javapoet.CodeBlock;
+import io.github.joke.percolate.spi.BodyCodegen;
+import io.github.joke.percolate.spi.BodyRenderContext;
+import io.github.joke.percolate.spi.Directive;
+import io.github.joke.percolate.spi.EnumOverride;
+import io.github.joke.percolate.spi.ExpansionStrategy;
+import io.github.joke.percolate.spi.Nullability;
+import io.github.joke.percolate.spi.OperationSpec;
+import io.github.joke.percolate.spi.Port;
+import io.github.joke.percolate.spi.PortType;
+import io.github.joke.percolate.spi.ProduceDemand;
+import io.github.joke.percolate.spi.ResolveCtx;
+import io.github.joke.percolate.spi.SwitchStyle;
+import io.github.joke.percolate.spi.Weights;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.stream.Stream;
+import javax.lang.model.SourceVersion;
+import javax.lang.model.element.ElementKind;
+import javax.lang.model.type.TypeMirror;
+import lombok.NoArgsConstructor;
+
+/**
+ * Enum-to-enum conversion via a declared conversion method (design of change {@code add-enum-conversion-mapping}):
+ * fires whenever the demanded target is an {@code enum}, declaring a bare top-level type-variable port that
+ * {@code Grounding} unifies against the in-scope source — the mechanism {@link TemporalFormat} relies on for its
+ * roster, generalised to an unbounded source. The concrete source is learned only at render time, through the
+ * {@link BodyRenderContext} (design D3): {@link #render} enumerates the grounded source enum's constants,
+ * same-name-matches each against the target enum, applies {@code @MapEnum} overrides with precedence, and renders
+ * either a classic switch statement or a modern arrow switch expression depending on the effective
+ * {@link SwitchStyle} (design D4/D6) — the engine makes none of this decision.
+ *
+ * <p>Weighted at {@link Weights#EXPENSIVE}, well above a method call ({@link Weights#METHOD}): when a user's own
+ * declared conversion method could also satisfy the same demand (reached through {@link MethodCallBridge}), that
+ * cheaper, explicit path wins over this inline fallback (design Risk/Trade-off: "competition with a user's
+ * hand-written conversion method" — resolved by cost, never by special-casing the engine).
+ */
+@AutoService(ExpansionStrategy.class)
+@NoArgsConstructor
+public final class EnumConversion implements ExpansionStrategy {
+
+    private static final String VALUE_ROLE = "value";
+
+    // SourceVersion.RELEASE_14 cannot be referenced as a compile-time symbol under this module's --release 11
+    // target (it postdates the JDK 11 platform API `--release` restricts compilation to); the toolchain JDK the
+    // processor actually runs on always has it, so a runtime valueOf lookup resolves it safely.
+    private static final SourceVersion JAVA_14 = SourceVersion.valueOf("RELEASE_14");
+
+    @Override
+    public Stream<OperationSpec> expand(final ProduceDemand demand, final ResolveCtx ctx) {
+        final var target = demand.targetType();
+        if (!ctx.isEnum(target)) {
+            return Stream.empty();
+        }
+        final var overrides = demand.directive().map(Directive::enumOverrides).orElseGet(List::of);
+        final var port = new Port(VALUE_ROLE, target, Nullability.NON_NULL, PortType.variable(0));
+        final BodyCodegen codegen = context -> render(context, target, overrides);
+        return Stream.of(OperationSpec.of(
+                "enum" + Labels.ARROW + Labels.simple(target),
+                codegen,
+                Weights.EXPENSIVE,
+                List.of(port),
+                target,
+                Nullability.NON_NULL));
+    }
+
+    /** Renders the whole method body: a switch over the grounded source enum, form chosen by the effective style. */
+    static CodeBlock render(
+            final BodyRenderContext context, final TypeMirror target, final List<EnumOverride> overrides) {
+        final var resolveCtx = context.resolveCtx();
+        final var source = context.portType(VALUE_ROLE);
+        if (!resolveCtx.isEnum(source)) {
+            throw new IllegalStateException("EnumConversion grounded to a non-enum source: " + source);
+        }
+        final var sourceConstants = enumConstantNames(resolveCtx, source);
+        final var mapping = buildMapping(sourceConstants, enumConstantNames(resolveCtx, target), overrides);
+        final var style = resolveStyle(context.switchStyle(), context.sourceVersion());
+        return style == SwitchStyle.ARROW
+                ? renderArrow(context.single(), target, sourceConstants, mapping)
+                : renderClassic(context.single(), target, sourceConstants, mapping);
+    }
+
+    /** {@code AUTO} resolves against the target {@link SourceVersion}: arrow for Java 14+, else classic. */
+    static SwitchStyle resolveStyle(final SwitchStyle configured, final SourceVersion sourceVersion) {
+        if (configured != SwitchStyle.AUTO) {
+            return configured;
+        }
+        return sourceVersion.compareTo(JAVA_14) >= 0 ? SwitchStyle.ARROW : SwitchStyle.CLASSIC;
+    }
+
+    /** Same-name matches first, then {@code @MapEnum} overrides — which take precedence over a coincidental match. */
+    @SuppressWarnings("PMD.UseConcurrentHashMap") // single-threaded render; insertion order matters
+    static Map<String, String> buildMapping(
+            final List<String> sourceConstants,
+            final List<String> targetConstants,
+            final List<EnumOverride> overrides) {
+        final var targetSet = Set.copyOf(targetConstants);
+        final Map<String, String> mapping = new LinkedHashMap<>();
+        for (final var constant : sourceConstants) {
+            if (targetSet.contains(constant)) {
+                mapping.put(constant, constant);
+            }
+        }
+        overrides.forEach(override -> mapping.put(override.getSource(), override.getTarget()));
+        return mapping;
+    }
+
+    /** A modern switch expression with no {@code default}: javac's own exhaustiveness check rejects a gap. */
+    static CodeBlock renderArrow(
+            final CodeBlock sourceExpr,
+            final TypeMirror target,
+            final List<String> sourceConstants,
+            final Map<String, String> mapping) {
+        final var builder =
+                CodeBlock.builder().add("return switch ($L) {\n", sourceExpr).indent();
+        sourceConstants.stream()
+                .filter(mapping::containsKey)
+                .forEach(constant -> builder.addStatement("case $L -> $T.$L", constant, target, mapping.get(constant)));
+        return builder.unindent().add("};\n").build();
+    }
+
+    /** A classic switch statement: every source constant must be covered, else code generation fails outright. */
+    static CodeBlock renderClassic(
+            final CodeBlock sourceExpr,
+            final TypeMirror target,
+            final List<String> sourceConstants,
+            final Map<String, String> mapping) {
+        final var uncovered = sourceConstants.stream()
+                .filter(constant -> !mapping.containsKey(constant))
+                .collect(toUnmodifiableList());
+        if (!uncovered.isEmpty()) {
+            throw new IllegalStateException(
+                    "no @MapEnum or same-name match covers source constant(s): " + String.join(", ", uncovered));
+        }
+        final var builder =
+                CodeBlock.builder().add("switch ($L) {\n", sourceExpr).indent();
+        for (final var constant : sourceConstants) {
+            builder.add("case $L:\n", constant)
+                    .indent()
+                    .addStatement("return $T.$L", target, mapping.get(constant))
+                    .unindent();
+        }
+        builder.add("default:\n")
+                .indent()
+                .addStatement("throw new $T($S)", IllegalStateException.class, "Unexpected enum constant")
+                .unindent();
+        return builder.unindent().add("}\n").build();
+    }
+
+    /** {@code type}'s declared enum constants, in declaration order; empty when {@code type} has no backing element. */
+    static List<String> enumConstantNames(final ResolveCtx ctx, final TypeMirror type) {
+        return ctx.asTypeElement(type)
+                .map(element -> ctx.membersOf(element)
+                        .filter(member -> member.getKind() == ElementKind.ENUM_CONSTANT)
+                        .map(member -> member.getSimpleName().toString())
+                        .collect(toUnmodifiableList()))
+                .orElseGet(List::of);
+    }
+}

@@ -26,6 +26,7 @@ class CompileTimeSwitchesDocExampleSpec extends Specification {
     private static final JavaFileObject NULLABLE_MAPPER = forResource('examples/switches/NullableMapper.java')
     private static final JavaFileObject CUSTOM_NULLABLE = forResource('examples/switches/CustomNullable.java')
     private static final JavaFileObject ZONED_MAPPER = forResource('examples/switches/ZonedMapper.java')
+    private static final JavaFileObject ENUM_SWITCH_MAPPER = forResource('examples/switches/EnumSwitchMapper.java')
 
     def 'percolate.docTags brackets each whole generated method in include-tags, off by default'() {
         when:
@@ -196,6 +197,29 @@ class CompileTimeSwitchesDocExampleSpec extends Specification {
         and:
         materialise('time-zone-unset/ZonedMapperImpl.java', unsetContent)
         materialise('time-zone-set/ZonedMapperImpl.java', setContent)
+    }
+
+    def 'percolate.switch.style selects a classic switch statement or a default-free modern switch expression'() {
+        when:
+        Compilation classic = PercolateCompiler.compileWith(
+                ['-Apercolate.docTags=true', '-Apercolate.switch.style=classic'], ENUM_SWITCH_MAPPER)
+        Compilation arrow = PercolateCompiler.compileWith(
+                ['-Apercolate.docTags=true', '-Apercolate.switch.style=arrow'], ENUM_SWITCH_MAPPER)
+
+        then:
+        classic.errors().empty
+        arrow.errors().empty
+        def classicContent = sourceOf(classic, 'examples.switches.EnumSwitchMapperImpl')
+        def arrowContent = sourceOf(arrow, 'examples.switches.EnumSwitchMapperImpl')
+        classicContent.contains('switch (s)')
+        classicContent.contains('case NEW:')
+        classicContent.contains('default:')
+        arrowContent.contains('case NEW ->')
+        !arrowContent.contains('default')
+
+        and:
+        materialise('switch-style-classic/EnumSwitchMapperImpl.java', classicContent)
+        materialise('switch-style-arrow/EnumSwitchMapperImpl.java', arrowContent)
     }
 
     private static Optional<JavaFileObject> anyDotFile(final Compilation compilation) {

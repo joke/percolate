@@ -2,6 +2,7 @@ package io.github.joke.percolate.spi.builtins.test
 
 import io.github.joke.percolate.spi.DescendDemand
 import io.github.joke.percolate.spi.Directive
+import io.github.joke.percolate.spi.EnumOverride
 import io.github.joke.percolate.spi.Nullability
 import io.github.joke.percolate.spi.ProduceDemand
 
@@ -72,6 +73,12 @@ final class Demands {
         demand(target, Nullability.NON_NULL, directive([], null, null, null, zone), [] as Set, '', Nullability.NON_NULL)
     }
 
+    /** A demand asking for {@code target} whose directive declares the given {@code @MapEnum} override table. */
+    static ProduceDemand withEnumOverrides(final TypeMirror target, final List<EnumOverride> enumOverrides) {
+        demand(target, Nullability.NON_NULL, directive([], null, null, null, null, enumOverrides), [] as Set, '',
+                Nullability.NON_NULL)
+    }
+
     private static ProduceDemand demand(final TypeMirror target, final Nullability targetNullness,
                                         final Directive directive, final Set<String> declaredChildren,
                                         final String bindingName, final Nullability oracleNullness) {
@@ -92,7 +99,8 @@ final class Demands {
     }
 
     private static Directive directive(final List<String> sourcePath, final String constant, final String defaultValue,
-                                       final String format, final String zone) {
+                                       final String format, final String zone,
+                                       final List<EnumOverride> enumOverrides = []) {
         new Directive() {
             List<String> sourcePath() { sourcePath }
 
@@ -103,6 +111,8 @@ final class Demands {
             Optional<String> format() { Optional.ofNullable(format) }
 
             Optional<String> zone() { Optional.ofNullable(zone) }
+
+            List<EnumOverride> enumOverrides() { enumOverrides }
         }
     }
 }
