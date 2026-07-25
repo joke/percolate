@@ -43,3 +43,11 @@ dependencies {
 tasks.named('compileTestJava') {
     options.release = 17
 }
+
+tasks.named('integrationTest') {
+    // ReactiveDocExampleSpec materialises the manual's generated reactive output here, and the antora
+    // task's collector scans it. Declaring it as an output is what makes that survive a build-cache hit:
+    // an undeclared side-effect directory is not restored, so the task would resolve FROM-CACHE without
+    // executing and every generated include:: on the reactive page would fail to resolve.
+    outputs.dir layout.buildDirectory.dir('generated-doc-examples')
+}

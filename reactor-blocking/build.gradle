@@ -44,3 +44,9 @@ dependencies {
 tasks.named('compileTestJava') {
     options.release = 17
 }
+
+tasks.named('integrationTest') {
+    // ReactorBlockingDocExampleSpec materialises the manual's generated output here — see the equivalent
+    // declaration in reactor/build.gradle for why an undeclared side-effect directory breaks a cache hit.
+    outputs.dir layout.buildDirectory.dir('generated-doc-examples')
+}

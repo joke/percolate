@@ -16,10 +16,22 @@ nmcpAggregation {
     allowDuplicateProjectNames.set(true)
 }
 
+// The version the manual's install snippets advertise. This is the latest RELEASED version (the nearest
+// reachable tag), deliberately not project.version - on main that is a -SNAPSHOT past the tag, which must
+// never appear in a "add this dependency" block. Injected as an Antora attribute rather than hardcoded in
+// docs/antora.yml so there is no bump-on-release step to forget. With no tag reachable (a shallow or
+// tagless clone) this stays visibly not a release rather than plausibly wrong; the deploying workflow
+// checks out with fetch-depth: 0, so CI always resolves a real tag.
+def latestReleaseVersion = providers.exec {
+    workingDir = rootDir
+    commandLine 'git', 'describe', '--tags', '--abbrev=0'
+    ignoreExitValue = true
+}.standardOutput.asText.map { it.trim() - ~/^v/ }.getOrElse('') ?: 'UNRELEASED'
+
 antora {
     version = '3.1.15'
     playbook = 'antora-playbook.yml'
-    options = [clean: true, fetch: true]
+    options = [clean: true, fetch: true, attributes: ['percolate-version': latestReleaseVersion]]
     packages = [
             '@antora/collector-extension': '1.0.3'
     ]

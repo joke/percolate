@@ -131,3 +131,10 @@ configurations {
         outgoing.artifact(tasks.shadowJar)
     }
 }
+
+tasks.named('integrationTest') {
+    // CompileTimeSwitchesDocExampleSpec materialises the switches reference's generated output here — see
+    // the equivalent declaration in reactor/build.gradle for why an undeclared side-effect directory
+    // breaks a cache hit.
+    outputs.dir layout.buildDirectory.dir('generated-doc-examples')
+}

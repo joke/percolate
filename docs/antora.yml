@@ -1,17 +1,14 @@
 name: percolate
 title: Percolate
-# Derived from the git ref (tag or branch) at aggregation time, e.g. v1.0.2 -> "v1.0.2", main -> "main".
-# Keeps each release tag's component version distinct without a manual bump-on-release step to forget
-# (mirrors shipkit-auto-version deriving the Gradle version from tags). A blank/null value here instead
-# resolves to the same empty-string version for every ref, which collides across tags and branches once
-# more than one ref is aggregated (see the v1.0.0/v1.0.1 exclusions in antora-playbook.yml).
-version: true
+# Unversioned: the manual is published as a single version - the current state of the default branch -
+# with no version selector and no version segment in page URLs. Only HEAD is aggregated (see
+# antora-playbook.yml for why release tags cannot carry the generated examples the pages include::).
+version:
 nav:
 - modules/ROOT/nav.adoc
-asciidoc:
-  attributes:
-    # Single-sourced version string for the install snippets. Bump alongside a release.
-    percolate-version: 0.1.0
+# `percolate-version` (used by the install snippets) is injected at build time from the latest release tag
+# by the root build.gradle antora block - deliberately not declared here, so there is a single source and
+# no bump-on-release step to forget.
 ext:
   collector:
   # Import the module-owned example fixtures into the content catalog. `dir` is a plain path, so it

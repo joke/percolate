@@ -5,14 +5,13 @@ site:
 
 content:
   sources:
+  # HEAD only - the manual is deliberately single-version. Release tags are NOT aggregated: the pages
+  # include:: generated output that compile tests materialise into module build directories, and the
+  # collector extension checks every non-HEAD ref out into a fresh worktree that has no build directories
+  # and runs no build commands. A tagged version would therefore silently lose every generated include::
+  # unless each tag were rebuilt on every docs run - hundreds of full Gradle builds within a few years.
   - url: .
     branches: HEAD
-      # Release tags become additional versions automatically once they exist (inert with zero tags).
-      # v1.0.0 and v1.0.1 are excluded: both were cut before docs/antora.yml switched to `version: true`,
-      # so their baked-in antora.yml still carries the old blank version field. That resolves to the same
-      # empty-string component version for both tags (and HEAD), which Antora rejects as a duplicate nav.
-      # Their tag commits are immutable and not being rewritten; versioned docs start at v1.0.2 onward.
-    tags: [v*.*.*, '!v1.0.0', '!v1.0.1']
     start_path: docs
 
 ui:
@@ -30,6 +29,14 @@ antora:
   # Installed into Antora's Node context by the org.antora plugin's `packages` map (see build.gradle).
   # Imports module-owned example fixtures into the content catalog via `ext.collector` scan entries.
   - require: '@antora/collector-extension'
+
+runtime:
+  log:
+    # Antora's default failure tolerance is `fatal`, so an ERROR-level asciidoctor message (an unresolved
+    # include:: among them) was logged and the process still exited 0 — a silently incomplete site then
+    # deployed to Pages. `warn` is the lowest level that covers all three failures the user-manual spec
+    # requires to be fatal: unresolved include:: (ERROR), broken xref: and missing nav target (WARN).
+    failure_level: warn
 
 output:
   dir: ./build/site
