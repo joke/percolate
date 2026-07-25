@@ -1,5 +1,18 @@
 # Changelog
 
+## [1.1.0](https://github.com/joke/percolate/compare/v1.0.1...v1.1.0) (2026-07-25)
+
+
+### Features
+
+* **annotations,spi,processor,strategies-builtin,docs:** add enum-to-enum conversion mapping ([7711c0c](https://github.com/joke/percolate/commit/7711c0c92cf98a3d2bbe01a8390a1aae5079553b))
+
+
+### Bug Fixes
+
+* **build,docs:** repair docs generation on a clean build and drop multi-version publishing ([06c8cd7](https://github.com/joke/percolate/commit/06c8cd78aecdb313d37e3621087a977ae8a4bdde))
+* **build:** stop leaking the internal :dependencies platform into published POMs ([61358e2](https://github.com/joke/percolate/commit/61358e2e3f5ff5923cad02f17f19c4774fb14d86))
+
 ## [1.0.1](https://github.com/joke/percolate/compare/v1.0.0...v1.0.1) (2026-07-24)
 
 
