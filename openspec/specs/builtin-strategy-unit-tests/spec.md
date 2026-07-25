@@ -71,7 +71,7 @@ A built-in strategy that fuses a sub-algorithm or a matching decision behind a `
 
 ### Requirement: The builtin unit suite is mutation-tested under threaded pitest, sharing the uniform threshold
 
-The `strategies-builtin` module SHALL run pitest mutation testing over its `@Tag('unit')` suite as part of `check`, threaded (`threads = availableProcessors()`), using the `pitest-history-plugin` for incremental analysis. `strategies-builtin` SHALL meet the same shared `mutationThreshold`/`coverageThreshold`/`testStrengthThreshold` as every other enrolled module (see `test-coverage-tooling`) — no per-module override or tolerant floor SHALL be configured. pitest SHALL be scoped to the unit suite only and SHALL NOT run against the `e2e/` compile-test suite. This requirement SHALL be satisfied only after the decomposition above, so mutation coverage measures individually addressable units rather than a coarse seam.
+The `strategies-builtin` module SHALL run pitest mutation testing over its `@Tag('unit')` suite as part of `check`, threaded (`threads = availableProcessors()`), using the `pitest-history-plugin` for incremental analysis. `strategies-builtin` SHALL meet the same shared `mutationThreshold`/`coverageThreshold`/`testStrengthThreshold` as every other enrolled module (see `test-coverage-tooling`) — no per-module override or tolerant floor SHALL be configured. pitest SHALL be scoped to the unit suite only and SHALL NOT run against the `e2e/` compile-test suite.
 
 #### Scenario: pitest runs on the strategies-builtin unit suite under check
 - **WHEN** `check` runs for `strategies-builtin`
