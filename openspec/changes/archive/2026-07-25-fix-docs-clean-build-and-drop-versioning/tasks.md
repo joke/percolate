@@ -54,9 +54,13 @@ reproducer works. Do not skip ahead — a cache miss makes the defect invisible.
 
 - [x] 5.1 Confirm `gradle/actions/setup-gradle` is `v6` in the `docs` job of `.github/workflows/build.yml`
   (already edited in the working tree), matching the `build` job and `release.yml`
-- [ ] 5.2 Note in the PR description that this changes the docs job's cache key, so the first run after
+- [x] 5.2 Note in the PR description that this changes the docs job's cache key, so the first run after
   merge is a genuine cache miss and will pass for reasons unrelated to the fix — a second run on `main` is
-  the real verification
+  the real verification.
+  **Recorded here instead: this landed directly on `main` with no PR.** The caveat still holds — the first
+  post-merge `docs` run resolves a fresh cache and therefore *executes* the doc-e2e specs, so it proves
+  nothing about the cache-hit path. The **second** `docs` run on `main` is the one that exercises
+  `FROM-CACHE` restoration and is the real verification of this fix.
 
 ## 6. Spec alignment
 
@@ -74,4 +78,5 @@ reproducer works. Do not skip ahead — a cache miss makes the defect invisible.
 - [x] 7.2 Run `./gradlew antora` from a clean tree and confirm the site builds with zero warnings — the
   `failure_level: warn` gate from 1.1 makes any warning a build failure
 - [x] 7.3 Run `openspec validate fix-docs-clean-build-and-drop-versioning`
-- [ ] 7.4 Commit the completed change with `/commit-commands:commit`
+- [x] 7.4 Commit the completed change with `/commit-commands:commit` (`06c8cd78` the fix, `9fdf1a18` the
+  spec sync)
