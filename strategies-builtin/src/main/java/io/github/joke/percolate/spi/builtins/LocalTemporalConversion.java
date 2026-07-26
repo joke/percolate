@@ -11,6 +11,7 @@ import java.util.Optional;
 import java.util.stream.Stream;
 import javax.lang.model.type.TypeMirror;
 import lombok.NoArgsConstructor;
+import org.jetbrains.annotations.VisibleForTesting;
 
 /**
  * The local (wall-time, no instant) temporal family's single-hop spoke conversion to and from the
@@ -29,6 +30,7 @@ public final class LocalTemporalConversion extends Conversion {
     private static final String LOCAL_DATE_TIME = "java.time.LocalDateTime";
 
     @Override
+    @VisibleForTesting
     protected Stream<Step> conversions(final TypeMirror target, final ResolveCtx ctx) {
         if (ctx.isType(target, LOCAL_DATE_TIME)) {
             return atStartOfDayStep(ctx).stream();

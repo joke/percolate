@@ -80,6 +80,36 @@ class DotRendererSpec extends Specification {
         dot.contains('#D7F0D0')
     }
 
+    def 'appendStatement: renders a bracketed attribute list when attrs are non-empty'() {
+        def dot = new StringBuilder()
+
+        when:
+        DotRenderer.appendStatement(dot, 'a -> b', [label: 'x', shape: 'box'])
+
+        then:
+        dot.toString() == '  a -> b [label="x", shape="box"];\n'
+    }
+
+    def 'appendStatement: omits the bracket entirely when attrs are empty'() {
+        def dot = new StringBuilder()
+
+        when:
+        DotRenderer.appendStatement(dot, 'a -> b', [:])
+
+        then:
+        dot.toString() == '  a -> b;\n'
+    }
+
+    def 'edgeAttributes: a labelled port carries a label attribute'() {
+        expect:
+        DotRenderer.edgeAttributes(Dep.port('street')) == [label: 'street']
+    }
+
+    def 'edgeAttributes: an output edge with no port id carries no attributes'() {
+        expect:
+        DotRenderer.edgeAttributes(Dep.output()) == [:]
+    }
+
     def 'quote: escapes an embedded quote after doubling a literal backslash'() {
         expect:
         DotRenderer.quote('a\\b"c') == '"a\\\\b\\"c"'

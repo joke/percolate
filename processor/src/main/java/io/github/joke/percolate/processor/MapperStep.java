@@ -67,7 +67,7 @@ final class MapperStep implements Step {
     }
 
     /** Runs the pipeline for one mapper and returns {@code true} iff it must be deferred to a later round. */
-    private boolean processAndShouldDefer(final TypeElement mapperType) {
+    boolean processAndShouldDefer(final TypeElement mapperType) {
         final var ctx = pipeline.process(mapperType);
         final var fqn = mapperType.getQualifiedName().toString();
 

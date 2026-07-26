@@ -47,7 +47,7 @@ class Blockings {
     }
 
     /** {@code source} is a declared {@code kindFqn<X>} with exactly one reference type argument {@code X}. */
-    private boolean isSingleReferenceArgKind(final TypeMirror source, final String kindFqn, final ResolveCtx ctx) {
+    boolean isSingleReferenceArgKind(final TypeMirror source, final String kindFqn, final ResolveCtx ctx) {
         if (!ctx.isDeclared(source) || !ctx.isType(source, kindFqn)) {
             return false;
         }

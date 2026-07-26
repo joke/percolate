@@ -15,6 +15,7 @@ dependencies {
     compileOnly 'com.google.auto.service:auto-service-annotations'
     compileOnly 'org.projectlombok:lombok'
     compileOnly 'org.jspecify:jspecify'
+    compileOnly 'org.jetbrains:annotations'
 
     implementation project(':spi')
 

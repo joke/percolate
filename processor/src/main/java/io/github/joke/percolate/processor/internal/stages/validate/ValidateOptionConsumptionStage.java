@@ -58,12 +58,12 @@ public final class ValidateOptionConsumptionStage implements Stage {
         mappings.getMethods().forEach(method -> checkMethod(method, graph, plan));
     }
 
-    private void checkMethod(final MethodMappings method, final MapperGraph graph, final ExtractedPlan plan) {
+    void checkMethod(final MethodMappings method, final MapperGraph graph, final ExtractedPlan plan) {
         final var scope = new MethodScope(method.getMethod());
         method.getDirectives().forEach(directive -> checkDirective(directive, method.getMethod(), scope, graph, plan));
     }
 
-    private void checkDirective(
+    void checkDirective(
             final MappingDirective directive,
             final ExecutableElement method,
             final MethodScope scope,
@@ -88,7 +88,7 @@ public final class ValidateOptionConsumptionStage implements Stage {
     }
 
     /** The directive's declared option keys, each mapped to the {@link AnnotationValue} to position a diagnostic at. */
-    private static Map<String, AnnotationValue> declaredOptions(final MappingDirective directive) {
+    static Map<String, AnnotationValue> declaredOptions(final MappingDirective directive) {
         final Map<String, AnnotationValue> declared = new LinkedHashMap<>();
         if (directive.hasFormat()) {
             declared.put(FORMAT_KEY, directive.getFormatValue());
@@ -100,8 +100,7 @@ public final class ValidateOptionConsumptionStage implements Stage {
     }
 
     /** The consumed-option-key union over every {@link Operation} the winning plan reaches from {@code target}. */
-    private static Set<String> consumedOptionKeys(
-            final MapperGraph graph, final ExtractedPlan plan, final Value target) {
+    static Set<String> consumedOptionKeys(final MapperGraph graph, final ExtractedPlan plan, final Value target) {
         final Set<Operation> ops = new HashSet<>();
         collectWinningOps(graph, plan, target, ops, newSeenSet());
         final Set<String> keys = new HashSet<>();
@@ -109,7 +108,7 @@ public final class ValidateOptionConsumptionStage implements Stage {
         return keys;
     }
 
-    private static void collectWinningOps(
+    static void collectWinningOps(
             final MapperGraph graph,
             final ExtractedPlan plan,
             final Value value,
@@ -127,7 +126,7 @@ public final class ValidateOptionConsumptionStage implements Stage {
     }
 
     @SuppressWarnings("IdentityHashMapUsage")
-    private static Set<Value> newSeenSet() {
+    static Set<Value> newSeenSet() {
         return Collections.newSetFromMap(new IdentityHashMap<>());
     }
 
@@ -139,7 +138,7 @@ public final class ValidateOptionConsumptionStage implements Stage {
      * location-only match could resolve to that intermediate instead of the declared return type.
      */
     @Nullable
-    private static Value targetValue(final MapperGraph graph, final MethodScope scope, final String target) {
+    static Value targetValue(final MapperGraph graph, final MethodScope scope, final String target) {
         var current = graph.returnRootIn(scope);
         for (final var segment : splitPath(target)) {
             final var declared = current;
@@ -157,7 +156,7 @@ public final class ValidateOptionConsumptionStage implements Stage {
         return current;
     }
 
-    private static List<String> splitPath(final String path) {
+    static List<String> splitPath(final String path) {
         if (path.isEmpty()) {
             return List.of();
         }

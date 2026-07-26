@@ -66,11 +66,11 @@ public final class ExtractedPlan {
         return cost;
     }
 
-    private Cost costOf(final GraphVertex vertex) {
+    Cost costOf(final GraphVertex vertex) {
         return vertex instanceof Value ? cost((Value) vertex) : cost((Operation) vertex);
     }
 
-    private void walk(final Value value) {
+    void walk(final Value value) {
         if (chosen.containsKey(value)) {
             return;
         }
@@ -88,13 +88,13 @@ public final class ExtractedPlan {
      * weight by the vector order), with {@link Operation#id()} the deterministic tie-break. Empty when the value
      * has no reachable producer (so an all-unreachable Value falls back to its base case in {@link #cost}).
      */
-    private Optional<Operation> cheapestProducer(final Value value) {
+    Optional<Operation> cheapestProducer(final Value value) {
         return graph.producersOf(value)
                 .filter(operation -> cost(operation).isReachable())
                 .min(Comparator.<Operation, Cost>comparing(this::cost).thenComparing(Operation::id));
     }
 
-    private Cost cost(final Operation operation) {
+    Cost cost(final Operation operation) {
         final var memo = operationCost.get(operation);
         if (memo != null) {
             return memo;
@@ -116,7 +116,7 @@ public final class ExtractedPlan {
      * root or a container element root. Every other producerless Value is unreachable ({@link Cost#INFINITE}),
      * including a multi-segment {@code ACCESS} source demand whose accessor never matched.
      */
-    private boolean isBaseCase(final Value value) {
+    boolean isBaseCase(final Value value) {
         return value.getLoc().role() == Location.Role.LEAF;
     }
 }

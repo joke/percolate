@@ -12,6 +12,7 @@ import java.util.Optional;
 import javax.lang.model.element.TypeElement;
 import javax.lang.model.type.TypeMirror;
 import lombok.NoArgsConstructor;
+import org.jetbrains.annotations.VisibleForTesting;
 import reactor.core.publisher.Mono;
 
 /**
@@ -35,21 +36,25 @@ public final class MonoContainer extends Container {
     static final String FLUX = "reactor.core.publisher.Flux";
 
     @Override
+    @VisibleForTesting
     protected boolean matches(final TypeMirror type, final ResolveCtx ctx) {
         return ctx.isType(type, MONO);
     }
 
     @Override
+    @VisibleForTesting
     protected TypeMirror element(final TypeMirror type, final ResolveCtx ctx) {
         return ctx.typeArgument(type, 0);
     }
 
     @Override
+    @VisibleForTesting
     protected Optional<TypeElement> kindErasure(final ResolveCtx ctx) {
         return Optional.ofNullable(ctx.typeElementNamed(MONO));
     }
 
     @Override
+    @VisibleForTesting
     protected TypeElement intermediateErasure(final ResolveCtx ctx) {
         return Objects.requireNonNull(
                 ctx.typeElementNamed(FLUX), "reactor-core must be on the compile classpath when reactor is active");

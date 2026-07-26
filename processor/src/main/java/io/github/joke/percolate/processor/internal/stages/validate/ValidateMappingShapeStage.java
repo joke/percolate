@@ -48,7 +48,7 @@ public final class ValidateMappingShapeStage implements Stage {
         return new MapperMappings(mappings.getType(), methods);
     }
 
-    private MethodMappings validateMethod(final MethodMappings methodMappings) {
+    MethodMappings validateMethod(final MethodMappings methodMappings) {
         final var method = methodMappings.getMethod();
         final var kept = methodMappings.getDirectives().stream()
                 .filter(directive -> validateDirective(directive, method))
@@ -57,17 +57,17 @@ public final class ValidateMappingShapeStage implements Stage {
     }
 
     /** Emits any shape errors and returns whether the directive is well-formed enough to keep seeding. */
-    private boolean validateDirective(final MappingDirective directive, final ExecutableElement method) {
+    boolean validateDirective(final MappingDirective directive, final ExecutableElement method) {
         final var wellFormed = checkSourceXorConstant(directive, method);
         checkDefaultRequiresSource(directive, method);
         return wellFormed;
     }
 
-    private boolean checkSourceXorConstant(final MappingDirective directive, final ExecutableElement method) {
+    boolean checkSourceXorConstant(final MappingDirective directive, final ExecutableElement method) {
         return !reportsBothSourceAndConstant(directive, method) && !reportsNeitherSourceNorConstant(directive, method);
     }
 
-    private boolean reportsBothSourceAndConstant(final MappingDirective directive, final ExecutableElement method) {
+    boolean reportsBothSourceAndConstant(final MappingDirective directive, final ExecutableElement method) {
         if (!(directive.hasSource() && directive.hasConstant())) {
             return false;
         }
@@ -79,7 +79,7 @@ public final class ValidateMappingShapeStage implements Stage {
         return true;
     }
 
-    private boolean reportsNeitherSourceNorConstant(final MappingDirective directive, final ExecutableElement method) {
+    boolean reportsNeitherSourceNorConstant(final MappingDirective directive, final ExecutableElement method) {
         if (directive.hasSource() || directive.hasConstant()) {
             return false;
         }
@@ -91,7 +91,7 @@ public final class ValidateMappingShapeStage implements Stage {
         return true;
     }
 
-    private void checkDefaultRequiresSource(final MappingDirective directive, final ExecutableElement method) {
+    void checkDefaultRequiresSource(final MappingDirective directive, final ExecutableElement method) {
         if (directive.hasDefaultValue() && !directive.hasSource()) {
             diagnostics.error(
                     method,

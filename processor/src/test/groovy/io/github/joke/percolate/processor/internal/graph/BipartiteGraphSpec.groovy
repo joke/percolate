@@ -100,6 +100,21 @@ class BipartiteGraphSpec extends Specification {
         thrown(IllegalStateException)
     }
 
+    def 'id() encodes an untyped, unnulled Value with UNKNOWN markers'() {
+        final var value = new Value(new SourceLocation(AccessPath.of('x')), scope, Optional.empty(), Optional.empty())
+
+        expect:
+        value.id() == scope.encode() + '::src[x]::?::?'
+    }
+
+    def 'id() encodes a typed, nulled Value with its type and nullness'() {
+        final var value = new Value(
+                new SourceLocation(AccessPath.of('x')), scope, Optional.of(STRING), Optional.of(Nullability.NON_NULL))
+
+        expect:
+        value.id() == scope.encode() + '::src[x]::' + STRING.toString() + '::NON_NULL'
+    }
+
     // ---- Atomic AddOperation (design D1, D3) ----------------------------------------------------
 
     def 'AddOperation lands the Operation with one output edge and one inbound edge per port'() {

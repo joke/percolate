@@ -45,7 +45,7 @@ public final class RealisationDiagnosticsStage implements Stage {
         }
     }
 
-    private static String message(final MapperGraph graph, final ExtractedPlan plan, final Value root) {
+    static String message(final MapperGraph graph, final ExtractedPlan plan, final Value root) {
         final var miss = deepestMiss(graph, plan, root);
         return String.format(
                 "no plan for %s: %s has no producer in the graph. Likely missing: a @Map-annotated method whose source produces %s",
@@ -53,7 +53,7 @@ public final class RealisationDiagnosticsStage implements Stage {
     }
 
     /** Descends the first unreachable port chain from {@code value} to the demand with no reachable producer. */
-    private static Value deepestMiss(final MapperGraph graph, final ExtractedPlan plan, final Value value) {
+    static Value deepestMiss(final MapperGraph graph, final ExtractedPlan plan, final Value value) {
         final Set<Value> visited = new HashSet<>();
         var current = value;
         while (visited.add(current)) {
@@ -67,28 +67,27 @@ public final class RealisationDiagnosticsStage implements Stage {
     }
 
     /** The unsatisfied port feeding {@code current}'s unreachable producer, or empty when {@code current} is the miss. */
-    private static Optional<Value> nextUnsatisfied(
-            final MapperGraph graph, final ExtractedPlan plan, final Value current) {
+    static Optional<Value> nextUnsatisfied(final MapperGraph graph, final ExtractedPlan plan, final Value current) {
         final var producer =
                 graph.producersOf(current).filter(op -> !plan.reachable(op)).findFirst();
         return producer.isEmpty() ? Optional.empty() : firstUnsatisfiedPort(graph, plan, producer.get());
     }
 
-    private static Optional<Value> firstUnsatisfiedPort(
+    static Optional<Value> firstUnsatisfiedPort(
             final MapperGraph graph, final ExtractedPlan plan, final Operation operation) {
         return graph.portSourcesOf(operation)
                 .filter(source -> !plan.reachable(source))
                 .findFirst();
     }
 
-    private static String label(final Value value) {
+    static String label(final Value value) {
         if (value.getLoc() instanceof TargetLocation) {
             return "tgt[" + ((TargetLocation) value.getLoc()).getPath() + "]";
         }
         return value.id();
     }
 
-    private static String typeName(final Value value) {
+    static String typeName(final Value value) {
         return value.getType().map(TypeMirror::toString).orElse("?");
     }
 }

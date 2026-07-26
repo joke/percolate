@@ -62,11 +62,11 @@ public final class Value implements GraphVertex {
         return scope.encode() + "::" + loc.segment() + "::" + typeEncode() + "::" + nullnessEncode();
     }
 
-    private String typeEncode() {
+    String typeEncode() {
         return type.map(TypeMirror::toString).orElse(UNKNOWN);
     }
 
-    private String nullnessEncode() {
+    String nullnessEncode() {
         return nullness.map(Enum::name).orElse(UNKNOWN);
     }
 

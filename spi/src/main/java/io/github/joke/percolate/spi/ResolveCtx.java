@@ -218,7 +218,7 @@ public interface ResolveCtx {
         return named != null && isSameType(erasure(type), erasure(named.asType()));
     }
 
-    private boolean isAssignableToNamed(final TypeMirror type, final String fqn) {
+    default boolean isAssignableToNamed(final TypeMirror type, final String fqn) {
         if (!isDeclared(type)) {
             return false;
         }

@@ -14,6 +14,7 @@ import java.util.stream.Stream;
 import javax.lang.model.type.TypeKind;
 import javax.lang.model.type.TypeMirror;
 import lombok.NoArgsConstructor;
+import org.jetbrains.annotations.VisibleForTesting;
 import org.jspecify.annotations.Nullable;
 
 /**
@@ -47,6 +48,7 @@ public final class PrimitiveWrapperConversion extends Conversion {
             TypeKind.DOUBLE, "doubleValue");
 
     @Override
+    @VisibleForTesting
     protected Stream<Step> conversions(final TypeMirror target, final ResolveCtx ctx) {
         if (ctx.isPrimitive(target)) {
             return Stream.of(unbox(target, ctx));

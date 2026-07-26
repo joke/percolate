@@ -13,6 +13,7 @@ import javax.lang.model.element.ExecutableElement;
 import javax.lang.model.element.TypeElement;
 import javax.lang.model.type.TypeKind;
 import lombok.NoArgsConstructor;
+import org.jetbrains.annotations.VisibleForTesting;
 
 /**
  * Resolves one source-path segment to a JavaBeans getter ({@code getX()} / boolean {@code isX()}) on the parent type,
@@ -26,6 +27,7 @@ import lombok.NoArgsConstructor;
 public final class GetterPathResolver extends Accessor {
 
     @Override
+    @VisibleForTesting
     protected Optional<Step> accessor(final TypeElement parent, final String segment, final ResolveCtx ctx) {
         final var getterName = "get" + capitalize(segment);
         final var isName = "is" + capitalize(segment);

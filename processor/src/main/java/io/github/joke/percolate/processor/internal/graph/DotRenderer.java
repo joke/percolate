@@ -55,7 +55,8 @@ public final class DotRenderer {
         return dot.toString();
     }
 
-    private static void appendStatement(final StringBuilder dot, final String head, final Map<String, String> attrs) {
+    @VisibleForTesting
+    static void appendStatement(final StringBuilder dot, final String head, final Map<String, String> attrs) {
         final var bracket = attrs.isEmpty()
                 ? ""
                 : " ["
@@ -90,7 +91,8 @@ public final class DotRenderer {
         return attrs;
     }
 
-    private static Map<String, String> edgeAttributes(final Dep dep) {
+    @VisibleForTesting
+    static Map<String, String> edgeAttributes(final Dep dep) {
         final var attrs = new LinkedHashMap<String, String>();
         dep.getPortId().ifPresent(portId -> attrs.put(LABEL, portId));
         return attrs;
@@ -133,7 +135,8 @@ public final class DotRenderer {
         return name + '<' + inner + '>';
     }
 
-    private static String nested(final TypeMirror type) {
+    @VisibleForTesting
+    static String nested(final TypeMirror type) {
         return body(type) + (nullnessOf(type) == Nullability.NULLABLE ? "?" : "");
     }
 
@@ -145,7 +148,8 @@ public final class DotRenderer {
         return nullness == Nullability.NON_NULL ? "!" : "";
     }
 
-    private static Nullability nullnessOf(final TypeMirror type) {
+    @VisibleForTesting
+    static Nullability nullnessOf(final TypeMirror type) {
         final var nullable = type.getAnnotationMirrors().stream().anyMatch(annotation -> annotation
                 .getAnnotationType()
                 .asElement()

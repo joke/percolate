@@ -57,6 +57,13 @@ class GoalSpecSpec extends Specification {
         spec.bindingFor('address.street').present
     }
 
+    def 'splitPath returns no segments for a null or empty path, else splits on dots'() {
+        expect:
+        GoalSpec.splitPath(null) == []
+        GoalSpec.splitPath('') == []
+        GoalSpec.splitPath('address.street') == ['address', 'street']
+    }
+
     private static MappingDirective directive(final String target, final String source) {
         new MappingDirective(target, source, null, null, null, null, null, null, null, null, null, null, null)
     }

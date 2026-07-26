@@ -55,12 +55,12 @@ public final class ValidateConstantDefaultLegalityStage implements Stage {
         mappings.getMethods().forEach(method -> checkMethod(method, graph));
     }
 
-    private void checkMethod(final MethodMappings method, final MapperGraph graph) {
+    void checkMethod(final MethodMappings method, final MapperGraph graph) {
         final var scope = new MethodScope(method.getMethod());
         method.getDirectives().forEach(directive -> checkDirective(directive, method.getMethod(), scope, graph));
     }
 
-    private void checkDirective(
+    void checkDirective(
             final MappingDirective directive,
             final ExecutableElement method,
             final MethodScope scope,
@@ -72,7 +72,7 @@ public final class ValidateConstantDefaultLegalityStage implements Stage {
         }
     }
 
-    private void checkConstant(
+    void checkConstant(
             final MappingDirective directive,
             final ExecutableElement method,
             final MethodScope scope,
@@ -91,7 +91,7 @@ public final class ValidateConstantDefaultLegalityStage implements Stage {
         }
     }
 
-    private void checkDefault(
+    void checkDefault(
             final MappingDirective directive,
             final ExecutableElement method,
             final MethodScope scope,
@@ -105,7 +105,7 @@ public final class ValidateConstantDefaultLegalityStage implements Stage {
     }
 
     /** Diagnoses (and reports {@code true}) when {@code defaultValue} cannot coerce to a resolved {@code target}. */
-    private boolean checkDefaultCoercion(
+    boolean checkDefaultCoercion(
             final MappingDirective directive,
             final ExecutableElement method,
             final String defaultValue,
@@ -121,7 +121,7 @@ public final class ValidateConstantDefaultLegalityStage implements Stage {
         return true;
     }
 
-    private void checkDeadDefault(
+    void checkDeadDefault(
             final MappingDirective directive,
             final ExecutableElement method,
             final MethodScope scope,
@@ -137,18 +137,18 @@ public final class ValidateConstantDefaultLegalityStage implements Stage {
     }
 
     /** A default is dead when its source can never be absent: a primitive, or a {@code NON_NULL} non-{@code Optional}. */
-    private static boolean isDeadDefault(final Value source) {
+    static boolean isDeadDefault(final Value source) {
         return source.getType()
                 .map(type -> type.getKind().isPrimitive() || neverAbsentReference(type, source))
                 .orElse(false);
     }
 
-    private static boolean neverAbsentReference(final TypeMirror type, final Value source) {
+    static boolean neverAbsentReference(final TypeMirror type, final Value source) {
         return !isOptional(type) && source.getNullness().orElse(Nullability.UNKNOWN) == Nullability.NON_NULL;
     }
 
     @Nullable
-    private static TypeMirror targetType(final MapperGraph graph, final MethodScope scope, final String target) {
+    static TypeMirror targetType(final MapperGraph graph, final MethodScope scope, final String target) {
         // Walk assembly ports from the return root so the declared field type is read, not a conversion intermediate
         // minted at the same target location (the engine over-emits convertible intermediates there).
         var current = findTypedValue(graph, scope, new TargetLocation(new TargetPath(List.of())));
@@ -172,7 +172,7 @@ public final class ValidateConstantDefaultLegalityStage implements Stage {
     }
 
     @Nullable
-    private static Value sourceNode(final MapperGraph graph, final MethodScope scope, final @Nullable String source) {
+    static Value sourceNode(final MapperGraph graph, final MethodScope scope, final @Nullable String source) {
         if (source == null) {
             return null;
         }
@@ -180,7 +180,7 @@ public final class ValidateConstantDefaultLegalityStage implements Stage {
     }
 
     @Nullable
-    private static Value findTypedValue(final MapperGraph graph, final MethodScope scope, final Location loc) {
+    static Value findTypedValue(final MapperGraph graph, final MethodScope scope, final Location loc) {
         return graph.valuesIn(scope)
                 .filter(value -> value.getLoc().equals(loc))
                 .filter(value -> value.getType().isPresent())
@@ -188,7 +188,7 @@ public final class ValidateConstantDefaultLegalityStage implements Stage {
                 .orElse(null);
     }
 
-    private static boolean isOptional(final TypeMirror type) {
+    static boolean isOptional(final TypeMirror type) {
         if (!(type instanceof DeclaredType)) {
             return false;
         }
@@ -197,7 +197,7 @@ public final class ValidateConstantDefaultLegalityStage implements Stage {
                 && ((TypeElement) element).getQualifiedName().contentEquals("java.util.Optional");
     }
 
-    private static String typeName(final TypeMirror type) {
+    static String typeName(final TypeMirror type) {
         if (!(type instanceof DeclaredType)) {
             return type.toString();
         }
@@ -207,7 +207,7 @@ public final class ValidateConstantDefaultLegalityStage implements Stage {
                 : type.toString();
     }
 
-    private static List<String> splitPath(final String path) {
+    static List<String> splitPath(final String path) {
         if (path.isEmpty()) {
             return List.of();
         }

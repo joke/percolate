@@ -10,6 +10,7 @@ import java.util.Optional;
 import javax.lang.model.element.TypeElement;
 import javax.lang.model.type.TypeMirror;
 import lombok.NoArgsConstructor;
+import org.jetbrains.annotations.VisibleForTesting;
 
 /**
  * The array sequence container. Opens via {@code Arrays.stream}; closes via {@code toArray()}. Arrays have no
@@ -22,21 +23,25 @@ import lombok.NoArgsConstructor;
 public final class ArrayContainer extends StreamContainer {
 
     @Override
+    @VisibleForTesting
     protected boolean matches(final TypeMirror type, final ResolveCtx ctx) {
         return ctx.isArray(type);
     }
 
     @Override
+    @VisibleForTesting
     protected TypeMirror element(final TypeMirror type, final ResolveCtx ctx) {
         return ctx.arrayComponent(type);
     }
 
     @Override
+    @VisibleForTesting
     protected Optional<TypeElement> kindErasure(final ResolveCtx ctx) {
         return Optional.empty();
     }
 
     @Override
+    @VisibleForTesting
     protected Optional<TypeMirror> containerOf(final TypeMirror element, final ResolveCtx ctx) {
         return Optional.of(ctx.arrayType(element));
     }

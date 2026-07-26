@@ -13,6 +13,7 @@ import java.util.Optional;
 import java.util.stream.Stream;
 import javax.lang.model.type.TypeMirror;
 import lombok.NoArgsConstructor;
+import org.jetbrains.annotations.VisibleForTesting;
 
 /**
  * The absolute (instant-based) temporal family's single-hop spoke conversions to and from the {@code Instant} hub
@@ -40,6 +41,7 @@ public final class AbsoluteTemporalConversion extends Conversion {
     private static final List<String> FIXED_OFFSET_SPOKES = List.of(OFFSET_DATE_TIME, ZONED_DATE_TIME);
 
     @Override
+    @VisibleForTesting
     protected Stream<Step> conversions(final TypeMirror target, final ResolveCtx ctx) {
         if (ctx.isType(target, INSTANT)) {
             return toInstantSteps(ctx);

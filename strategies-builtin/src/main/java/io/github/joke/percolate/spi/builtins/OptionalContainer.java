@@ -11,6 +11,7 @@ import java.util.Optional;
 import javax.lang.model.element.TypeElement;
 import javax.lang.model.type.TypeMirror;
 import lombok.NoArgsConstructor;
+import org.jetbrains.annotations.VisibleForTesting;
 
 /**
  * The {@code java.util.Optional} presence container. It supplies no {@code collect} — that absence is what makes its
@@ -23,16 +24,19 @@ import lombok.NoArgsConstructor;
 public final class OptionalContainer extends StreamContainer {
 
     @Override
+    @VisibleForTesting
     protected boolean matches(final TypeMirror type, final ResolveCtx ctx) {
         return ctx.isOptional(type);
     }
 
     @Override
+    @VisibleForTesting
     protected TypeMirror element(final TypeMirror type, final ResolveCtx ctx) {
         return ctx.typeArgument(type, 0);
     }
 
     @Override
+    @VisibleForTesting
     protected Optional<TypeElement> kindErasure(final ResolveCtx ctx) {
         return Optional.ofNullable(ctx.typeElementNamed("java.util.Optional"));
     }
@@ -48,6 +52,7 @@ public final class OptionalContainer extends StreamContainer {
     }
 
     @Override
+    @VisibleForTesting
     protected Nullability wrapNullness() {
         return Nullability.NULLABLE;
     }

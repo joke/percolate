@@ -48,7 +48,7 @@ public class MethodScope implements Scope {
         return method.getParameters().stream().flatMap(param -> ambientDecl(param, nullness).stream());
     }
 
-    private Optional<AmbientDecl> ambientDecl(
+    Optional<AmbientDecl> ambientDecl(
             final VariableElement param, final BiFunction<TypeMirror, Element, Nullability> nullness) {
         final var key = AmbientKeys.keyOf(param);
         if (key == null) {

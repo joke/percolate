@@ -156,6 +156,41 @@ class GraphDumpWriterSpec extends Specification {
         !dimmedRoot
     }
 
+    def 'slice: keeps only vertices in-scope and passing the include predicate, with edges between kept vertices'() {
+        MapperGraph g = new MapperGraph()
+        Scope inScope = new HarnessScope('a()')
+        Scope otherScope = new HarnessScope('b()')
+        def kept = g.valueFor(inScope, new SourceLocation(AccessPath.of('kept')), STRING, Nullability.NON_NULL)
+        def excluded = g.valueFor(inScope, new SourceLocation(AccessPath.of('excluded')), STRING, Nullability.NON_NULL)
+        def elsewhere = g.valueFor(otherScope, new SourceLocation(AccessPath.of('elsewhere')), STRING, Nullability.NON_NULL)
+        def op = g.apply(new AddOperation('build', Stub(Codegen), 1, false,
+                [new PortBinding(new Port('p', STRING, Nullability.NON_NULL),
+                        new AddValue(inScope, new SourceLocation(AccessPath.of('kept')), STRING, Nullability.NON_NULL))],
+                new AddValue(inScope, new TargetLocation(TargetPath.of('')), STRING, Nullability.NON_NULL),
+                Optional.empty(), [] as Set, []))
+        def output = g.outputOf(op).get()
+        def sliced = GraphDumpWriter.slice(g, inScope) { it != excluded }
+
+        expect:
+        sliced.vertexSet() == [kept, op, output] as Set
+        sliced.edgeSet().size() == 2
+        !sliced.vertexSet().contains(excluded)
+        !sliced.vertexSet().contains(elsewhere)
+    }
+
+    def 'orderedScopes: distinct scopes passing the include predicate, sorted by encode()'() {
+        MapperGraph g = new MapperGraph()
+        Scope b = new HarnessScope('b()')
+        Scope a = new HarnessScope('a()')
+        g.valueFor(a, new SourceLocation(AccessPath.of('x')), STRING, Nullability.NON_NULL)
+        g.valueFor(a, new SourceLocation(AccessPath.of('y')), STRING, Nullability.NON_NULL)
+        g.valueFor(b, new SourceLocation(AccessPath.of('z')), STRING, Nullability.NON_NULL)
+        def excluded = g.valueFor(a, new SourceLocation(AccessPath.of('excl')), STRING, Nullability.NON_NULL)
+
+        expect:
+        GraphDumpWriter.orderedScopes(g) { it != excluded } == [a, b]
+    }
+
     def 'infixes: a lone method scope keeps its plain method name'() {
         MethodScope m = new MethodScope(method('foo'))
 

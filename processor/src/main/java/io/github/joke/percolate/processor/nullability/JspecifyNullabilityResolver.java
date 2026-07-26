@@ -32,7 +32,8 @@ public final class JspecifyNullabilityResolver implements NullabilityResolver {
         return fromPackage != null ? fromPackage : Nullability.UNKNOWN;
     }
 
-    private @Nullable Nullability markedNullabilityOfEnclosing(final Element scope) {
+    @Nullable
+    Nullability markedNullabilityOfEnclosing(final Element scope) {
         for (Element current = scope; current != null; current = current.getEnclosingElement()) {
             final var marked = markedNullability(current);
             if (marked != null) {
@@ -42,19 +43,21 @@ public final class JspecifyNullabilityResolver implements NullabilityResolver {
         return null;
     }
 
-    private @Nullable Nullability markedNullabilityOfPackage(final Element scope) {
+    @Nullable
+    Nullability markedNullabilityOfPackage(final Element scope) {
         final var pkg = elements.getPackageOf(scope);
         return pkg == null ? null : markedNullability(pkg);
     }
 
-    private @Nullable Nullability markedNullability(final AnnotatedConstruct construct) {
+    @Nullable
+    Nullability markedNullability(final AnnotatedConstruct construct) {
         if (hasAny(construct, annotations.getUnmarkedFqns())) {
             return Nullability.UNKNOWN;
         }
         return hasAny(construct, annotations.getMarkedFqns()) ? Nullability.NON_NULL : null;
     }
 
-    private static boolean hasAny(final AnnotatedConstruct construct, final Set<String> fqns) {
+    static boolean hasAny(final AnnotatedConstruct construct, final Set<String> fqns) {
         for (final AnnotationMirror mirror : construct.getAnnotationMirrors()) {
             final String fqn = annotationFqn(mirror);
             if (fqn != null && fqns.contains(fqn)) {
@@ -64,7 +67,7 @@ public final class JspecifyNullabilityResolver implements NullabilityResolver {
         return false;
     }
 
-    private static @Nullable String annotationFqn(final AnnotationMirror mirror) {
+    static @Nullable String annotationFqn(final AnnotationMirror mirror) {
         final DeclaredType annotationType = mirror.getAnnotationType();
         final Element annotationElement = annotationType.asElement();
         if (annotationElement instanceof TypeElement) {

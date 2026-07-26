@@ -13,6 +13,7 @@ import java.util.stream.Stream;
 import javax.lang.model.type.TypeKind;
 import javax.lang.model.type.TypeMirror;
 import lombok.NoArgsConstructor;
+import org.jetbrains.annotations.VisibleForTesting;
 import org.jspecify.annotations.Nullable;
 
 /**
@@ -36,6 +37,7 @@ public final class WidenPrimitive extends Conversion {
                     Set.of(TypeKind.BYTE, TypeKind.SHORT, TypeKind.CHAR, TypeKind.INT, TypeKind.LONG, TypeKind.FLOAT));
 
     @Override
+    @VisibleForTesting
     protected Stream<Step> conversions(final TypeMirror target, final ResolveCtx ctx) {
         final @Nullable Set<TypeKind> narrower = WIDENS_FROM.get(ctx.kind(target));
         if (narrower == null) {

@@ -15,7 +15,7 @@ public enum Nullability {
         return NON_NULL;
     }
 
-    private static boolean either(final Nullability a, final Nullability b, final Nullability value) {
+    static boolean either(final Nullability a, final Nullability b, final Nullability value) {
         return a == value || b == value;
     }
 }

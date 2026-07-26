@@ -66,7 +66,7 @@ public final class ValidateAmbientBindingsStage implements Stage {
         checkAll(graph, shape, callableMethods, resolveCtx, ctx);
     }
 
-    private void checkAll(
+    void checkAll(
             final MapperGraph graph,
             final MapperShape shape,
             final CallableMethods callableMethods,
@@ -81,7 +81,7 @@ public final class ValidateAmbientBindingsStage implements Stage {
                         checkCandidates(value, callableMethods, resolveCtx, ctx, duplicateChecked, bindingChecked));
     }
 
-    private void checkCandidates(
+    void checkCandidates(
             final Value value,
             final CallableMethods callableMethods,
             final ResolveCtx resolveCtx,
@@ -96,7 +96,7 @@ public final class ValidateAmbientBindingsStage implements Stage {
         });
     }
 
-    private void checkDuplicateKeys(
+    void checkDuplicateKeys(
             final ExecutableElement method, final MapperContext ctx, final Set<ExecutableElement> checked) {
         if (!checked.add(method)) {
             return;
@@ -109,14 +109,14 @@ public final class ValidateAmbientBindingsStage implements Stage {
                 .forEach(key -> reportDuplicateKey(key, method, ctx));
     }
 
-    private void reportDuplicateKey(final String key, final ExecutableElement method, final MapperContext ctx) {
+    void reportDuplicateKey(final String key, final ExecutableElement method, final MapperContext ctx) {
         diagnostics.error(
                 ctx.getMapperType(),
                 "duplicate @Ambient key '" + key + "' on " + method.getSimpleName()
                         + ": another @Ambient parameter of this method already publishes this key");
     }
 
-    private void checkBinding(
+    void checkBinding(
             final VariableElement param,
             final ExecutableElement method,
             final Scope scope,
@@ -133,7 +133,7 @@ public final class ValidateAmbientBindingsStage implements Stage {
         reportIfUnresolved(key, param, method, scope, resolveCtx, ctx);
     }
 
-    private void reportIfUnresolved(
+    void reportIfUnresolved(
             final String key,
             final VariableElement param,
             final ExecutableElement method,
@@ -151,14 +151,14 @@ public final class ValidateAmbientBindingsStage implements Stage {
     }
 
     @Nullable
-    private AmbientDecl findBinding(final Scope scope, final String key) {
+    AmbientDecl findBinding(final Scope scope, final String key) {
         return scope.ambientDecls(resolver::resolve)
                 .filter(decl -> decl.getKey().equals(key))
                 .findFirst()
                 .orElse(null);
     }
 
-    private void reportUnboundKey(
+    void reportUnboundKey(
             final String key, final VariableElement param, final ExecutableElement method, final MapperContext ctx) {
         diagnostics.error(
                 ctx.getMapperType(),
@@ -166,7 +166,7 @@ public final class ValidateAmbientBindingsStage implements Stage {
                         + param.getSimpleName() + "': no enclosing mapper method publishes this key");
     }
 
-    private void reportTypeMismatch(
+    void reportTypeMismatch(
             final String key,
             final AmbientDecl binding,
             final VariableElement param,

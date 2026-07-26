@@ -34,7 +34,7 @@ public final class MapEnumProbe extends AbstractProcessor {
         return false;
     }
 
-    private void emit(final Element element) {
+    void emit(final Element element) {
         Arrays.stream(element.getAnnotationsByType(MapEnum.class)).forEach(override -> processingEnv
                 .getMessager()
                 .printMessage(

@@ -45,12 +45,12 @@ class ModuleBoundariesSpec extends Specification {
     static final String ENGINE_GRAPH = ROOT + '.processor.internal.graph..'
     static final String[] STRATEGY_MODULES = [BUILTINS, REACTOR, REACTOR_BLOCKING]
     // The packages decomposed by change decompose-engine-stages (design D6): every class in them is individually
-    // testable, so both structural guards apply here first. The remaining stages (ValidateConstantDefaultLegalityStage,
-    // RealisationDiagnosticsStage, ValidateSourceParametersStage, ValidateMappingShapeStage, GraphDumpWriter, and the
-    // discover/graph packages) are an explicit audit backlog (openspec/notes.md) — the scope widens as each is
-    // decomposed in turn, per the guard's own package-scope-widening plan. Change cutover-strategies-to-mock-seam
-    // widened the scope to BUILTINS once the strategies-builtin decomposition (SubtypeDistance extraction, the
-    // widen-and-inline passes) landed clean of private methods.
+    // testable, so the size-ceiling guard (Rule B below) applies here. The no-private guard (Rule A) itself widened
+    // to every percolate package repo-wide in change enforce-testable-method-visibility, once the remaining stages
+    // (validate/*, graph, dump) and the other flagged classes (spi.LiteralCoercion, MapperStep, ProcessorOptions,
+    // GoalSpec, JspecifyNullabilityResolver, spi.Nullability/ResolveCtx, reactorblocking.Blockings) were decomposed
+    // clean of private methods too — Rule B stays scoped here, not widened with it (see that change's design.md for
+    // why the size ceiling is a deliberate non-goal rather than an oversight).
     static final String DECOMPOSED_EXPAND = ROOT + '.processor.internal.stages.expand..'
     static final String DECOMPOSED_GENERATE = ROOT + '.processor.internal.stages.generate..'
     static final String[] DECOMPOSED_ENGINE_PACKAGES = [DECOMPOSED_EXPAND, DECOMPOSED_GENERATE, BUILTINS]
@@ -59,6 +59,13 @@ class ModuleBoundariesSpec extends Specification {
     // exception) — so the ceiling clears it with headroom while still catching a regression back toward the
     // pre-decomposition sizes this change eliminated (ExpandStage.Driver was 21 private methods, BuildMethodBodies 17).
     static final int MAX_METHODS_PER_CLASS = 15
+
+    // Shared by Rule A and Rule C: lambda$.../access$... bridges and Groovy's synthetic accessors
+    // (e.g. $getStaticMetaClass) are compiler artifacts, not authored methods.
+    static final DescribedPredicate<JavaMethod> NOT_SYNTHETIC_OR_BRIDGE = DescribedPredicate.describe(
+            'not a synthetic or bridge method') { JavaMethod method ->
+        !method.modifiers.contains(JavaModifier.SYNTHETIC) && !method.modifiers.contains(JavaModifier.BRIDGE)
+    }
 
     @Shared
     JavaClasses imported
@@ -139,22 +146,78 @@ class ModuleBoundariesSpec extends Specification {
         notThrown(AssertionError)
     }
 
-    // Rule A (decompose-engine-stages design D6): a private method is statically dispatched (invokespecial) and
-    // cannot be intercepted by any test double, so it is not individually testable — the whole reason the engine
-    // stages needed decomposing in the first place. Synthetic/bridge members (lambda$.../access$... bridges) are
-    // compiler artifacts, not authored methods, so they are exempt; private constructors are automatically exempt
-    // (methods() never matches a constructor).
-    def 'no method in the decomposed engine packages is private'() {
+    // Rule A (decompose-engine-stages design D6, widened repo-wide by enforce-testable-method-visibility): a private
+    // method is statically dispatched (invokespecial) and cannot be intercepted by any test double, so it is not
+    // individually testable. Synthetic/bridge members (lambda$.../access$... bridges) are compiler artifacts, not
+    // authored methods, so they are exempt; private constructors are automatically exempt (methods() never matches
+    // a constructor). Classes carrying @Generated (Dagger's DaggerProcessorComponent et al.) are compiler output too
+    // — repo-wide scope newly reaches the bare `processor` package where Dagger generates its component, which the
+    // narrower engine-package scope never did. No package filter is needed otherwise: `imported` already excludes
+    // `io.github.joke.percolate.lib..` (shaded third-party sources, see setupSpec) and test sources, so every
+    // remaining authored method is percolate's own.
+    def 'no method anywhere in percolate is private'() {
         given:
-        DescribedPredicate<JavaMethod> notSyntheticOrBridge = DescribedPredicate.describe(
-                'not a synthetic or bridge method') { JavaMethod method ->
-            !method.modifiers.contains(JavaModifier.SYNTHETIC) && !method.modifiers.contains(JavaModifier.BRIDGE)
+        DescribedPredicate<JavaMethod> notGenerated = DescribedPredicate.describe(
+                'not declared in a @Generated class') { JavaMethod method ->
+            !isGeneratedOrNestedInGenerated(method.owner)
         }
 
         when:
-        (methods().that().areDeclaredInClassesThat().resideInAnyPackage(DECOMPOSED_ENGINE_PACKAGES)
-                & notSyntheticOrBridge)
+        (methods() & NOT_SYNTHETIC_OR_BRIDGE & notGenerated)
                 .should().notBePrivate()
+                .check(imported)
+
+        then:
+        notThrown(AssertionError)
+    }
+
+    // Rule C (enforce-testable-method-visibility design D3/D4): protected is sometimes used purely to dodge Rule A's
+    // private ban, without being a real inheritance extension point. A concrete protected method is a genuine
+    // extension point when a production-code subclass (DO_NOT_INCLUDE_TESTS already excludes test-only subclassing,
+    // same as Rule A) either overrides it — a method of the same name/raw-parameter-types declared directly on the
+    // subclass, per JavaClass.getMethods() returning only directly-declared members, not inherited ones — or calls
+    // it via an inherited (non-overriding) invocation. Anything else must carry @VisibleForTesting to document
+    // "test-only widening, not a real extension point" as a build-checked fact instead of tribal knowledge. Abstract
+    // protected methods are exempt outright (D4): they have no body to test, and every concrete subclass overrides
+    // them by construction. Lombok-generated protected methods (e.g. @EqualsAndHashCode's canEqual on a final
+    // @Value leaf, which is never subclassed) are exempt too: lombok.config sets addLombokGeneratedAnnotation, so
+    // they carry lombok.Generated in bytecode, and there is no source declaration to hang @VisibleForTesting on —
+    // the same "generated code isn't an authored method" principle Rule A already applies to Dagger's output.
+    def 'unused protected methods are marked with VisibleForTesting'() {
+        given:
+        DescribedPredicate<JavaMethod> concreteProtected = DescribedPredicate.describe(
+                'a concrete protected method') { JavaMethod method ->
+            method.modifiers.contains(JavaModifier.PROTECTED) && !method.modifiers.contains(JavaModifier.ABSTRACT)
+        }
+        DescribedPredicate<JavaMethod> notLombokGenerated = DescribedPredicate.describe(
+                'not a Lombok-generated method') { JavaMethod method ->
+            !method.isAnnotatedWith('lombok.Generated')
+        }
+        ArchCondition<JavaMethod> usedBySubclassOrAnnotated = new ArchCondition<JavaMethod>(
+                'be overridden or called by a subclass, or carry @VisibleForTesting') {
+            @Override
+            void check(final JavaMethod method, final ConditionEvents events) {
+                final Set<JavaClass> subclasses = method.owner.allSubclasses
+                final boolean overridden = subclasses.any { subclass ->
+                    subclass.methods.any {
+                        it.name == method.name && it.rawParameterTypes == method.rawParameterTypes
+                    }
+                }
+                final boolean calledBySubclass = method.callsOfSelf.any { it.originOwner in subclasses }
+                final boolean annotated = method.isAnnotatedWith('org.jetbrains.annotations.VisibleForTesting')
+                final boolean satisfied = overridden || calledBySubclass || annotated
+                final String message = satisfied
+                        ? "${method.fullName} is a genuine extension point or annotated @VisibleForTesting"
+                        : "${method.fullName} has no subclass usage and no @VisibleForTesting annotation"
+                events.add(satisfied
+                        ? SimpleConditionEvent.satisfied(method, message)
+                        : SimpleConditionEvent.violated(method, message))
+            }
+        }
+
+        when:
+        (methods() & NOT_SYNTHETIC_OR_BRIDGE & notLombokGenerated & concreteProtected)
+                .should(usedBySubclassOrAnnotated)
                 .check(imported)
 
         then:
@@ -228,5 +291,18 @@ class ModuleBoundariesSpec extends Specification {
 
         then:
         notThrown(AssertionError)
+    }
+
+    // javax.annotation.processing.Generated is SOURCE-retention (stripped before bytecode), so ArchUnit's
+    // bytecode-based import never sees it on Dagger's DaggerXxxComponent classes despite it being in the generated
+    // source — dagger.internal.DaggerGenerated (CLASS-retention) is what actually survives to the .class file and
+    // is checked here instead. relocate-javapoet-as-spi-api's shading relocates dagger under
+    // io.github.joke.percolate.lib.dagger, so the annotation's runtime name is ROOT + '.lib.dagger...', not the
+    // upstream 'dagger.internal.DaggerGenerated'. It lands on the top-level DaggerXxxComponent class, not on the
+    // nested *Impl class whose methods actually trip Rule A (e.g. DaggerProcessorComponent$ProcessorComponentImpl),
+    // so the check walks up the enclosing-class chain rather than checking the method's immediate owner only.
+    private static boolean isGeneratedOrNestedInGenerated(final JavaClass clazz) {
+        clazz.isAnnotatedWith(ROOT + '.lib.dagger.internal.DaggerGenerated')
+                || clazz.enclosingClass.map { isGeneratedOrNestedInGenerated(it) }.orElse(false)
     }
 }

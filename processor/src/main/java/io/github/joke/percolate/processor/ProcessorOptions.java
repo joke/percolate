@@ -84,11 +84,11 @@ public class ProcessorOptions {
                 .build();
     }
 
-    private static boolean flag(final Map<String, String> options, final String key) {
+    static boolean flag(final Map<String, String> options, final String key) {
         return "true".equalsIgnoreCase(options.getOrDefault(key, "false"));
     }
 
-    private static SwitchStyle parseSwitchStyle(final Map<String, String> options) {
+    static SwitchStyle parseSwitchStyle(final Map<String, String> options) {
         final var raw = options.get(SWITCH_STYLE);
         if (raw == null) {
             return SwitchStyle.AUTO;

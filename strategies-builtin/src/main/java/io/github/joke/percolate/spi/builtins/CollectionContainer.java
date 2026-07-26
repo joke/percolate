@@ -5,6 +5,7 @@ import io.github.joke.percolate.spi.ResolveCtx;
 import java.util.Optional;
 import java.util.stream.Collectors;
 import javax.lang.model.element.TypeElement;
+import org.jetbrains.annotations.VisibleForTesting;
 
 /**
  * Shared stream snippets for the JDK collection sequence containers. List and Set differ only by their
@@ -21,6 +22,7 @@ abstract class CollectionContainer extends StreamContainer {
     protected abstract Class<?> factoryType();
 
     @Override
+    @VisibleForTesting
     protected Optional<TypeElement> kindErasure(final ResolveCtx ctx) {
         return Optional.ofNullable(ctx.typeElementNamed(factoryType().getCanonicalName()));
     }

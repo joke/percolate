@@ -72,18 +72,18 @@ public final class GraphDumpWriter {
     // Like GenerateStage, this stage writes through the Filer, which forbids reopening a path. The pipeline
     // re-runs every deferral round, so dump only on the round the mapper realises (empty outcome) — otherwise
     // a deferred-then-realised mapper would write each .dot twice.
-    private boolean skipDump(final MapperGraph graph, final MapperContext ctx) {
+    boolean skipDump(final MapperGraph graph, final MapperContext ctx) {
         return !processorOptions.isDebugGraphs()
                 || graph.vertexCount() == 0
                 || !ctx.getUnsatisfiedRealisation().isEmpty();
     }
 
-    private static Predicate<GraphVertex> dimmedByCost(final MapperGraph graph) {
+    static Predicate<GraphVertex> dimmedByCost(final MapperGraph graph) {
         final var plan = ExtractedPlan.extract(graph);
         return vertex -> !plan.reachable(vertex);
     }
 
-    private void writeScope(
+    void writeScope(
             final MapperGraph graph,
             final Predicate<GraphVertex> include,
             final Predicate<GraphVertex> dimmed,
@@ -106,7 +106,7 @@ public final class GraphDumpWriter {
         }
     }
 
-    private static Graph<GraphVertex, Dep> slice(
+    static Graph<GraphVertex, Dep> slice(
             final MapperGraph graph, final Scope scope, final Predicate<GraphVertex> include) {
         final var slice = new DirectedMultigraph<GraphVertex, Dep>(Dep.class);
         graph.vertices()
@@ -122,7 +122,7 @@ public final class GraphDumpWriter {
         return slice;
     }
 
-    private static List<Scope> orderedScopes(final MapperGraph graph, final Predicate<GraphVertex> include) {
+    static List<Scope> orderedScopes(final MapperGraph graph, final Predicate<GraphVertex> include) {
         return graph.vertices()
                 .filter(include)
                 .map(GraphVertex::getScope)
@@ -131,7 +131,7 @@ public final class GraphDumpWriter {
                 .collect(toUnmodifiableList());
     }
 
-    private static Map<Scope, String> infixes(final List<Scope> scopes) {
+    static Map<Scope, String> infixes(final List<Scope> scopes) {
         final var byBase =
                 scopes.stream().collect(groupingBy(GraphDumpWriter::baseInfix, LinkedHashMap::new, toList()));
         final var result = new LinkedHashMap<Scope, String>();
@@ -139,7 +139,7 @@ public final class GraphDumpWriter {
         return result;
     }
 
-    private static Map<Scope, String> infixesWithinGroup(final String base, final List<Scope> group) {
+    static Map<Scope, String> infixesWithinGroup(final String base, final List<Scope> group) {
         final var disambiguate = group.size() > 1;
         final var result = new LinkedHashMap<Scope, String>();
         for (var index = 0; index < group.size(); index++) {
@@ -148,7 +148,7 @@ public final class GraphDumpWriter {
         return result;
     }
 
-    private static String baseInfix(final Scope scope) {
+    static String baseInfix(final Scope scope) {
         if (scope instanceof MethodScope) {
             return ((MethodScope) scope).getMethod().getSimpleName().toString();
         }
@@ -158,7 +158,7 @@ public final class GraphDumpWriter {
         return enclosingMethodInfix(scope) + "-elem";
     }
 
-    private static String enclosingMethodInfix(final Scope scope) {
+    static String enclosingMethodInfix(final Scope scope) {
         var current = scope;
         while (!(current instanceof MethodScope)) {
             final var parent = current.parent();

@@ -69,7 +69,7 @@ public class GoalSpec {
         return new GoalSpec(levels, bindings, List.copyOf(enumOverrides));
     }
 
-    private static List<String> splitPath(final String path) {
+    static List<String> splitPath(final String path) {
         if (path == null || path.isEmpty()) {
             return List.of();
         }

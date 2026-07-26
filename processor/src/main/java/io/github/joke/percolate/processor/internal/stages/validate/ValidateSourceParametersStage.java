@@ -43,7 +43,7 @@ public final class ValidateSourceParametersStage implements Stage {
         return new MapperMappings(mappings.getType(), validated);
     }
 
-    private MethodMappings validateMethod(final MethodMappings methodMappings) {
+    MethodMappings validateMethod(final MethodMappings methodMappings) {
         final var method = methodMappings.getMethod();
         final var paramNames = method.getParameters().stream()
                 .map(p -> p.getSimpleName().toString())
@@ -56,7 +56,7 @@ public final class ValidateSourceParametersStage implements Stage {
         return new MethodMappings(method, valid);
     }
 
-    private boolean isValidOrDiagnose(
+    boolean isValidOrDiagnose(
             final MappingDirective directive,
             final Set<String> paramNames,
             final ExecutableElement method,
@@ -78,7 +78,7 @@ public final class ValidateSourceParametersStage implements Stage {
         return false;
     }
 
-    private static String firstSegment(final String source) {
+    static String firstSegment(final String source) {
         final var dot = source.indexOf('.');
         if (dot < 0) {
             return source;
@@ -86,7 +86,7 @@ public final class ValidateSourceParametersStage implements Stage {
         return source.substring(0, dot);
     }
 
-    private static String formatMethodSig(final ExecutableElement method) {
+    static String formatMethodSig(final ExecutableElement method) {
         final var name = method.getSimpleName().toString();
         final var paramTypes = method.getParameters().stream()
                 .map(p -> simpleTypeName(p.asType()))
@@ -94,7 +94,7 @@ public final class ValidateSourceParametersStage implements Stage {
         return name + "(" + paramTypes + ")";
     }
 
-    private static String simpleTypeName(final javax.lang.model.type.TypeMirror mirror) {
+    static String simpleTypeName(final javax.lang.model.type.TypeMirror mirror) {
         if (mirror == null) {
             return "?";
         }
@@ -104,7 +104,7 @@ public final class ValidateSourceParametersStage implements Stage {
         return declaredSimpleName(mirror).orElseGet(mirror::toString);
     }
 
-    private static Optional<String> declaredSimpleName(final javax.lang.model.type.TypeMirror mirror) {
+    static Optional<String> declaredSimpleName(final javax.lang.model.type.TypeMirror mirror) {
         if (!(mirror instanceof javax.lang.model.type.DeclaredType)) {
             return Optional.empty();
         }

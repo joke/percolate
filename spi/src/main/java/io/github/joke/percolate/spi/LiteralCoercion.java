@@ -81,7 +81,7 @@ public final class LiteralCoercion {
         return Optional.empty();
     }
 
-    private static Optional<CodeBlock> declared(final String raw, final DeclaredType type) {
+    static Optional<CodeBlock> declared(final String raw, final DeclaredType type) {
         final var element = type.asElement();
         if (!(element instanceof TypeElement)) {
             return Optional.empty();
@@ -91,45 +91,45 @@ public final class LiteralCoercion {
         return coercer == null ? Optional.empty() : coercer.apply(raw);
     }
 
-    private static Optional<CodeBlock> booleanLiteral(final String raw) {
+    static Optional<CodeBlock> booleanLiteral(final String raw) {
         if (BOOLEAN_LITERALS.contains(raw)) {
             return Optional.of(CodeBlock.of("$L", raw));
         }
         return Optional.empty();
     }
 
-    private static Optional<CodeBlock> byteLiteral(final String raw) {
+    static Optional<CodeBlock> byteLiteral(final String raw) {
         return integral(raw, Byte.MIN_VALUE, Byte.MAX_VALUE, "(byte) ", "");
     }
 
-    private static Optional<CodeBlock> shortLiteral(final String raw) {
+    static Optional<CodeBlock> shortLiteral(final String raw) {
         return integral(raw, Short.MIN_VALUE, Short.MAX_VALUE, "(short) ", "");
     }
 
-    private static Optional<CodeBlock> intLiteral(final String raw) {
+    static Optional<CodeBlock> intLiteral(final String raw) {
         return integral(raw, Integer.MIN_VALUE, Integer.MAX_VALUE, "", "");
     }
 
-    private static Optional<CodeBlock> longLiteral(final String raw) {
+    static Optional<CodeBlock> longLiteral(final String raw) {
         return integral(raw, Long.MIN_VALUE, Long.MAX_VALUE, "", "L");
     }
 
-    private static Optional<CodeBlock> floatLiteral(final String raw) {
+    static Optional<CodeBlock> floatLiteral(final String raw) {
         return parseFloat(raw).filter(Float::isFinite).map(value -> CodeBlock.of("$L", value + "f"));
     }
 
-    private static Optional<CodeBlock> doubleLiteral(final String raw) {
+    static Optional<CodeBlock> doubleLiteral(final String raw) {
         return parseDouble(raw).filter(Double::isFinite).map(value -> CodeBlock.of("$L", value.toString()));
     }
 
-    private static Optional<CodeBlock> charLiteral(final String raw) {
+    static Optional<CodeBlock> charLiteral(final String raw) {
         if (raw.length() != SINGLE_CHAR_LENGTH) {
             return Optional.empty();
         }
         return Optional.of(CodeBlock.of("$L", charLiteralText(raw.charAt(0))));
     }
 
-    private static Optional<CodeBlock> integral(
+    static Optional<CodeBlock> integral(
             final String raw, final long min, final long max, final String castPrefix, final String suffix) {
         final Long value = parseLong(raw);
         if (value == null || value < min || value > max) {
@@ -138,7 +138,7 @@ public final class LiteralCoercion {
         return Optional.of(CodeBlock.of("$L", castPrefix + value + suffix));
     }
 
-    private static Optional<Float> parseFloat(final String raw) {
+    static Optional<Float> parseFloat(final String raw) {
         try {
             return Optional.of(Float.parseFloat(raw));
         } catch (final NumberFormatException ignored) {
@@ -146,7 +146,7 @@ public final class LiteralCoercion {
         }
     }
 
-    private static Optional<Double> parseDouble(final String raw) {
+    static Optional<Double> parseDouble(final String raw) {
         try {
             return Optional.of(Double.parseDouble(raw));
         } catch (final NumberFormatException ignored) {
@@ -155,7 +155,7 @@ public final class LiteralCoercion {
     }
 
     @Nullable
-    private static Long parseLong(final String raw) {
+    static Long parseLong(final String raw) {
         try {
             return Long.parseLong(raw);
         } catch (final NumberFormatException ignored) {
@@ -163,16 +163,16 @@ public final class LiteralCoercion {
         }
     }
 
-    private static Function<CodeBlock, CodeBlock> box(final Class<?> wrapper) {
+    static Function<CodeBlock, CodeBlock> box(final Class<?> wrapper) {
         return primitive -> CodeBlock.of("$T.valueOf($L)", wrapper, primitive);
     }
 
     /** A Java {@code char} literal for {@code c}, escaping the special and non-printable characters. */
-    private static String charLiteralText(final char c) {
+    static String charLiteralText(final char c) {
         return "'" + escape(c) + "'";
     }
 
-    private static String escape(final char c) {
+    static String escape(final char c) {
         final var known = CHAR_ESCAPES.get(c);
         if (known != null) {
             return known;

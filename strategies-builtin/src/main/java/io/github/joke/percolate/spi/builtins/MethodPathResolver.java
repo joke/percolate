@@ -12,6 +12,7 @@ import javax.lang.model.element.Element;
 import javax.lang.model.element.ExecutableElement;
 import javax.lang.model.element.TypeElement;
 import lombok.NoArgsConstructor;
+import org.jetbrains.annotations.VisibleForTesting;
 
 /**
  * Resolves one source-path segment to a no-arg accessor method whose name equals the segment (a fluent accessor, e.g.
@@ -25,6 +26,7 @@ import lombok.NoArgsConstructor;
 public final class MethodPathResolver extends Accessor {
 
     @Override
+    @VisibleForTesting
     protected Optional<Step> accessor(final TypeElement parent, final String segment, final ResolveCtx ctx) {
         return Members.declaredMembersOf(parent, ctx)
                 .flatMap(member -> matchAccessor(member, segment, ctx).stream())

@@ -40,7 +40,7 @@ public final class ValidateEnumOverridesStage implements Stage {
         shape.getAbstractMethods().forEach(method -> validateMethod(method, ctx));
     }
 
-    private void validateMethod(final ExecutableElement method, final MapperContext ctx) {
+    void validateMethod(final ExecutableElement method, final MapperContext ctx) {
         final var goalSpec = ctx.getGoalSpecs().get(new MethodScope(method));
         if (goalSpec == null) {
             return;
@@ -56,7 +56,7 @@ public final class ValidateEnumOverridesStage implements Stage {
                 .ifPresent(sourceConstants -> overrides.forEach(o -> checkSource(method, o, sourceConstants)));
     }
 
-    private void checkTarget(
+    void checkTarget(
             final ExecutableElement method, final EnumOverrideDirective override, final Set<String> targetConstants) {
         if (!targetConstants.contains(override.getTarget())) {
             diagnostics.error(
@@ -67,7 +67,7 @@ public final class ValidateEnumOverridesStage implements Stage {
         }
     }
 
-    private void checkSource(
+    void checkSource(
             final ExecutableElement method, final EnumOverrideDirective override, final Set<String> sourceConstants) {
         if (!sourceConstants.contains(override.getSource())) {
             diagnostics.error(
@@ -78,13 +78,13 @@ public final class ValidateEnumOverridesStage implements Stage {
         }
     }
 
-    private static Optional<TypeMirror> singleParameterType(final ExecutableElement method) {
+    static Optional<TypeMirror> singleParameterType(final ExecutableElement method) {
         return method.getParameters().size() == 1
                 ? Optional.of(method.getParameters().get(0).asType())
                 : Optional.empty();
     }
 
-    private static Optional<Set<String>> enumConstantNames(final TypeMirror type) {
+    static Optional<Set<String>> enumConstantNames(final TypeMirror type) {
         if (type.getKind() != TypeKind.DECLARED) {
             return Optional.empty();
         }

@@ -112,7 +112,7 @@ public final class MapperGraph {
      * eagerly (the child plan's demand) and records the element {@link InputDecl}. The element's {@code LEAF}
      * {@link Value} is not minted here — it is materialised lazily only if the child plan sources from it.
      */
-    private void initChildScope(final Operation operation, final ChildScopeDecl decl) {
+    void initChildScope(final Operation operation, final ChildScopeDecl decl) {
         final var child = operation.getChildScope().orElseThrow();
         final var returnRoot = valueFor(
                 child, new TargetLocation(TargetPath.of("")), decl.getElementOut(), decl.getElementOutNullness());
@@ -121,7 +121,7 @@ public final class MapperGraph {
     }
 
     /** The single dependency-edge mutation site: enforces the no-{@link Dep}-crosses-scope invariant. */
-    private void addDep(final GraphVertex from, final GraphVertex to, final Dep dep) {
+    void addDep(final GraphVertex from, final GraphVertex to, final Dep dep) {
         if (!from.getScope().equals(to.getScope())) {
             throw new IllegalStateException(
                     "Dep edge must not cross a scope boundary: " + from.id() + " -> " + to.id());
@@ -236,7 +236,7 @@ public final class MapperGraph {
         return bipartite.vertexSet().size();
     }
 
-    private static String valueKey(
+    static String valueKey(
             final Scope scope, final Location location, final TypeMirror type, final Nullability nullness) {
         return scope.encode() + "::" + location.segment() + "::" + type + "::" + nullness.name();
     }

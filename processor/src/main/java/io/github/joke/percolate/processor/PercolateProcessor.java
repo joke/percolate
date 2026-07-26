@@ -9,6 +9,7 @@ import javax.annotation.processing.Processor;
 import javax.annotation.processing.RoundEnvironment;
 import javax.lang.model.SourceVersion;
 import lombok.NoArgsConstructor;
+import org.jetbrains.annotations.VisibleForTesting;
 import org.jspecify.annotations.Nullable;
 
 @AutoService(Processor.class)
@@ -38,6 +39,7 @@ public final class PercolateProcessor extends BasicAnnotationProcessor {
     }
 
     @Override
+    @VisibleForTesting
     protected Iterable<? extends Step> steps() {
         if (component == null) {
             component = DaggerProcessorComponent.factory().create(new ProcessorModule(processingEnv));
@@ -52,6 +54,7 @@ public final class PercolateProcessor extends BasicAnnotationProcessor {
      * is the only round-state the processor touches; the pipeline stages stay round-agnostic.
      */
     @Override
+    @VisibleForTesting
     protected void postRound(final RoundEnvironment roundEnv) {
         if (roundEnv.processingOver() && component != null) {
             component.mapperStep().flushDeferredDiagnostics();
