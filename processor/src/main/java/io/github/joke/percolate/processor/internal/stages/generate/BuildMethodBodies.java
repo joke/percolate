@@ -58,7 +58,7 @@ public final class BuildMethodBodies {
             return new MethodBodies(List.of(), List.of());
         }
         final var plan = ExtractedPlan.extract(graph);
-        final var memberPlan = MemberPlan.forMapper(graph, plan);
+        final var memberPlan = MemberPlan.forMapper(graph, plan, ctx);
         final var bodies = shape.getAbstractMethods().stream()
                 .map(method -> renderMethod(graph, plan, memberPlan, method, resolveCtx))
                 .collect(toUnmodifiableList());

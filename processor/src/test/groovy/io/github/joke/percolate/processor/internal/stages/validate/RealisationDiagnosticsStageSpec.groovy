@@ -1,7 +1,7 @@
 package io.github.joke.percolate.processor.internal.stages.validate
 
 import io.github.joke.percolate.lib.javapoet.CodeBlock
-import io.github.joke.percolate.processor.Diagnostics
+import io.github.joke.percolate.processor.Diagnostic
 import io.github.joke.percolate.processor.MapperContext
 import io.github.joke.percolate.processor.internal.graph.AccessPath
 import io.github.joke.percolate.processor.internal.graph.AddOperation
@@ -29,9 +29,9 @@ import javax.lang.model.type.TypeMirror
 
 /**
  * {@link RealisationDiagnosticsStage} seam, unit-tested directly: each unreachable return-root {@code Value} (infinite
- * extraction cost over a constructed {@link MapperGraph}) is recorded on the context as a "no plan" message naming the
- * deepest unreachable demand and its type. Nothing is recorded when the graph is absent or the mapper already carries
- * errors (a targeted diagnostic already explains it).
+ * extraction cost over a constructed {@link MapperGraph}) is recorded on the context as a transient "no plan"
+ * {@link Diagnostic} (design D14) naming the deepest unreachable demand and its type. Nothing is recorded when the
+ * graph is absent or the mapper already carries an error (a targeted diagnostic already explains it).
  *
  * <p>Unit-tested mock-only: a plain {@code Stub} stands in for the compiled type, since this stage never reaches a
  * {@code ResolveCtx} and only ever prints {@code type.toString()} in its message.
@@ -48,13 +48,11 @@ class RealisationDiagnosticsStageSpec extends Specification {
     }
     MethodScope scope = new MethodScope(method)
     def mapperType = Mock(TypeElement)
-    def diagnostics = Mock(Diagnostics)
     @Subject
-    def stage = new RealisationDiagnosticsStage(diagnostics)
+    def stage = new RealisationDiagnosticsStage()
 
-    def 'an unreachable return root is recorded as a no-plan message naming the missing producer and type'() {
+    def 'an unreachable return root is recorded as a transient no-plan diagnostic naming the missing producer and type'() {
         given:
-        diagnostics.hasErrorsFor(_) >> false
         def graph = new MapperGraph()
         def root = graph.apply(new AddValue(scope, root(), STRING, Nullability.NON_NULL))
         graph.markReturnRoot(root)
@@ -64,14 +62,16 @@ class RealisationDiagnosticsStageSpec extends Specification {
         stage.run(ctx)
 
         then:
-        ctx.unsatisfiedRealisation.size() == 1
-        ctx.unsatisfiedRealisation[0].contains('no plan for tgt[]')
-        ctx.unsatisfiedRealisation[0].contains('java.lang.String')
+        ctx.diagnostics.size() == 1
+        with(ctx.diagnostics[0]) {
+            !permanent
+            message.contains('no plan for tgt[]')
+            message.contains('java.lang.String')
+        }
     }
 
     def 'the deepest unreachable demand is descended to and named, not the return root itself'() {
         given:
-        diagnostics.hasErrorsFor(_) >> false
         def graph = new MapperGraph()
         def child = new AddValue(scope, new TargetLocation(new TargetPath(['x'])), STRING, Nullability.NON_NULL)
         def operation = graph.apply(new AddOperation('build', { CodeBlock.of('x') } as OperationCodegen, Weights.STEP,
@@ -84,22 +84,22 @@ class RealisationDiagnosticsStageSpec extends Specification {
         stage.run(ctx)
 
         then: 'the message blames the unreachable child demand tgt[x], not the root'
-        ctx.unsatisfiedRealisation.size() == 1
-        ctx.unsatisfiedRealisation[0].contains('tgt[x] has no producer')
+        ctx.diagnostics.size() == 1
+        ctx.diagnostics[0].message.contains('tgt[x] has no producer')
     }
 
-    def 'nothing is recorded when the mapper already carries errors'() {
+    def 'nothing is recorded when the mapper already carries an error'() {
         given:
-        diagnostics.hasErrorsFor(mapperType) >> true
         def graph = new MapperGraph()
         graph.markReturnRoot(graph.apply(new AddValue(scope, root(), STRING, Nullability.NON_NULL)))
+        def ctx = context(graph)
+        ctx.report(Diagnostic.error(io.github.joke.percolate.spi.Subjects.none(), 'already scarred').asPermanent())
 
         when:
-        def ctx = context(graph)
         stage.run(ctx)
 
         then:
-        ctx.unsatisfiedRealisation.empty
+        ctx.diagnostics.size() == 1
     }
 
     def 'nothing is recorded when there is no graph'() {
@@ -110,12 +110,11 @@ class RealisationDiagnosticsStageSpec extends Specification {
         stage.run(ctx)
 
         then:
-        ctx.unsatisfiedRealisation.empty
+        ctx.diagnostics.empty
     }
 
-    def 'a reachable return root records no message'() {
+    def 'a reachable return root records no diagnostic'() {
         // a root produced by a nullary (portless) operation — finite cost, so reachable
-        diagnostics.hasErrorsFor(_) >> false
         def graph = new MapperGraph()
         def operation = graph.apply(new AddOperation('supply', { CodeBlock.of('x') } as OperationCodegen, Weights.STEP,
                 false, [], new AddValue(scope, root(), STRING, Nullability.NON_NULL), Optional.empty(), [] as Set, []))
@@ -126,12 +125,11 @@ class RealisationDiagnosticsStageSpec extends Specification {
         stage.run(ctx)
 
         then:
-        ctx.unsatisfiedRealisation.empty
+        ctx.diagnostics.empty
     }
 
     def 'the deepest miss on a source-path demand is labelled by its node id, not a target path'() {
         // a producer whose reachable leaf port is skipped for the unreachable multi-segment ACCESS port
-        diagnostics.hasErrorsFor(_) >> false
         def graph = new MapperGraph()
         def leaf = new AddValue(scope, new SourceLocation(new AccessPath(['in'])), STRING,
                 Nullability.NON_NULL)
@@ -149,12 +147,11 @@ class RealisationDiagnosticsStageSpec extends Specification {
         stage.run(ctx)
 
         then: 'the message blames the ACCESS demand by node id, not a tgt[...] label'
-        ctx.unsatisfiedRealisation[0].contains('src[in.missing]')
+        ctx.diagnostics[0].message.contains('src[in.missing]')
     }
 
     def 'an operation unreachable only through its child scope blames the root demand itself'() {
         // a scope-owning operation with no unsatisfied port — its child return-root is what is unreachable
-        diagnostics.hasErrorsFor(_) >> false
         def graph = new MapperGraph()
         def childScope = new ChildScopeDecl(STRING, Nullability.NON_NULL, STRING,
                 Nullability.NON_NULL)
@@ -168,12 +165,11 @@ class RealisationDiagnosticsStageSpec extends Specification {
         stage.run(ctx)
 
         then:
-        ctx.unsatisfiedRealisation[0].contains('no plan for tgt[]')
+        ctx.diagnostics[0].message.contains('no plan for tgt[]')
     }
 
     def 'a producer cycle among unreachable demands terminates and reports the revisited demand'() {
         // root <- opA(port p -> child); child <- opB(port q -> root): a 2-cycle, both unreachable
-        diagnostics.hasErrorsFor(_) >> false
         def graph = new MapperGraph()
         def rootAdd = new AddValue(scope, root(), STRING, Nullability.NON_NULL)
         def childAdd = new AddValue(scope, new TargetLocation(new TargetPath(['b'])), STRING,
@@ -191,7 +187,7 @@ class RealisationDiagnosticsStageSpec extends Specification {
         stage.run(ctx)
 
         then:
-        ctx.unsatisfiedRealisation.size() == 1
+        ctx.diagnostics.size() == 1
     }
 
     private static TargetLocation root() {

@@ -2,12 +2,13 @@ package io.github.joke.percolate.processor.internal.stages.validate;
 
 import static java.util.stream.Collectors.toUnmodifiableList;
 
-import io.github.joke.percolate.processor.Diagnostics;
+import io.github.joke.percolate.processor.Diagnostic;
 import io.github.joke.percolate.processor.MapperContext;
 import io.github.joke.percolate.processor.internal.stages.Stage;
 import io.github.joke.percolate.processor.model.MapperMappings;
 import io.github.joke.percolate.processor.model.MappingDirective;
 import io.github.joke.percolate.processor.model.MethodMappings;
+import io.github.joke.percolate.spi.Subjects;
 import jakarta.inject.Inject;
 import javax.lang.model.element.ExecutableElement;
 import lombok.RequiredArgsConstructor;
@@ -24,14 +25,12 @@ import lombok.RequiredArgsConstructor;
  *       {@code constant} directive) is diagnosed.</li>
  * </ul>
  *
- * <p>Each error is emitted via {@link Diagnostics} with the offending {@code AnnotationValue} for IDE underlining;
- * the stage never halts the pipeline (it returns the surviving directives, and codegen is skipped by the scarred
- * check once any error is recorded).
+ * <p>Each error is recorded as a permanent {@link Diagnostic} with the offending {@code AnnotationValue} for IDE
+ * underlining (an annotation shape mistake cannot become valid on a later round); the stage never halts the
+ * pipeline (it returns the surviving directives, and codegen is skipped once any error is recorded).
  */
 @RequiredArgsConstructor(onConstructor_ = @Inject)
 public final class ValidateMappingShapeStage implements Stage {
-
-    private final Diagnostics diagnostics;
 
     @Override
     public void run(final MapperContext ctx) {
@@ -39,65 +38,69 @@ public final class ValidateMappingShapeStage implements Stage {
         if (mappings == null) {
             return;
         }
-        ctx.setMappings(validate(mappings));
+        ctx.setMappings(validate(mappings, ctx));
     }
 
-    MapperMappings validate(final MapperMappings mappings) {
-        final var methods =
-                mappings.getMethods().stream().map(this::validateMethod).collect(toUnmodifiableList());
+    MapperMappings validate(final MapperMappings mappings, final MapperContext ctx) {
+        final var methods = mappings.getMethods().stream()
+                .map(method -> validateMethod(method, ctx))
+                .collect(toUnmodifiableList());
         return new MapperMappings(mappings.getType(), methods);
     }
 
-    MethodMappings validateMethod(final MethodMappings methodMappings) {
+    MethodMappings validateMethod(final MethodMappings methodMappings, final MapperContext ctx) {
         final var method = methodMappings.getMethod();
         final var kept = methodMappings.getDirectives().stream()
-                .filter(directive -> validateDirective(directive, method))
+                .filter(directive -> validateDirective(directive, method, ctx))
                 .collect(toUnmodifiableList());
         return new MethodMappings(method, kept);
     }
 
-    /** Emits any shape errors and returns whether the directive is well-formed enough to keep seeding. */
-    boolean validateDirective(final MappingDirective directive, final ExecutableElement method) {
-        final var wellFormed = checkSourceXorConstant(directive, method);
-        checkDefaultRequiresSource(directive, method);
+    /** Reports any shape errors and returns whether the directive is well-formed enough to keep seeding. */
+    boolean validateDirective(
+            final MappingDirective directive, final ExecutableElement method, final MapperContext ctx) {
+        final var wellFormed = checkSourceXorConstant(directive, method, ctx);
+        checkDefaultRequiresSource(directive, method, ctx);
         return wellFormed;
     }
 
-    boolean checkSourceXorConstant(final MappingDirective directive, final ExecutableElement method) {
-        return !reportsBothSourceAndConstant(directive, method) && !reportsNeitherSourceNorConstant(directive, method);
+    boolean checkSourceXorConstant(
+            final MappingDirective directive, final ExecutableElement method, final MapperContext ctx) {
+        return !reportsBothSourceAndConstant(directive, method, ctx)
+                && !reportsNeitherSourceNorConstant(directive, method, ctx);
     }
 
-    boolean reportsBothSourceAndConstant(final MappingDirective directive, final ExecutableElement method) {
+    boolean reportsBothSourceAndConstant(
+            final MappingDirective directive, final ExecutableElement method, final MapperContext ctx) {
         if (!(directive.hasSource() && directive.hasConstant())) {
             return false;
         }
-        diagnostics.error(
-                method,
-                directive.getMirror(),
-                directive.getConstantValue(),
-                "@Map declares both 'source' and 'constant'; they are mutually exclusive");
+        ctx.report(Diagnostic.error(
+                        Subjects.of(method, directive.getMirror(), directive.getConstantValue()),
+                        "@Map declares both 'source' and 'constant'; they are mutually exclusive")
+                .asPermanent());
         return true;
     }
 
-    boolean reportsNeitherSourceNorConstant(final MappingDirective directive, final ExecutableElement method) {
+    boolean reportsNeitherSourceNorConstant(
+            final MappingDirective directive, final ExecutableElement method, final MapperContext ctx) {
         if (directive.hasSource() || directive.hasConstant()) {
             return false;
         }
-        diagnostics.error(
-                method,
-                directive.getMirror(),
-                directive.getTargetValue(),
-                "@Map must declare a 'source' or a 'constant'");
+        ctx.report(Diagnostic.error(
+                        Subjects.of(method, directive.getMirror(), directive.getTargetValue()),
+                        "@Map must declare a 'source' or a 'constant'")
+                .asPermanent());
         return true;
     }
 
-    void checkDefaultRequiresSource(final MappingDirective directive, final ExecutableElement method) {
+    void checkDefaultRequiresSource(
+            final MappingDirective directive, final ExecutableElement method, final MapperContext ctx) {
         if (directive.hasDefaultValue() && !directive.hasSource()) {
-            diagnostics.error(
-                    method,
-                    directive.getMirror(),
-                    directive.getDefaultValueValue(),
-                    "@Map 'defaultValue' requires a 'source'");
+            ctx.report(Diagnostic.error(
+                            Subjects.of(method, directive.getMirror(), directive.getDefaultValueValue()),
+                            "@Map 'defaultValue' requires a 'source'")
+                    .asPermanent());
         }
     }
 }

@@ -1,7 +1,8 @@
 package io.github.joke.percolate.processor.internal.stages.generate
 
-import io.github.joke.percolate.processor.Diagnostics
+import io.github.joke.percolate.processor.Diagnostic
 import io.github.joke.percolate.processor.MapperContext
+import io.github.joke.percolate.spi.Subjects
 import spock.lang.Specification
 import spock.lang.Subject
 import spock.lang.Tag
@@ -10,24 +11,22 @@ import javax.lang.model.element.TypeElement
 
 /**
  * {@link GenerateStage} seam, unit-tested directly with mocked collaborators: a clean, fully-realised mapper is built
- * and assembled; a scarred mapper (existing errors) or one with unsatisfied realisation is skipped (incomplete graph,
- * nothing to emit); and a codegen failure is reported as an error rather than propagated.
+ * and assembled; a mapper already carrying an error (scarred or unrealised) is skipped (incomplete graph, nothing to
+ * emit); and a codegen failure is recorded as a permanent error rather than propagated.
  */
 @Tag('unit')
 class GenerateStageSpec extends Specification {
 
-    def diagnostics = Mock(Diagnostics)
     def buildMethodBodies = Mock(BuildMethodBodies)
     def assembleMapperType = Mock(AssembleMapperType)
     @Subject
-    def stage = new GenerateStage(diagnostics, buildMethodBodies, assembleMapperType)
+    def stage = new GenerateStage(buildMethodBodies, assembleMapperType)
 
     def mapperType = Mock(TypeElement)
     def ctx = new MapperContext(mapperType)
 
     def 'a clean, fully-realised mapper is built and then assembled'() {
         given:
-        diagnostics.hasErrorsFor(mapperType) >> false
         def methodBodies = new MethodBodies([], [])
 
         when:
@@ -36,12 +35,14 @@ class GenerateStageSpec extends Specification {
         then:
         1 * buildMethodBodies.build(ctx) >> methodBodies
         1 * assembleMapperType.assemble(ctx, methodBodies)
-        0 * diagnostics.error(*_)
+
+        expect:
+        ctx.diagnostics.empty
     }
 
-    def 'a scarred mapper with existing errors is skipped entirely'() {
+    def 'a mapper already carrying an error is skipped entirely'() {
         given:
-        diagnostics.hasErrorsFor(mapperType) >> true
+        ctx.report(Diagnostic.error(Subjects.none(), 'duplicate target').asPermanent())
 
         when:
         stage.run(ctx)
@@ -53,8 +54,7 @@ class GenerateStageSpec extends Specification {
 
     def 'a mapper whose realisation is unsatisfied is skipped (incomplete graph)'() {
         given:
-        diagnostics.hasErrorsFor(mapperType) >> false
-        ctx.unsatisfiedRealisation = ['no plan for tgt[]']
+        ctx.report(Diagnostic.error(Subjects.none(), 'no plan for tgt[]'))
 
         when:
         stage.run(ctx)
@@ -64,20 +64,21 @@ class GenerateStageSpec extends Specification {
         0 * assembleMapperType.assemble(*_)
     }
 
-    def 'a codegen failure is recorded as an error, not propagated'() {
+    def 'a codegen failure is recorded as a permanent error, not propagated'() {
         given:
-        diagnostics.hasErrorsFor(mapperType) >> false
         buildMethodBodies.build(ctx) >> { throw new IllegalStateException('boom') }
-        String reported = null
 
         when:
         stage.run(ctx)
 
         then:
-        1 * diagnostics.error(mapperType, _ as String) >> { args -> reported = args[1] }
+        ctx.diagnostics.size() == 1
 
         expect:
-        reported.contains('code generation failed')
-        reported.contains('boom')
+        with(ctx.diagnostics[0]) {
+            permanent
+            message.contains('code generation failed')
+            message.contains('boom')
+        }
     }
 }

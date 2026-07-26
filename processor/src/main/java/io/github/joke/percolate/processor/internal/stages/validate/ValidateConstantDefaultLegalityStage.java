@@ -2,7 +2,7 @@ package io.github.joke.percolate.processor.internal.stages.validate;
 
 import static java.util.Objects.requireNonNull;
 
-import io.github.joke.percolate.processor.Diagnostics;
+import io.github.joke.percolate.processor.Diagnostic;
 import io.github.joke.percolate.processor.MapperContext;
 import io.github.joke.percolate.processor.internal.graph.AccessPath;
 import io.github.joke.percolate.processor.internal.graph.Location;
@@ -17,6 +17,7 @@ import io.github.joke.percolate.processor.model.MappingDirective;
 import io.github.joke.percolate.processor.model.MethodMappings;
 import io.github.joke.percolate.spi.LiteralCoercion;
 import io.github.joke.percolate.spi.Nullability;
+import io.github.joke.percolate.spi.Subjects;
 import jakarta.inject.Inject;
 import java.util.List;
 import javax.lang.model.element.ExecutableElement;
@@ -43,8 +44,6 @@ import org.jspecify.annotations.Nullable;
 @RequiredArgsConstructor(onConstructor_ = @Inject)
 public final class ValidateConstantDefaultLegalityStage implements Stage {
 
-    private final Diagnostics diagnostics;
-
     @Override
     public void run(final MapperContext ctx) {
         final var mappings = ctx.getMappings();
@@ -52,23 +51,24 @@ public final class ValidateConstantDefaultLegalityStage implements Stage {
         if (mappings == null || graph == null) {
             return;
         }
-        mappings.getMethods().forEach(method -> checkMethod(method, graph));
+        mappings.getMethods().forEach(method -> checkMethod(method, graph, ctx));
     }
 
-    void checkMethod(final MethodMappings method, final MapperGraph graph) {
+    void checkMethod(final MethodMappings method, final MapperGraph graph, final MapperContext ctx) {
         final var scope = new MethodScope(method.getMethod());
-        method.getDirectives().forEach(directive -> checkDirective(directive, method.getMethod(), scope, graph));
+        method.getDirectives().forEach(directive -> checkDirective(directive, method.getMethod(), scope, graph, ctx));
     }
 
     void checkDirective(
             final MappingDirective directive,
             final ExecutableElement method,
             final MethodScope scope,
-            final MapperGraph graph) {
+            final MapperGraph graph,
+            final MapperContext ctx) {
         if (directive.hasConstant()) {
-            checkConstant(directive, method, scope, graph);
+            checkConstant(directive, method, scope, graph, ctx);
         } else if (directive.hasDefaultValue()) {
-            checkDefault(directive, method, scope, graph);
+            checkDefault(directive, method, scope, graph, ctx);
         }
     }
 
@@ -76,18 +76,18 @@ public final class ValidateConstantDefaultLegalityStage implements Stage {
             final MappingDirective directive,
             final ExecutableElement method,
             final MethodScope scope,
-            final MapperGraph graph) {
+            final MapperGraph graph,
+            final MapperContext ctx) {
         final var target = targetType(graph, scope, directive.getTarget());
         if (target == null) {
             return;
         }
         final var constant = requireNonNull(directive.getConstant());
         if (LiteralCoercion.coerce(constant, target).isEmpty()) {
-            diagnostics.error(
-                    method,
-                    directive.getMirror(),
-                    directive.getConstantValue(),
-                    "cannot coerce '" + constant + "' to " + typeName(target));
+            ctx.report(Diagnostic.error(
+                            Subjects.of(method, directive.getMirror(), directive.getConstantValue()),
+                            "cannot coerce '" + constant + "' to " + typeName(target))
+                    .asPermanent());
         }
     }
 
@@ -95,13 +95,14 @@ public final class ValidateConstantDefaultLegalityStage implements Stage {
             final MappingDirective directive,
             final ExecutableElement method,
             final MethodScope scope,
-            final MapperGraph graph) {
+            final MapperGraph graph,
+            final MapperContext ctx) {
         final var defaultValue = requireNonNull(directive.getDefaultValue());
         final var target = targetType(graph, scope, directive.getTarget());
-        if (checkDefaultCoercion(directive, method, defaultValue, target)) {
+        if (checkDefaultCoercion(directive, method, defaultValue, target, ctx)) {
             return;
         }
-        checkDeadDefault(directive, method, scope, graph);
+        checkDeadDefault(directive, method, scope, graph, ctx);
     }
 
     /** Diagnoses (and reports {@code true}) when {@code defaultValue} cannot coerce to a resolved {@code target}. */
@@ -109,15 +110,15 @@ public final class ValidateConstantDefaultLegalityStage implements Stage {
             final MappingDirective directive,
             final ExecutableElement method,
             final String defaultValue,
-            final @Nullable TypeMirror target) {
+            final @Nullable TypeMirror target,
+            final MapperContext ctx) {
         if (target == null || LiteralCoercion.coerce(defaultValue, target).isPresent()) {
             return false;
         }
-        diagnostics.error(
-                method,
-                directive.getMirror(),
-                directive.getDefaultValueValue(),
-                "cannot coerce '" + defaultValue + "' to " + typeName(target));
+        ctx.report(Diagnostic.error(
+                        Subjects.of(method, directive.getMirror(), directive.getDefaultValueValue()),
+                        "cannot coerce '" + defaultValue + "' to " + typeName(target))
+                .asPermanent());
         return true;
     }
 
@@ -125,14 +126,15 @@ public final class ValidateConstantDefaultLegalityStage implements Stage {
             final MappingDirective directive,
             final ExecutableElement method,
             final MethodScope scope,
-            final MapperGraph graph) {
+            final MapperGraph graph,
+            final MapperContext ctx) {
         final var source = sourceNode(graph, scope, directive.getSource());
         if (source != null && isDeadDefault(source)) {
-            diagnostics.error(
-                    method,
-                    directive.getMirror(),
-                    directive.getDefaultValueValue(),
-                    "@Map 'defaultValue' can never fire: source '" + directive.getSource() + "' is never absent");
+            ctx.report(Diagnostic.error(
+                            Subjects.of(method, directive.getMirror(), directive.getDefaultValueValue()),
+                            "@Map 'defaultValue' can never fire: source '" + directive.getSource()
+                                    + "' is never absent")
+                    .asPermanent());
         }
     }
 

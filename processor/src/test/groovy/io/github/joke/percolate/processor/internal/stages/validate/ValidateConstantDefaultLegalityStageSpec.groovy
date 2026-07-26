@@ -1,7 +1,6 @@
 package io.github.joke.percolate.processor.internal.stages.validate
 
 import io.github.joke.percolate.lib.javapoet.CodeBlock
-import io.github.joke.percolate.processor.Diagnostics
 import io.github.joke.percolate.processor.MapperContext
 import io.github.joke.percolate.processor.internal.graph.AccessPath
 import io.github.joke.percolate.processor.internal.graph.AddOperation
@@ -26,20 +25,18 @@ import spock.lang.Specification
 import spock.lang.Subject
 import spock.lang.Tag
 
-import javax.annotation.processing.Messager
 import javax.lang.model.element.AnnotationMirror
 import javax.lang.model.element.AnnotationValue
 import javax.lang.model.element.ExecutableElement
 import javax.lang.model.element.TypeElement
 import javax.lang.model.type.TypeKind
 import javax.lang.model.type.TypeMirror
-import javax.tools.Diagnostic
 
 /**
  * {@link ValidateConstantDefaultLegalityStage} seam, unit-tested directly: against the resolved target type (read off
- * a constructed {@link MapperGraph}) it diagnoses a constant/default that cannot be coerced, and a {@code defaultValue}
- * whose source can never be absent (a {@code NON_NULL} non-{@code Optional} reference or a primitive). Driven through
- * {@code run} with a hand-built graph + mappings.
+ * a constructed {@link MapperGraph}) it reports a permanent diagnostic (design D14) for a constant/default that
+ * cannot be coerced, and a {@code defaultValue} whose source can never be absent (a {@code NON_NULL} non-{@code
+ * Optional} reference or a primitive). Driven through {@code run} with a hand-built graph + mappings.
  *
  * <p>Unit-tested mock-only (change {@code type-query-seam}): the stage never reaches a {@code ResolveCtx} (it is
  * constructed per-mapper only inside {@code ExpandStage}), so its {@code TypeMirror}/{@code Element} navigation is
@@ -52,10 +49,8 @@ class ValidateConstantDefaultLegalityStageSpec extends Specification {
     @Shared TypeMirror STRING = FakeType.declared('java.lang.String')
     @Shared TypeMirror DAY_OF_WEEK = FakeType.declared('DayOfWeek')
 
-    def messager = Mock(Messager)
-    def diagnostics = new Diagnostics(messager)
     @Subject
-    def stage = new ValidateConstantDefaultLegalityStage(diagnostics)
+    def stage = new ValidateConstantDefaultLegalityStage()
 
     def method = Mock(ExecutableElement) {
         getSimpleName() >> FakeElements.name('map')
@@ -75,8 +70,11 @@ class ValidateConstantDefaultLegalityStageSpec extends Specification {
         stage.run(ctx)
 
         then:
-        1 * messager.printMessage(Diagnostic.Kind.ERROR, { it.contains("cannot coerce 'abc' to int") }, method, mirror,
-                constantValue)
+        ctx.diagnostics.size() == 1
+        with(ctx.diagnostics[0]) {
+            permanent
+            message.contains("cannot coerce 'abc' to int")
+        }
     }
 
     def 'a constant that coerces to the target type passes with no diagnostic'() {
@@ -88,7 +86,7 @@ class ValidateConstantDefaultLegalityStageSpec extends Specification {
         stage.run(ctx)
 
         then:
-        0 * messager.printMessage(*_)
+        ctx.diagnostics.empty
     }
 
     def 'a defaultValue whose NON_NULL non-Optional source can never be absent is a dead default'() {
@@ -103,7 +101,11 @@ class ValidateConstantDefaultLegalityStageSpec extends Specification {
         stage.run(ctx)
 
         then:
-        1 * messager.printMessage(Diagnostic.Kind.ERROR, { it.contains('can never fire') }, method, mirror, defaultValue)
+        ctx.diagnostics.size() == 1
+        with(ctx.diagnostics[0]) {
+            permanent
+            message.contains('can never fire')
+        }
     }
 
     def 'a defaultValue with a NULLABLE source is live — no diagnostic'() {
@@ -118,7 +120,7 @@ class ValidateConstantDefaultLegalityStageSpec extends Specification {
         stage.run(ctx)
 
         then:
-        0 * messager.printMessage(*_)
+        ctx.diagnostics.empty
     }
 
     def 'a directive with neither a constant nor a defaultValue is not checked'() {
@@ -130,7 +132,7 @@ class ValidateConstantDefaultLegalityStageSpec extends Specification {
         stage.run(ctx)
 
         then:
-        0 * messager.printMessage(*_)
+        ctx.diagnostics.empty
     }
 
     def 'nothing is checked when the context has no mappings'() {
@@ -141,7 +143,7 @@ class ValidateConstantDefaultLegalityStageSpec extends Specification {
         stage.run(ctx)
 
         then:
-        0 * messager.printMessage(*_)
+        ctx.diagnostics.empty
     }
 
     def 'nothing is checked when the context has no graph'() {
@@ -153,7 +155,7 @@ class ValidateConstantDefaultLegalityStageSpec extends Specification {
         stage.run(ctx)
 
         then:
-        0 * messager.printMessage(*_)
+        ctx.diagnostics.empty
     }
 
     def 'a constant whose target type cannot be resolved is not checked'() {
@@ -165,7 +167,7 @@ class ValidateConstantDefaultLegalityStageSpec extends Specification {
         stage.run(ctx)
 
         then:
-        0 * messager.printMessage(*_)
+        ctx.diagnostics.empty
     }
 
     def 'a defaultValue that cannot be coerced to the target type is diagnosed at the default value'() {
@@ -176,8 +178,8 @@ class ValidateConstantDefaultLegalityStageSpec extends Specification {
         stage.run(ctx)
 
         then:
-        1 * messager.printMessage(Diagnostic.Kind.ERROR, { it.contains("cannot coerce 'abc' to int") }, method, mirror,
-                defaultValue)
+        ctx.diagnostics.size() == 1
+        ctx.diagnostics[0].message.contains("cannot coerce 'abc' to int")
     }
 
     def 'a defaultValue with no source and a coercible value passes with no diagnostic'() {
@@ -188,7 +190,7 @@ class ValidateConstantDefaultLegalityStageSpec extends Specification {
         stage.run(ctx)
 
         then:
-        0 * messager.printMessage(*_)
+        ctx.diagnostics.empty
     }
 
     def 'a defaultValue whose source is a primitive can never fire — a dead default'() {
@@ -202,7 +204,8 @@ class ValidateConstantDefaultLegalityStageSpec extends Specification {
         stage.run(ctx)
 
         then:
-        1 * messager.printMessage(Diagnostic.Kind.ERROR, { it.contains('can never fire') }, method, mirror, defaultValue)
+        ctx.diagnostics.size() == 1
+        ctx.diagnostics[0].message.contains('can never fire')
     }
 
     def 'a defaultValue whose NON_NULL Optional source is live — Optional can be empty, no diagnostic'() {
@@ -217,7 +220,7 @@ class ValidateConstantDefaultLegalityStageSpec extends Specification {
         stage.run(ctx)
 
         then:
-        0 * messager.printMessage(*_)
+        ctx.diagnostics.empty
     }
 
     def 'a defaultValue whose NON_NULL array source can never be absent is a dead default'() {
@@ -233,7 +236,8 @@ class ValidateConstantDefaultLegalityStageSpec extends Specification {
         stage.run(ctx)
 
         then:
-        1 * messager.printMessage(Diagnostic.Kind.ERROR, { it.contains('can never fire') }, method, mirror, defaultValue)
+        ctx.diagnostics.size() == 1
+        ctx.diagnostics[0].message.contains('can never fire')
     }
 
     def 'a nested target type is resolved by walking the assembly port named by the path segment'() {
@@ -246,8 +250,8 @@ class ValidateConstantDefaultLegalityStageSpec extends Specification {
         stage.run(ctx)
 
         then: 'the walked child type (int) is what the constant is coerced against'
-        1 * messager.printMessage(Diagnostic.Kind.ERROR, { it.contains("cannot coerce 'abc' to int") }, method, mirror,
-                constantValue)
+        ctx.diagnostics.size() == 1
+        ctx.diagnostics[0].message.contains("cannot coerce 'abc' to int")
     }
 
     def 'a nested target whose path segment names no port is not checked'() {
@@ -258,7 +262,7 @@ class ValidateConstantDefaultLegalityStageSpec extends Specification {
         stage.run(ctx)
 
         then:
-        0 * messager.printMessage(*_)
+        ctx.diagnostics.empty
     }
 
     def 'a coercion failure to a declared target type names the simple type name'() {
@@ -269,8 +273,8 @@ class ValidateConstantDefaultLegalityStageSpec extends Specification {
         stage.run(ctx)
 
         then:
-        1 * messager.printMessage(Diagnostic.Kind.ERROR, { it.contains("cannot coerce 'NOTADAY' to DayOfWeek") }, method,
-                mirror, constantValue)
+        ctx.diagnostics.size() == 1
+        ctx.diagnostics[0].message.contains("cannot coerce 'NOTADAY' to DayOfWeek")
     }
 
     private MapperGraph nestedIntChildGraph() {

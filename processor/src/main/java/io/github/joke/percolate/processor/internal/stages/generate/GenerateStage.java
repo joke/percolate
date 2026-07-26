@@ -1,24 +1,24 @@
 package io.github.joke.percolate.processor.internal.stages.generate;
 
-import io.github.joke.percolate.processor.Diagnostics;
+import io.github.joke.percolate.processor.Diagnostic;
 import io.github.joke.percolate.processor.MapperContext;
 import io.github.joke.percolate.processor.internal.stages.Stage;
+import io.github.joke.percolate.spi.Subjects;
 import jakarta.inject.Inject;
 
 @SuppressWarnings("PMD.AvoidCatchingGenericException")
 @lombok.RequiredArgsConstructor(onConstructor_ = @Inject)
 public final class GenerateStage implements Stage {
 
-    private final Diagnostics diagnostics;
     private final BuildMethodBodies buildMethodBodies;
     private final AssembleMapperType assembleMapperType;
 
     @Override
     public void run(final MapperContext ctx) {
-        // Skip a scarred mapper, and skip one whose realisation is unsatisfied (deferred for a later
-        // round, or genuinely un-realisable) — its graph is incomplete, so there is nothing to emit.
-        if (diagnostics.hasErrorsFor(ctx.getMapperType())
-                || !ctx.getUnsatisfiedRealisation().isEmpty()) {
+        // Skip a mapper that already has an error — whether scarred by an earlier stage, or unrealised
+        // (recorded transient by RealisationDiagnosticsStage, deferred for a later round, or genuinely
+        // un-realisable) — its graph is incomplete, so there is nothing to emit.
+        if (ctx.hasErrors()) {
             return;
         }
 
@@ -26,7 +26,8 @@ public final class GenerateStage implements Stage {
             final var methodBodies = buildMethodBodies.build(ctx);
             assembleMapperType.assemble(ctx, methodBodies);
         } catch (final Throwable t) {
-            diagnostics.error(ctx.getMapperType(), "code generation failed: " + t.getMessage());
+            ctx.report(Diagnostic.error(Subjects.none(), "code generation failed: " + t.getMessage())
+                    .asPermanent());
         }
     }
 }

@@ -1,0 +1,2 @@
+io.github.joke.percolate.spi.builtins.memberconflict.MemberConflictFixtureStrategy
+io.github.joke.percolate.spi.builtins.deferral.DeferredWidgetFixtureStrategy

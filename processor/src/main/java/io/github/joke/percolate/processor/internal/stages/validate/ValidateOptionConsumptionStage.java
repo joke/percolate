@@ -1,6 +1,6 @@
 package io.github.joke.percolate.processor.internal.stages.validate;
 
-import io.github.joke.percolate.processor.Diagnostics;
+import io.github.joke.percolate.processor.Diagnostic;
 import io.github.joke.percolate.processor.MapperContext;
 import io.github.joke.percolate.processor.internal.graph.ExtractedPlan;
 import io.github.joke.percolate.processor.internal.graph.MapperGraph;
@@ -12,6 +12,7 @@ import io.github.joke.percolate.processor.internal.graph.Value;
 import io.github.joke.percolate.processor.internal.stages.Stage;
 import io.github.joke.percolate.processor.model.MappingDirective;
 import io.github.joke.percolate.processor.model.MethodMappings;
+import io.github.joke.percolate.spi.Subjects;
 import jakarta.inject.Inject;
 import java.util.Collections;
 import java.util.HashSet;
@@ -45,8 +46,6 @@ public final class ValidateOptionConsumptionStage implements Stage {
     static final String FORMAT_KEY = "format";
     static final String ZONE_KEY = "zone";
 
-    private final Diagnostics diagnostics;
-
     @Override
     public void run(final MapperContext ctx) {
         final var mappings = ctx.getMappings();
@@ -55,12 +54,14 @@ public final class ValidateOptionConsumptionStage implements Stage {
             return;
         }
         final var plan = ExtractedPlan.extract(graph);
-        mappings.getMethods().forEach(method -> checkMethod(method, graph, plan));
+        mappings.getMethods().forEach(method -> checkMethod(method, graph, plan, ctx));
     }
 
-    void checkMethod(final MethodMappings method, final MapperGraph graph, final ExtractedPlan plan) {
+    void checkMethod(
+            final MethodMappings method, final MapperGraph graph, final ExtractedPlan plan, final MapperContext ctx) {
         final var scope = new MethodScope(method.getMethod());
-        method.getDirectives().forEach(directive -> checkDirective(directive, method.getMethod(), scope, graph, plan));
+        method.getDirectives()
+                .forEach(directive -> checkDirective(directive, method.getMethod(), scope, graph, plan, ctx));
     }
 
     void checkDirective(
@@ -68,7 +69,8 @@ public final class ValidateOptionConsumptionStage implements Stage {
             final ExecutableElement method,
             final MethodScope scope,
             final MapperGraph graph,
-            final ExtractedPlan plan) {
+            final ExtractedPlan plan,
+            final MapperContext ctx) {
         final var declared = declaredOptions(directive);
         if (declared.isEmpty()) {
             return;
@@ -77,12 +79,11 @@ public final class ValidateOptionConsumptionStage implements Stage {
         final var consumed = target == null ? Set.<String>of() : consumedOptionKeys(graph, plan, target);
         declared.forEach((key, value) -> {
             if (!consumed.contains(key)) {
-                diagnostics.error(
-                        method,
-                        directive.getMirror(),
-                        value,
-                        "@Map '" + key + "' has no effect on '" + directive.getTarget()
-                                + "': no production in the winning plan consumed it");
+                ctx.report(Diagnostic.error(
+                                Subjects.of(method, directive.getMirror(), value),
+                                "@Map '" + key + "' has no effect on '" + directive.getTarget()
+                                        + "': no production in the winning plan consumed it")
+                        .asPermanent());
             }
         });
     }

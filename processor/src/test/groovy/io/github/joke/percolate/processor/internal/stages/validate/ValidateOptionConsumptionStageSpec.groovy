@@ -1,7 +1,6 @@
 package io.github.joke.percolate.processor.internal.stages.validate
 
 import io.github.joke.percolate.lib.javapoet.CodeBlock
-import io.github.joke.percolate.processor.Diagnostics
 import io.github.joke.percolate.processor.MapperContext
 import io.github.joke.percolate.processor.internal.graph.AccessPath
 import io.github.joke.percolate.processor.internal.graph.AddOperation
@@ -26,29 +25,25 @@ import spock.lang.Specification
 import spock.lang.Subject
 import spock.lang.Tag
 
-import javax.annotation.processing.Messager
 import javax.lang.model.element.AnnotationMirror
 import javax.lang.model.element.AnnotationValue
 import javax.lang.model.element.ExecutableElement
 import javax.lang.model.element.TypeElement
 import javax.lang.model.type.TypeMirror
-import javax.tools.Diagnostic
 
 /**
  * {@link ValidateOptionConsumptionStage} seam, unit-tested directly: computes {@code declared − consumed} for a
  * binding's {@code @Map} {@code format}/{@code zone} options against the operations of the graph's <strong>winning</strong>
- * plan (least-cost, {@link io.github.joke.percolate.processor.internal.graph.ExtractedPlan}), diagnosing any
- * declared key no operation in that plan stamped as consumed.
+ * plan (least-cost, {@link io.github.joke.percolate.processor.internal.graph.ExtractedPlan}), reporting a permanent
+ * diagnostic (design D14) for any declared key no operation in that plan stamped as consumed.
  */
 @Tag('unit')
 class ValidateOptionConsumptionStageSpec extends Specification {
 
     @Shared TypeMirror STRING = FakeType.declared('java.lang.String')
 
-    def messager = Mock(Messager)
-    def diagnostics = new Diagnostics(messager)
     @Subject
-    def stage = new ValidateOptionConsumptionStage(diagnostics)
+    def stage = new ValidateOptionConsumptionStage()
 
     def method = Mock(ExecutableElement) {
         getSimpleName() >> FakeElements.name('map')
@@ -69,8 +64,11 @@ class ValidateOptionConsumptionStageSpec extends Specification {
         stage.run(ctx)
 
         then:
-        1 * messager.printMessage(Diagnostic.Kind.ERROR, { it.contains("'zone' has no effect") }, method, mirror,
-                zoneValue)
+        ctx.diagnostics.size() == 1
+        with(ctx.diagnostics[0]) {
+            permanent
+            message.contains("'zone' has no effect")
+        }
     }
 
     def 'a zone consumed by the winning plan raises no diagnostic'() {
@@ -83,7 +81,7 @@ class ValidateOptionConsumptionStageSpec extends Specification {
         stage.run(ctx)
 
         then:
-        0 * messager.printMessage(*_)
+        ctx.diagnostics.empty
     }
 
     def 'a format consumed by the winning plan raises no diagnostic'() {
@@ -96,7 +94,7 @@ class ValidateOptionConsumptionStageSpec extends Specification {
         stage.run(ctx)
 
         then:
-        0 * messager.printMessage(*_)
+        ctx.diagnostics.empty
     }
 
     def 'a directive with neither format nor zone is never diagnosed'() {
@@ -110,7 +108,7 @@ class ValidateOptionConsumptionStageSpec extends Specification {
         stage.run(ctx)
 
         then:
-        0 * messager.printMessage(*_)
+        ctx.diagnostics.empty
     }
 
     def 'an option consumed only by a losing (non-winning) candidate is still diagnosed'() {
@@ -130,8 +128,8 @@ class ValidateOptionConsumptionStageSpec extends Specification {
         stage.run(ctx)
 
         then:
-        1 * messager.printMessage(Diagnostic.Kind.ERROR, { it.contains("'zone' has no effect") }, method, mirror,
-                zoneValue)
+        ctx.diagnostics.size() == 1
+        ctx.diagnostics[0].message.contains("'zone' has no effect")
     }
 
     def 'a zone consumed anywhere along a multi-hop winning plan raises no diagnostic'() {
@@ -149,7 +147,7 @@ class ValidateOptionConsumptionStageSpec extends Specification {
         stage.run(ctx)
 
         then:
-        0 * messager.printMessage(*_)
+        ctx.diagnostics.empty
     }
 
     def 'a value shared by two ports in the winning plan is visited once, still contributing its consumed keys'() {
@@ -169,7 +167,7 @@ class ValidateOptionConsumptionStageSpec extends Specification {
         stage.run(ctx)
 
         then:
-        0 * messager.printMessage(*_)
+        ctx.diagnostics.empty
     }
 
     def 'a nested target path that resolves to a port is checked against that port\'s producer, not the root'() {
@@ -189,7 +187,7 @@ class ValidateOptionConsumptionStageSpec extends Specification {
         stage.run(ctx)
 
         then:
-        0 * messager.printMessage(*_)
+        ctx.diagnostics.empty
     }
 
     def 'a declared option whose nested target path names no port is diagnosed (nothing could have consumed it)'() {
@@ -208,8 +206,8 @@ class ValidateOptionConsumptionStageSpec extends Specification {
         stage.run(ctx)
 
         then:
-        1 * messager.printMessage(Diagnostic.Kind.ERROR, { it.contains("'zone' has no effect") }, method, mirror,
-                zoneValue)
+        ctx.diagnostics.size() == 1
+        ctx.diagnostics[0].message.contains("'zone' has no effect")
     }
 
     def 'nothing is checked when the context has no mappings'() {
@@ -223,7 +221,7 @@ class ValidateOptionConsumptionStageSpec extends Specification {
         stage.run(ctx)
 
         then:
-        0 * messager.printMessage(*_)
+        ctx.diagnostics.empty
     }
 
     def 'nothing is checked when the context has no graph'() {
@@ -235,7 +233,7 @@ class ValidateOptionConsumptionStageSpec extends Specification {
         stage.run(ctx)
 
         then:
-        0 * messager.printMessage(*_)
+        ctx.diagnostics.empty
     }
 
     private void landOp(final MapperGraph graph, final String label, final int weight, final Set<String> consumed) {

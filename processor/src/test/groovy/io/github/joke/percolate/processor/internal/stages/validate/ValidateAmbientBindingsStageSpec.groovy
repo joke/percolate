@@ -1,7 +1,7 @@
 package io.github.joke.percolate.processor.internal.stages.validate
 
 import io.github.joke.percolate.Ambient
-import io.github.joke.percolate.processor.Diagnostics
+import io.github.joke.percolate.processor.Diagnostic
 import io.github.joke.percolate.processor.MapperContext
 import io.github.joke.percolate.processor.internal.graph.AddValue
 import io.github.joke.percolate.processor.internal.graph.MapperGraph
@@ -14,6 +14,7 @@ import io.github.joke.percolate.spi.CallableMethods
 import io.github.joke.percolate.spi.MethodCandidate
 import io.github.joke.percolate.spi.Nullability
 import io.github.joke.percolate.spi.ResolveCtx
+import io.github.joke.percolate.spi.Subjects
 import io.github.joke.percolate.spi.ThisReceiver
 import spock.lang.Specification
 import spock.lang.Tag
@@ -28,47 +29,57 @@ import java.util.stream.Stream
 /**
  * {@link ValidateAmbientBindingsStage} unit-tested mock-only: it independently re-derives the three ambient
  * diagnostics (duplicate key, unbound key, key/type mismatch) rather than inspecting landed operations — see the
- * class javadoc and design.md's implementation note. Every diagnostic positions at the mapper type (the only
- * positioning that reliably suppresses {@link RealisationDiagnosticsStage}'s generic message across both
- * directly-declared and inherited candidates).
+ * class javadoc and design.md's implementation note. Every diagnostic positions via {@link Subjects#none()} (the
+ * mapper type), reported permanent (design D14).
  */
 @Tag('unit')
 class ValidateAmbientBindingsStageSpec extends Specification {
 
-    Diagnostics diagnostics = Mock()
     NullabilityResolver resolver = Mock()
-    ValidateAmbientBindingsStage stage = new ValidateAmbientBindingsStage(diagnostics, resolver)
+    ValidateAmbientBindingsStage stage = new ValidateAmbientBindingsStage(resolver)
 
     TypeElement mapperType = Mock()
     TypeMirror targetType = Mock()
     TypeMirror personType = Mock()
     TypeMirror customerType = Mock()
 
-    def 'reports nothing when the mapper already carries errors'() {
-        diagnostics.hasErrorsFor(mapperType) >> true
+    def 'reports nothing when the mapper already carries an error'() {
         def method = methodWithParams(ambientParam('a', targetType, 'ctx'), ambientParam('b', targetType, 'ctx'))
+        def ctx = context(new MapperGraph(), new MapperShape(mapperType, [method]), emptyCallableMethods())
+        ctx.report(Diagnostic.error(Subjects.none(), 'already scarred').asPermanent())
 
         when:
-        stage.run(context(new MapperGraph(), new MapperShape(mapperType, [method]), emptyCallableMethods()))
+        stage.run(ctx)
 
         then:
-        0 * diagnostics.error(*_)
+        ctx.diagnostics.size() == 1
     }
 
     def 'reports nothing when the graph is absent'() {
-        expect:
-        new ValidateAmbientBindingsStage(diagnostics, resolver).run(new MapperContext(mapperType))
-    }
-
-    def 'reports a duplicate ambient key on an abstract method, positioned at the mapper type'() {
-        def method = methodWithParams(ambientParam('a', targetType, 'ctx'), ambientParam('b', targetType, 'ctx'))
-        diagnostics.hasErrorsFor(mapperType) >> false
+        given:
+        def ctx = new MapperContext(mapperType)
 
         when:
-        stage.run(context(new MapperGraph(), new MapperShape(mapperType, [method]), emptyCallableMethods()))
+        stage.run(ctx)
 
         then:
-        1 * diagnostics.error(mapperType) { it.contains("duplicate @Ambient key 'ctx'") && it.contains('map') }
+        ctx.diagnostics.empty
+    }
+
+    def 'reports a permanent duplicate ambient key on an abstract method, positioned at the mapper type'() {
+        def method = methodWithParams(ambientParam('a', targetType, 'ctx'), ambientParam('b', targetType, 'ctx'))
+        def ctx = context(new MapperGraph(), new MapperShape(mapperType, [method]), emptyCallableMethods())
+
+        when:
+        stage.run(ctx)
+
+        then:
+        ctx.diagnostics.size() == 1
+        with(ctx.diagnostics[0]) {
+            permanent
+            message.contains("duplicate @Ambient key 'ctx'")
+            message.contains('map')
+        }
     }
 
     def 'reports an unbound ambient key for a reachable candidate that declares one'() {
@@ -77,14 +88,17 @@ class ValidateAmbientBindingsStageSpec extends Specification {
         graph.apply(new AddValue(scope, root(), targetType, Nullability.NON_NULL))
         def candidateMethod = methodNamed('mapPrice', ambientParam('order', targetType, ''))
         def callableMethods = candidateProducing(targetType, candidateMethod)
-        diagnostics.hasErrorsFor(mapperType) >> false
+        def ctx = context(graph, new MapperShape(mapperType, []), callableMethods)
 
         when:
-        stage.run(context(graph, new MapperShape(mapperType, []), callableMethods))
+        stage.run(ctx)
 
         then:
-        1 * diagnostics.error(mapperType) {
-            it.contains("unbound @Ambient key 'order'") && it.contains('mapPrice')
+        ctx.diagnostics.size() == 1
+        with(ctx.diagnostics[0]) {
+            permanent
+            message.contains("unbound @Ambient key 'order'")
+            message.contains('mapPrice')
         }
     }
 
@@ -100,14 +114,17 @@ class ValidateAmbientBindingsStageSpec extends Specification {
         def resolveCtx = Mock(ResolveCtx) {
             isAssignable(personType, customerType) >> false
         }
-        diagnostics.hasErrorsFor(mapperType) >> false
+        def ctx = context(graph, new MapperShape(mapperType, []), callableMethods, resolveCtx)
 
         when:
-        stage.run(context(graph, new MapperShape(mapperType, []), callableMethods, resolveCtx))
+        stage.run(ctx)
 
         then:
-        1 * diagnostics.error(mapperType) {
-            it.contains("@Ambient key 'simon' is bound to") && it.contains('mapAddress')
+        ctx.diagnostics.size() == 1
+        with(ctx.diagnostics[0]) {
+            permanent
+            message.contains("@Ambient key 'simon' is bound to")
+            message.contains('mapAddress')
         }
     }
 
@@ -122,13 +139,13 @@ class ValidateAmbientBindingsStageSpec extends Specification {
         def resolveCtx = Mock(ResolveCtx) {
             isAssignable(targetType, targetType) >> true
         }
-        diagnostics.hasErrorsFor(mapperType) >> false
+        def ctx = context(graph, new MapperShape(mapperType, []), callableMethods, resolveCtx)
 
         when:
-        stage.run(context(graph, new MapperShape(mapperType, []), callableMethods, resolveCtx))
+        stage.run(ctx)
 
         then:
-        0 * diagnostics.error(*_)
+        ctx.diagnostics.empty
     }
 
     def 'checks each method/parameter/scope combination once even when reached from multiple demanded values'() {
@@ -138,13 +155,13 @@ class ValidateAmbientBindingsStageSpec extends Specification {
         graph.apply(new AddValue(scope, new TargetLocation(new TargetPath(['other'])), targetType, Nullability.NON_NULL))
         def candidateMethod = methodWithParams(ambientParam('order', targetType, ''))
         def callableMethods = candidateProducing(targetType, candidateMethod)
-        diagnostics.hasErrorsFor(mapperType) >> false
+        def ctx = context(graph, new MapperShape(mapperType, []), callableMethods)
 
         when:
-        stage.run(context(graph, new MapperShape(mapperType, []), callableMethods))
+        stage.run(ctx)
 
         then:
-        1 * diagnostics.error(mapperType, _)
+        ctx.diagnostics.size() == 1
     }
 
     // ---- helpers ---------------------------------------------------------------------------------------------

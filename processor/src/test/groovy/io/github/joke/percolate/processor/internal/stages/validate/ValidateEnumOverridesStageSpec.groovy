@@ -1,6 +1,5 @@
 package io.github.joke.percolate.processor.internal.stages.validate
 
-import io.github.joke.percolate.processor.Diagnostics
 import io.github.joke.percolate.processor.MapperContext
 import io.github.joke.percolate.processor.internal.graph.MethodScope
 import io.github.joke.percolate.processor.model.EnumOverrideDirective
@@ -10,7 +9,6 @@ import spock.lang.Specification
 import spock.lang.Subject
 import spock.lang.Tag
 
-import javax.annotation.processing.Messager
 import javax.lang.model.element.AnnotationMirror
 import javax.lang.model.element.AnnotationValue
 import javax.lang.model.element.Element
@@ -22,22 +20,19 @@ import javax.lang.model.element.VariableElement
 import javax.lang.model.type.DeclaredType
 import javax.lang.model.type.TypeKind
 import javax.lang.model.type.TypeMirror
-import javax.tools.Diagnostic
 
 /**
- * {@link ValidateEnumOverridesStage} seam, unit-tested directly against a mock {@link Messager}: a method's
- * already-discovered {@code @MapEnum} table (carried on its {@link GoalSpec}) is checked against the actual
- * constants of the return type ({@code target}) and, for a single-parameter method, the parameter type
- * ({@code source}) — an unmatched name is diagnosed at the corresponding {@link AnnotationValue}. A method whose
- * return type is not an {@code enum}, or whose single parameter is not an {@code enum}, is skipped for that side.
+ * {@link ValidateEnumOverridesStage} seam, unit-tested directly: a method's already-discovered {@code @MapEnum} table
+ * (carried on its {@link GoalSpec}) is checked against the actual constants of the return type ({@code target}) and,
+ * for a single-parameter method, the parameter type ({@code source}) — an unmatched name is reported as a permanent
+ * diagnostic (design D14) at the corresponding {@link AnnotationValue}. A method whose return type is not an
+ * {@code enum}, or whose single parameter is not an {@code enum}, is skipped for that side.
  */
 @Tag('unit')
 class ValidateEnumOverridesStageSpec extends Specification {
 
-    def messager = Mock(Messager)
-    def diagnostics = new Diagnostics(messager)
     @Subject
-    def stage = new ValidateEnumOverridesStage(diagnostics)
+    def stage = new ValidateEnumOverridesStage()
 
     def mirror = Mock(AnnotationMirror)
     def sourceValue = Mock(AnnotationValue)
@@ -51,7 +46,7 @@ class ValidateEnumOverridesStageSpec extends Specification {
         stage.run(ctx)
 
         then:
-        0 * messager.printMessage(*_)
+        ctx.diagnostics.empty
     }
 
     def 'an unknown target constant is diagnosed at the target value'() {
@@ -62,9 +57,11 @@ class ValidateEnumOverridesStageSpec extends Specification {
         stage.run(ctx)
 
         then:
-        1 * messager.printMessage(Diagnostic.Kind.ERROR, { it.contains("unknown target constant 'MISSING'") }, method,
-                mirror, targetValue)
-        0 * messager.printMessage(*_)
+        ctx.diagnostics.size() == 1
+        with(ctx.diagnostics[0]) {
+            permanent
+            message.contains("unknown target constant 'MISSING'")
+        }
     }
 
     def 'an unknown source constant is diagnosed at the source value'() {
@@ -75,9 +72,11 @@ class ValidateEnumOverridesStageSpec extends Specification {
         stage.run(ctx)
 
         then:
-        1 * messager.printMessage(Diagnostic.Kind.ERROR, { it.contains("unknown source constant 'BOGUS'") }, method,
-                mirror, sourceValue)
-        0 * messager.printMessage(*_)
+        ctx.diagnostics.size() == 1
+        with(ctx.diagnostics[0]) {
+            permanent
+            message.contains("unknown source constant 'BOGUS'")
+        }
     }
 
     def 'both an unknown source and target are each diagnosed once'() {
@@ -88,9 +87,9 @@ class ValidateEnumOverridesStageSpec extends Specification {
         stage.run(ctx)
 
         then:
-        1 * messager.printMessage(Diagnostic.Kind.ERROR, { it.contains('unknown source') }, method, mirror, sourceValue)
-        1 * messager.printMessage(Diagnostic.Kind.ERROR, { it.contains('unknown target') }, method, mirror, targetValue)
-        0 * messager.printMessage(*_)
+        ctx.diagnostics.size() == 2
+        ctx.diagnostics.any { it.message.contains('unknown source') }
+        ctx.diagnostics.any { it.message.contains('unknown target') }
     }
 
     def 'a non-enum return type skips the target check'() {
@@ -103,7 +102,7 @@ class ValidateEnumOverridesStageSpec extends Specification {
         stage.run(ctx)
 
         then:
-        0 * messager.printMessage(*_)
+        ctx.diagnostics.empty
     }
 
     def 'a non-single-parameter method skips the source check'() {
@@ -117,7 +116,7 @@ class ValidateEnumOverridesStageSpec extends Specification {
         stage.run(ctx)
 
         then:
-        0 * messager.printMessage(*_)
+        ctx.diagnostics.empty
     }
 
     def 'a non-enum single parameter skips the source check'() {
@@ -134,7 +133,7 @@ class ValidateEnumOverridesStageSpec extends Specification {
         stage.run(ctx)
 
         then:
-        0 * messager.printMessage(*_)
+        ctx.diagnostics.empty
     }
 
     def 'a method with no enum overrides is not checked at all'() {
@@ -145,7 +144,7 @@ class ValidateEnumOverridesStageSpec extends Specification {
         stage.run(ctx)
 
         then:
-        0 * messager.printMessage(*_)
+        ctx.diagnostics.empty
     }
 
     def 'a method with no goal spec entry is skipped'() {
@@ -158,7 +157,7 @@ class ValidateEnumOverridesStageSpec extends Specification {
         stage.run(ctx)
 
         then:
-        0 * messager.printMessage(*_)
+        ctx.diagnostics.empty
     }
 
     def 'run is a no-op when discovery produced no shape'() {
@@ -168,7 +167,7 @@ class ValidateEnumOverridesStageSpec extends Specification {
         stage.run(ctx)
 
         then:
-        0 * messager.printMessage(*_)
+        ctx.diagnostics.empty
     }
 
     private MapperContext ctxWith(final ExecutableElement method, final EnumOverrideDirective... overrides) {

@@ -10,30 +10,30 @@ through `tail`.
 
 ## 1. Class-member agreement (independent — lands first)
 
-- [ ] 1.1 In `MemberPlan.forMapper`, group the winning plan's `MemberRequest`s by dedup key instead of `putIfAbsent`, retaining every request per key
-- [ ] 1.2 Report an error when one key's group holds more than one distinct `(fieldType, initializer)` pair, naming the key, both definitions and the requesting operation labels, positioned at the mapper type and marked permanent
-- [ ] 1.3 Keep agreeing requests deduplicating to one member with unchanged field naming and emission order
-- [ ] 1.4 Extend `MemberPlanSpec`: agreeing requests dedupe; differing initializers conflict; differing field types conflict; a conflict outside the winning plan is ignored
-- [ ] 1.5 Add an e2e where two operations request one dedup key with different initializers and compilation fails with the expected message
-- [ ] 1.6 Run `./gradlew check --no-configuration-cache` and fix every violation
+- [x] 1.1 In `MemberPlan.forMapper`, group the winning plan's `MemberRequest`s by dedup key instead of `putIfAbsent`, retaining every request per key
+- [x] 1.2 Report an error when one key's group holds more than one distinct `(fieldType, initializer)` pair, naming the key, both definitions and the requesting operation labels, positioned at the mapper type and marked permanent
+- [x] 1.3 Keep agreeing requests deduplicating to one member with unchanged field naming and emission order
+- [x] 1.4 Extend `MemberPlanSpec`: agreeing requests dedupe; differing initializers conflict; differing field types conflict; a conflict outside the winning plan is ignored
+- [x] 1.5 Add an e2e where two operations request one dedup key with different initializers and compilation fails with the expected message
+- [x] 1.6 Run `./gradlew check --no-configuration-cache` and fix every violation
 
 ## 2. Diagnostics as values (group D)
 
-- [ ] 2.1 Add `Subject` (marker) and the `Subjects` factory (`of(Element, AnnotationMirror, AnnotationValue)`, `none()`) to `percolate-spi`, with the processor owning the representation
-- [ ] 2.2 Add the `Diagnostic` value type: severity, `Subject` position, message, `permanent` flag defaulting to transient
-- [ ] 2.3 Add `report(Diagnostic)` / `diagnostics()` / `hasErrors()` to `MapperContext`
-- [ ] 2.4 Add `DiagnosticEmitter` as the sole `Messager` writer, resolving each `Subject` to its element/mirror/value and falling back to the mapper type for `Subjects.none()`
-- [ ] 2.5 Migrate every existing `Diagnostics.error(...)` call site to record a `Diagnostic` instead, keeping each message and position byte-identical
-- [ ] 2.6 Mark permanent the diagnostics whose cause cannot change across rounds (duplicate binding, source root, annotation shape, coercion failure, member conflict); leave the rest transient
-- [ ] 2.7 Delete the `Diagnostics` `@Singleton`, `scarred`, `scarredWithEnclosing`, `hasErrorsFor` and `reset()`
-- [ ] 2.8 Change `MapperStep` to defer iff the mapper is unrealised **and** every collected diagnostic is transient; emit on consume
-- [ ] 2.9 Make `RealisationDiagnosticsStage` record transient `Diagnostic`s and delete `MapperContext.setUnsatisfiedRealisation`/`getUnsatisfiedRealisation`, replacing the Filer-stage guards with the realisation query
-- [ ] 2.10 Change `MapperStep.flushDeferredDiagnostics` to retain `Diagnostic`s keyed by FQN (no `Element`/`TypeMirror` held across rounds)
-- [ ] 2.11 Flush in a `finally` around `Pipeline.process` so a mid-pipeline failure still reports what was collected
-- [ ] 2.12 Write specs for the emitter (the only `Messager` mock), the deferral classification, and transient/permanent marking
-- [ ] 2.13 Rewrite the e2e assertions that depend on diagnostic emission order to match on content and position
-- [ ] 2.14 Add an e2e proving a mapper deferred with a transient diagnostic realises silently on the co-processor's round
-- [ ] 2.15 Run `./gradlew check --no-configuration-cache` and fix every violation
+- [x] 2.1 Add `Subject` (marker) and the `Subjects` factory (`of(Element, AnnotationMirror, AnnotationValue)`, `none()`) to `percolate-spi`, with the processor owning the representation
+- [x] 2.2 Add the `Diagnostic` value type: severity, `Subject` position, message, `permanent` flag defaulting to transient
+- [x] 2.3 Add `report(Diagnostic)` / `diagnostics()` / `hasErrors()` to `MapperContext`
+- [x] 2.4 Add `DiagnosticEmitter` as the sole `Messager` writer, resolving each `Subject` to its element/mirror/value and falling back to the mapper type for `Subjects.none()`
+- [x] 2.5 Migrate every existing `Diagnostics.error(...)` call site to record a `Diagnostic` instead, keeping each message and position byte-identical
+- [x] 2.6 Mark permanent the diagnostics whose cause cannot change across rounds (duplicate binding, source root, annotation shape, coercion failure, member conflict); leave the rest transient
+- [x] 2.7 Delete the `Diagnostics` `@Singleton`, `scarred`, `scarredWithEnclosing`, `hasErrorsFor` and `reset()`
+- [x] 2.8 Change `MapperStep` to defer iff the mapper is unrealised **and** every collected diagnostic is transient; emit on consume
+- [x] 2.9 Make `RealisationDiagnosticsStage` record transient `Diagnostic`s and delete `MapperContext.setUnsatisfiedRealisation`/`getUnsatisfiedRealisation`, replacing the Filer-stage guards with the realisation query
+- [x] 2.10 Change `MapperStep.flushDeferredDiagnostics` to retain `Diagnostic`s keyed by FQN (no `Element`/`TypeMirror` held across rounds)
+- [x] 2.11 Flush in a `finally` around `Pipeline.process` so a mid-pipeline failure still reports what was collected
+- [x] 2.12 Write specs for the emitter (the only `Messager` mock), the deferral classification, and transient/permanent marking
+- [x] 2.13 Rewrite the e2e assertions that depend on diagnostic emission order to match on content and position
+- [x] 2.14 Add an e2e proving a mapper deferred with a transient diagnostic realises silently on the co-processor's round
+- [x] 2.15 Run `./gradlew check --no-configuration-cache` and fix every violation
 
 ## 3. The open directive surface (group A1)
 

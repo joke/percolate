@@ -1,6 +1,5 @@
 package io.github.joke.percolate.processor.internal.stages.validate
 
-import io.github.joke.percolate.processor.Diagnostics
 import io.github.joke.percolate.processor.MapperContext
 import io.github.joke.percolate.processor.model.MapperMappings
 import io.github.joke.percolate.processor.model.MappingDirective
@@ -9,20 +8,19 @@ import spock.lang.Specification
 import spock.lang.Subject
 import spock.lang.Tag
 
-import javax.annotation.processing.Messager
 import javax.lang.model.element.AnnotationMirror
 import javax.lang.model.element.AnnotationValue
 import javax.lang.model.element.ExecutableElement
 import javax.lang.model.element.TypeElement
-import javax.tools.Diagnostic
 
 @Tag('unit')
 class ValidateMappingShapeStageSpec extends Specification {
 
-    def messager = Mock(Messager)
-    def diagnostics = new Diagnostics(messager)
     @Subject
-    def stage = new ValidateMappingShapeStage(diagnostics)
+    def stage = new ValidateMappingShapeStage()
+
+    def mapperType = Mock(TypeElement)
+    def ctx = new MapperContext(mapperType)
 
     def method = Mock(ExecutableElement)
     def mirror = Mock(AnnotationMirror)
@@ -36,10 +34,14 @@ class ValidateMappingShapeStageSpec extends Specification {
         def directive = new MappingDirective('status', 'in.status', 'ACTIVE', null, null, null, mirror, targetV, sourceV, constantV, null, null, null)
 
         when:
-        def result = stage.validate(mappings(directive))
+        def result = stage.validate(mappings(directive), ctx)
 
         then:
-        1 * messager.printMessage(Diagnostic.Kind.ERROR, { it.contains('mutually exclusive') }, method, mirror, constantV)
+        ctx.diagnostics.size() == 1
+        with(ctx.diagnostics[0]) {
+            permanent
+            message.contains('mutually exclusive')
+        }
         result.methods[0].directives.empty
     }
 
@@ -48,10 +50,14 @@ class ValidateMappingShapeStageSpec extends Specification {
         def directive = new MappingDirective('status', null, null, null, null, null, mirror, targetV, null, null, null, null, null)
 
         when:
-        def result = stage.validate(mappings(directive))
+        def result = stage.validate(mappings(directive), ctx)
 
         then:
-        1 * messager.printMessage(Diagnostic.Kind.ERROR, { it.contains('must declare') }, method, mirror, targetV)
+        ctx.diagnostics.size() == 1
+        with(ctx.diagnostics[0]) {
+            permanent
+            message.contains('must declare')
+        }
         result.methods[0].directives.empty
     }
 
@@ -60,10 +66,14 @@ class ValidateMappingShapeStageSpec extends Specification {
         def directive = new MappingDirective('status', null, 'ACTIVE', 'x', null, null, mirror, targetV, null, constantV, defaultV, null, null)
 
         when:
-        def result = stage.validate(mappings(directive))
+        def result = stage.validate(mappings(directive), ctx)
 
-        then: 'positioned at the defaultValue literal'
-        1 * messager.printMessage(Diagnostic.Kind.ERROR, { it.contains("'defaultValue' requires") }, method, mirror, defaultV)
+        then: 'reported for the defaultValue literal'
+        ctx.diagnostics.size() == 1
+        with(ctx.diagnostics[0]) {
+            permanent
+            message.contains("'defaultValue' requires")
+        }
 
         and: 'the directive is structurally a valid constant, so it is kept for seeding'
         result.methods[0].directives.size() == 1
@@ -74,10 +84,10 @@ class ValidateMappingShapeStageSpec extends Specification {
         def directive = new MappingDirective('name', 'in.name', null, 'unknown', null, null, mirror, targetV, sourceV, null, defaultV, null, null)
 
         when:
-        def result = stage.validate(mappings(directive))
+        def result = stage.validate(mappings(directive), ctx)
 
         then:
-        0 * messager.printMessage(*_)
+        ctx.diagnostics.empty
         result.methods[0].directives.size() == 1
     }
 
@@ -87,30 +97,24 @@ class ValidateMappingShapeStageSpec extends Specification {
         def sourceOnly = new MappingDirective('name', 'in.name', null, null, null, null, mirror, targetV, sourceV, null, null, null, null)
 
         when:
-        def result = stage.validate(mappings(constantOnly, sourceOnly))
+        def result = stage.validate(mappings(constantOnly, sourceOnly), ctx)
 
         then:
-        0 * messager.printMessage(*_)
+        ctx.diagnostics.empty
         result.methods[0].directives.size() == 2
     }
 
     def 'run is a no-op when the context has no mappings'() {
-        given:
-        def ctx = new MapperContext(Mock(TypeElement))
-
         when:
         stage.run(ctx)
 
         then:
-        0 * messager.printMessage(*_)
-
-        and:
+        ctx.diagnostics.empty
         ctx.mappings == null
     }
 
     def 'run installs the validated mappings, dropping the contradictory directive'() {
         given:
-        def ctx = new MapperContext(Mock(TypeElement))
         ctx.mappings = mappings(new MappingDirective('status', 'in.status', 'ACTIVE', null, null, null, mirror, targetV, sourceV,
                 constantV, null, null, null))
 
@@ -118,7 +122,8 @@ class ValidateMappingShapeStageSpec extends Specification {
         stage.run(ctx)
 
         then:
-        1 * messager.printMessage(Diagnostic.Kind.ERROR, { it.contains('mutually exclusive') }, method, mirror, constantV)
+        ctx.diagnostics.size() == 1
+        ctx.diagnostics[0].message.contains('mutually exclusive')
 
         and:
         ctx.mappings.methods[0].directives.empty

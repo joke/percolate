@@ -1,6 +1,6 @@
 package io.github.joke.percolate.processor.internal.stages.dump
 
-import io.github.joke.percolate.processor.Diagnostics
+import io.github.joke.percolate.processor.Diagnostic
 import io.github.joke.percolate.processor.MapperContext
 import io.github.joke.percolate.processor.ProcessorOptions
 import io.github.joke.percolate.processor.internal.graph.AccessPath
@@ -18,6 +18,7 @@ import io.github.joke.percolate.processor.test.HarnessScope
 import io.github.joke.percolate.spi.Codegen
 import io.github.joke.percolate.spi.Nullability
 import io.github.joke.percolate.spi.Port
+import io.github.joke.percolate.spi.Subjects
 import spock.lang.Specification
 import spock.lang.Tag
 
@@ -33,7 +34,6 @@ import javax.tools.StandardLocation
 class GraphDumpWriterSpec extends Specification {
 
     Filer filer = Mock()
-    Diagnostics diagnostics = Mock()
     ProcessorOptions options = Mock()
     DotRenderer dotRenderer = Mock()
 
@@ -45,7 +45,7 @@ class GraphDumpWriterSpec extends Specification {
     def ctx = new MapperContext(mapperType)
 
     def 'the two-argument overload dumps without dimming'() {
-        GraphDumpWriter writer = Spy(constructorArgs: [filer, diagnostics, options, dotRenderer])
+        GraphDumpWriter writer = Spy(constructorArgs: [filer, options, dotRenderer])
         def include = { true }
 
         when:
@@ -58,7 +58,7 @@ class GraphDumpWriterSpec extends Specification {
     }
 
     def 'when debug graphs are off, nothing is dumped'() {
-        GraphDumpWriter writer = new GraphDumpWriter(filer, diagnostics, options, dotRenderer)
+        GraphDumpWriter writer = new GraphDumpWriter(filer, options, dotRenderer)
         seedOneVertex()
         ctx.graph = graph
 
@@ -72,7 +72,7 @@ class GraphDumpWriterSpec extends Specification {
     }
 
     def 'an empty graph is skipped'() {
-        GraphDumpWriter writer = new GraphDumpWriter(filer, diagnostics, options, dotRenderer)
+        GraphDumpWriter writer = new GraphDumpWriter(filer, options, dotRenderer)
         ctx.graph = graph
 
         when:
@@ -84,11 +84,11 @@ class GraphDumpWriterSpec extends Specification {
         0 * dotRenderer._
     }
 
-    def 'a mapper with unsatisfied realisation is skipped'() {
-        GraphDumpWriter writer = new GraphDumpWriter(filer, diagnostics, options, dotRenderer)
+    def 'a mapper already carrying an error is skipped'() {
+        GraphDumpWriter writer = new GraphDumpWriter(filer, options, dotRenderer)
         seedOneVertex()
         ctx.graph = graph
-        ctx.unsatisfiedRealisation = ['no plan for tgt[]']
+        ctx.report(Diagnostic.error(Subjects.none(), 'no plan for tgt[]'))
 
         when:
         writer.dump(ctx, 'full', { true }, false)
@@ -100,7 +100,7 @@ class GraphDumpWriterSpec extends Specification {
     }
 
     def 'a satisfiable, non-empty graph is rendered and written through the Filer'() {
-        GraphDumpWriter writer = new GraphDumpWriter(filer, diagnostics, options, dotRenderer)
+        GraphDumpWriter writer = new GraphDumpWriter(filer, options, dotRenderer)
         seedOneVertex()
         ctx.graph = graph
         FileObject resource = Mock()
@@ -114,14 +114,14 @@ class GraphDumpWriterSpec extends Specification {
         1 * dotRenderer.render(_, scope.encode(), _) >> 'digraph {}'
         1 * filer.createResource(StandardLocation.SOURCE_OUTPUT, '', _, mapperType) >> resource
         1 * resource.openOutputStream() >> bytes
-        0 * diagnostics._
 
         expect:
         bytes.toString('UTF-8') == 'digraph {}'
+        ctx.diagnostics.empty
     }
 
-    def 'a Filer failure is reported as a warning, not propagated'() {
-        GraphDumpWriter writer = new GraphDumpWriter(filer, diagnostics, options, dotRenderer)
+    def 'a Filer failure is reported as a transient warning, not propagated'() {
+        GraphDumpWriter writer = new GraphDumpWriter(filer, options, dotRenderer)
         seedOneVertex()
         ctx.graph = graph
 
@@ -132,11 +132,19 @@ class GraphDumpWriterSpec extends Specification {
         options.debugGraphs >> true
         1 * dotRenderer.render(_, _, _) >> 'digraph {}'
         1 * filer.createResource(*_) >> { throw new IOException('disk full') }
-        1 * diagnostics.warning(mapperType) { it.contains('full') && it.contains('disk full') }
+
+        expect:
+        ctx.diagnostics.size() == 1
+        with(ctx.diagnostics[0]) {
+            severity == Diagnostic.Severity.WARNING
+            !permanent
+            message.contains('full')
+            message.contains('disk full')
+        }
     }
 
     def 'dimUnreachable greys out vertices ExtractedPlan marks unreachable'() {
-        GraphDumpWriter writer = new GraphDumpWriter(filer, diagnostics, options, dotRenderer)
+        GraphDumpWriter writer = new GraphDumpWriter(filer, options, dotRenderer)
         def root = seedOneVertex()
         ctx.graph = graph
         FileObject resource = Stub {

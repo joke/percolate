@@ -1,6 +1,5 @@
 package io.github.joke.percolate.processor.internal.stages.validate
 
-import io.github.joke.percolate.processor.Diagnostics
 import io.github.joke.percolate.processor.MapperContext
 import io.github.joke.percolate.processor.model.MapperMappings
 import io.github.joke.percolate.processor.model.MappingDirective
@@ -9,25 +8,24 @@ import spock.lang.Specification
 import spock.lang.Subject
 import spock.lang.Tag
 
-import javax.annotation.processing.Messager
 import javax.lang.model.element.AnnotationMirror
 import javax.lang.model.element.AnnotationValue
 import javax.lang.model.element.ExecutableElement
 import javax.lang.model.element.TypeElement
-import javax.tools.Diagnostic
 
 /**
- * {@link ValidateNoDuplicateTargetsStage} seam, unit-tested directly against a mock {@link Messager}: directives are
- * grouped by target and every directive after the first on a shared target is diagnosed (positioned at that
- * directive's {@code target} value). The first occurrence is spared.
+ * {@link ValidateNoDuplicateTargetsStage} seam, unit-tested directly: directives are grouped by target and every
+ * directive after the first on a shared target is reported as a permanent diagnostic (positioned at that directive's
+ * {@code target} value, design D14). The first occurrence is spared.
  */
 @Tag('unit')
 class ValidateNoDuplicateTargetsStageSpec extends Specification {
 
-    def messager = Mock(Messager)
-    def diagnostics = new Diagnostics(messager)
     @Subject
-    def stage = new ValidateNoDuplicateTargetsStage(diagnostics)
+    def stage = new ValidateNoDuplicateTargetsStage()
+
+    def mapperType = Mock(TypeElement)
+    def ctx = new MapperContext(mapperType)
 
     def method = Mock(ExecutableElement)
     def mirror = Mock(AnnotationMirror)
@@ -36,20 +34,22 @@ class ValidateNoDuplicateTargetsStageSpec extends Specification {
 
     def 'a duplicate target is flagged once at the second directive; the first is spared'() {
         when:
-        stage.validate(mappings(directive('status', firstTarget), directive('status', secondTarget)))
+        stage.validate(mappings(directive('status', firstTarget), directive('status', secondTarget)), ctx)
 
         then:
-        1 * messager.printMessage(Diagnostic.Kind.ERROR, { it.contains("duplicate target 'status'") }, method, mirror,
-                secondTarget)
-        0 * messager.printMessage(Diagnostic.Kind.ERROR, _, method, mirror, firstTarget)
+        ctx.diagnostics.size() == 1
+        with(ctx.diagnostics[0]) {
+            permanent
+            message.contains("duplicate target 'status'")
+        }
     }
 
     def 'distinct targets produce no diagnostic'() {
         when:
-        stage.validate(mappings(directive('first', firstTarget), directive('second', secondTarget)))
+        stage.validate(mappings(directive('first', firstTarget), directive('second', secondTarget)), ctx)
 
         then:
-        0 * messager.printMessage(*_)
+        ctx.diagnostics.empty
     }
 
     def 'three directives on one target flag the two later ones, not the first'() {
@@ -58,36 +58,31 @@ class ValidateNoDuplicateTargetsStageSpec extends Specification {
 
         when:
         stage.validate(mappings(
-                directive('x', firstTarget), directive('x', secondTarget), directive('x', thirdTarget)))
+                directive('x', firstTarget), directive('x', secondTarget), directive('x', thirdTarget)), ctx)
 
         then:
-        1 * messager.printMessage(Diagnostic.Kind.ERROR, _, method, mirror, secondTarget)
-        1 * messager.printMessage(Diagnostic.Kind.ERROR, _, method, mirror, thirdTarget)
-        0 * messager.printMessage(Diagnostic.Kind.ERROR, _, method, mirror, firstTarget)
+        ctx.diagnostics.size() == 2
+        ctx.diagnostics.every { it.permanent }
     }
 
     def 'run does nothing when the context has no mappings'() {
-        given:
-        def ctx = new MapperContext(Mock(TypeElement))
-
         when:
         stage.run(ctx)
 
         then:
-        0 * messager.printMessage(*_)
+        ctx.diagnostics.empty
     }
 
     def 'run validates the mappings installed on the context'() {
         given:
-        def ctx = new MapperContext(Mock(TypeElement))
         ctx.mappings = mappings(directive('status', firstTarget), directive('status', secondTarget))
 
         when:
         stage.run(ctx)
 
         then:
-        1 * messager.printMessage(Diagnostic.Kind.ERROR, { it.contains("duplicate target 'status'") }, method, mirror,
-                secondTarget)
+        ctx.diagnostics.size() == 1
+        ctx.diagnostics[0].message.contains("duplicate target 'status'")
     }
 
     def 'groupByTarget buckets directives by their target name'() {

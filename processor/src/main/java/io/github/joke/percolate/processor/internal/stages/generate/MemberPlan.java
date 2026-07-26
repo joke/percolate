@@ -10,11 +10,15 @@ import io.github.joke.percolate.lib.javapoet.CodeBlock;
 import io.github.joke.percolate.lib.javapoet.FieldSpec;
 import io.github.joke.percolate.lib.javapoet.NameAllocator;
 import io.github.joke.percolate.lib.javapoet.TypeName;
+import io.github.joke.percolate.processor.Diagnostic;
+import io.github.joke.percolate.processor.MapperContext;
 import io.github.joke.percolate.processor.internal.graph.ExtractedPlan;
 import io.github.joke.percolate.processor.internal.graph.MapperGraph;
 import io.github.joke.percolate.processor.internal.graph.Operation;
 import io.github.joke.percolate.processor.internal.graph.Value;
 import io.github.joke.percolate.spi.MemberRequest;
+import io.github.joke.percolate.spi.Subjects;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.IdentityHashMap;
@@ -23,6 +27,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.stream.Collectors;
 import lombok.AccessLevel;
 import lombok.RequiredArgsConstructor;
 
@@ -42,27 +47,67 @@ import lombok.RequiredArgsConstructor;
 @RequiredArgsConstructor(access = AccessLevel.PRIVATE)
 final class MemberPlan {
 
+    private static final int ONE_DEFINITION = 1;
+
     private final Map<String, String> namesByDedupKey;
     private final Map<String, MemberRequest> requestByDedupKey;
 
-    /** Builds the member plan for every {@link MemberRequest} reachable from any of {@code graph}'s return roots. */
-    static MemberPlan forMapper(final MapperGraph graph, final ExtractedPlan plan) {
+    /**
+     * Builds the member plan for every {@link MemberRequest} reachable from any of {@code graph}'s return roots.
+     * Requests sharing a dedup key must agree on {@code (fieldType, initializer)} (design D11 of change
+     * {@code decouple-engine-from-strategy-semantics}); a disagreement is reported at the mapper type and the
+     * first-seen request wins the field.
+     */
+    static MemberPlan forMapper(final MapperGraph graph, final ExtractedPlan plan, final MapperContext ctx) {
         final Set<Operation> ops = Collections.newSetFromMap(new IdentityHashMap<>());
         final Set<Value> seen = Collections.newSetFromMap(new IdentityHashMap<>());
         graph.returnRoots().forEach(root -> HoistPlan.collectOps(graph, plan, root, ops, seen));
 
+        final Map<String, List<Attribution>> byDedupKey = new LinkedHashMap<>();
+        ops.stream().sorted(Comparator.comparing(Operation::id)).forEach(op -> op.getMemberRequests()
+                .forEach(request -> byDedupKey
+                        .computeIfAbsent(request.getDedupKey(), key -> new ArrayList<>())
+                        .add(new Attribution(op.getLabel(), request))));
+
+        byDedupKey.forEach((key, attributions) -> reportConflict(ctx, key, attributions));
+
         final var names = new NameAllocator();
         final Map<String, String> namesByDedupKey = new LinkedHashMap<>();
         final Map<String, MemberRequest> requestByDedupKey = new LinkedHashMap<>();
-        ops.stream()
-                .sorted(Comparator.comparing(Operation::id))
-                .flatMap(op -> op.getMemberRequests().stream())
-                .forEach(request -> {
-                    requestByDedupKey.putIfAbsent(request.getDedupKey(), request);
-                    namesByDedupKey.computeIfAbsent(
-                            request.getDedupKey(), key -> names.newName(memberBase(request.getFieldType())));
-                });
+        byDedupKey.forEach((key, attributions) -> {
+            final var winner = attributions.get(0).getRequest();
+            requestByDedupKey.put(key, winner);
+            namesByDedupKey.put(key, names.newName(memberBase(winner.getFieldType())));
+        });
         return new MemberPlan(namesByDedupKey, requestByDedupKey);
+    }
+
+    /** Reports a mapper-type-positioned error when {@code attributions} disagree on {@code (fieldType, initializer)}. */
+    static void reportConflict(final MapperContext ctx, final String key, final List<Attribution> attributions) {
+        final var distinctRequests =
+                attributions.stream().map(Attribution::getRequest).distinct().collect(toUnmodifiableList());
+        if (distinctRequests.size() <= ONE_DEFINITION) {
+            return;
+        }
+        final var definitions = distinctRequests.stream()
+                .map(request -> request.getFieldType() + " = " + request.getInitializer())
+                .collect(Collectors.joining("; "));
+        final var operationLabels = attributions.stream()
+                .map(Attribution::getOperationLabel)
+                .distinct()
+                .collect(Collectors.joining(", "));
+        ctx.report(Diagnostic.error(
+                        Subjects.none(),
+                        "conflicting member definitions for '" + key + "': " + definitions + " (requested by "
+                                + operationLabels + ")")
+                .asPermanent());
+    }
+
+    /** Pairs a {@link MemberRequest} with the label of the {@link Operation} that requested it. */
+    @lombok.Value
+    private static class Attribution {
+        String operationLabel;
+        MemberRequest request;
     }
 
     /** The reference to the member registered under {@code dedupKey}. */

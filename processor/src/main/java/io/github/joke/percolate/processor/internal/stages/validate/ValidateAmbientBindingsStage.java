@@ -1,6 +1,6 @@
 package io.github.joke.percolate.processor.internal.stages.validate;
 
-import io.github.joke.percolate.processor.Diagnostics;
+import io.github.joke.percolate.processor.Diagnostic;
 import io.github.joke.percolate.processor.MapperContext;
 import io.github.joke.percolate.processor.internal.graph.AmbientDecl;
 import io.github.joke.percolate.processor.internal.graph.AmbientKeys;
@@ -13,6 +13,7 @@ import io.github.joke.percolate.processor.model.MapperShape;
 import io.github.joke.percolate.processor.nullability.NullabilityResolver;
 import io.github.joke.percolate.spi.CallableMethods;
 import io.github.joke.percolate.spi.ResolveCtx;
+import io.github.joke.percolate.spi.Subjects;
 import jakarta.inject.Inject;
 import java.util.HashSet;
 import java.util.List;
@@ -36,24 +37,22 @@ import org.jspecify.annotations.Nullable;
  * scope that could actually reach it (never a false positive from an unrelated abstract method sharing the
  * mapper type). Duplicate ambient keys are checked per abstract method and per encountered candidate method.
  *
- * <p>All three diagnostics are positioned at the mapper type itself, not the offending {@code @Ambient}
- * parameter: {@link Diagnostics#hasErrorsFor} — which {@link RealisationDiagnosticsStage} checks to suppress its
- * own generic "no plan" message — is only satisfied by scarring the mapper type or an element whose
- * <em>immediate</em> enclosing element is the mapper type. The offending parameter's enclosing element is its
- * method, not the mapper type, and an inherited candidate's own enclosing element is its declaring supertype —
- * so this is the only positioning that suppresses correctly across both directly-declared and inherited
- * candidates. Every message still names the key, method, parameter, and (for a mismatch) both types.
+ * <p>All three diagnostics are positioned via {@link Subjects#none()} (the mapper type), not the offending
+ * {@code @Ambient} parameter: {@link RealisationDiagnosticsStage} suppresses its own generic "no plan" message via
+ * {@link MapperContext#hasErrors()} (design D14), a query over every diagnostic recorded so far regardless of
+ * position — so, unlike the {@code getEnclosingElement()} containment this once depended on, precise positioning
+ * would no longer change suppression. Every message still names the key, method, parameter, and (for a mismatch)
+ * both types.
  */
 @RequiredArgsConstructor(onConstructor_ = @Inject)
 public final class ValidateAmbientBindingsStage implements Stage {
 
-    private final Diagnostics diagnostics;
     private final NullabilityResolver resolver;
 
     @Override
     public void run(final MapperContext ctx) {
         final var shape = ctx.getShape();
-        if (shape == null || diagnostics.hasErrorsFor(ctx.getMapperType())) {
+        if (shape == null || ctx.hasErrors()) {
             return;
         }
         // Discovery always sets callableMethods unconditionally, and expand always sets graph/resolveCtx
@@ -110,10 +109,11 @@ public final class ValidateAmbientBindingsStage implements Stage {
     }
 
     void reportDuplicateKey(final String key, final ExecutableElement method, final MapperContext ctx) {
-        diagnostics.error(
-                ctx.getMapperType(),
-                "duplicate @Ambient key '" + key + "' on " + method.getSimpleName()
-                        + ": another @Ambient parameter of this method already publishes this key");
+        ctx.report(Diagnostic.error(
+                        Subjects.none(),
+                        "duplicate @Ambient key '" + key + "' on " + method.getSimpleName()
+                                + ": another @Ambient parameter of this method already publishes this key")
+                .asPermanent());
     }
 
     void checkBinding(
@@ -160,10 +160,11 @@ public final class ValidateAmbientBindingsStage implements Stage {
 
     void reportUnboundKey(
             final String key, final VariableElement param, final ExecutableElement method, final MapperContext ctx) {
-        diagnostics.error(
-                ctx.getMapperType(),
-                "unbound @Ambient key '" + key + "' for " + method.getSimpleName() + "'s parameter '"
-                        + param.getSimpleName() + "': no enclosing mapper method publishes this key");
+        ctx.report(Diagnostic.error(
+                        Subjects.none(),
+                        "unbound @Ambient key '" + key + "' for " + method.getSimpleName() + "'s parameter '"
+                                + param.getSimpleName() + "': no enclosing mapper method publishes this key")
+                .asPermanent());
     }
 
     void reportTypeMismatch(
@@ -172,10 +173,11 @@ public final class ValidateAmbientBindingsStage implements Stage {
             final VariableElement param,
             final ExecutableElement method,
             final MapperContext ctx) {
-        diagnostics.error(
-                ctx.getMapperType(),
-                "@Ambient key '" + key + "' is bound to " + binding.getType() + " but " + method.getSimpleName()
-                        + "'s parameter '" + param.getSimpleName() + "' declares " + param.asType()
-                        + ", which is not assignable");
+        ctx.report(Diagnostic.error(
+                        Subjects.none(),
+                        "@Ambient key '" + key + "' is bound to " + binding.getType() + " but " + method.getSimpleName()
+                                + "'s parameter '" + param.getSimpleName() + "' declares " + param.asType()
+                                + ", which is not assignable")
+                .asPermanent());
     }
 }

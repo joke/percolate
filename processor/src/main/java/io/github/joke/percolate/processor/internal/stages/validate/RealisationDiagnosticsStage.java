@@ -1,6 +1,6 @@
 package io.github.joke.percolate.processor.internal.stages.validate;
 
-import io.github.joke.percolate.processor.Diagnostics;
+import io.github.joke.percolate.processor.Diagnostic;
 import io.github.joke.percolate.processor.MapperContext;
 import io.github.joke.percolate.processor.internal.graph.ExtractedPlan;
 import io.github.joke.percolate.processor.internal.graph.MapperGraph;
@@ -8,41 +8,36 @@ import io.github.joke.percolate.processor.internal.graph.Operation;
 import io.github.joke.percolate.processor.internal.graph.TargetLocation;
 import io.github.joke.percolate.processor.internal.graph.Value;
 import io.github.joke.percolate.processor.internal.stages.Stage;
+import io.github.joke.percolate.spi.Subjects;
 import jakarta.inject.Inject;
 import java.util.HashSet;
 import java.util.Optional;
 import java.util.Set;
-import java.util.stream.Collectors;
 import javax.lang.model.type.TypeMirror;
 import lombok.RequiredArgsConstructor;
 
 /**
  * Walks unsatisfied demands and records the closest miss (design D11): for each return-root {@code Value} left
  * unreachable (infinite extraction cost), it descends the deepest unreachable port chain to the demand with no
- * producer and builds a "no plan" message naming it. The messages are <em>recorded</em> on the
- * {@link MapperContext} rather than emitted; {@code MapperStep} emits them once the mapper's outcome reaches the
- * deferral fixpoint. A targeted earlier diagnostic (constant coercion failure, dead default) already explains an
- * unreachable binding, so once the mapper is scarred nothing is recorded.
+ * producer and records a transient "no plan" {@link Diagnostic} naming it (design D14) — transient because a later
+ * round (e.g. Lombok interop) may still realise the mapper. A targeted earlier diagnostic (constant coercion
+ * failure, dead default) already explains an unreachable binding, so once the mapper already has an error nothing
+ * is recorded here.
  */
 @RequiredArgsConstructor(onConstructor_ = @Inject)
 public final class RealisationDiagnosticsStage implements Stage {
 
-    private final Diagnostics diagnostics;
-
     @Override
     public void run(final MapperContext ctx) {
         final var graph = ctx.getGraph();
-        if (graph == null || diagnostics.hasErrorsFor(ctx.getMapperType())) {
+        if (graph == null || ctx.hasErrors()) {
             return;
         }
         final var plan = ExtractedPlan.extract(graph);
-        final var messages = graph.returnRoots()
+        graph.returnRoots()
                 .filter(value -> !plan.reachable(value))
                 .map(root -> message(graph, plan, root))
-                .collect(Collectors.toUnmodifiableList());
-        if (!messages.isEmpty()) {
-            ctx.setUnsatisfiedRealisation(messages);
-        }
+                .forEach(message -> ctx.report(Diagnostic.error(Subjects.none(), message)));
     }
 
     static String message(final MapperGraph graph, final ExtractedPlan plan, final Value root) {

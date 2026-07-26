@@ -1,11 +1,13 @@
 package io.github.joke.percolate.processor;
 
+import static java.util.stream.Collectors.toUnmodifiableList;
 import static java.util.stream.Collectors.toUnmodifiableSet;
 
 import com.google.auto.common.BasicAnnotationProcessor.Step;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.ImmutableSetMultimap;
 import io.github.joke.percolate.Mapper;
+import io.github.joke.percolate.spi.Subjects;
 import jakarta.inject.Inject;
 import jakarta.inject.Singleton;
 import java.util.HashMap;
@@ -45,9 +47,10 @@ final class MapperStep implements Step {
     private static final String MAPPER_FQN = Mapper.class.getCanonicalName();
 
     private final Pipeline pipeline;
-    private final Diagnostics diagnostics;
+    private final DiagnosticEmitter diagnosticEmitter;
     private final Elements elements;
 
+    /** Retained by FQN, message text only — never an {@link Element}/{@link javax.lang.model.type.TypeMirror}, which go stale across rounds (design D14). */
     @SuppressWarnings("PMD.UseConcurrentHashMap") // single-threaded: processing rounds run sequentially
     private final Map<String, List<String>> deferred = new HashMap<>();
 
@@ -58,7 +61,6 @@ final class MapperStep implements Step {
 
     @Override
     public Set<? extends Element> process(final ImmutableSetMultimap<String, Element> elementsByAnnotation) {
-        diagnostics.reset();
         return elementsByAnnotation.get(MAPPER_FQN).stream()
                 .filter(TypeElement.class::isInstance)
                 .map(TypeElement.class::cast)
@@ -66,22 +68,26 @@ final class MapperStep implements Step {
                 .collect(toUnmodifiableSet());
     }
 
-    /** Runs the pipeline for one mapper and returns {@code true} iff it must be deferred to a later round. */
+    /**
+     * Runs the pipeline for one mapper and returns {@code true} iff it must be deferred to a later round: a mapper
+     * defers iff it recorded at least one error and every recorded error is transient (design D14). Deferring
+     * retains only the message text; consuming (whether realised, scarred, or warning-only) flushes every
+     * collected diagnostic immediately.
+     */
     boolean processAndShouldDefer(final TypeElement mapperType) {
         final var ctx = pipeline.process(mapperType);
         final var fqn = mapperType.getQualifiedName().toString();
+        final var errors = ctx.getDiagnostics().stream()
+                .filter(diagnostic -> diagnostic.getSeverity() == Diagnostic.Severity.ERROR)
+                .collect(toUnmodifiableList());
 
-        if (diagnostics.hasErrorsFor(mapperType)) {
-            deferred.remove(fqn);
-            return false;
+        if (!errors.isEmpty() && errors.stream().noneMatch(Diagnostic::isPermanent)) {
+            deferred.put(fqn, errors.stream().map(Diagnostic::getMessage).collect(toUnmodifiableList()));
+            return true;
         }
-        final var outcome = ctx.getUnsatisfiedRealisation();
-        if (outcome.isEmpty()) {
-            deferred.remove(fqn);
-            return false;
-        }
-        deferred.put(fqn, outcome);
-        return true;
+        deferred.remove(fqn);
+        diagnosticEmitter.flush(mapperType, ctx.getDiagnostics());
+        return false;
     }
 
     /**
@@ -94,7 +100,10 @@ final class MapperStep implements Step {
         deferred.forEach((fqn, messages) -> {
             final var location = elements.getTypeElement(fqn);
             if (location != null) {
-                messages.forEach(message -> diagnostics.error(location, message));
+                final var stale = messages.stream()
+                        .map(message -> Diagnostic.error(Subjects.none(), message))
+                        .collect(toUnmodifiableList());
+                diagnosticEmitter.flush(location, stale);
             }
         });
         deferred.clear();

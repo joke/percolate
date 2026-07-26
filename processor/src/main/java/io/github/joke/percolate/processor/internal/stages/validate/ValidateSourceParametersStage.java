@@ -4,12 +4,13 @@ import static java.util.stream.Collectors.joining;
 import static java.util.stream.Collectors.toUnmodifiableList;
 import static java.util.stream.Collectors.toUnmodifiableSet;
 
-import io.github.joke.percolate.processor.Diagnostics;
+import io.github.joke.percolate.processor.Diagnostic;
 import io.github.joke.percolate.processor.MapperContext;
 import io.github.joke.percolate.processor.internal.stages.Stage;
 import io.github.joke.percolate.processor.model.MapperMappings;
 import io.github.joke.percolate.processor.model.MappingDirective;
 import io.github.joke.percolate.processor.model.MethodMappings;
+import io.github.joke.percolate.spi.Subjects;
 import jakarta.inject.Inject;
 import java.util.Optional;
 import java.util.Set;
@@ -26,24 +27,23 @@ import lombok.RequiredArgsConstructor;
 @RequiredArgsConstructor(onConstructor_ = @Inject)
 public final class ValidateSourceParametersStage implements Stage {
 
-    private final Diagnostics diagnostics;
-
     @Override
     public void run(final MapperContext ctx) {
         final var mappings = ctx.getMappings();
         if (mappings == null) {
             return;
         }
-        ctx.setMappings(validate(mappings));
+        ctx.setMappings(validate(mappings, ctx));
     }
 
-    MapperMappings validate(final MapperMappings mappings) {
-        final var validated =
-                mappings.getMethods().stream().map(this::validateMethod).collect(toUnmodifiableList());
+    MapperMappings validate(final MapperMappings mappings, final MapperContext ctx) {
+        final var validated = mappings.getMethods().stream()
+                .map(method -> validateMethod(method, ctx))
+                .collect(toUnmodifiableList());
         return new MapperMappings(mappings.getType(), validated);
     }
 
-    MethodMappings validateMethod(final MethodMappings methodMappings) {
+    MethodMappings validateMethod(final MethodMappings methodMappings, final MapperContext ctx) {
         final var method = methodMappings.getMethod();
         final var paramNames = method.getParameters().stream()
                 .map(p -> p.getSimpleName().toString())
@@ -51,7 +51,7 @@ public final class ValidateSourceParametersStage implements Stage {
         final var methodSig = formatMethodSig(method);
 
         final var valid = methodMappings.getDirectives().stream()
-                .filter(d -> isValidOrDiagnose(d, paramNames, method, methodSig))
+                .filter(d -> isValidOrDiagnose(d, paramNames, method, methodSig, ctx))
                 .collect(toUnmodifiableList());
         return new MethodMappings(method, valid);
     }
@@ -60,7 +60,8 @@ public final class ValidateSourceParametersStage implements Stage {
             final MappingDirective directive,
             final Set<String> paramNames,
             final ExecutableElement method,
-            final String methodSig) {
+            final String methodSig,
+            final MapperContext ctx) {
         final var source = directive.getSource();
         if (source == null) {
             // A constant directive (or any sourceless directive) has no source to validate against a parameter.
@@ -70,11 +71,10 @@ public final class ValidateSourceParametersStage implements Stage {
         if (paramNames.contains(seg)) {
             return true;
         }
-        diagnostics.error(
-                method,
-                directive.getMirror(),
-                directive.getSourceValue(),
-                "unknown source parameter '" + seg + "' in @Map on " + methodSig);
+        ctx.report(Diagnostic.error(
+                        Subjects.of(method, directive.getMirror(), directive.getSourceValue()),
+                        "unknown source parameter '" + seg + "' in @Map on " + methodSig)
+                .asPermanent());
         return false;
     }
 

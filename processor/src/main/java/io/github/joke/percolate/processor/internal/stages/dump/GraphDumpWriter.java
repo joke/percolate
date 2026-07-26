@@ -4,7 +4,7 @@ import static java.util.stream.Collectors.groupingBy;
 import static java.util.stream.Collectors.toList;
 import static java.util.stream.Collectors.toUnmodifiableList;
 
-import io.github.joke.percolate.processor.Diagnostics;
+import io.github.joke.percolate.processor.Diagnostic;
 import io.github.joke.percolate.processor.MapperContext;
 import io.github.joke.percolate.processor.ProcessorOptions;
 import io.github.joke.percolate.processor.internal.graph.Dep;
@@ -14,6 +14,7 @@ import io.github.joke.percolate.processor.internal.graph.GraphVertex;
 import io.github.joke.percolate.processor.internal.graph.MapperGraph;
 import io.github.joke.percolate.processor.internal.graph.MethodScope;
 import io.github.joke.percolate.processor.internal.graph.Scope;
+import io.github.joke.percolate.spi.Subjects;
 import jakarta.inject.Inject;
 import java.io.IOException;
 import java.io.OutputStreamWriter;
@@ -40,7 +41,6 @@ import org.jgrapht.graph.DirectedMultigraph;
 public final class GraphDumpWriter {
 
     private final Filer filer;
-    private final Diagnostics diagnostics;
     private final ProcessorOptions processorOptions;
     private final DotRenderer dotRenderer;
 
@@ -66,16 +66,14 @@ public final class GraphDumpWriter {
         final var mapperType = ctx.getMapperType();
         final var fqn = mapperType.getQualifiedName().toString();
         final var infixes = infixes(orderedScopes(graph, include));
-        infixes.forEach((scope, infix) -> writeScope(graph, include, dimmed, scope, infix, fqn, view, mapperType));
+        infixes.forEach((scope, infix) -> writeScope(graph, include, dimmed, scope, infix, fqn, view, mapperType, ctx));
     }
 
     // Like GenerateStage, this stage writes through the Filer, which forbids reopening a path. The pipeline
     // re-runs every deferral round, so dump only on the round the mapper realises (empty outcome) — otherwise
     // a deferred-then-realised mapper would write each .dot twice.
     boolean skipDump(final MapperGraph graph, final MapperContext ctx) {
-        return !processorOptions.isDebugGraphs()
-                || graph.vertexCount() == 0
-                || !ctx.getUnsatisfiedRealisation().isEmpty();
+        return !processorOptions.isDebugGraphs() || graph.vertexCount() == 0 || ctx.hasErrors();
     }
 
     static Predicate<GraphVertex> dimmedByCost(final MapperGraph graph) {
@@ -91,7 +89,8 @@ public final class GraphDumpWriter {
             final String infix,
             final String fqn,
             final String view,
-            final TypeElement mapperType) {
+            final TypeElement mapperType,
+            final MapperContext ctx) {
         final var dot = dotRenderer.render(slice(graph, scope, include), scope.encode(), dimmed);
         final var fileName = fqn + "." + infix + "." + view + ".dot";
         try {
@@ -102,7 +101,8 @@ public final class GraphDumpWriter {
                 writer.flush();
             }
         } catch (final IOException e) {
-            diagnostics.warning(mapperType, "Failed to write " + view + " debug graph: " + e.getMessage());
+            ctx.report(
+                    Diagnostic.warning(Subjects.none(), "Failed to write " + view + " debug graph: " + e.getMessage()));
         }
     }
 
