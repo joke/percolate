@@ -62,4 +62,4 @@
 
 - [x] 8.1 Sync the `module-boundaries` delta spec into `openspec/specs/module-boundaries/spec.md` — widened the private-method requirement to repo-wide + `lib..` exemption, added the new protected-method requirement (including a synthetic/Lombok-generated exemption scenario added to both the delta and main spec, since the Lombok gap surfaced during implementation)
 - [x] 8.2 Run `./gradlew check` (full build, `--no-configuration-cache` per repo convention) — NEVER continue if there are violations — green after fixing two unrelated pre-existing issues it surfaced: CodeNarc's `PublicMethodsBeforeNonPublicMethods` (the private Dagger-exemption helper needed to move below all public feature methods in `ModuleBoundariesSpec`) and a leftover `ClosureAsLastMethodParameter` spotless/codenarc violation in `GraphDumpWriterSpec` from bucket 5's earlier work
-- [ ] 8.3 Commit the completed change with `/commit-commands:commit`
+- [x] 8.3 Commit the completed change with `/commit-commands:commit` — 76359a1d
