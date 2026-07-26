@@ -5,12 +5,11 @@ import io.github.joke.percolate.processor.internal.graph.MethodScope
 import io.github.joke.percolate.processor.model.EnumOverrideDirective
 import io.github.joke.percolate.processor.model.GoalSpec
 import io.github.joke.percolate.processor.model.MapperShape
+import io.github.joke.percolate.spi.Subjects
 import spock.lang.Specification
 import spock.lang.Subject
 import spock.lang.Tag
 
-import javax.lang.model.element.AnnotationMirror
-import javax.lang.model.element.AnnotationValue
 import javax.lang.model.element.Element
 import javax.lang.model.element.ElementKind
 import javax.lang.model.element.ExecutableElement
@@ -25,7 +24,7 @@ import javax.lang.model.type.TypeMirror
  * {@link ValidateEnumOverridesStage} seam, unit-tested directly: a method's already-discovered {@code @MapEnum} table
  * (carried on its {@link GoalSpec}) is checked against the actual constants of the return type ({@code target}) and,
  * for a single-parameter method, the parameter type ({@code source}) — an unmatched name is reported as a permanent
- * diagnostic (design D14) at the corresponding {@link AnnotationValue}. A method whose return type is not an
+ * diagnostic (design D14) at the corresponding member's {@code Subject}. A method whose return type is not an
  * {@code enum}, or whose single parameter is not an {@code enum}, is skipped for that side.
  */
 @Tag('unit')
@@ -33,10 +32,6 @@ class ValidateEnumOverridesStageSpec extends Specification {
 
     @Subject
     def stage = new ValidateEnumOverridesStage()
-
-    def mirror = Mock(AnnotationMirror)
-    def sourceValue = Mock(AnnotationValue)
-    def targetValue = Mock(AnnotationValue)
 
     def 'a valid override naming a real source and target constant is not diagnosed'() {
         def method = methodWith(enumType('MyStatus', 'NEW', 'DONE'), enumType('OrderStatus', 'CREATED', 'DONE'))
@@ -179,7 +174,7 @@ class ValidateEnumOverridesStageSpec extends Specification {
     }
 
     private EnumOverrideDirective override(final String source, final String target) {
-        new EnumOverrideDirective(source, target, mirror, sourceValue, targetValue)
+        new EnumOverrideDirective(source, target, Subjects.none(), Subjects.none())
     }
 
     private ExecutableElement methodWith(final TypeMirror paramType, final TypeMirror returnType) {

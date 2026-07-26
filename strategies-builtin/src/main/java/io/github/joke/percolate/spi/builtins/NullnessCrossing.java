@@ -2,7 +2,7 @@ package io.github.joke.percolate.spi.builtins;
 
 import com.google.auto.service.AutoService;
 import io.github.joke.percolate.lib.javapoet.CodeBlock;
-import io.github.joke.percolate.spi.Directive;
+import io.github.joke.percolate.spi.DirectiveInput;
 import io.github.joke.percolate.spi.ExpansionStrategy;
 import io.github.joke.percolate.spi.LiteralCoercion;
 import io.github.joke.percolate.spi.Nullability;
@@ -15,6 +15,7 @@ import io.github.joke.percolate.spi.Weights;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
 import java.util.stream.Stream;
 import javax.lang.model.type.TypeMirror;
 import lombok.NoArgsConstructor;
@@ -46,6 +47,7 @@ import lombok.NoArgsConstructor;
 @NoArgsConstructor
 public final class NullnessCrossing implements ExpansionStrategy {
 
+    static final String DEFAULT_VALUE_KEY = "defaultValue";
     private static final String VALUE_ROLE = "value";
     private static final int OUTCOMPETE_PRIORITY = -1;
 
@@ -57,8 +59,9 @@ public final class NullnessCrossing implements ExpansionStrategy {
     @Override
     public Stream<OperationSpec> expand(final ProduceDemand demand, final ResolveCtx ctx) {
         final var target = demand.targetType();
+        final var defaultInput = demand.directive().flatMap(directive -> directive.input(DEFAULT_VALUE_KEY));
         final Optional<CodeBlock> defaultLiteral =
-                demand.directive().flatMap(Directive::defaultValue).flatMap(raw -> LiteralCoercion.coerce(raw, target));
+                defaultInput.flatMap(DirectiveInput::getValue).flatMap(raw -> LiteralCoercion.coerce(raw, target));
         // A requireNonNull guard is needed only for a NON_NULL target; a coalesce fires wherever a default is
         // declared, regardless of target nullness (a nullable/unknown target still uses its fallback).
         final var guardsNullness = demand.targetNullness() == Nullability.NON_NULL;
@@ -67,7 +70,9 @@ public final class NullnessCrossing implements ExpansionStrategy {
         }
         return Stream.concat(
                 requireNonNullGuard(target, demand.bindingName(), guardsNullness, ctx),
-                defaultLiteral.map(literal -> coalesce(target, literal, ctx)).orElseGet(Stream::empty));
+                defaultLiteral
+                        .map(literal -> coalesce(target, literal, defaultInput.orElseThrow(), ctx))
+                        .orElseGet(Stream::empty));
     }
 
     /** The {@code [requireNonNull]} crossing, when the target is both {@code NON_NULL} and declared. */
@@ -88,21 +93,24 @@ public final class NullnessCrossing implements ExpansionStrategy {
     }
 
     /** Over-emits the coalesce forms that can produce {@code target}: a nullable scalar and an {@code Optional<T>}. */
-    static Stream<OperationSpec> coalesce(final TypeMirror target, final CodeBlock literal, final ResolveCtx ctx) {
+    static Stream<OperationSpec> coalesce(
+            final TypeMirror target, final CodeBlock literal, final DirectiveInput defaultInput, final ResolveCtx ctx) {
         final var specs = Stream.<OperationSpec>builder();
         if (ctx.isDeclared(target)) {
             specs.add(coalesceSpec(
                     target,
                     Nullability.NULLABLE,
                     target,
-                    inputs -> CodeBlock.of("$T.requireNonNullElse($L, $L)", Objects.class, inputs.single(), literal)));
+                    inputs -> CodeBlock.of("$T.requireNonNullElse($L, $L)", Objects.class, inputs.single(), literal),
+                    defaultInput));
         }
         optionalOf(target, ctx)
                 .ifPresent(optional -> specs.add(coalesceSpec(
                         optional,
                         Nullability.NON_NULL,
                         target,
-                        inputs -> CodeBlock.of("$L$Z.orElse($L)", inputs.single(), literal))));
+                        inputs -> CodeBlock.of("$L$Z.orElse($L)", inputs.single(), literal),
+                        defaultInput)));
         return specs.build();
     }
 
@@ -110,9 +118,11 @@ public final class NullnessCrossing implements ExpansionStrategy {
             final TypeMirror from,
             final Nullability fromNullness,
             final TypeMirror target,
-            final OperationCodegen codegen) {
+            final OperationCodegen codegen,
+            final DirectiveInput defaultInput) {
         final var port = Port.reuse(VALUE_ROLE, from, fromNullness);
-        return OperationSpec.of("coalesce", codegen, Weights.NOOP, List.of(port), target, Nullability.NON_NULL);
+        return OperationSpec.of("coalesce", codegen, Weights.NOOP, List.of(port), target, Nullability.NON_NULL)
+                .withConsumed(Set.of(defaultInput));
     }
 
     /** {@code Optional<element>} for a reference {@code element}, or empty (no {@code Optional} of a primitive). */

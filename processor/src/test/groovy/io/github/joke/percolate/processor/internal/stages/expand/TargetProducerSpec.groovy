@@ -7,6 +7,7 @@ import io.github.joke.percolate.processor.internal.graph.Value
 import io.github.joke.percolate.processor.model.GoalSpec
 import io.github.joke.percolate.processor.model.MappingDirective
 import io.github.joke.percolate.processor.nullability.NullabilityResolver
+import io.github.joke.percolate.processor.test.MappingDirectives
 import io.github.joke.percolate.spi.Codegen
 import io.github.joke.percolate.spi.ExpansionStrategy
 import io.github.joke.percolate.spi.Nullability
@@ -135,7 +136,7 @@ class TargetProducerSpec extends Specification {
         Value value = Mock()
         value.scope >> scope
         value.loc >> loc
-        def directive = new MappingDirective('address', null, 'literal', null, null, null, null, null, null, null, null, null, null)
+        def directive = MappingDirectives.of('address', [constant: 'literal'])
         def producer = new TargetProducer([strategy], [(scope): GoalSpec.from([directive])], sourceCandidates,
                 grounding, resolveCtx, resolver)
 
@@ -201,6 +202,6 @@ class TargetProducerSpec extends Specification {
     // ---- helpers ----------------------------------------------------------------------------------------------
 
     private MappingDirective directive(final String target, final String source) {
-        new MappingDirective(target, source, null, null, null, null, null, null, null, null, null, null, null)
+        MappingDirectives.of(target, source == null ? [:] : [source: source])
     }
 }

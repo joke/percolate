@@ -4,12 +4,11 @@ import io.github.joke.percolate.processor.MapperContext
 import io.github.joke.percolate.processor.model.MapperMappings
 import io.github.joke.percolate.processor.model.MappingDirective
 import io.github.joke.percolate.processor.model.MethodMappings
+import io.github.joke.percolate.processor.test.MappingDirectives
 import spock.lang.Specification
 import spock.lang.Subject
 import spock.lang.Tag
 
-import javax.lang.model.element.AnnotationMirror
-import javax.lang.model.element.AnnotationValue
 import javax.lang.model.element.ExecutableElement
 import javax.lang.model.element.Name
 import javax.lang.model.element.TypeElement
@@ -29,8 +28,6 @@ class ValidateSourceParametersStageSpec extends Specification {
     @Subject
     def stage = new ValidateSourceParametersStage()
 
-    def mirror = Mock(AnnotationMirror)
-    def sourceValue = Mock(AnnotationValue)
     def mapperType = Mock(TypeElement)
     def ctx = new MapperContext(mapperType)
 
@@ -67,8 +64,7 @@ class ValidateSourceParametersStageSpec extends Specification {
 
     def 'a sourceless (constant) directive is kept without parameter validation'() {
         given:
-        def constant = new MappingDirective('status', null, 'ACTIVE', null, null, null, mirror, Mock(AnnotationValue), null,
-                Mock(AnnotationValue), null, null, null)
+        def constant = MappingDirectives.of('status', [constant: 'ACTIVE'])
 
         when:
         def result = stage.validate(mappings(methodWith('in'), constant), ctx)
@@ -181,7 +177,7 @@ class ValidateSourceParametersStageSpec extends Specification {
     }
 
     private MappingDirective sourceDirective(final String source) {
-        new MappingDirective('name', source, null, null, null, null, mirror, Mock(AnnotationValue), sourceValue, null, null, null, null)
+        MappingDirectives.of('name', [source: source])
     }
 
     private MapperMappings mappings(final ExecutableElement method, final MappingDirective... directives) {

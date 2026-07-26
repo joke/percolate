@@ -4,12 +4,11 @@ import io.github.joke.percolate.processor.MapperContext
 import io.github.joke.percolate.processor.model.MapperMappings
 import io.github.joke.percolate.processor.model.MappingDirective
 import io.github.joke.percolate.processor.model.MethodMappings
+import io.github.joke.percolate.processor.test.MappingDirectives
 import spock.lang.Specification
 import spock.lang.Subject
 import spock.lang.Tag
 
-import javax.lang.model.element.AnnotationMirror
-import javax.lang.model.element.AnnotationValue
 import javax.lang.model.element.ExecutableElement
 import javax.lang.model.element.TypeElement
 
@@ -28,13 +27,10 @@ class ValidateNoDuplicateTargetsStageSpec extends Specification {
     def ctx = new MapperContext(mapperType)
 
     def method = Mock(ExecutableElement)
-    def mirror = Mock(AnnotationMirror)
-    def firstTarget = Mock(AnnotationValue)
-    def secondTarget = Mock(AnnotationValue)
 
     def 'a duplicate target is flagged once at the second directive; the first is spared'() {
         when:
-        stage.validate(mappings(directive('status', firstTarget), directive('status', secondTarget)), ctx)
+        stage.validate(mappings(directive('status'), directive('status')), ctx)
 
         then:
         ctx.diagnostics.size() == 1
@@ -46,19 +42,15 @@ class ValidateNoDuplicateTargetsStageSpec extends Specification {
 
     def 'distinct targets produce no diagnostic'() {
         when:
-        stage.validate(mappings(directive('first', firstTarget), directive('second', secondTarget)), ctx)
+        stage.validate(mappings(directive('first'), directive('second')), ctx)
 
         then:
         ctx.diagnostics.empty
     }
 
     def 'three directives on one target flag the two later ones, not the first'() {
-        given:
-        def thirdTarget = Mock(AnnotationValue)
-
         when:
-        stage.validate(mappings(
-                directive('x', firstTarget), directive('x', secondTarget), directive('x', thirdTarget)), ctx)
+        stage.validate(mappings(directive('x'), directive('x'), directive('x')), ctx)
 
         then:
         ctx.diagnostics.size() == 2
@@ -75,7 +67,7 @@ class ValidateNoDuplicateTargetsStageSpec extends Specification {
 
     def 'run validates the mappings installed on the context'() {
         given:
-        ctx.mappings = mappings(directive('status', firstTarget), directive('status', secondTarget))
+        ctx.mappings = mappings(directive('status'), directive('status'))
 
         when:
         stage.run(ctx)
@@ -87,8 +79,7 @@ class ValidateNoDuplicateTargetsStageSpec extends Specification {
 
     def 'groupByTarget buckets directives by their target name'() {
         when:
-        def grouped = stage.groupByTarget([directive('a', firstTarget), directive('a', secondTarget),
-                                           directive('b', firstTarget)])
+        def grouped = stage.groupByTarget([directive('a'), directive('a'), directive('b')])
 
         then:
         grouped.keySet() == ['a', 'b'] as Set
@@ -96,8 +87,8 @@ class ValidateNoDuplicateTargetsStageSpec extends Specification {
         grouped['b'].size() == 1
     }
 
-    private MappingDirective directive(final String target, final AnnotationValue targetValue) {
-        new MappingDirective(target, null, null, null, null, null, mirror, targetValue, null, null, null, null, null)
+    private MappingDirective directive(final String target) {
+        MappingDirectives.of(target)
     }
 
     private MapperMappings mappings(final MappingDirective... directives) {

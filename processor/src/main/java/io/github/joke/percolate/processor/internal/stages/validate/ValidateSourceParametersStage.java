@@ -10,7 +10,6 @@ import io.github.joke.percolate.processor.internal.stages.Stage;
 import io.github.joke.percolate.processor.model.MapperMappings;
 import io.github.joke.percolate.processor.model.MappingDirective;
 import io.github.joke.percolate.processor.model.MethodMappings;
-import io.github.joke.percolate.spi.Subjects;
 import jakarta.inject.Inject;
 import java.util.Optional;
 import java.util.Set;
@@ -72,8 +71,7 @@ public final class ValidateSourceParametersStage implements Stage {
             return true;
         }
         ctx.report(Diagnostic.error(
-                        Subjects.of(method, directive.getMirror(), directive.getSourceValue()),
-                        "unknown source parameter '" + seg + "' in @Map on " + methodSig)
+                        directive.getSourceSubject(), "unknown source parameter '" + seg + "' in @Map on " + methodSig)
                 .asPermanent());
         return false;
     }

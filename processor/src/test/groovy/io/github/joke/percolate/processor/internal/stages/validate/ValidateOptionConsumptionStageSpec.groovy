@@ -16,26 +16,26 @@ import io.github.joke.percolate.processor.model.MappingDirective
 import io.github.joke.percolate.processor.model.MethodMappings
 import io.github.joke.percolate.processor.test.FakeElements
 import io.github.joke.percolate.processor.test.FakeType
+import io.github.joke.percolate.spi.DirectiveInput
 import io.github.joke.percolate.spi.Nullability
 import io.github.joke.percolate.spi.OperationCodegen
 import io.github.joke.percolate.spi.Port
+import io.github.joke.percolate.spi.Subjects
 import io.github.joke.percolate.spi.Weights
 import spock.lang.Shared
 import spock.lang.Specification
 import spock.lang.Subject
 import spock.lang.Tag
 
-import javax.lang.model.element.AnnotationMirror
-import javax.lang.model.element.AnnotationValue
 import javax.lang.model.element.ExecutableElement
 import javax.lang.model.element.TypeElement
 import javax.lang.model.type.TypeMirror
 
 /**
  * {@link ValidateOptionConsumptionStage} seam, unit-tested directly: computes {@code declared − consumed} for a
- * binding's {@code @Map} {@code format}/{@code zone} options against the operations of the graph's <strong>winning</strong>
- * plan (least-cost, {@link io.github.joke.percolate.processor.internal.graph.ExtractedPlan}), reporting a permanent
- * diagnostic (design D14) for any declared key no operation in that plan stamped as consumed.
+ * binding's {@code @Map} inputs against the operations of the graph's <strong>winning</strong> plan (least-cost,
+ * {@link io.github.joke.percolate.processor.internal.graph.ExtractedPlan}), reporting a permanent diagnostic
+ * (design D14) for any declared {@link DirectiveInput} no operation in that plan stamped as consumed.
  */
 @Tag('unit')
 class ValidateOptionConsumptionStageSpec extends Specification {
@@ -49,16 +49,13 @@ class ValidateOptionConsumptionStageSpec extends Specification {
         getSimpleName() >> FakeElements.name('map')
         getParameters() >> []
     }
-    def mirror = Mock(AnnotationMirror)
-    def zoneValue = Mock(AnnotationValue)
-    def formatValue = Mock(AnnotationValue)
     MethodScope scope = new MethodScope(method)
 
     def 'a zone declared on a winning plan that stamped no options is diagnosed as having no effect'() {
         given:
         def graph = new MapperGraph()
         landOp(graph, 'assign', Weights.STEP, [] as Set)
-        def ctx = context(graph, directive('zone', zoneValue))
+        def ctx = context(graph, directive('', zoneInput()))
 
         when:
         stage.run(ctx)
@@ -74,8 +71,9 @@ class ValidateOptionConsumptionStageSpec extends Specification {
     def 'a zone consumed by the winning plan raises no diagnostic'() {
         given:
         def graph = new MapperGraph()
-        landOp(graph, 'bridge', Weights.STEP, ['zone'] as Set)
-        def ctx = context(graph, directive('zone', zoneValue))
+        def zone = zoneInput()
+        landOp(graph, 'bridge', Weights.STEP, [zone] as Set)
+        def ctx = context(graph, directive('', zone))
 
         when:
         stage.run(ctx)
@@ -87,8 +85,9 @@ class ValidateOptionConsumptionStageSpec extends Specification {
     def 'a format consumed by the winning plan raises no diagnostic'() {
         given:
         def graph = new MapperGraph()
-        landOp(graph, 'format', Weights.STEP, ['format'] as Set)
-        def ctx = context(graph, directive('format', formatValue))
+        def format = formatInput()
+        landOp(graph, 'format', Weights.STEP, [format] as Set)
+        def ctx = context(graph, directive('', format))
 
         when:
         stage.run(ctx)
@@ -101,8 +100,7 @@ class ValidateOptionConsumptionStageSpec extends Specification {
         given:
         def graph = new MapperGraph()
         landOp(graph, 'assign', Weights.STEP, [] as Set)
-        def ctx = context(graph, new MappingDirective('', null, null, null, null, null, mirror, value(),
-                null, null, null, null, null))
+        def ctx = context(graph, new MappingDirective('', Subjects.none(), []))
 
         when:
         stage.run(ctx)
@@ -115,14 +113,15 @@ class ValidateOptionConsumptionStageSpec extends Specification {
         given:
         def graph = new MapperGraph()
         def output = new AddValue(scope, root(), STRING, Nullability.NON_NULL)
+        def zone = zoneInput()
         // cheap winner: consumes nothing
         def cheap = graph.apply(new AddOperation('cheap', { CodeBlock.of('x') } as OperationCodegen, Weights.STEP,
                 false, [], output, Optional.empty(), [] as Set, []))
         // expensive loser: would have consumed zone, but costs more so never wins
         graph.apply(new AddOperation('expensive', { CodeBlock.of('x') } as OperationCodegen,
-                Weights.STEP * 100, false, [], output, Optional.empty(), ['zone'] as Set, []))
+                Weights.STEP * 100, false, [], output, Optional.empty(), [zone] as Set, []))
         graph.markReturnRoot(graph.outputOf(cheap).get())
-        def ctx = context(graph, directive('zone', zoneValue))
+        def ctx = context(graph, directive('', zone))
 
         when:
         stage.run(ctx)
@@ -135,13 +134,14 @@ class ValidateOptionConsumptionStageSpec extends Specification {
     def 'a zone consumed anywhere along a multi-hop winning plan raises no diagnostic'() {
         given:
         def graph = new MapperGraph()
+        def zone = zoneInput()
         def bridgeOutput = new AddValue(scope, root(), STRING, Nullability.NON_NULL)
         def spokeInput = new AddValue(scope, source('in'), STRING, Nullability.NON_NULL)
         def bridge = graph.apply(new AddOperation('bridge', { CodeBlock.of('x') } as OperationCodegen, Weights.STEP,
                 false, [new PortBinding(new Port('x', STRING, Nullability.NON_NULL), spokeInput)],
-                bridgeOutput, Optional.empty(), ['zone'] as Set, []))
+                bridgeOutput, Optional.empty(), [zone] as Set, []))
         graph.markReturnRoot(graph.outputOf(bridge).get())
-        def ctx = context(graph, directive('zone', zoneValue))
+        def ctx = context(graph, directive('', zone))
 
         when:
         stage.run(ctx)
@@ -153,15 +153,16 @@ class ValidateOptionConsumptionStageSpec extends Specification {
     def 'a value shared by two ports in the winning plan is visited once, still contributing its consumed keys'() {
         given:
         def graph = new MapperGraph()
+        def zone = zoneInput()
         def midOut = new AddValue(scope, new TargetLocation(new TargetPath(['mid'])), STRING, Nullability.NON_NULL)
         graph.apply(new AddOperation('mid', { CodeBlock.of('m') } as OperationCodegen, Weights.STEP,
-                false, [], midOut, Optional.empty(), ['zone'] as Set, []))
+                false, [], midOut, Optional.empty(), [zone] as Set, []))
         def rootOp = graph.apply(new AddOperation('assemble', { CodeBlock.of('r') } as OperationCodegen, Weights.STEP,
                 false, [new PortBinding(new Port('a', STRING, Nullability.NON_NULL), midOut),
                         new PortBinding(new Port('b', STRING, Nullability.NON_NULL), midOut)],
                 new AddValue(scope, root(), STRING, Nullability.NON_NULL), Optional.empty(), [] as Set, []))
         graph.markReturnRoot(graph.outputOf(rootOp).get())
-        def ctx = context(graph, directive('zone', zoneValue))
+        def ctx = context(graph, directive('', zone))
 
         when:
         stage.run(ctx)
@@ -173,15 +174,15 @@ class ValidateOptionConsumptionStageSpec extends Specification {
     def 'a nested target path that resolves to a port is checked against that port\'s producer, not the root'() {
         given:
         def graph = new MapperGraph()
+        def zone = zoneInput()
         def child = new AddValue(scope, new TargetLocation(new TargetPath(['x'])), STRING, Nullability.NON_NULL)
         graph.apply(new AddOperation('child', { CodeBlock.of('c') } as OperationCodegen, Weights.STEP,
-                false, [], child, Optional.empty(), ['zone'] as Set, []))
+                false, [], child, Optional.empty(), [zone] as Set, []))
         def rootOp = graph.apply(new AddOperation('build', { CodeBlock.of('build') } as OperationCodegen, Weights.STEP,
                 false, [new PortBinding(new Port('x', STRING, Nullability.NON_NULL), child)],
                 new AddValue(scope, root(), STRING, Nullability.NON_NULL), Optional.empty(), [] as Set, []))
         graph.markReturnRoot(graph.outputOf(rootOp).get())
-        def ctx = context(graph, new MappingDirective('x', null, null, null, null, 'Europe/Berlin', mirror, value(),
-                null, null, null, null, zoneValue))
+        def ctx = context(graph, directive('x', zone))
 
         when:
         stage.run(ctx)
@@ -199,8 +200,7 @@ class ValidateOptionConsumptionStageSpec extends Specification {
                 false, [new PortBinding(new Port('y', STRING, Nullability.NON_NULL), child)],
                 new AddValue(scope, root(), STRING, Nullability.NON_NULL), Optional.empty(), [] as Set, []))
         graph.markReturnRoot(graph.outputOf(op).get())
-        def ctx = context(graph, new MappingDirective('x', null, null, null, null, 'Europe/Berlin', mirror, value(),
-                null, null, null, null, zoneValue))
+        def ctx = context(graph, directive('x', zoneInput()))
 
         when:
         stage.run(ctx)
@@ -227,7 +227,7 @@ class ValidateOptionConsumptionStageSpec extends Specification {
     def 'nothing is checked when the context has no graph'() {
         given:
         def ctx = new MapperContext(Mock(TypeElement))
-        ctx.mappings = new MapperMappings(null, [new MethodMappings(method, [directive('zone', zoneValue)])])
+        ctx.mappings = new MapperMappings(null, [new MethodMappings(method, [directive('', zoneInput())])])
 
         when:
         stage.run(ctx)
@@ -236,19 +236,22 @@ class ValidateOptionConsumptionStageSpec extends Specification {
         ctx.diagnostics.empty
     }
 
-    private void landOp(final MapperGraph graph, final String label, final int weight, final Set<String> consumed) {
+    private void landOp(final MapperGraph graph, final String label, final int weight, final Set<DirectiveInput> consumed) {
         def op = graph.apply(new AddOperation(label, { CodeBlock.of('x') } as OperationCodegen, weight, false, [],
                 new AddValue(scope, root(), STRING, Nullability.NON_NULL), Optional.empty(), consumed, []))
         graph.markReturnRoot(graph.outputOf(op).get())
     }
 
-    private MappingDirective directive(final String key, final AnnotationValue optionValue) {
-        if (key == 'zone') {
-            return new MappingDirective('', null, null, null, null, 'Europe/Berlin', mirror, value(),
-                    null, null, null, null, optionValue)
-        }
-        new MappingDirective('', null, null, null, 'yyyy-MM-dd', null, mirror, value(),
-                null, null, null, optionValue, null)
+    private MappingDirective directive(final String target, final DirectiveInput input) {
+        new MappingDirective(target, Subjects.none(), [input])
+    }
+
+    private DirectiveInput zoneInput(final String zone = 'Europe/Berlin') {
+        DirectiveInput.scalar('zone', zone, Subjects.none())
+    }
+
+    private DirectiveInput formatInput(final String pattern = 'yyyy-MM-dd') {
+        DirectiveInput.scalar('format', pattern, Subjects.none())
     }
 
     private TargetLocation root() {
@@ -257,10 +260,6 @@ class ValidateOptionConsumptionStageSpec extends Specification {
 
     private SourceLocation source(final String segment) {
         new SourceLocation(new AccessPath([segment]))
-    }
-
-    private AnnotationValue value() {
-        Mock(AnnotationValue)
     }
 
     private MapperContext context(final MapperGraph graph, final MappingDirective... directives) {

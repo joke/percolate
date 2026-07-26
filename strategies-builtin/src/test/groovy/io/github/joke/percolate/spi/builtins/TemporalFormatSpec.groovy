@@ -1,8 +1,10 @@
 package io.github.joke.percolate.spi.builtins
 
 import io.github.joke.percolate.lib.javapoet.CodeBlock
+import io.github.joke.percolate.spi.DirectiveInput
 import io.github.joke.percolate.spi.IncomingValues
 import io.github.joke.percolate.spi.ResolveCtx
+import io.github.joke.percolate.spi.Subjects
 import io.github.joke.percolate.spi.Weights
 import io.github.joke.percolate.spi.builtins.test.Demands
 import spock.lang.Specification
@@ -53,7 +55,7 @@ class TemporalFormatSpec extends Specification {
         spec.ports[0].type.is(stringType)
         spec.outputType.is(localDateType)
         spec.weight == Weights.STEP
-        spec.consumedOptionKeys == ['format'] as Set
+        spec.consumed*.key == ['format']
         spec.memberRequests.size() == 1
         spec.memberRequests[0].fieldType.toString() == 'java.time.format.DateTimeFormatter'
         spec.memberRequests[0].initializer.toString().contains('DateTimeFormatter.ofPattern("yyyy-MM-dd")')
@@ -129,14 +131,14 @@ class TemporalFormatSpec extends Specification {
         ResolveCtx freshCtx = Mock()
 
         expect:
-        TemporalFormat.formatStep('java.time.LocalDate', stringType, TemporalFormat.formatterRequest('p'), freshCtx).empty
+        TemporalFormat.formatStep('java.time.LocalDate', stringType, TemporalFormat.formatterRequest('p'), formatInput(), freshCtx).empty
     }
 
     def 'parseStep returns empty when the target is not a roster type'() {
         TypeMirror intType = Mock()
 
         expect:
-        TemporalFormat.parseStep(intType, TemporalFormat.formatterRequest('p'), ctx).empty
+        TemporalFormat.parseStep(intType, TemporalFormat.formatterRequest('p'), formatInput(), ctx).empty
     }
 
     def 'parseStep returns empty when String itself is not resolvable'() {
@@ -147,7 +149,11 @@ class TemporalFormatSpec extends Specification {
         freshCtx.isType(localDateType, 'java.time.LocalDate') >> true
 
         expect:
-        TemporalFormat.parseStep(localDateType, TemporalFormat.formatterRequest('p'), freshCtx).empty
+        TemporalFormat.parseStep(localDateType, TemporalFormat.formatterRequest('p'), formatInput(), freshCtx).empty
+    }
+
+    private static DirectiveInput formatInput() {
+        DirectiveInput.scalar('format', 'p', Subjects.none())
     }
 
     private void element(final String fqn, final TypeMirror type) {

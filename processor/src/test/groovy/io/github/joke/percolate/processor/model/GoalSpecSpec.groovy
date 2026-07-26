@@ -1,5 +1,7 @@
 package io.github.joke.percolate.processor.model
 
+import io.github.joke.percolate.processor.test.MappingDirectives
+import io.github.joke.percolate.spi.Subjects
 import spock.lang.Specification
 import spock.lang.Tag
 
@@ -46,8 +48,8 @@ class GoalSpecSpec extends Specification {
     }
 
     def 'the two-arg factory carries the given enum overrides, in order, alongside the @Map bindings'() {
-        def overrides = [new EnumOverrideDirective('NEW', 'CREATED', null, null, null),
-                new EnumOverrideDirective('DONE', 'FULFILLED', null, null, null)]
+        def overrides = [new EnumOverrideDirective('NEW', 'CREATED', Subjects.none(), Subjects.none()),
+                new EnumOverrideDirective('DONE', 'FULFILLED', Subjects.none(), Subjects.none())]
 
         when:
         def spec = GoalSpec.from([directive('address.street', 'p.street')], overrides)
@@ -65,10 +67,10 @@ class GoalSpecSpec extends Specification {
     }
 
     private static MappingDirective directive(final String target, final String source) {
-        new MappingDirective(target, source, null, null, null, null, null, null, null, null, null, null, null)
+        MappingDirectives.of(target, [source: source])
     }
 
     private static MappingDirective constant(final String target, final String value) {
-        new MappingDirective(target, null, value, null, null, null, null, null, null, null, null, null, null)
+        MappingDirectives.of(target, [constant: value])
     }
 }

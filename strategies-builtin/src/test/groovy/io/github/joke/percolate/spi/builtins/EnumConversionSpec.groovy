@@ -3,10 +3,11 @@ package io.github.joke.percolate.spi.builtins
 import io.github.joke.percolate.lib.javapoet.CodeBlock
 import io.github.joke.percolate.spi.BodyCodegen
 import io.github.joke.percolate.spi.BodyRenderContext
-import io.github.joke.percolate.spi.EnumOverride
+import io.github.joke.percolate.spi.DirectiveInput
 import io.github.joke.percolate.spi.Nullability
 import io.github.joke.percolate.spi.PortType
 import io.github.joke.percolate.spi.ResolveCtx
+import io.github.joke.percolate.spi.Subjects
 import io.github.joke.percolate.spi.SwitchStyle
 import io.github.joke.percolate.spi.Weights
 import io.github.joke.percolate.spi.builtins.test.Demands
@@ -79,7 +80,7 @@ class EnumConversionSpec extends Specification {
         context.switchStyle() >> SwitchStyle.CLASSIC
         context.sourceVersion() >> SourceVersion.RELEASE_11
         context.single() >> CodeBlock.of('v')
-        def demand = Demands.withEnumOverrides(targetType, [new EnumOverride('NEW', 'CREATED')])
+        def demand = Demands.withEnumOverrides(targetType, [enumOverride('NEW', 'CREATED')])
 
         when:
         def spec = new EnumConversion().expand(demand, ctx).toList().first()
@@ -122,12 +123,12 @@ class EnumConversionSpec extends Specification {
 
     def 'buildMapping applies a @MapEnum override with precedence over a coincidental same-name match'() {
         expect:
-        EnumConversion.buildMapping(['NEW'], ['NEW', 'CREATED'], [new EnumOverride('NEW', 'CREATED')]) == [NEW: 'CREATED']
+        EnumConversion.buildMapping(['NEW'], ['NEW', 'CREATED'], [enumOverride('NEW', 'CREATED')]) == [NEW: 'CREATED']
     }
 
     def 'buildMapping applies a @MapEnum override for a source with no same-name match at all'() {
         expect:
-        EnumConversion.buildMapping(['NEW'], ['CREATED'], [new EnumOverride('NEW', 'CREATED')]) == [NEW: 'CREATED']
+        EnumConversion.buildMapping(['NEW'], ['CREATED'], [enumOverride('NEW', 'CREATED')]) == [NEW: 'CREATED']
     }
 
     // ---- renderClassic: coverage is a compile-time failure, not deferred to javac ----------------------------------
@@ -234,6 +235,10 @@ class EnumConversionSpec extends Specification {
 
         expect:
         EnumConversion.enumConstantNames(ctx, targetType).empty
+    }
+
+    private static DirectiveInput enumOverride(final String source, final String target) {
+        DirectiveInput.structured('enum', [source: source, target: target], Subjects.none())
     }
 
     private static Element constant(final String simpleName) {

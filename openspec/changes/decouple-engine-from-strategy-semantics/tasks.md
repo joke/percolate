@@ -37,18 +37,18 @@ through `tail`.
 
 ## 3. The open directive surface (group A1)
 
-- [ ] 3.1 Replace `Directive`'s typed accessors with `sourcePath()` + `inputs()`, and add `DirectiveInput` (`key`, `value`, `member(name)`, `subject`) with by-key convenience lookups
-- [ ] 3.2 Read annotation members through `AnnotationMirror.getElementValues()` so only written members are seen, deriving presence and positioning directly
-- [ ] 3.3 Merge `AnnotationDirectiveReader` and `EnumOverrideReader` into one helper parameterised by annotation class, unwrapping the repeatable container generically via `@Repeatable`
-- [ ] 3.4 Replace `MappingDirective`'s parallel value/`AnnotationValue` fields with the bag, and delete `RawDirective` and `MappingDirectiveBuilder`
-- [ ] 3.5 Delete `Map.UNSET` and rewrite the `@Map` javadoc's presence section
-- [ ] 3.6 Convert `BindingDirective` to the bag and keep `TargetProducer`'s directive assembly behaviour unchanged
-- [ ] 3.7 Replace `OperationSpec.withConsumedOptionKeys(Set<String>)` with `withConsumed(Set<DirectiveInput>)`, recorded per input instance
-- [ ] 3.8 Move each built-in key constant to the strategy that reads it and migrate those strategies to read by key
-- [ ] 3.9 Migrate `EnumConversion` to read repeated structured inputs and stamp consumption **per entry**
-- [ ] 3.10 Make `ValidateOptionConsumptionStage` a generic `declared − consumed` difference over inputs and delete its key constants
-- [ ] 3.11 Update the specs for the discovery chain, the rail, and every migrated strategy
-- [ ] 3.12 Run `./gradlew check --no-configuration-cache` and fix every violation
+- [x] 3.1 Replace `Directive`'s typed accessors with `sourcePath()` + `inputs()`, and add `DirectiveInput` (`key`, `value`, `member(name)`, `subject`) with by-key convenience lookups
+- [x] 3.2 Read annotation members through `AnnotationMirror.getElementValues()` so only written members are seen, deriving presence and positioning directly
+- [x] 3.3 Merge `AnnotationDirectiveReader` and `EnumOverrideReader` into one helper parameterised by annotation class, unwrapping the repeatable container generically via `@Repeatable`
+- [x] 3.4 Replace `MappingDirective`'s parallel value/`AnnotationValue` fields with the bag, and delete `RawDirective` and `MappingDirectiveBuilder`
+- [x] 3.5 Delete `Map.UNSET` and rewrite the `@Map` javadoc's presence section
+- [x] 3.6 Convert `BindingDirective` to the bag and keep `TargetProducer`'s directive assembly behaviour unchanged
+- [x] 3.7 Replace `OperationSpec.withConsumedOptionKeys(Set<String>)` with `withConsumed(Set<DirectiveInput>)`, recorded per input instance
+- [x] 3.8 Move each built-in key constant to the strategy that reads it and migrate those strategies to read by key
+- [x] 3.9 Migrate `EnumConversion` to read repeated structured inputs and stamp consumption **per entry**
+- [x] 3.10 Make `ValidateOptionConsumptionStage` a generic `declared − consumed` difference over inputs and delete its key constants
+- [x] 3.11 Update the specs for the discovery chain, the rail, and every migrated strategy
+- [x] 3.12 Run `./gradlew check --no-configuration-cache` and fix every violation
 
 ## 4. Offers and refusals (group A2)
 

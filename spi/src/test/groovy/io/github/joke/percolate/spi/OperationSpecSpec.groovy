@@ -13,7 +13,7 @@ import javax.lang.model.type.TypeMirror
  * factories each wire a different shape — {@link OperationSpec#of} (plain total), {@link OperationSpec#ofPartial}
  * (plain, may throw), {@link OperationSpec#callOf} (a method-call production carrying its call target), and
  * {@link OperationSpec#mapping} (a scope-owning element mapping carrying its child scope) — and the two
- * {@code with*} methods layer the additive, optional neutral facts ({@code consumedOptionKeys}/
+ * {@code with*} methods layer the additive, optional neutral facts ({@code consumed}/
  * {@code memberRequests}) onto an existing spec, defaulting to empty otherwise. Unit-tested over opaque
  * {@link TypeMirror} tokens and mocked {@link Codegen}/{@link ExecutableElement}/{@link MemberRequest}; no javac.
  */
@@ -43,7 +43,7 @@ class OperationSpecSpec extends Specification {
         spec.childScope.empty
         !spec.partial
         spec.callTarget.empty
-        spec.consumedOptionKeys.empty
+        spec.consumed.empty
         spec.memberRequests.empty
     }
 
@@ -65,7 +65,7 @@ class OperationSpecSpec extends Specification {
         spec.childScope.empty
         spec.partial
         spec.callTarget.empty
-        spec.consumedOptionKeys.empty
+        spec.consumed.empty
         spec.memberRequests.empty
     }
 
@@ -86,7 +86,7 @@ class OperationSpecSpec extends Specification {
         !spec.partial
         spec.callTarget.present
         spec.callTarget.get().is(callTarget)
-        spec.consumedOptionKeys.empty
+        spec.consumed.empty
         spec.memberRequests.empty
     }
 
@@ -108,21 +108,22 @@ class OperationSpecSpec extends Specification {
         spec.childScope.get().is(child)
         !spec.partial
         spec.callTarget.empty
-        spec.consumedOptionKeys.empty
+        spec.consumed.empty
         spec.memberRequests.empty
     }
 
-    def 'withConsumedOptionKeys replaces the option-key set with a defensive copy, preserving every other field'() {
+    def 'withConsumed replaces the consumed-input set with a defensive copy, preserving every other field'() {
         def original = OperationSpec.of(
                 'label', codegen, 1, [new Port('value', portType, Nullability.NON_NULL)], outputType, Nullability.NON_NULL)
-        def keys = ['format'] as Set
+        def input = DirectiveInput.scalar('format', 'yyyy', Subjects.none())
+        def inputs = [input] as Set
 
         when:
-        def spec = original.withConsumedOptionKeys(keys)
-        keys.clear()
+        def spec = original.withConsumed(inputs)
+        inputs.clear()
 
         then:
-        spec.consumedOptionKeys == ['format'] as Set
+        spec.consumed == [input] as Set
         spec.label == original.label
         spec.codegen.is(original.codegen)
         spec.weight == original.weight
@@ -156,6 +157,6 @@ class OperationSpecSpec extends Specification {
         spec.childScope == original.childScope
         spec.partial == original.partial
         spec.callTarget == original.callTarget
-        spec.consumedOptionKeys == original.consumedOptionKeys
+        spec.consumed == original.consumed
     }
 }

@@ -1,40 +1,43 @@
 package io.github.joke.percolate.spi;
 
+import static java.util.stream.Collectors.toUnmodifiableList;
+
 import java.util.List;
 import java.util.Optional;
 
 /**
  * The {@code @Map} configuration in effect at a {@link Demand}, exposed to strategies without raw compiler
- * internals. A strategy reads its per-binding configuration here — the source path it descends, and the
- * author-declared {@code constant} / {@code defaultValue} / {@code format} / {@code zone} attributes — rather than
- * inspecting an {@code AnnotationMirror}.
+ * internals (design D3 of change {@code decouple-engine-from-strategy-semantics}). {@link #sourcePath()} is
+ * structural — the engine walks it. Everything else is an open, keyed bag of {@link DirectiveInput}s: a strategy
+ * reads its own member by key (e.g. {@code "constant"}, {@code "format"}, {@code "enum"}) rather than through a
+ * closed set of typed accessors, so a new {@code @Map} member — or a third-party annotation's own vocabulary —
+ * touches no core type.
  *
- * <p>{@link #constant()}, {@link #defaultValue()}, {@link #format()}, and {@link #zone()} are reported
- * <strong>present</strong> only when the member is not the {@code Map.UNSET} sentinel; an empty string is a present
- * value, never absent. {@code ConstantValue} reads {@link #constant()} and {@code NullnessCrossing} reads
- * {@link #defaultValue()} through this surface; the temporal strategies read {@link #format()} and {@link #zone()};
- * the {@code enum-conversion} strategy reads {@link #enumOverrides()}.
+ * <p>An input is reported present only when its member was actually written; an empty string is a present value,
+ * never absent. {@code ConstantValue} reads {@code "constant"}, {@code NullnessCrossing} reads {@code
+ * "defaultValue"}; the temporal strategies read {@code "format"} and {@code "zone"}; {@code EnumConversion} reads
+ * every repeated {@code "enum"} entry via {@link #inputs(String)}.
  */
 public interface Directive {
 
     /** The {@code @Map} source path split into segments, e.g. {@code ["person", "address", "street"]}; empty for a constant. */
     List<String> sourcePath();
 
-    /** The {@code @Map} {@code constant} literal (present — including the empty string — iff declared), else empty. */
-    Optional<String> constant();
+    /** Every input this directive declares, in declaration order. */
+    List<DirectiveInput> inputs();
 
-    /** The {@code @Map} {@code defaultValue} (present — including the empty string — iff declared), else empty. */
-    Optional<String> defaultValue();
+    /** The sole input declared under {@code key}, or empty when none was written. */
+    default Optional<DirectiveInput> input(final String key) {
+        return inputs().stream().filter(i -> i.getKey().equals(key)).findFirst();
+    }
 
-    /** The {@code @Map} {@code format} option (present — including the empty string — iff declared), else empty. */
-    Optional<String> format();
+    /** Every input declared under {@code key}, in declaration order — for a repeatable, structured member (e.g. {@code "enum"}). */
+    default List<DirectiveInput> inputs(final String key) {
+        return inputs().stream().filter(i -> i.getKey().equals(key)).collect(toUnmodifiableList());
+    }
 
-    /** The {@code @Map} {@code zone} option (present — including the empty string — iff declared), else empty. */
-    Optional<String> zone();
-
-    /**
-     * The ordered {@code @MapEnum} source-name → target-name override table declared on the conversion method this
-     * demand's binding belongs to; empty when no {@code @MapEnum} is declared. Inert for any non-enum production.
-     */
-    List<EnumOverride> enumOverrides();
+    /** By-key convenience: the scalar value declared under {@code key}, or empty when absent. */
+    default Optional<String> value(final String key) {
+        return input(key).flatMap(DirectiveInput::getValue);
+    }
 }

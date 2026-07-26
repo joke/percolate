@@ -6,8 +6,7 @@ import com.google.auto.service.AutoService;
 import io.github.joke.percolate.lib.javapoet.CodeBlock;
 import io.github.joke.percolate.spi.BodyCodegen;
 import io.github.joke.percolate.spi.BodyRenderContext;
-import io.github.joke.percolate.spi.Directive;
-import io.github.joke.percolate.spi.EnumOverride;
+import io.github.joke.percolate.spi.DirectiveInput;
 import io.github.joke.percolate.spi.ExpansionStrategy;
 import io.github.joke.percolate.spi.Nullability;
 import io.github.joke.percolate.spi.OperationSpec;
@@ -47,6 +46,9 @@ import lombok.NoArgsConstructor;
 public final class EnumConversion implements ExpansionStrategy {
 
     private static final String VALUE_ROLE = "value";
+    static final String ENUM_KEY = "enum";
+    private static final String SOURCE_PART = "source";
+    private static final String TARGET_PART = "target";
 
     // SourceVersion.RELEASE_14 cannot be referenced as a compile-time symbol under this module's --release 11
     // target (it postdates the JDK 11 platform API `--release` restricts compilation to); the toolchain JDK the
@@ -59,21 +61,22 @@ public final class EnumConversion implements ExpansionStrategy {
         if (!ctx.isEnum(target)) {
             return Stream.empty();
         }
-        final var overrides = demand.directive().map(Directive::enumOverrides).orElseGet(List::of);
+        final var overrides = demand.directive().map(d -> d.inputs(ENUM_KEY)).orElseGet(List::of);
         final var port = new Port(VALUE_ROLE, target, Nullability.NON_NULL, PortType.variable(0));
         final BodyCodegen codegen = context -> render(context, target, overrides);
         return Stream.of(OperationSpec.of(
-                "enum" + Labels.ARROW + Labels.simple(target),
-                codegen,
-                Weights.EXPENSIVE,
-                List.of(port),
-                target,
-                Nullability.NON_NULL));
+                        "enum" + Labels.ARROW + Labels.simple(target),
+                        codegen,
+                        Weights.EXPENSIVE,
+                        List.of(port),
+                        target,
+                        Nullability.NON_NULL)
+                .withConsumed(Set.copyOf(overrides)));
     }
 
     /** Renders the whole method body: a switch over the grounded source enum, form chosen by the effective style. */
     static CodeBlock render(
-            final BodyRenderContext context, final TypeMirror target, final List<EnumOverride> overrides) {
+            final BodyRenderContext context, final TypeMirror target, final List<DirectiveInput> overrides) {
         final var resolveCtx = context.resolveCtx();
         final var source = context.portType(VALUE_ROLE);
         if (!resolveCtx.isEnum(source)) {
@@ -100,7 +103,7 @@ public final class EnumConversion implements ExpansionStrategy {
     static Map<String, String> buildMapping(
             final List<String> sourceConstants,
             final List<String> targetConstants,
-            final List<EnumOverride> overrides) {
+            final List<DirectiveInput> overrides) {
         final var targetSet = Set.copyOf(targetConstants);
         final Map<String, String> mapping = new LinkedHashMap<>();
         for (final var constant : sourceConstants) {
@@ -108,7 +111,9 @@ public final class EnumConversion implements ExpansionStrategy {
                 mapping.put(constant, constant);
             }
         }
-        overrides.forEach(override -> mapping.put(override.getSource(), override.getTarget()));
+        overrides.forEach(override -> mapping.put(
+                override.member(SOURCE_PART).orElseThrow(),
+                override.member(TARGET_PART).orElseThrow()));
         return mapping;
     }
 

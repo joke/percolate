@@ -67,7 +67,7 @@ class AbsoluteTemporalConversionSpec extends Specification {
         specs[0].ports[0].type.is(instantType)
         specs[0].outputType.is(dateType)
         specs[0].weight == Weights.STEP
-        specs[0].consumedOptionKeys.empty
+        specs[0].consumed.empty
     }
 
     def 'demanding Timestamp offers a Timestamp.from(Instant) step'() {
@@ -97,7 +97,7 @@ class AbsoluteTemporalConversionSpec extends Specification {
         rendered.contains('UTC')
 
         and: 'a spoke conversion is directive-blind and stamps no option'
-        specs[0].consumedOptionKeys.empty
+        specs[0].consumed.empty
     }
 
     def 'demanding ZonedDateTime offers an atZone(ZoneOffset.UTC) step — fixed, no configured zone read'() {

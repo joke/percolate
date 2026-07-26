@@ -7,7 +7,6 @@ import io.github.joke.percolate.processor.MapperContext;
 import io.github.joke.percolate.processor.internal.graph.MethodScope;
 import io.github.joke.percolate.processor.internal.stages.Stage;
 import io.github.joke.percolate.processor.model.EnumOverrideDirective;
-import io.github.joke.percolate.spi.Subjects;
 import jakarta.inject.Inject;
 import java.util.Optional;
 import java.util.Set;
@@ -49,33 +48,25 @@ public final class ValidateEnumOverridesStage implements Stage {
             return;
         }
         enumConstantNames(method.getReturnType())
-                .ifPresent(targetConstants -> overrides.forEach(o -> checkTarget(method, o, targetConstants, ctx)));
+                .ifPresent(targetConstants -> overrides.forEach(o -> checkTarget(o, targetConstants, ctx)));
         singleParameterType(method)
                 .flatMap(ValidateEnumOverridesStage::enumConstantNames)
-                .ifPresent(sourceConstants -> overrides.forEach(o -> checkSource(method, o, sourceConstants, ctx)));
+                .ifPresent(sourceConstants -> overrides.forEach(o -> checkSource(o, sourceConstants, ctx)));
     }
 
-    void checkTarget(
-            final ExecutableElement method,
-            final EnumOverrideDirective override,
-            final Set<String> targetConstants,
-            final MapperContext ctx) {
+    void checkTarget(final EnumOverrideDirective override, final Set<String> targetConstants, final MapperContext ctx) {
         if (!targetConstants.contains(override.getTarget())) {
             ctx.report(Diagnostic.error(
-                            Subjects.of(method, override.getMirror(), override.getTargetValue()),
+                            override.getTargetSubject(),
                             "@MapEnum names an unknown target constant '" + override.getTarget() + "'")
                     .asPermanent());
         }
     }
 
-    void checkSource(
-            final ExecutableElement method,
-            final EnumOverrideDirective override,
-            final Set<String> sourceConstants,
-            final MapperContext ctx) {
+    void checkSource(final EnumOverrideDirective override, final Set<String> sourceConstants, final MapperContext ctx) {
         if (!sourceConstants.contains(override.getSource())) {
             ctx.report(Diagnostic.error(
-                            Subjects.of(method, override.getMirror(), override.getSourceValue()),
+                            override.getSourceSubject(),
                             "@MapEnum names an unknown source constant '" + override.getSource() + "'")
                     .asPermanent());
         }

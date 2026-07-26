@@ -3,7 +3,7 @@ package io.github.joke.percolate.spi.builtins;
 import com.google.auto.service.AutoService;
 import io.github.joke.percolate.lib.javapoet.ClassName;
 import io.github.joke.percolate.lib.javapoet.CodeBlock;
-import io.github.joke.percolate.spi.Directive;
+import io.github.joke.percolate.spi.DirectiveInput;
 import io.github.joke.percolate.spi.ExpansionStrategy;
 import io.github.joke.percolate.spi.Nullability;
 import io.github.joke.percolate.spi.OperationCodegen;
@@ -43,22 +43,28 @@ public final class LegacyTemporalFormat implements ExpansionStrategy {
 
     @Override
     public Stream<OperationSpec> expand(final ProduceDemand demand, final ResolveCtx ctx) {
-        final var pattern = demand.directive().flatMap(Directive::format);
+        final var formatInput = demand.directive().flatMap(directive -> directive.input(FORMAT_KEY));
+        final var pattern = formatInput.flatMap(DirectiveInput::getValue);
         if (pattern.isEmpty()) {
             return Stream.empty();
         }
         final var target = demand.targetType();
+        final var input = formatInput.orElseThrow();
         if (ctx.isType(target, STRING)) {
             return Stream.of("java.util.Date", "java.sql.Timestamp")
-                    .map(fqn -> formatStep(fqn, target, pattern.get(), ctx))
+                    .map(fqn -> formatStep(fqn, target, pattern.get(), input, ctx))
                     .flatMap(Optional::stream);
         }
-        return parseStep(target, pattern.get(), ctx).map(Stream::of).orElseGet(Stream::empty);
+        return parseStep(target, pattern.get(), input, ctx).map(Stream::of).orElseGet(Stream::empty);
     }
 
     /** {@code new SimpleDateFormat(pattern).format($L)} — a fresh formatter per call, never shared. */
     static Optional<OperationSpec> formatStep(
-            final String sourceFqn, final TypeMirror target, final String pattern, final ResolveCtx ctx) {
+            final String sourceFqn,
+            final TypeMirror target,
+            final String pattern,
+            final DirectiveInput formatInput,
+            final ResolveCtx ctx) {
         final var sourceElement = ctx.typeElementNamed(sourceFqn);
         if (sourceElement == null) {
             return Optional.empty();
@@ -74,11 +80,12 @@ public final class LegacyTemporalFormat implements ExpansionStrategy {
                         List.of(port),
                         target,
                         Nullability.NON_NULL)
-                .withConsumedOptionKeys(Set.of(FORMAT_KEY)));
+                .withConsumed(Set.of(formatInput)));
     }
 
     /** {@code String -> Date/Timestamp} via a fresh {@code SimpleDateFormat}, its checked {@code ParseException} rethrown. */
-    static Optional<OperationSpec> parseStep(final TypeMirror target, final String pattern, final ResolveCtx ctx) {
+    static Optional<OperationSpec> parseStep(
+            final TypeMirror target, final String pattern, final DirectiveInput formatInput, final ResolveCtx ctx) {
         final var isTimestamp = legacyTargetKind(target, ctx);
         if (isTimestamp.isEmpty()) {
             return Optional.empty();
@@ -97,7 +104,7 @@ public final class LegacyTemporalFormat implements ExpansionStrategy {
                         List.of(port),
                         target,
                         Nullability.NON_NULL)
-                .withConsumedOptionKeys(Set.of(FORMAT_KEY)));
+                .withConsumed(Set.of(formatInput)));
     }
 
     /** Empty when {@code target} is neither legacy type; else {@code true} for {@code Timestamp}, {@code false} for {@code Date}. */

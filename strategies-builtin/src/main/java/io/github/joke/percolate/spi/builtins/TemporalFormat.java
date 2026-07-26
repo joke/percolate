@@ -3,7 +3,7 @@ package io.github.joke.percolate.spi.builtins;
 import com.google.auto.service.AutoService;
 import io.github.joke.percolate.lib.javapoet.ClassName;
 import io.github.joke.percolate.lib.javapoet.CodeBlock;
-import io.github.joke.percolate.spi.Directive;
+import io.github.joke.percolate.spi.DirectiveInput;
 import io.github.joke.percolate.spi.ExpansionStrategy;
 import io.github.joke.percolate.spi.MemberRequest;
 import io.github.joke.percolate.spi.Nullability;
@@ -45,18 +45,20 @@ public final class TemporalFormat implements ExpansionStrategy {
 
     @Override
     public Stream<OperationSpec> expand(final ProduceDemand demand, final ResolveCtx ctx) {
-        final var pattern = demand.directive().flatMap(Directive::format);
+        final var formatInput = demand.directive().flatMap(directive -> directive.input(FORMAT_KEY));
+        final var pattern = formatInput.flatMap(DirectiveInput::getValue);
         if (pattern.isEmpty()) {
             return Stream.empty();
         }
         final var target = demand.targetType();
         final var memberRequest = formatterRequest(pattern.get());
+        final var input = formatInput.orElseThrow();
         if (ctx.isType(target, STRING)) {
             return JAVA_TIME_ROSTER.stream()
-                    .map(fqn -> formatStep(fqn, target, memberRequest, ctx))
+                    .map(fqn -> formatStep(fqn, target, memberRequest, input, ctx))
                     .flatMap(Optional::stream);
         }
-        return parseStep(target, memberRequest, ctx).map(Stream::of).orElseGet(Stream::empty);
+        return parseStep(target, memberRequest, input, ctx).map(Stream::of).orElseGet(Stream::empty);
     }
 
     static MemberRequest formatterRequest(final String pattern) {
@@ -68,7 +70,11 @@ public final class TemporalFormat implements ExpansionStrategy {
 
     /** {@code sourceFqn.format(formatter)} — one over-emitted candidate per roster {@code java.time} source type. */
     static Optional<OperationSpec> formatStep(
-            final String sourceFqn, final TypeMirror target, final MemberRequest memberRequest, final ResolveCtx ctx) {
+            final String sourceFqn,
+            final TypeMirror target,
+            final MemberRequest memberRequest,
+            final DirectiveInput formatInput,
+            final ResolveCtx ctx) {
         final var sourceElement = ctx.typeElementNamed(sourceFqn);
         if (sourceElement == null) {
             return Optional.empty();
@@ -84,13 +90,16 @@ public final class TemporalFormat implements ExpansionStrategy {
                         List.of(port),
                         target,
                         Nullability.NON_NULL)
-                .withConsumedOptionKeys(Set.of(FORMAT_KEY))
+                .withConsumed(Set.of(formatInput))
                 .withMemberRequests(List.of(memberRequest)));
     }
 
     /** {@code Target.parse(str, formatter)} — the demanded {@code java.time} target, parsed from a {@code String}. */
     static Optional<OperationSpec> parseStep(
-            final TypeMirror target, final MemberRequest memberRequest, final ResolveCtx ctx) {
+            final TypeMirror target,
+            final MemberRequest memberRequest,
+            final DirectiveInput formatInput,
+            final ResolveCtx ctx) {
         final var isRosterTarget = JAVA_TIME_ROSTER.stream().anyMatch(fqn -> ctx.isType(target, fqn));
         if (!isRosterTarget) {
             return Optional.empty();
@@ -110,7 +119,7 @@ public final class TemporalFormat implements ExpansionStrategy {
                         List.of(port),
                         target,
                         Nullability.NON_NULL)
-                .withConsumedOptionKeys(Set.of(FORMAT_KEY))
+                .withConsumed(Set.of(formatInput))
                 .withMemberRequests(List.of(memberRequest)));
     }
 }

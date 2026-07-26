@@ -1,11 +1,13 @@
 package io.github.joke.percolate.spi.builtins
 
 import io.github.joke.percolate.lib.javapoet.CodeBlock
+import io.github.joke.percolate.spi.DirectiveInput
 import io.github.joke.percolate.spi.IncomingValues
 import io.github.joke.percolate.spi.Nullability
 import io.github.joke.percolate.spi.OperationCodegen
 import io.github.joke.percolate.spi.Port
 import io.github.joke.percolate.spi.ResolveCtx
+import io.github.joke.percolate.spi.Subjects
 import io.github.joke.percolate.spi.Weights
 import io.github.joke.percolate.spi.builtins.test.Demands
 import spock.lang.Specification
@@ -190,7 +192,8 @@ class NullnessCrossingSpec extends Specification {
         OperationCodegen codegen = { inputs -> CodeBlock.of('x') }
 
         expect:
-        def spec = NullnessCrossing.coalesceSpec(stringType, Nullability.NULLABLE, stringType, codegen)
+        def spec = NullnessCrossing.coalesceSpec(stringType, Nullability.NULLABLE, stringType, codegen,
+                DirectiveInput.scalar('defaultValue', 'fallback', Subjects.none()))
         !spec.partial
         spec.label == 'coalesce'
         spec.weight == Weights.NOOP

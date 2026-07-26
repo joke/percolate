@@ -8,30 +8,24 @@ import io.github.joke.percolate.processor.internal.stages.Stage;
 import io.github.joke.percolate.processor.model.GoalSpec;
 import io.github.joke.percolate.processor.model.MapperMappings;
 import io.github.joke.percolate.processor.model.MapperShape;
-import io.github.joke.percolate.processor.model.MappingDirective;
 import io.github.joke.percolate.processor.model.MethodMappings;
 import jakarta.inject.Inject;
-import java.util.List;
-import javax.lang.model.element.AnnotationMirror;
 import javax.lang.model.element.ExecutableElement;
 import lombok.RequiredArgsConstructor;
 
 /**
  * Discovers {@code @Map}/{@code @MapList} and {@code @MapEnum}/{@code @MapEnumList} directives on mapper methods.
- * The genuinely compiler-backed {@link javax.lang.model.element.AnnotationMirror} walks live in the thin
- * {@link AnnotationDirectiveReader} and {@link EnumOverrideReader}; the pure {@code Map.UNSET}-presence decision and
- * {@link MappingDirective} assembly live in {@link MappingDirectiveBuilder} ({@code @MapEnum} needs no such
- * presence decision — both its members are mandatory). This stage is thin glue: it threads a method's mirrors
- * through the readers, maps each {@link RawDirective} through the builder, and installs the resulting
- * {@link MapperMappings} and per-method-scope {@link GoalSpec}s (which additionally carry the method's
- * {@code @MapEnum} declarations) on the context.
+ * The genuinely compiler-backed {@code javax.lang.model} walk lives in {@link MapDirectiveReader} and
+ * {@link MapEnumDirectiveReader} (design D4 of change {@code decouple-engine-from-strategy-semantics}), both built
+ * on the shared {@link AnnotationEntryReader}. This stage is thin glue: it threads each method through the two
+ * readers and installs the resulting {@link MapperMappings} and per-method-scope {@link GoalSpec}s (which
+ * additionally carry the method's {@code @MapEnum} declarations) on the context.
  */
 @RequiredArgsConstructor(onConstructor_ = @Inject)
 public final class DiscoverMappingsStage implements Stage {
 
-    private final AnnotationDirectiveReader reader;
-    private final MappingDirectiveBuilder builder;
-    private final EnumOverrideReader enumOverrideReader;
+    private final MapDirectiveReader mapReader;
+    private final MapEnumDirectiveReader mapEnumReader;
 
     @Override
     public void run(final MapperContext ctx) {
@@ -44,10 +38,7 @@ public final class DiscoverMappingsStage implements Stage {
         mappings.getMethods().forEach(method -> ctx.getGoalSpecs()
                 .put(
                         new MethodScope(method.getMethod()),
-                        GoalSpec.from(
-                                method.getDirectives(),
-                                enumOverrideReader.extractOverrides(
-                                        method.getMethod().getAnnotationMirrors()))));
+                        GoalSpec.from(method.getDirectives(), mapEnumReader.extractOverrides(method.getMethod()))));
     }
 
     MapperMappings apply(final MapperShape shape) {
@@ -56,13 +47,7 @@ public final class DiscoverMappingsStage implements Stage {
         return new MapperMappings(shape.getType(), methods);
     }
 
-    List<MappingDirective> extractDirectives(final List<? extends AnnotationMirror> mirrors) {
-        return reader.extractRawDirectives(mirrors).stream()
-                .map(builder::toDirective)
-                .collect(toUnmodifiableList());
-    }
-
     MethodMappings toMethodMappings(final ExecutableElement method) {
-        return new MethodMappings(method, extractDirectives(method.getAnnotationMirrors()));
+        return new MethodMappings(method, mapReader.extractDirectives(method));
     }
 }

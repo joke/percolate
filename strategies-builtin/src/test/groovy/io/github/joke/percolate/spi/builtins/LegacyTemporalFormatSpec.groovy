@@ -1,8 +1,10 @@
 package io.github.joke.percolate.spi.builtins
 
 import io.github.joke.percolate.lib.javapoet.CodeBlock
+import io.github.joke.percolate.spi.DirectiveInput
 import io.github.joke.percolate.spi.IncomingValues
 import io.github.joke.percolate.spi.ResolveCtx
+import io.github.joke.percolate.spi.Subjects
 import io.github.joke.percolate.spi.builtins.test.Demands
 import spock.lang.Specification
 import spock.lang.Tag
@@ -43,7 +45,7 @@ class LegacyTemporalFormatSpec extends Specification {
         then:
         specs.size() == 2
         specs.every { it.memberRequests.empty }
-        specs.every { it.consumedOptionKeys == ['format'] as Set }
+        specs.every { it.consumed*.key == ['format'] }
         specs.every { !it.partial }
 
         and: 'the first candidate renders a fresh SimpleDateFormat().format(...) inline, not a shared field'
@@ -64,7 +66,7 @@ class LegacyTemporalFormatSpec extends Specification {
         def spec = specs[0]
         spec.partial
         spec.memberRequests.empty
-        spec.consumedOptionKeys == ['format'] as Set
+        spec.consumed*.key == ['format']
         spec.ports[0].type.is(stringType)
         spec.outputType.is(dateType)
         def rendered = spec.codegen.render(singleInput(CodeBlock.of('s'))).toString()
@@ -105,7 +107,7 @@ class LegacyTemporalFormatSpec extends Specification {
         ResolveCtx freshCtx = Mock()
 
         expect:
-        LegacyTemporalFormat.formatStep('java.util.Date', stringType, 'p', freshCtx).empty
+        LegacyTemporalFormat.formatStep('java.util.Date', stringType, 'p', formatInput(), freshCtx).empty
     }
 
     def 'legacyTargetKind is false for Date, true for Timestamp, empty otherwise'() {
@@ -128,7 +130,7 @@ class LegacyTemporalFormatSpec extends Specification {
         ctx.isType(otherType, 'java.sql.Timestamp') >> false
 
         expect:
-        LegacyTemporalFormat.parseStep(otherType, 'p', ctx).empty
+        LegacyTemporalFormat.parseStep(otherType, 'p', formatInput(), ctx).empty
     }
 
     def 'parseStep returns empty when String itself is not resolvable'() {
@@ -136,7 +138,7 @@ class LegacyTemporalFormatSpec extends Specification {
         freshCtx.isType(dateType, 'java.util.Date') >> true
 
         expect:
-        LegacyTemporalFormat.parseStep(dateType, 'p', freshCtx).empty
+        LegacyTemporalFormat.parseStep(dateType, 'p', formatInput(), freshCtx).empty
     }
 
     def 'dateParseCodegen renders a fresh SimpleDateFormat parse, wrapping the checked exception'() {
@@ -154,6 +156,10 @@ class LegacyTemporalFormatSpec extends Specification {
         rendered.contains('new java.sql.Timestamp(')
         rendered.contains('SimpleDateFormat("yyyy-MM-dd")')
         rendered.contains('.getTime())')
+    }
+
+    private static DirectiveInput formatInput() {
+        DirectiveInput.scalar('format', 'p', Subjects.none())
     }
 
     private void element(final String fqn, final TypeMirror type) {

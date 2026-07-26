@@ -3,7 +3,7 @@ package io.github.joke.percolate.spi.builtins;
 import com.google.auto.service.AutoService;
 import io.github.joke.percolate.lib.javapoet.ClassName;
 import io.github.joke.percolate.lib.javapoet.CodeBlock;
-import io.github.joke.percolate.spi.Directive;
+import io.github.joke.percolate.spi.DirectiveInput;
 import io.github.joke.percolate.spi.ExpansionStrategy;
 import io.github.joke.percolate.spi.Nullability;
 import io.github.joke.percolate.spi.OperationCodegen;
@@ -63,8 +63,8 @@ public final class InstantLocalDateTimeBridge implements ExpansionStrategy {
         }
         final var instantType = instantElement.asType();
         final var localDateTimeType = localDateTimeElement.asType();
-        final var directiveZone = demand.directive().flatMap(Directive::zone);
-        final var zoneExpr = resolveZone(directiveZone, ctx);
+        final var zoneInput = demand.directive().flatMap(directive -> directive.input(ZONE_KEY));
+        final var zoneExpr = resolveZone(zoneInput, ctx);
         final OperationCodegen codegen =
                 inputs -> CodeBlock.of("$L.atZone($L).toLocalDateTime()", inputs.single(), zoneExpr);
         final var port = new Port(VALUE_ROLE, instantType, Nullability.NON_NULL);
@@ -75,7 +75,7 @@ public final class InstantLocalDateTimeBridge implements ExpansionStrategy {
                         List.of(port),
                         target,
                         Nullability.NON_NULL)
-                .withConsumedOptionKeys(consumedKeys(directiveZone)));
+                .withConsumed(consumed(zoneInput)));
     }
 
     /** {@code LocalDateTime -> Instant} via {@code localDateTime.atZone(zone).toInstant()}. */
@@ -88,8 +88,8 @@ public final class InstantLocalDateTimeBridge implements ExpansionStrategy {
         }
         final var instantType = instantElement.asType();
         final var localDateTimeType = localDateTimeElement.asType();
-        final var directiveZone = demand.directive().flatMap(Directive::zone);
-        final var zoneExpr = resolveZone(directiveZone, ctx);
+        final var zoneInput = demand.directive().flatMap(directive -> directive.input(ZONE_KEY));
+        final var zoneExpr = resolveZone(zoneInput, ctx);
         final OperationCodegen codegen = inputs -> CodeBlock.of("$L.atZone($L).toInstant()", inputs.single(), zoneExpr);
         final var port = new Port(VALUE_ROLE, localDateTimeType, Nullability.NON_NULL);
         return Optional.of(OperationSpec.of(
@@ -99,15 +99,16 @@ public final class InstantLocalDateTimeBridge implements ExpansionStrategy {
                         List.of(port),
                         target,
                         Nullability.NON_NULL)
-                .withConsumedOptionKeys(consumedKeys(directiveZone)));
+                .withConsumed(consumed(zoneInput)));
     }
 
-    static Set<String> consumedKeys(final Optional<String> directiveZone) {
-        return directiveZone.isPresent() ? Set.of(ZONE_KEY) : Set.of();
+    static Set<DirectiveInput> consumed(final Optional<DirectiveInput> zoneInput) {
+        return zoneInput.map(Set::of).orElseGet(Set::of);
     }
 
     /** Zone precedence (D4): directive → processor option → generated {@code ZoneId.systemDefault()}. */
-    static CodeBlock resolveZone(final Optional<String> directiveZone, final ResolveCtx ctx) {
+    static CodeBlock resolveZone(final Optional<DirectiveInput> zoneInput, final ResolveCtx ctx) {
+        final var directiveZone = zoneInput.flatMap(DirectiveInput::getValue);
         if (directiveZone.isPresent()) {
             return CodeBlock.of("$T.of($S)", ZONE_ID, directiveZone.get());
         }

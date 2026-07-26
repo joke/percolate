@@ -38,7 +38,7 @@ final class OperationLander {
                                 child.getElementInNullness(),
                                 child.getElementOut(),
                                 child.getElementOutNullness())),
-                spec.getConsumedOptionKeys(),
+                spec.getConsumed(),
                 spec.getMemberRequests()));
     }
 

@@ -95,7 +95,7 @@ public final class MapperGraph {
                 ports,
                 output.getScope(),
                 delta.getChildScope().isPresent(),
-                delta.getConsumedOptionKeys(),
+                delta.getConsumed(),
                 delta.getMemberRequests());
         bipartite.addVertex(operation);
         delta.getChildScope().ifPresent(decl -> initChildScope(operation, decl));

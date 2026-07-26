@@ -1,6 +1,7 @@
 package io.github.joke.percolate.processor.internal.graph;
 
 import io.github.joke.percolate.spi.Codegen;
+import io.github.joke.percolate.spi.DirectiveInput;
 import io.github.joke.percolate.spi.MemberRequest;
 import io.github.joke.percolate.spi.Port;
 import java.util.List;
@@ -32,7 +33,7 @@ public final class Operation implements GraphVertex {
     private final List<Port> ports;
     private final Scope scope;
     private final Optional<ChildScope> childScope;
-    private final Set<String> consumedOptionKeys;
+    private final Set<DirectiveInput> consumed;
     private final List<MemberRequest> memberRequests;
 
     @SuppressWarnings("PMD.ExcessiveParameterList")
@@ -45,7 +46,7 @@ public final class Operation implements GraphVertex {
             final List<Port> ports,
             final Scope scope,
             final boolean ownsChildScope,
-            final Set<String> consumedOptionKeys,
+            final Set<DirectiveInput> consumed,
             final List<MemberRequest> memberRequests) {
         this.seq = seq;
         this.label = label;
@@ -55,7 +56,7 @@ public final class Operation implements GraphVertex {
         this.ports = List.copyOf(ports);
         this.scope = scope;
         this.childScope = ownsChildScope ? Optional.of(new ChildScope(this, scope)) : Optional.empty();
-        this.consumedOptionKeys = Set.copyOf(consumedOptionKeys);
+        this.consumed = Set.copyOf(consumed);
         this.memberRequests = List.copyOf(memberRequests);
     }
 

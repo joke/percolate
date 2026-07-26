@@ -30,21 +30,21 @@ import lombok.Value;
  * totality rule deprioritises), {@link #callOf} (a total method-call production carrying its call target), or
  * {@link #mapping} (a scope-owning element mapping).
  *
- * <p>{@link #consumedOptionKeys} and {@link #memberRequests} are <b>additive, optional</b> neutral structural facts,
- * each defaulting to empty and set via {@link #withConsumedOptionKeys} / {@link #withMemberRequests} on the spec
- * returned by one of the factories above — existing factory call sites that never mention them are unaffected.
- * {@code consumedOptionKeys} is recorded by a strategy that read one or more {@code @Map} options (e.g.
- * {@code "format"}, {@code "zone"}) to produce this spec — the consumer declares consumption, mirroring
- * {@code callTarget}. The processor unions the stamped keys over a binding's <em>winning</em> plan to diagnose any
- * declared-but-unconsumed option (see the {@code directive-options} capability). {@code memberRequests} declares one
- * or more class-level members (see {@code code-generation}) the operation's codegen reaches by {@code dedupKey}
- * through {@link IncomingValues#member(String)} — the same indirection a hoisted local reaches its codegen through.
- * Strategies stay myopic: both are plain data, not graph access.
+ * <p>{@link #consumed} and {@link #memberRequests} are <b>additive, optional</b> neutral structural facts, each
+ * defaulting to empty and set via {@link #withConsumed} / {@link #withMemberRequests} on the spec returned by one
+ * of the factories above — existing factory call sites that never mention them are unaffected. {@code consumed}
+ * (design D3 of change {@code decouple-engine-from-strategy-semantics}) is the exact {@link DirectiveInput}s a
+ * strategy read from the demand's {@link Directive} to produce this spec — the consumer declares consumption,
+ * mirroring {@code callTarget}. The processor unions the stamped inputs over a binding's <em>winning</em> plan to
+ * diagnose any declared-but-unconsumed input (see the {@code directive-options} capability). {@code memberRequests}
+ * declares one or more class-level members (see {@code code-generation}) the operation's codegen reaches by
+ * {@code dedupKey} through {@link IncomingValues#member(String)} — the same indirection a hoisted local reaches its
+ * codegen through. Strategies stay myopic: both are plain data, not graph access.
  */
 @Value
 public class OperationSpec {
 
-    private static final Set<String> NO_OPTION_KEYS = Set.of();
+    private static final Set<DirectiveInput> NO_CONSUMED = Set.of();
     private static final List<MemberRequest> NO_MEMBER_REQUESTS = List.of();
 
     String label;
@@ -56,7 +56,7 @@ public class OperationSpec {
     Optional<ChildScopeSpec> childScope;
     boolean partial;
     Optional<ExecutableElement> callTarget;
-    Set<String> consumedOptionKeys;
+    Set<DirectiveInput> consumed;
     List<MemberRequest> memberRequests;
 
     /** A plain total operation (constructor, accessor, conversion, constant, wrap, iterate, collect): no child scope. */
@@ -77,7 +77,7 @@ public class OperationSpec {
                 Optional.empty(),
                 false,
                 Optional.empty(),
-                NO_OPTION_KEYS,
+                NO_CONSUMED,
                 NO_MEMBER_REQUESTS);
     }
 
@@ -99,7 +99,7 @@ public class OperationSpec {
                 Optional.empty(),
                 true,
                 Optional.empty(),
-                NO_OPTION_KEYS,
+                NO_CONSUMED,
                 NO_MEMBER_REQUESTS);
     }
 
@@ -125,7 +125,7 @@ public class OperationSpec {
                 Optional.empty(),
                 false,
                 Optional.of(callTarget),
-                NO_OPTION_KEYS,
+                NO_CONSUMED,
                 NO_MEMBER_REQUESTS);
     }
 
@@ -148,12 +148,12 @@ public class OperationSpec {
                 Optional.of(childScope),
                 false,
                 Optional.empty(),
-                NO_OPTION_KEYS,
+                NO_CONSUMED,
                 NO_MEMBER_REQUESTS);
     }
 
-    /** This spec, with its consumed-option-key set replaced by {@code consumedOptionKeys}. */
-    public OperationSpec withConsumedOptionKeys(final Set<String> consumedOptionKeys) {
+    /** This spec, with its consumed-input set replaced by {@code consumed}. */
+    public OperationSpec withConsumed(final Set<DirectiveInput> consumed) {
         return new OperationSpec(
                 label,
                 codegen,
@@ -164,7 +164,7 @@ public class OperationSpec {
                 childScope,
                 partial,
                 callTarget,
-                Set.copyOf(consumedOptionKeys),
+                Set.copyOf(consumed),
                 memberRequests);
     }
 
@@ -180,7 +180,7 @@ public class OperationSpec {
                 childScope,
                 partial,
                 callTarget,
-                consumedOptionKeys,
+                consumed,
                 List.copyOf(memberRequests));
     }
 }

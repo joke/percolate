@@ -1,8 +1,10 @@
 package io.github.joke.percolate.spi.builtins
 
+import io.github.joke.percolate.spi.DirectiveInput
 import io.github.joke.percolate.spi.Nullability
 import io.github.joke.percolate.spi.OperationCodegen
 import io.github.joke.percolate.spi.ResolveCtx
+import io.github.joke.percolate.spi.Subjects
 import io.github.joke.percolate.spi.Weights
 import io.github.joke.percolate.spi.builtins.test.Demands
 import spock.lang.Specification
@@ -69,7 +71,7 @@ class ConstantValueSpec extends Specification {
         def literal = io.github.joke.percolate.lib.javapoet.CodeBlock.of('42L')
 
         expect:
-        def spec = ConstantValue.constantSpec(longType, literal)
+        def spec = ConstantValue.constantSpec(longType, literal, DirectiveInput.scalar('constant', '42', Subjects.none()))
         spec.label == '42L'
         spec.ports.empty
         spec.outputType.is(longType)

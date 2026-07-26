@@ -1,8 +1,10 @@
 package io.github.joke.percolate.spi.builtins
 
 import io.github.joke.percolate.lib.javapoet.CodeBlock
+import io.github.joke.percolate.spi.DirectiveInput
 import io.github.joke.percolate.spi.IncomingValues
 import io.github.joke.percolate.spi.ResolveCtx
+import io.github.joke.percolate.spi.Subjects
 import io.github.joke.percolate.spi.builtins.test.Demands
 import spock.lang.Specification
 import spock.lang.Tag
@@ -51,7 +53,7 @@ class InstantLocalDateTimeBridgeSpec extends Specification {
         specs.size() == 1
         specs[0].ports[0].type.is(instantType)
         specs[0].outputType.is(localDateTimeType)
-        specs[0].consumedOptionKeys == ['zone'] as Set
+        specs[0].consumed*.key == ['zone']
         def rendered = specs[0].codegen.render(singleInput(CodeBlock.of('i'))).toString()
         rendered.contains('atZone(')
         rendered.contains('"Europe/Berlin"')
@@ -67,7 +69,7 @@ class InstantLocalDateTimeBridgeSpec extends Specification {
 
         then:
         specs.size() == 1
-        specs[0].consumedOptionKeys.empty
+        specs[0].consumed.empty
         def rendered = specs[0].codegen.render(singleInput(CodeBlock.of('i'))).toString()
         rendered.contains('"UTC"')
     }
@@ -81,7 +83,7 @@ class InstantLocalDateTimeBridgeSpec extends Specification {
 
         then:
         specs.size() == 1
-        specs[0].consumedOptionKeys.empty
+        specs[0].consumed.empty
         def rendered = specs[0].codegen.render(singleInput(CodeBlock.of('i'))).toString()
         rendered.contains('systemDefault()')
         !rendered.contains('"')
@@ -147,15 +149,16 @@ class InstantLocalDateTimeBridgeSpec extends Specification {
         InstantLocalDateTimeBridge.toInstantSpec(Demands.forTarget(instantType), instantType, freshCtx).empty
     }
 
-    def 'consumedKeys is the zone key when a directive zone is present, else empty'() {
+    def 'consumed is the zone input when a directive zone is present, else empty'() {
         expect:
-        InstantLocalDateTimeBridge.consumedKeys(Optional.of('UTC')) == ['zone'] as Set
-        InstantLocalDateTimeBridge.consumedKeys(Optional.empty()) == [] as Set
+        InstantLocalDateTimeBridge.consumed(Optional.of(zoneInput('UTC'))) == [zoneInput('UTC')] as Set
+        InstantLocalDateTimeBridge.consumed(Optional.empty()) == [] as Set
     }
 
     def 'resolveZone prefers a present directive zone, frozen as ZoneId.of'() {
         expect:
-        InstantLocalDateTimeBridge.resolveZone(Optional.of('Europe/Berlin'), ctx).toString() == 'java.time.ZoneId.of("Europe/Berlin")'
+        InstantLocalDateTimeBridge.resolveZone(Optional.of(zoneInput('Europe/Berlin')), ctx).toString() ==
+                'java.time.ZoneId.of("Europe/Berlin")'
     }
 
     def 'resolveZone falls back to the configured processor option when no directive zone is present'() {
@@ -170,6 +173,10 @@ class InstantLocalDateTimeBridgeSpec extends Specification {
 
         expect:
         InstantLocalDateTimeBridge.resolveZone(Optional.empty(), ctx).toString() == 'java.time.ZoneId.systemDefault()'
+    }
+
+    private static DirectiveInput zoneInput(final String value) {
+        DirectiveInput.scalar('zone', value, Subjects.none())
     }
 
     private static IncomingValues singleInput(final CodeBlock value) {

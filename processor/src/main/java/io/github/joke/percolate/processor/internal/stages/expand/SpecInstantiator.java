@@ -37,7 +37,7 @@ final class SpecInstantiator {
                             spec.getOutputType(),
                             spec.getOutputNullness(),
                             childScope.get())
-                    .withConsumedOptionKeys(spec.getConsumedOptionKeys())
+                    .withConsumed(spec.getConsumed())
                     .withMemberRequests(spec.getMemberRequests());
         }
         if (spec.isPartial()) {
@@ -48,7 +48,7 @@ final class SpecInstantiator {
                             ports,
                             spec.getOutputType(),
                             spec.getOutputNullness())
-                    .withConsumedOptionKeys(spec.getConsumedOptionKeys())
+                    .withConsumed(spec.getConsumed())
                     .withMemberRequests(spec.getMemberRequests());
         }
         return OperationSpec.of(
@@ -58,7 +58,7 @@ final class SpecInstantiator {
                         ports,
                         spec.getOutputType(),
                         spec.getOutputNullness())
-                .withConsumedOptionKeys(spec.getConsumedOptionKeys())
+                .withConsumed(spec.getConsumed())
                 .withMemberRequests(spec.getMemberRequests());
     }
 
