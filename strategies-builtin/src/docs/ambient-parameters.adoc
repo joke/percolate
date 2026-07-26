@@ -48,7 +48,7 @@ The generated call still passes the *provider's* variable:
 
 [source,java]
 ----
-include::example$ambient/RenamedKeyMapper.java[tag=map,indent=0]
+include::example$ambient/RenamedKeyMapperImpl.java[tag=map,indent=0]
 ----
 
 The declared type is *verified* against the binding wherever a key resolves — never encoded into the key
@@ -68,7 +68,7 @@ include::example$ambient/AmbientLambdaMapper.java[tag=lambda-mapper]
 
 [source,java]
 ----
-include::example$ambient/AmbientLambdaMapper.java[tag=map,indent=0]
+include::example$ambient/AmbientLambdaMapperImpl.java[tag=map,indent=0]
 ----
 
 The generated lambda closes over `store` like any effectively-final local variable — the same mechanism

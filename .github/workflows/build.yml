@@ -19,6 +19,7 @@ jobs:
     - uses: jdx/mise-action@v4
     - uses: gradle/actions/setup-gradle@v6
     - run: ./gradlew check
+    - run: ./gradlew antora
     - name: Test Report
       uses: dorny/test-reporter@v3
       if: ${{ !cancelled() }}
