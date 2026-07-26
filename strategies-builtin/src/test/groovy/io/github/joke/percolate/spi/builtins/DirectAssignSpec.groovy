@@ -24,7 +24,7 @@ class DirectAssignSpec extends Specification {
 
     def 'emits a zero-cost identity operation that produces the demanded target'() {
         when:
-        def specs = new DirectAssign().expand(Demands.forTarget(target), ctx).toList()
+        def specs = new DirectAssign().expand(Demands.forTarget(target), ctx)*.spec
 
         then:
         specs.size() == 1
@@ -41,7 +41,7 @@ class DirectAssignSpec extends Specification {
 
     def 'its single port is reuse-only: the driver binds an in-scope same-type source or the op does not apply'() {
         when:
-        def specs = new DirectAssign().expand(Demands.forTarget(target), ctx).toList()
+        def specs = new DirectAssign().expand(Demands.forTarget(target), ctx)*.spec
 
         then: 'never minted — a same-type value already feeds the target directly (no self-copy manufacturing)'
         specs[0].ports[0].sourcing == Port.Sourcing.REUSE
@@ -50,7 +50,7 @@ class DirectAssignSpec extends Specification {
     def 'is nullness-transparent: port and output carry the demanded nullness'() {
         when:
         def demand = Demands.forTarget(target, Nullability.NULLABLE)
-        def specs = new DirectAssign().expand(demand, ctx).toList()
+        def specs = new DirectAssign().expand(demand, ctx)*.spec
 
         then:
         specs.size() == 1
@@ -60,7 +60,7 @@ class DirectAssignSpec extends Specification {
 
     def 'is labeled assign and renders the identity of its single input'() {
         when:
-        def specs = new DirectAssign().expand(Demands.forTarget(target), ctx).toList()
+        def specs = new DirectAssign().expand(Demands.forTarget(target), ctx)*.spec
 
         then:
         specs[0].label == 'assign'

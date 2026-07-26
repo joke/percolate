@@ -10,10 +10,13 @@ import io.github.joke.percolate.processor.internal.graph.Scope;
 import io.github.joke.percolate.processor.internal.graph.SourceLocation;
 import io.github.joke.percolate.processor.internal.graph.Value;
 import io.github.joke.percolate.processor.nullability.NullabilityResolver;
+import io.github.joke.percolate.spi.Directive;
 import io.github.joke.percolate.spi.ExpansionStrategy;
+import io.github.joke.percolate.spi.Offer;
 import io.github.joke.percolate.spi.OperationSpec;
 import io.github.joke.percolate.spi.ResolveCtx;
 import java.util.List;
+import java.util.Optional;
 import lombok.RequiredArgsConstructor;
 import org.jspecify.annotations.Nullable;
 
@@ -38,16 +41,17 @@ final class SourcePathDescender {
     /**
      * The leaf source {@code Value} for a directive's source {@code segments}, or {@code null} when the path is
      * empty or a segment resolves no accessor. Idempotent through the dedup index, so re-deriving the same source
-     * path re-lands nothing new.
+     * path re-lands nothing new. {@code directive} is the walked binding's own configuration (design D9) — not a
+     * per-segment one — threaded into every segment's {@link DescendView}.
      */
     @Nullable
-    Value pinnedSource(final Scope scope, final List<String> segments) {
+    Value pinnedSource(final Scope scope, final List<String> segments, final Optional<Directive> directive) {
         if (segments.isEmpty()) {
             return null;
         }
         var parent = materialiseRoot(scope, segments.get(0));
         for (var depth = 1; parent != null && depth < segments.size(); depth++) {
-            parent = descendSegment(scope, parent, segments.subList(0, depth + 1));
+            parent = descendSegment(scope, parent, segments.subList(0, depth + 1), directive);
         }
         return parent;
     }
@@ -69,8 +73,10 @@ final class SourcePathDescender {
      * accessor resolves the segment.
      */
     @Nullable
-    Value descendSegment(final Scope scope, final Value parent, final List<String> path) {
-        final var demand = new DescendView(parent.type(), parent.nullness(), path.get(path.size() - 1), resolver);
+    Value descendSegment(
+            final Scope scope, final Value parent, final List<String> path, final Optional<Directive> directive) {
+        final var demand =
+                new DescendView(parent.type(), parent.nullness(), path.get(path.size() - 1), directive, resolver);
         final var childLoc = new SourceLocation(new AccessPath(List.copyOf(path)));
         Value child = null;
         for (final var spec : TargetProducer.dedup(descend(demand, resolveCtx))) {
@@ -84,10 +90,17 @@ final class SourcePathDescender {
         return child;
     }
 
-    /** Every accessor spec the strategy set offers for {@code demand}. */
+    /**
+     * Every production an accessor offers for {@code demand}. No accessor in the repo refuses today (design D9): a
+     * decline is always silence, so a descend refusal — were one ever authored — is dropped here rather than
+     * anchored, for want of a materialised demanded {@code Value} to record it against.
+     */
     List<OperationSpec> descend(final DescendView demand, final ResolveCtx ctx) {
         return strategies.stream()
                 .flatMap(strategy -> strategy.descend(demand, ctx))
+                .filter(Offer.Production.class::isInstance)
+                .map(Offer.Production.class::cast)
+                .map(Offer.Production::getSpec)
                 .collect(toUnmodifiableList());
     }
 }

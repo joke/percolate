@@ -73,7 +73,7 @@ class SingleOptionalSpec extends Specification {
 
     def 'emits a singleOptional operation surfacing emptiness of a concrete Mono<T> as Mono<Optional<T>>'() {
         when:
-        def specs = new SingleOptional().expand(Demands.forTarget(to), ctx).toList()
+        def specs = new SingleOptional().expand(Demands.forTarget(to), ctx)*.spec
 
         then:
         1 * ctx.isType(to, Reactors.MONO) >> true

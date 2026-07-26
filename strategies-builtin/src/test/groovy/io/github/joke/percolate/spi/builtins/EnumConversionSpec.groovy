@@ -48,7 +48,7 @@ class EnumConversionSpec extends Specification {
         ctx.isEnum(targetType) >> true
 
         when:
-        def specs = new EnumConversion().expand(Demands.forTarget(targetType), ctx).toList()
+        def specs = new EnumConversion().expand(Demands.forTarget(targetType), ctx)*.spec
 
         then:
         specs.size() == 1
@@ -83,7 +83,7 @@ class EnumConversionSpec extends Specification {
         def demand = Demands.withEnumOverrides(targetType, [enumOverride('NEW', 'CREATED')])
 
         when:
-        def spec = new EnumConversion().expand(demand, ctx).toList().first()
+        def spec = new EnumConversion().expand(demand, ctx).toList().first().spec
 
         then: 'NEW has no same-name match in the target — only the override covers it, so no coverage exception'
         ((BodyCodegen) spec.codegen).render(context) != null

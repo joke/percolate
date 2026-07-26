@@ -72,7 +72,7 @@ class MethodCallBridgeSpec extends Specification {
         receiver.asExpression() >> CodeBlock.of('obj')
 
         when:
-        def specs = new MethodCallBridge().expand(Demands.forTarget(target), ctx).toList()
+        def specs = new MethodCallBridge().expand(Demands.forTarget(target), ctx)*.spec
 
         then:
         specs.size() == 1

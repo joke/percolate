@@ -30,7 +30,7 @@ class AccessorSpec extends Specification {
         ctx.asTypeElement(stringType) >> Optional.of(parentElement)
 
         when:
-        def specs = new TestAccessor(integerType).descend(descend(stringType, 'known'), ctx).toList()
+        def specs = new TestAccessor(integerType).descend(descend(stringType, 'known'), ctx)*.spec
 
         then:
         specs.size() == 1

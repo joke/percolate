@@ -43,7 +43,7 @@ class AbsoluteTemporalConversionSpec extends Specification {
         ctx.isType(instantType, 'java.time.Instant') >> true
 
         when:
-        def specs = new AbsoluteTemporalConversion().expand(Demands.forTarget(instantType), ctx).toList()
+        def specs = new AbsoluteTemporalConversion().expand(Demands.forTarget(instantType), ctx)*.spec
 
         then:
         specs.size() == 4
@@ -59,7 +59,7 @@ class AbsoluteTemporalConversionSpec extends Specification {
         ctx.isType(dateType, 'java.util.Date') >> true
 
         when:
-        def specs = new AbsoluteTemporalConversion().expand(Demands.forTarget(dateType), ctx).toList()
+        def specs = new AbsoluteTemporalConversion().expand(Demands.forTarget(dateType), ctx)*.spec
 
         then: 'the codegen renders Target.from($L) — not stringified here since $T needs a real compiler type'
         specs.size() == 1
@@ -74,7 +74,7 @@ class AbsoluteTemporalConversionSpec extends Specification {
         ctx.isType(timestampType, 'java.sql.Timestamp') >> true
 
         when:
-        def specs = new AbsoluteTemporalConversion().expand(Demands.forTarget(timestampType), ctx).toList()
+        def specs = new AbsoluteTemporalConversion().expand(Demands.forTarget(timestampType), ctx)*.spec
 
         then:
         specs.size() == 1
@@ -86,7 +86,7 @@ class AbsoluteTemporalConversionSpec extends Specification {
         ctx.isType(offsetDateTimeType, 'java.time.OffsetDateTime') >> true
 
         when:
-        def specs = new AbsoluteTemporalConversion().expand(Demands.forTarget(offsetDateTimeType), ctx).toList()
+        def specs = new AbsoluteTemporalConversion().expand(Demands.forTarget(offsetDateTimeType), ctx)*.spec
 
         then:
         specs.size() == 1
@@ -104,7 +104,7 @@ class AbsoluteTemporalConversionSpec extends Specification {
         ctx.isType(zonedDateTimeType, 'java.time.ZonedDateTime') >> true
 
         when:
-        def specs = new AbsoluteTemporalConversion().expand(Demands.forTarget(zonedDateTimeType), ctx).toList()
+        def specs = new AbsoluteTemporalConversion().expand(Demands.forTarget(zonedDateTimeType), ctx)*.spec
 
         then:
         specs.size() == 1

@@ -38,7 +38,7 @@ class ArrayContainerSpec extends Specification {
         ctx.arrayType(stringType) >> stringArray
 
         when:
-        def specs = new ArrayContainer().expand(Demands.forTarget(streamOfString), ctx).toList()
+        def specs = new ArrayContainer().expand(Demands.forTarget(streamOfString), ctx)*.spec
 
         then:
         specs.size() == 1
@@ -60,7 +60,7 @@ class ArrayContainerSpec extends Specification {
         ctx.isDeclared(stringArray) >> false
 
         when:
-        def specs = new ArrayContainer().expand(Demands.forTarget(stringArray), ctx).toList()
+        def specs = new ArrayContainer().expand(Demands.forTarget(stringArray), ctx)*.spec
 
         then:
         specs.size() == 1

@@ -4,6 +4,7 @@ import com.google.auto.service.AutoService;
 import io.github.joke.percolate.lib.javapoet.CodeBlock;
 import io.github.joke.percolate.spi.ExpansionStrategy;
 import io.github.joke.percolate.spi.Nullability;
+import io.github.joke.percolate.spi.Offer;
 import io.github.joke.percolate.spi.OperationCodegen;
 import io.github.joke.percolate.spi.OperationSpec;
 import io.github.joke.percolate.spi.Port;
@@ -24,7 +25,7 @@ import lombok.NoArgsConstructor;
 public final class FluxCollectListBlock implements ExpansionStrategy {
 
     @Override
-    public Stream<OperationSpec> expand(final ProduceDemand demand, final ResolveCtx ctx) {
+    public Stream<Offer> expand(final ProduceDemand demand, final ResolveCtx ctx) {
         final var to = demand.targetType();
         if (!ctx.isList(to)) {
             return Stream.empty();
@@ -37,6 +38,7 @@ public final class FluxCollectListBlock implements ExpansionStrategy {
                         List.of(Port.reuse("flux", flux, Nullability.NON_NULL)),
                         to,
                         Nullability.NON_NULL))
+                .map(Offer::of)
                 .stream();
     }
 }

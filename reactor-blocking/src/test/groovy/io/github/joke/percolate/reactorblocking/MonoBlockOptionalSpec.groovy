@@ -64,7 +64,7 @@ class MonoBlockOptionalSpec extends Specification {
         TypeMirror monoOfElement = Mock()
 
         when:
-        def specs = new MonoBlockOptional().expand(Demands.forTarget(to), ctx).toList()
+        def specs = new MonoBlockOptional().expand(Demands.forTarget(to), ctx)*.spec
 
         then:
         1 * ctx.isOptional(to) >> true

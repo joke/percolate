@@ -3,6 +3,7 @@ package io.github.joke.percolate.processor.internal.stages.expand;
 import static java.util.stream.Collectors.toUnmodifiableList;
 
 import io.github.joke.percolate.processor.internal.graph.AccessPath;
+import io.github.joke.percolate.processor.internal.graph.Refusal;
 import io.github.joke.percolate.processor.internal.graph.Scope;
 import io.github.joke.percolate.processor.internal.graph.TargetLocation;
 import io.github.joke.percolate.processor.internal.graph.Value;
@@ -12,6 +13,7 @@ import io.github.joke.percolate.processor.model.MappingDirective;
 import io.github.joke.percolate.processor.nullability.NullabilityResolver;
 import io.github.joke.percolate.spi.Directive;
 import io.github.joke.percolate.spi.ExpansionStrategy;
+import io.github.joke.percolate.spi.Offer;
 import io.github.joke.percolate.spi.OperationSpec;
 import io.github.joke.percolate.spi.ResolveCtx;
 import java.util.ArrayList;
@@ -55,10 +57,36 @@ final class TargetProducer {
                 value.getLoc().slotName(),
                 resolver);
         final var sourceTypes = sourceCandidates.sourceTypes(scope);
-        final var grounded = run(demand, resolveCtx).stream()
+        final var grounded = productionsOf(run(demand, resolveCtx), value).stream()
                 .flatMap(spec -> grounding.ground(spec, sourceTypes))
                 .collect(toUnmodifiableList());
         return dedup(grounded);
+    }
+
+    /** The walked binding's own {@link Directive} for {@code value}'s target path (design D9) — never per-segment. */
+    Optional<Directive> pinnedDirective(final Value value) {
+        final var scope = value.getScope();
+        final var path = ((TargetLocation) value.getLoc()).getPath().toString();
+        final var goalSpec = goalSpecs.getOrDefault(scope, GoalSpec.from(List.of()));
+        return directiveFor(goalSpec.bindingFor(path), enumOverridesAt(goalSpec, path));
+    }
+
+    /**
+     * Splits {@code offers} into their productions, recording every refusal on {@code value}'s inadmissible list
+     * (design D2 of change {@code decouple-engine-from-strategy-semantics}) — a refusal never becomes an
+     * {@code Operation} vertex.
+     */
+    static List<OperationSpec> productionsOf(final List<Offer> offers, final Value value) {
+        final var productions = new ArrayList<OperationSpec>();
+        for (final var offer : offers) {
+            if (offer instanceof Offer.Production) {
+                productions.add(((Offer.Production) offer).getSpec());
+            } else if (offer instanceof Offer.Refusal) {
+                final var refusal = (Offer.Refusal) offer;
+                value.addInadmissible(new Refusal(refusal.getSubject(), refusal.getMessage()));
+            }
+        }
+        return productions;
     }
 
     /** The {@link Directive} for a binding: present iff a {@code @Map} directive or an enum override table exists. */
@@ -89,8 +117,8 @@ final class TargetProducer {
                 .orElse(List.of());
     }
 
-    /** Every spec the strategy set offers for {@code demand}. */
-    List<OperationSpec> run(final DemandView demand, final ResolveCtx ctx) {
+    /** Every offer the strategy set makes for {@code demand}. */
+    List<Offer> run(final DemandView demand, final ResolveCtx ctx) {
         return strategies.stream()
                 .flatMap(strategy -> strategy.expand(demand, ctx))
                 .collect(toUnmodifiableList());

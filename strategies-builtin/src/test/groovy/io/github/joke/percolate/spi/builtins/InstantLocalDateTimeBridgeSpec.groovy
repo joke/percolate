@@ -47,7 +47,7 @@ class InstantLocalDateTimeBridgeSpec extends Specification {
         when:
         def specs = new InstantLocalDateTimeBridge()
                 .expand(Demands.withZone(localDateTimeType, 'Europe/Berlin'), ctx)
-                .toList()
+                *.spec
 
         then:
         specs.size() == 1
@@ -65,7 +65,7 @@ class InstantLocalDateTimeBridgeSpec extends Specification {
         ctx.configuredTimeZone() >> Optional.of('UTC')
 
         when:
-        def specs = new InstantLocalDateTimeBridge().expand(Demands.forTarget(localDateTimeType), ctx).toList()
+        def specs = new InstantLocalDateTimeBridge().expand(Demands.forTarget(localDateTimeType), ctx)*.spec
 
         then:
         specs.size() == 1
@@ -79,7 +79,7 @@ class InstantLocalDateTimeBridgeSpec extends Specification {
         ctx.configuredTimeZone() >> Optional.empty()
 
         when:
-        def specs = new InstantLocalDateTimeBridge().expand(Demands.forTarget(localDateTimeType), ctx).toList()
+        def specs = new InstantLocalDateTimeBridge().expand(Demands.forTarget(localDateTimeType), ctx)*.spec
 
         then:
         specs.size() == 1
@@ -95,7 +95,7 @@ class InstantLocalDateTimeBridgeSpec extends Specification {
         ctx.configuredTimeZone() >> Optional.empty()
 
         when:
-        def specs = new InstantLocalDateTimeBridge().expand(Demands.forTarget(instantType), ctx).toList()
+        def specs = new InstantLocalDateTimeBridge().expand(Demands.forTarget(instantType), ctx)*.spec
 
         then:
         specs.size() == 1

@@ -37,7 +37,7 @@ class WidenPrimitiveSpec extends Specification {
         intType.kind >> TypeKind.INT
 
         when:
-        def specs = new WidenPrimitive().expand(Demands.forTarget(longType), ctx).toList()
+        def specs = new WidenPrimitive().expand(Demands.forTarget(longType), ctx)*.spec
 
         then:
         specs.size() == 4
@@ -67,7 +67,7 @@ class WidenPrimitiveSpec extends Specification {
         intType.toString() >> 'int'
 
         when:
-        def specs = new WidenPrimitive().expand(Demands.forTarget(longType), ctx).toList()
+        def specs = new WidenPrimitive().expand(Demands.forTarget(longType), ctx)*.spec
 
         then:
         (specs*.label as Set) == ['byte→long', 'short→long', 'char→long', 'int→long'] as Set
@@ -91,7 +91,7 @@ class WidenPrimitiveSpec extends Specification {
         longType.kind >> TypeKind.LONG
 
         when:
-        def specs = new WidenPrimitive().expand(Demands.forTarget(doubleType), ctx).toList()
+        def specs = new WidenPrimitive().expand(Demands.forTarget(doubleType), ctx)*.spec
 
         then:
         specs.any { it.ports[0].type.kind == TypeKind.LONG }
@@ -111,7 +111,7 @@ class WidenPrimitiveSpec extends Specification {
         charType.kind >> TypeKind.CHAR
 
         when:
-        def specs = new WidenPrimitive().expand(Demands.forTarget(intType), ctx).toList()
+        def specs = new WidenPrimitive().expand(Demands.forTarget(intType), ctx)*.spec
 
         then:
         specs.every { it.ports[0].type.kind != TypeKind.LONG }

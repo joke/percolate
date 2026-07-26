@@ -36,7 +36,7 @@ class FieldPathResolverSpec extends Specification {
         field.asType() >> fieldType
 
         when:
-        def specs = new FieldPathResolver().descend(Demands.descend(parentType, 'value'), ctx).toList()
+        def specs = new FieldPathResolver().descend(Demands.descend(parentType, 'value'), ctx)*.spec
 
         then:
         specs.size() == 1
@@ -61,7 +61,7 @@ class FieldPathResolverSpec extends Specification {
 
         when:
         def specs = new FieldPathResolver()
-                .descend(Demands.descend(parentType, 'value', Nullability.NULLABLE), ctx).toList()
+                .descend(Demands.descend(parentType, 'value', Nullability.NULLABLE), ctx)*.spec
 
         then:
         specs.size() == 1

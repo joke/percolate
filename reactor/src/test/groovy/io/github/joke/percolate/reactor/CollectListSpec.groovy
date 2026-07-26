@@ -74,7 +74,7 @@ class CollectListSpec extends Specification {
 
     def 'emits a collectList operation converting a concrete Flux<T> into Mono<List<T>>'() {
         when:
-        def specs = new CollectList().expand(Demands.forTarget(to), ctx).toList()
+        def specs = new CollectList().expand(Demands.forTarget(to), ctx)*.spec
 
         then:
         1 * ctx.isType(to, Reactors.MONO) >> true

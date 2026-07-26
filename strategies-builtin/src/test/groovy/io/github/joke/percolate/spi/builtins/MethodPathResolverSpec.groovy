@@ -39,7 +39,7 @@ class MethodPathResolverSpec extends Specification {
         method.returnType >> returnType
 
         when:
-        def specs = new MethodPathResolver().descend(Demands.descend(parentType, 'x'), ctx).toList()
+        def specs = new MethodPathResolver().descend(Demands.descend(parentType, 'x'), ctx)*.spec
 
         then:
         specs.size() == 1
@@ -64,7 +64,7 @@ class MethodPathResolverSpec extends Specification {
         method.returnType >> returnType
 
         when:
-        def specs = new MethodPathResolver().descend(Demands.descend(parentType, 'street'), ctx).toList()
+        def specs = new MethodPathResolver().descend(Demands.descend(parentType, 'street'), ctx)*.spec
 
         then:
         specs.size() == 1

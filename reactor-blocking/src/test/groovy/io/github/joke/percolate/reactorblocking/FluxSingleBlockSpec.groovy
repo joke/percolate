@@ -79,7 +79,7 @@ class FluxSingleBlockSpec extends Specification {
         TypeMirror fluxOfTo = Mock()
 
         when:
-        def specs = new FluxSingleBlock().expand(Demands.forTarget(to), ctx).toList()
+        def specs = new FluxSingleBlock().expand(Demands.forTarget(to), ctx)*.spec
 
         then:
         1 * ctx.isDeclared(to) >> true

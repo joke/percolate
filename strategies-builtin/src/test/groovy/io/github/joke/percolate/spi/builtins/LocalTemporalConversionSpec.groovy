@@ -37,7 +37,7 @@ class LocalTemporalConversionSpec extends Specification {
         ctx.isType(localDateTimeType, 'java.time.LocalDateTime') >> true
 
         when:
-        def specs = new LocalTemporalConversion().expand(Demands.forTarget(localDateTimeType), ctx).toList()
+        def specs = new LocalTemporalConversion().expand(Demands.forTarget(localDateTimeType), ctx)*.spec
 
         then:
         specs.size() == 1
@@ -52,7 +52,7 @@ class LocalTemporalConversionSpec extends Specification {
         ctx.isType(localDateType, 'java.time.LocalDate') >> true
 
         when:
-        def specs = new LocalTemporalConversion().expand(Demands.forTarget(localDateType), ctx).toList()
+        def specs = new LocalTemporalConversion().expand(Demands.forTarget(localDateType), ctx)*.spec
 
         then:
         specs.size() == 1

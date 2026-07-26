@@ -72,7 +72,7 @@ class ContainerSpec extends Specification {
 
     def 'a sequence iterates into its Stream<E> intermediate, plain, no child scope'() {
         when:
-        def specs = new TestSeq().expand(demand(streamOfString), ctx).toList()
+        def specs = new TestSeq().expand(demand(streamOfString), ctx)*.spec
 
         then:
         specs.size() == 1
@@ -87,7 +87,7 @@ class ContainerSpec extends Specification {
 
     def 'a sequence target collects a Stream<E> and wraps a scalar, both plain'() {
         when:
-        def specs = new TestSeq().expand(demand(listOfString), ctx).toList()
+        def specs = new TestSeq().expand(demand(listOfString), ctx)*.spec
 
         then: 'a plain collect Stream<String> -> List<String>'
         def collect = specs.find { ctx.isSameType(it.ports[0].type, streamOfString) }
@@ -109,7 +109,7 @@ class ContainerSpec extends Specification {
 
     def 'a same-kind List<B> target never emits an iterate (reshaping is left to the stream chain)'() {
         when:
-        def specs = new TestSeq().expand(demand(listOfInteger), ctx).toList()
+        def specs = new TestSeq().expand(demand(listOfInteger), ctx)*.spec
 
         then:
         specs.every { !Containers.isStream(it.outputType, ctx) }
@@ -118,7 +118,7 @@ class ContainerSpec extends Specification {
 
     def 'a sequence with no single-element factory collects but does not wrap'() {
         when:
-        def specs = new TestSeq(wrappable: false).expand(demand(listOfString), ctx).toList()
+        def specs = new TestSeq(wrappable: false).expand(demand(listOfString), ctx)*.spec
 
         then:
         specs.size() == 1
@@ -135,7 +135,7 @@ class ContainerSpec extends Specification {
 
     def 'a wrapper wraps a scalar and maps presence in its own kind, as a functor lift'() {
         when:
-        def specs = new TestWrapper().expand(demand(optionalOfString), ctx).toList()
+        def specs = new TestWrapper().expand(demand(optionalOfString), ctx)*.spec
 
         then: 'a plain wrap String -> Optional<String>, no child scope, port NON_NULL by default'
         def wrap = specs.find { it.childScope.empty && ctx.isSameType(it.ports[0].type, STRING) }
@@ -158,7 +158,7 @@ class ContainerSpec extends Specification {
 
     def 'a wrapper iterates a 0-or-1 Stream<E> from its own kind and supplies no collect'() {
         when:
-        def specs = new TestWrapper().expand(demand(streamOfString), ctx).toList()
+        def specs = new TestWrapper().expand(demand(streamOfString), ctx)*.spec
 
         then: 'the iterate produces Stream<String> from Optional<String> (the wrapper of the stream element)'
         def iterate = specs.find { ctx.isSameType(it.ports[0].type, optionalOfString) }
@@ -172,7 +172,7 @@ class ContainerSpec extends Specification {
 
     def 'a wrapper may declare its wrap element port nullable, e.g. Optional.ofNullable'() {
         when:
-        def specs = new TestWrapper(wrapNullable: true).expand(demand(optionalOfString), ctx).toList()
+        def specs = new TestWrapper(wrapNullable: true).expand(demand(optionalOfString), ctx)*.spec
 
         then:
         def wrap = specs.find { it.childScope.empty && ctx.isSameType(it.ports[0].type, STRING) }
@@ -182,7 +182,7 @@ class ContainerSpec extends Specification {
 
     def 'a wrapper unwraps a scalar target, plain and partial, under the demanded nullness'() {
         when:
-        def specs = new TestWrapper().expand(demand(STRING, Nullability.NULLABLE), ctx).toList()
+        def specs = new TestWrapper().expand(demand(STRING, Nullability.NULLABLE), ctx)*.spec
 
         then:
         specs.size() == 1

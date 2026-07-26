@@ -33,7 +33,7 @@ class PrimitiveWrapperConversionSpec extends Specification {
         ctx.unboxed(integerType) >> intType
 
         when:
-        def specs = new PrimitiveWrapperConversion().expand(Demands.forTarget(integerType), ctx).toList()
+        def specs = new PrimitiveWrapperConversion().expand(Demands.forTarget(integerType), ctx)*.spec
 
         then:
         specs.size() == 1
@@ -56,7 +56,7 @@ class PrimitiveWrapperConversionSpec extends Specification {
         ctx.kind(intType) >> TypeKind.INT
 
         when:
-        def specs = new PrimitiveWrapperConversion().expand(Demands.forTarget(intType), ctx).toList()
+        def specs = new PrimitiveWrapperConversion().expand(Demands.forTarget(intType), ctx)*.spec
 
         then:
         specs.size() == 1

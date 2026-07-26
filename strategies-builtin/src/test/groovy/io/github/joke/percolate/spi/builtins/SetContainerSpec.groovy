@@ -42,7 +42,7 @@ class SetContainerSpec extends Specification {
         ctx.declaredType(setElement, stringType) >> setOfString
 
         when:
-        def specs = new SetContainer().expand(Demands.forTarget(streamOfString), ctx).toList()
+        def specs = new SetContainer().expand(Demands.forTarget(streamOfString), ctx)*.spec
 
         then:
         specs.size() == 1
@@ -62,7 +62,7 @@ class SetContainerSpec extends Specification {
         ctx.declaredType(streamElement, stringType) >> streamOfString
 
         when:
-        def specs = new SetContainer().expand(Demands.forTarget(setOfString), ctx).toList()
+        def specs = new SetContainer().expand(Demands.forTarget(setOfString), ctx)*.spec
 
         then: 'a plain collect Stream<String> -> Set<String>'
         def collect = specs.find { it.ports[0].type.is(streamOfString) }

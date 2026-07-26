@@ -22,7 +22,7 @@ class ConversionSpec extends Specification {
     TypeMirror integerType = Mock()
 
     def 'the base wires each authored conversion into a one-port NON_NULL unary OperationSpec'() {
-        def specs = new TestConversion(stringType, integerType).expand(demand(integerType), ctx).toList()
+        def specs = new TestConversion(stringType, integerType).expand(demand(integerType), ctx)*.spec
 
         expect:
         specs.size() == 1
@@ -50,7 +50,7 @@ class ConversionSpec extends Specification {
         TypeMirror booleanType = Mock()
 
         when:
-        def specs = new TestTwoWayConversion(stringType, booleanType, integerType).expand(demand(integerType), ctx).toList()
+        def specs = new TestTwoWayConversion(stringType, booleanType, integerType).expand(demand(integerType), ctx)*.spec
 
         then:
         specs.size() == 2

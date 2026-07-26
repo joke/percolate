@@ -56,7 +56,7 @@ class FluxFromStreamSpec extends Specification {
 
     def 'emits a fromStream operation converting a concrete Stream<T> into Flux<T>'() {
         when:
-        def specs = new FluxFromStream().expand(Demands.forTarget(to), ctx).toList()
+        def specs = new FluxFromStream().expand(Demands.forTarget(to), ctx)*.spec
 
         then:
         1 * ctx.isType(to, Reactors.FLUX) >> true

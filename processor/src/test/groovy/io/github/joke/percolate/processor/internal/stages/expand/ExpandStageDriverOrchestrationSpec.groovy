@@ -158,7 +158,8 @@ class ExpandStageDriverOrchestrationSpec extends Specification {
         value.loc >> loc
         value.scope >> scope
         1 * targetProducer.pinnedSourcePath(value) >> ['person']
-        1 * sourcePathDescender.pinnedSource(scope, ['person']) >> pinned
+        1 * targetProducer.pinnedDirective(value) >> Optional.empty()
+        1 * sourcePathDescender.pinnedSource(scope, ['person'], Optional.empty()) >> pinned
         1 * targetProducer.produce(value) >> [spec]
         1 * portBinder.bind(value, '', spec, pinned) >> Optional.of([])
         1 * selfCallGuard.refuses(scope, spec, []) >> false
@@ -193,7 +194,8 @@ class ExpandStageDriverOrchestrationSpec extends Specification {
         value.loc >> loc
         value.scope >> scope
         1 * targetProducer.pinnedSourcePath(value) >> []
-        1 * sourcePathDescender.pinnedSource(scope, []) >> null
+        1 * targetProducer.pinnedDirective(value) >> Optional.empty()
+        1 * sourcePathDescender.pinnedSource(scope, [], Optional.empty()) >> null
         1 * targetProducer.produce(value) >> [spec]
         1 * portBinder.bind(value, '', spec, null) >> Optional.of([])
         1 * selfCallGuard.refuses(scope, spec, []) >> false
@@ -225,7 +227,8 @@ class ExpandStageDriverOrchestrationSpec extends Specification {
         value.loc >> loc
         value.scope >> scope
         1 * targetProducer.pinnedSourcePath(value) >> []
-        1 * sourcePathDescender.pinnedSource(scope, []) >> null
+        1 * targetProducer.pinnedDirective(value) >> Optional.empty()
+        1 * sourcePathDescender.pinnedSource(scope, [], Optional.empty()) >> null
         1 * targetProducer.produce(value) >> [spec]
         1 * portBinder.bind(value, '', spec, null) >> Optional.empty()
         0 * operationLander._

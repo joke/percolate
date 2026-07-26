@@ -2,6 +2,7 @@ package io.github.joke.percolate.spi.builtins
 
 import io.github.joke.percolate.spi.DirectiveInput
 import io.github.joke.percolate.spi.Nullability
+import io.github.joke.percolate.spi.Offer
 import io.github.joke.percolate.spi.OperationCodegen
 import io.github.joke.percolate.spi.ResolveCtx
 import io.github.joke.percolate.spi.Subjects
@@ -31,11 +32,11 @@ class ConstantValueSpec extends Specification {
         longType.kind >> TypeKind.LONG
 
         when:
-        def specs = new ConstantValue().expand(Demands.withConstant(longType, '42'), ctx).toList()
+        def offers = new ConstantValue().expand(Demands.withConstant(longType, '42'), ctx).toList()
 
         then:
-        specs.size() == 1
-        def spec = specs[0]
+        offers.size() == 1
+        def spec = offers[0].spec
         spec.ports.empty
         spec.childScope.empty
         spec.codegen instanceof OperationCodegen
@@ -48,23 +49,23 @@ class ConstantValueSpec extends Specification {
         intType.kind >> TypeKind.INT
 
         when:
-        def specs = new ConstantValue().expand(Demands.withConstant(intType, '7'), ctx).toList()
+        def offers = new ConstantValue().expand(Demands.withConstant(intType, '7'), ctx).toList()
 
         then:
-        specs.size() == 1
-        specs[0].ports.empty
-        specs[0].outputType.is(intType)
+        offers.size() == 1
+        offers[0].spec.ports.empty
+        offers[0].spec.outputType.is(intType)
     }
 
     def 'the label and rendered codegen are the exact coerced literal text'() {
         intType.kind >> TypeKind.INT
 
         when:
-        def specs = new ConstantValue().expand(Demands.withConstant(intType, '7'), ctx).toList()
+        def offers = new ConstantValue().expand(Demands.withConstant(intType, '7'), ctx).toList()
 
         then:
-        specs[0].label == '7'
-        specs[0].codegen.render(null).toString() == '7'
+        offers[0].spec.label == '7'
+        offers[0].spec.codegen.render(null).toString() == '7'
     }
 
     def 'constantSpec wires a zero-port, STEP-weighted, NON_NULL spec whose label is the literal text'() {
@@ -80,15 +81,23 @@ class ConstantValueSpec extends Specification {
         spec.codegen.render(null).toString() == '42L'
     }
 
-    def 'emits nothing without a constant'() {
+    def 'emits nothing (silence, not refusal) without a constant declared'() {
         expect:
         new ConstantValue().expand(Demands.forTarget(longType), ctx).toList().empty
     }
 
-    def 'emits nothing for an uncoercible value'() {
+    def 'refuses an uncoercible constant, naming the offending literal and target'() {
         intType.kind >> TypeKind.INT
+        intType.toString() >> 'int'
 
-        expect:
-        new ConstantValue().expand(Demands.withConstant(intType, 'abc'), ctx).toList().empty
+        when:
+        def offers = new ConstantValue().expand(Demands.withConstant(intType, 'abc'), ctx).toList()
+
+        then:
+        offers.size() == 1
+        def refusal = offers[0]
+        refusal instanceof Offer.Refusal
+        refusal.subject.is(Subjects.none())
+        refusal.message == "cannot coerce 'abc' to int"
     }
 }

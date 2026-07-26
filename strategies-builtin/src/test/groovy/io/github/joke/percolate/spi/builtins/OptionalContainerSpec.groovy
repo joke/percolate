@@ -38,7 +38,7 @@ class OptionalContainerSpec extends Specification {
         optionalElement.asType() >> optionalRawType
 
         when:
-        def specs = new OptionalContainer().expand(Demands.forTarget(optionalOfString), ctx).toList()
+        def specs = new OptionalContainer().expand(Demands.forTarget(optionalOfString), ctx)*.spec
 
         then: 'the element port is NULLABLE — ofNullable is null-safe, so a @Nullable source binds directly'
         def wrap = specs.find { it.childScope.empty && it.ports[0].type.is(stringType) }
@@ -58,7 +58,7 @@ class OptionalContainerSpec extends Specification {
         optionalElement.asType() >> optionalRawType
 
         when:
-        def specs = new OptionalContainer().expand(Demands.forTarget(optionalOfString), ctx).toList()
+        def specs = new OptionalContainer().expand(Demands.forTarget(optionalOfString), ctx)*.spec
 
         then: 'a scope-owning mapPresence Optional<A> -> Optional<String>, child A -> String'
         def mapping = specs.find { it.childScope.present }
@@ -88,7 +88,7 @@ class OptionalContainerSpec extends Specification {
         ctx.declaredType(optionalElement, stringType) >> optionalOfString
 
         when:
-        def specs = new OptionalContainer().expand(Demands.forTarget(streamOfString), ctx).toList()
+        def specs = new OptionalContainer().expand(Demands.forTarget(streamOfString), ctx)*.spec
 
         then: 'the iterate produces Stream<String> from Optional<String>'
         def iterate = specs.find { it.ports[0].type.is(optionalOfString) }
@@ -107,7 +107,7 @@ class OptionalContainerSpec extends Specification {
 
         when:
         def demand = Demands.forTarget(stringType, Nullability.NULLABLE)
-        def specs = new OptionalContainer().expand(demand, ctx).toList()
+        def specs = new OptionalContainer().expand(demand, ctx)*.spec
 
         then:
         specs.size() == 1

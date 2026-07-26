@@ -39,7 +39,7 @@ class GetterPathResolverSpec extends Specification {
         getter.returnType >> returnType
 
         when:
-        def specs = new GetterPathResolver().descend(Demands.descend(parentType, 'name'), ctx).toList()
+        def specs = new GetterPathResolver().descend(Demands.descend(parentType, 'name'), ctx)*.spec
 
         then:
         specs.size() == 1
@@ -64,7 +64,7 @@ class GetterPathResolverSpec extends Specification {
 
         when:
         def specs = new GetterPathResolver()
-                .descend(Demands.descend(parentType, 'name', Nullability.NULLABLE), ctx).toList()
+                .descend(Demands.descend(parentType, 'name', Nullability.NULLABLE), ctx)*.spec
 
         then:
         specs.size() == 1
@@ -83,7 +83,7 @@ class GetterPathResolverSpec extends Specification {
         ctx.kind(returnType) >> TypeKind.BOOLEAN
 
         when:
-        def specs = new GetterPathResolver().descend(Demands.descend(parentType, 'flag'), ctx).toList()
+        def specs = new GetterPathResolver().descend(Demands.descend(parentType, 'flag'), ctx)*.spec
 
         then:
         specs.size() == 1

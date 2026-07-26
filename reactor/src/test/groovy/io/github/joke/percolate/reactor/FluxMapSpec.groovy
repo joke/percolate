@@ -31,7 +31,7 @@ class FluxMapSpec extends Specification {
 
     def 'a Flux<B> demand emits scope-owning map and flatMap over a type-variable Flux<A> port'() {
         when:
-        def specs = new FluxMap().expand(Demands.forTarget(fluxOfString), ctx).toList()
+        def specs = new FluxMap().expand(Demands.forTarget(fluxOfString), ctx)*.spec
 
         then:
         1 * ctx.isType(fluxOfString, Reactors.FLUX) >> true

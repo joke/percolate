@@ -56,7 +56,7 @@ class FluxSingleSpec extends Specification {
 
     def 'emits a single operation reducing a concrete Flux<T> into Mono<T>'() {
         when:
-        def specs = new FluxSingle().expand(Demands.forTarget(to), ctx).toList()
+        def specs = new FluxSingle().expand(Demands.forTarget(to), ctx)*.spec
 
         then:
         1 * ctx.isType(to, Reactors.MONO) >> true

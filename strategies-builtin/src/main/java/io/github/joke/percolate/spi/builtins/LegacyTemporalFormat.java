@@ -6,6 +6,7 @@ import io.github.joke.percolate.lib.javapoet.CodeBlock;
 import io.github.joke.percolate.spi.DirectiveInput;
 import io.github.joke.percolate.spi.ExpansionStrategy;
 import io.github.joke.percolate.spi.Nullability;
+import io.github.joke.percolate.spi.Offer;
 import io.github.joke.percolate.spi.OperationCodegen;
 import io.github.joke.percolate.spi.OperationSpec;
 import io.github.joke.percolate.spi.Port;
@@ -42,7 +43,7 @@ public final class LegacyTemporalFormat implements ExpansionStrategy {
     private static final String FORMAT_KEY = "format";
 
     @Override
-    public Stream<OperationSpec> expand(final ProduceDemand demand, final ResolveCtx ctx) {
+    public Stream<Offer> expand(final ProduceDemand demand, final ResolveCtx ctx) {
         final var formatInput = demand.directive().flatMap(directive -> directive.input(FORMAT_KEY));
         final var pattern = formatInput.flatMap(DirectiveInput::getValue);
         if (pattern.isEmpty()) {
@@ -53,9 +54,13 @@ public final class LegacyTemporalFormat implements ExpansionStrategy {
         if (ctx.isType(target, STRING)) {
             return Stream.of("java.util.Date", "java.sql.Timestamp")
                     .map(fqn -> formatStep(fqn, target, pattern.get(), input, ctx))
-                    .flatMap(Optional::stream);
+                    .flatMap(Optional::stream)
+                    .map(Offer::of);
         }
-        return parseStep(target, pattern.get(), input, ctx).map(Stream::of).orElseGet(Stream::empty);
+        return parseStep(target, pattern.get(), input, ctx)
+                .map(Offer::of)
+                .map(Stream::of)
+                .orElseGet(Stream::empty);
     }
 
     /** {@code new SimpleDateFormat(pattern).format($L)} — a fresh formatter per call, never shared. */

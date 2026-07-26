@@ -6,6 +6,7 @@ import io.github.joke.percolate.lib.javapoet.CodeBlock;
 import io.github.joke.percolate.spi.DirectiveInput;
 import io.github.joke.percolate.spi.ExpansionStrategy;
 import io.github.joke.percolate.spi.Nullability;
+import io.github.joke.percolate.spi.Offer;
 import io.github.joke.percolate.spi.OperationCodegen;
 import io.github.joke.percolate.spi.OperationSpec;
 import io.github.joke.percolate.spi.Port;
@@ -42,13 +43,13 @@ public final class InstantLocalDateTimeBridge implements ExpansionStrategy {
     private static final String ZONE_KEY = "zone";
 
     @Override
-    public Stream<OperationSpec> expand(final ProduceDemand demand, final ResolveCtx ctx) {
+    public Stream<Offer> expand(final ProduceDemand demand, final ResolveCtx ctx) {
         final var target = demand.targetType();
         if (ctx.isType(target, LOCAL_DATE_TIME)) {
-            return toLocalDateTimeSpec(demand, target, ctx).stream();
+            return toLocalDateTimeSpec(demand, target, ctx).map(Offer::of).stream();
         }
         if (ctx.isType(target, INSTANT)) {
-            return toInstantSpec(demand, target, ctx).stream();
+            return toInstantSpec(demand, target, ctx).map(Offer::of).stream();
         }
         return Stream.empty();
     }

@@ -56,7 +56,7 @@ class JustOrEmptySpec extends Specification {
 
     def 'emits a justOrEmpty operation bridging a concrete Optional<T> into Mono<T>'() {
         when:
-        def specs = new JustOrEmpty().expand(Demands.forTarget(to), ctx).toList()
+        def specs = new JustOrEmpty().expand(Demands.forTarget(to), ctx)*.spec
 
         then:
         1 * ctx.isType(to, Reactors.MONO) >> true

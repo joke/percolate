@@ -3,6 +3,7 @@ package io.github.joke.percolate.spi.builtins;
 import com.google.auto.service.AutoService;
 import io.github.joke.percolate.lib.javapoet.CodeBlock;
 import io.github.joke.percolate.spi.ExpansionStrategy;
+import io.github.joke.percolate.spi.Offer;
 import io.github.joke.percolate.spi.OperationCodegen;
 import io.github.joke.percolate.spi.OperationSpec;
 import io.github.joke.percolate.spi.Port;
@@ -25,10 +26,11 @@ import lombok.NoArgsConstructor;
 public final class DirectAssign implements ExpansionStrategy {
 
     @Override
-    public Stream<OperationSpec> expand(final ProduceDemand demand, final ResolveCtx ctx) {
+    public Stream<Offer> expand(final ProduceDemand demand, final ResolveCtx ctx) {
         final var to = demand.targetType();
         final OperationCodegen codegen = inputs -> CodeBlock.of("$L", inputs.single());
         final var port = Port.reuse("value", to, demand.targetNullness());
-        return Stream.of(OperationSpec.of("assign", codegen, Weights.NOOP, List.of(port), to, demand.targetNullness()));
+        return Stream.of(Offer.of(
+                OperationSpec.of("assign", codegen, Weights.NOOP, List.of(port), to, demand.targetNullness())));
     }
 }

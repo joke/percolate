@@ -24,7 +24,7 @@ public abstract class Conversion implements ExpansionStrategy {
     protected abstract Stream<Step> conversions(TypeMirror target, ResolveCtx ctx);
 
     @Override
-    public final Stream<OperationSpec> expand(final ProduceDemand demand, final ResolveCtx ctx) {
+    public final Stream<Offer> expand(final ProduceDemand demand, final ResolveCtx ctx) {
         final var target = demand.targetType();
         return conversions(target, ctx)
                 .map(step -> OperationSpec.of(
@@ -33,7 +33,8 @@ public abstract class Conversion implements ExpansionStrategy {
                         step.getWeight(),
                         List.of(new Port(VALUE_ROLE, step.getInputType(), Nullability.NON_NULL)),
                         target,
-                        Nullability.NON_NULL));
+                        Nullability.NON_NULL))
+                .map(Offer::of);
     }
 
     /** One non-null unary conversion producing the demanded target from {@link #getInputType()}. */

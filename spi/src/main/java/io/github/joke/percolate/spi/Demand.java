@@ -1,5 +1,6 @@
 package io.github.joke.percolate.spi;
 
+import java.util.Optional;
 import javax.lang.model.element.Element;
 import javax.lang.model.type.TypeMirror;
 
@@ -8,12 +9,16 @@ import javax.lang.model.type.TypeMirror;
  * {@link ProduceDemand} (handed to {@link ExpansionStrategy#expand}: "what produces this demanded target?") and a
  * {@link DescendDemand} (handed to {@link ExpansionStrategy#descend}: "what does reading this segment off this parent
  * yield?"). Both expose only what a strategy needs to make a <em>local</em> decision: this super carries the shared
- * nullness oracle, and deliberately exposes neither the graph nor any handle from which a strategy could traverse it,
- * nor any candidate snapshot of in-scope source Values — the engine, not the strategy, sources every input port
- * (design D1).
+ * nullness oracle and the {@code @Map} {@link Directive} in effect (design D9 of change
+ * {@code decouple-engine-from-strategy-semantics} — the binding's directive, not a per-segment one), and deliberately
+ * exposes neither the graph nor any handle from which a strategy could traverse it, nor any candidate snapshot of
+ * in-scope source Values — the engine, not the strategy, sources every input port (design D1).
  */
 public interface Demand {
 
     /** The nullness of {@code type} as declared at {@code scope} — the processor's nullability resolution. */
     Nullability nullnessOf(TypeMirror type, Element scope);
+
+    /** The {@code @Map} configuration in effect for the binding being resolved, if any. */
+    Optional<Directive> directive();
 }

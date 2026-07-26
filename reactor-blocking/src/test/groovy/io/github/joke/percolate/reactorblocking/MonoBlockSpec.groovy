@@ -78,7 +78,7 @@ class MonoBlockSpec extends Specification {
         TypeMirror monoOfTo = Mock()
 
         when:
-        def specs = new MonoBlock().expand(Demands.forTarget(to), ctx).toList()
+        def specs = new MonoBlock().expand(Demands.forTarget(to), ctx)*.spec
 
         then:
         1 * ctx.isDeclared(to) >> true

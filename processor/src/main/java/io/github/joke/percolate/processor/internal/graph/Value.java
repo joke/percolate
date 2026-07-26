@@ -1,8 +1,12 @@
 package io.github.joke.percolate.processor.internal.graph;
 
 import io.github.joke.percolate.spi.Nullability;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
 import java.util.Optional;
 import javax.lang.model.type.TypeMirror;
+import lombok.AccessLevel;
 import lombok.Getter;
 
 /**
@@ -13,7 +17,9 @@ import lombok.Getter;
  * {@code String!} and {@code String?} are different types).
  *
  * <p>Type and nullness are write-once (unknown → determined → frozen), set together at the single mutation
- * site. A Value carries no group labels, no directive, no codegen, and no weight.
+ * site. A Value carries no group labels, no directive, no codegen, and no weight — only, additionally, the
+ * {@link Refusal}s recorded against it (design D2 of change {@code decouple-engine-from-strategy-semantics}):
+ * what a strategy or the engine itself declined to produce here, and why.
  */
 @Getter
 @SuppressWarnings(
@@ -27,6 +33,9 @@ public final class Value implements GraphVertex {
     private Optional<TypeMirror> type;
     private Optional<Nullability> nullness;
 
+    @Getter(AccessLevel.NONE)
+    private final List<Refusal> inadmissible = new ArrayList<>();
+
     Value(
             final Location loc,
             final Scope scope,
@@ -36,6 +45,16 @@ public final class Value implements GraphVertex {
         this.scope = scope;
         this.type = type;
         this.nullness = nullness;
+    }
+
+    /** Records a refusal against this demand: what could not produce it here, and why. */
+    public void addInadmissible(final Refusal refusal) {
+        inadmissible.add(refusal);
+    }
+
+    /** The refusals recorded against this demand, in recording order. */
+    public List<Refusal> getInadmissible() {
+        return Collections.unmodifiableList(inadmissible);
     }
 
     /** This Value's type, or a failure if it has not yet been typed. */

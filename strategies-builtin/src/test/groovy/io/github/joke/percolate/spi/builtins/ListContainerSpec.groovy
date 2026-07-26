@@ -59,7 +59,7 @@ class ListContainerSpec extends Specification {
         ctx.declaredType(listElement, stringType) >> listOfString
 
         when:
-        def specs = new ListContainer().expand(Demands.forTarget(streamOfString), ctx).toList()
+        def specs = new ListContainer().expand(Demands.forTarget(streamOfString), ctx)*.spec
 
         then:
         specs.size() == 1
@@ -80,7 +80,7 @@ class ListContainerSpec extends Specification {
         ctx.declaredType(streamElement, stringType) >> streamOfString
 
         when:
-        def specs = new ListContainer().expand(Demands.forTarget(listOfString), ctx).toList()
+        def specs = new ListContainer().expand(Demands.forTarget(listOfString), ctx)*.spec
 
         then: 'a plain collect Stream<String> -> List<String>'
         def collect = specs.find { it.ports[0].type.is(streamOfString) }

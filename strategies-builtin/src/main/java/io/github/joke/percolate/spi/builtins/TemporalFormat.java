@@ -7,6 +7,7 @@ import io.github.joke.percolate.spi.DirectiveInput;
 import io.github.joke.percolate.spi.ExpansionStrategy;
 import io.github.joke.percolate.spi.MemberRequest;
 import io.github.joke.percolate.spi.Nullability;
+import io.github.joke.percolate.spi.Offer;
 import io.github.joke.percolate.spi.OperationCodegen;
 import io.github.joke.percolate.spi.OperationSpec;
 import io.github.joke.percolate.spi.Port;
@@ -44,7 +45,7 @@ public final class TemporalFormat implements ExpansionStrategy {
     private static final String DEDUP_PREFIX = "temporal-format:";
 
     @Override
-    public Stream<OperationSpec> expand(final ProduceDemand demand, final ResolveCtx ctx) {
+    public Stream<Offer> expand(final ProduceDemand demand, final ResolveCtx ctx) {
         final var formatInput = demand.directive().flatMap(directive -> directive.input(FORMAT_KEY));
         final var pattern = formatInput.flatMap(DirectiveInput::getValue);
         if (pattern.isEmpty()) {
@@ -56,9 +57,13 @@ public final class TemporalFormat implements ExpansionStrategy {
         if (ctx.isType(target, STRING)) {
             return JAVA_TIME_ROSTER.stream()
                     .map(fqn -> formatStep(fqn, target, memberRequest, input, ctx))
-                    .flatMap(Optional::stream);
+                    .flatMap(Optional::stream)
+                    .map(Offer::of);
         }
-        return parseStep(target, memberRequest, input, ctx).map(Stream::of).orElseGet(Stream::empty);
+        return parseStep(target, memberRequest, input, ctx)
+                .map(Offer::of)
+                .map(Stream::of)
+                .orElseGet(Stream::empty);
     }
 
     static MemberRequest formatterRequest(final String pattern) {

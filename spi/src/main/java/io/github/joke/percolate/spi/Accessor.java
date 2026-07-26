@@ -27,11 +27,12 @@ public abstract class Accessor implements ExpansionStrategy {
     protected abstract Optional<Step> accessor(TypeElement parent, String segment, ResolveCtx ctx);
 
     @Override
-    public final Stream<OperationSpec> descend(final DescendDemand demand, final ResolveCtx ctx) {
+    public final Stream<Offer> descend(final DescendDemand demand, final ResolveCtx ctx) {
         return ctx
                 .asTypeElement(demand.parentType())
                 .flatMap(parent -> accessor(parent, demand.segment(), ctx))
                 .map(step -> toSpec(step, demand))
+                .map(Offer::of)
                 .stream();
     }
 

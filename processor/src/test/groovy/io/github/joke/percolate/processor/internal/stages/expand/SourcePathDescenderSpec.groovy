@@ -12,11 +12,14 @@ import io.github.joke.percolate.processor.internal.graph.SourceLocation
 import io.github.joke.percolate.processor.internal.graph.Value
 import io.github.joke.percolate.processor.nullability.NullabilityResolver
 import io.github.joke.percolate.spi.Codegen
+import io.github.joke.percolate.spi.Directive
 import io.github.joke.percolate.spi.ExpansionStrategy
 import io.github.joke.percolate.spi.Nullability
+import io.github.joke.percolate.spi.Offer
 import io.github.joke.percolate.spi.OperationSpec
 import io.github.joke.percolate.spi.Port
 import io.github.joke.percolate.spi.ResolveCtx
+import io.github.joke.percolate.spi.Subject
 import spock.lang.Specification
 import spock.lang.Tag
 
@@ -44,9 +47,10 @@ class SourcePathDescenderSpec extends Specification {
     def 'pinnedSource with no segments pins nothing, touching no collaborator'() {
         def descender = spyDescender()
         Scope scope = Mock()
+        Optional<Directive> directive = Optional.empty()
 
         when:
-        def result = descender.pinnedSource(scope, [])
+        def result = descender.pinnedSource(scope, [], directive)
 
         then:
         1 * descender._
@@ -60,9 +64,10 @@ class SourcePathDescenderSpec extends Specification {
         def descender = spyDescender()
         Scope scope = Mock()
         Value root = Mock()
+        Optional<Directive> directive = Optional.empty()
 
         when:
-        def result = descender.pinnedSource(scope, ['person'])
+        def result = descender.pinnedSource(scope, ['person'], directive)
 
         then:
         1 * descender.materialiseRoot(scope, 'person') >> root
@@ -76,9 +81,10 @@ class SourcePathDescenderSpec extends Specification {
     def 'pinnedSource returns null immediately when the root does not materialise, without descending'() {
         def descender = spyDescender()
         Scope scope = Mock()
+        Optional<Directive> directive = Optional.empty()
 
         when:
-        def result = descender.pinnedSource(scope, ['ghost', 'firstName'])
+        def result = descender.pinnedSource(scope, ['ghost', 'firstName'], directive)
 
         then:
         1 * descender.materialiseRoot(scope, 'ghost') >> null
@@ -94,13 +100,14 @@ class SourcePathDescenderSpec extends Specification {
         Scope scope = Mock()
         Value root = Mock()
         Value leaf = Mock()
+        Optional<Directive> directive = Optional.empty()
 
         when:
-        def result = descender.pinnedSource(scope, ['person', 'firstName'])
+        def result = descender.pinnedSource(scope, ['person', 'firstName'], directive)
 
         then:
         1 * descender.materialiseRoot(scope, 'person') >> root
-        1 * descender.descendSegment(scope, root, ['person', 'firstName']) >> leaf
+        1 * descender.descendSegment(scope, root, ['person', 'firstName'], directive) >> leaf
         1 * descender._
         0 * _
 
@@ -112,13 +119,14 @@ class SourcePathDescenderSpec extends Specification {
         def descender = spyDescender()
         Scope scope = Mock()
         Value root = Mock()
+        Optional<Directive> directive = Optional.empty()
 
         when:
-        def result = descender.pinnedSource(scope, ['person', 'ghost', 'x'])
+        def result = descender.pinnedSource(scope, ['person', 'ghost', 'x'], directive)
 
         then:
         1 * descender.materialiseRoot(scope, 'person') >> root
-        1 * descender.descendSegment(scope, root, ['person', 'ghost']) >> null
+        1 * descender.descendSegment(scope, root, ['person', 'ghost'], directive) >> null
         1 * descender._
         0 * _
 
@@ -187,9 +195,10 @@ class SourcePathDescenderSpec extends Specification {
         def reused = new AddValue(scope, Mock(Location), parentType, Nullability.NON_NULL)
         Operation operation = Mock()
         Value source = Mock()
+        Optional<Directive> directive = Optional.empty()
 
         when:
-        def result = descender.descendSegment(scope, parent, ['person', 'firstName'])
+        def result = descender.descendSegment(scope, parent, ['person', 'firstName'], directive)
 
         then:
         parent.type() >> parentType
@@ -221,9 +230,10 @@ class SourcePathDescenderSpec extends Specification {
         Operation secondOperation = Mock()
         Value firstSource = Mock()
         Value secondSource = Mock()
+        Optional<Directive> directive = Optional.empty()
 
         when:
-        def result = descender.descendSegment(scope, parent, ['person', 'firstName'])
+        def result = descender.descendSegment(scope, parent, ['person', 'firstName'], directive)
 
         then:
         parent.type() >> parentType
@@ -255,9 +265,10 @@ class SourcePathDescenderSpec extends Specification {
         def reused = new AddValue(scope, Mock(Location), parentType, Nullability.NON_NULL)
         Operation operation = Mock()
         Value source = Mock()
+        Optional<Directive> directive = Optional.empty()
 
         when:
-        def result = descender.descendSegment(scope, parent, ['person', 'firstName'])
+        def result = descender.descendSegment(scope, parent, ['person', 'firstName'], directive)
 
         then:
         parent.type() >> parentType
@@ -278,9 +289,10 @@ class SourcePathDescenderSpec extends Specification {
         Scope scope = Mock()
         Value parent = Mock()
         TypeMirror parentType = Mock()
+        Optional<Directive> directive = Optional.empty()
 
         when:
-        def result = descender.descendSegment(scope, parent, ['person', 'firstName'])
+        def result = descender.descendSegment(scope, parent, ['person', 'firstName'], directive)
 
         then:
         parent.type() >> parentType
@@ -295,7 +307,7 @@ class SourcePathDescenderSpec extends Specification {
 
     // ---- descend: queries every strategy for one accessor demand, no sibling call ----------------------------------
 
-    def 'descend queries every strategy for one accessor demand'() {
+    def 'descend queries every strategy for one accessor demand and unwraps every production'() {
         ExpansionStrategy strategy0 = Mock()
         ExpansionStrategy strategy1 = Mock()
         def descender = new SourcePathDescender([strategy0, strategy1], resolveCtx, resolver, graph, applier, operationLander)
@@ -309,12 +321,34 @@ class SourcePathDescenderSpec extends Specification {
         def result = descender.descend(demand, resolveCtx)
 
         then:
-        1 * strategy0.descend(demand, resolveCtx) >> Stream.of(spec0)
-        1 * strategy1.descend(demand, resolveCtx) >> Stream.of(spec1)
+        1 * strategy0.descend(demand, resolveCtx) >> Stream.of(Offer.of(spec0))
+        1 * strategy1.descend(demand, resolveCtx) >> Stream.of(Offer.of(spec1))
         0 * _
 
         expect:
         result == [spec0, spec1]
+    }
+
+    def 'descend drops a refusal (no accessor refuses today, but a decline stays silence, not a diagnostic)'() {
+        ExpansionStrategy strategy0 = Mock()
+        ExpansionStrategy strategy1 = Mock()
+        def descender = new SourcePathDescender([strategy0, strategy1], resolveCtx, resolver, graph, applier, operationLander)
+        DescendView demand = Mock()
+        Codegen codegen = Mock()
+        TypeMirror type = Mock()
+        Subject subject = Mock()
+        def spec0 = OperationSpec.of('a', codegen, 1, [], type, Nullability.NON_NULL)
+
+        when:
+        def result = descender.descend(demand, resolveCtx)
+
+        then:
+        1 * strategy0.descend(demand, resolveCtx) >> Stream.of(Offer.of(spec0))
+        1 * strategy1.descend(demand, resolveCtx) >> Stream.of(Offer.refusal(subject, 'nope'))
+        0 * _
+
+        expect:
+        result == [spec0]
     }
 
     // ---- helpers ----------------------------------------------------------------------------------------------

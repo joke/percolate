@@ -16,7 +16,6 @@ import io.github.joke.percolate.processor.internal.stages.expand.ExpandStage;
 import io.github.joke.percolate.processor.internal.stages.generate.GenerateStage;
 import io.github.joke.percolate.processor.internal.stages.validate.RealisationDiagnosticsStage;
 import io.github.joke.percolate.processor.internal.stages.validate.ValidateAmbientBindingsStage;
-import io.github.joke.percolate.processor.internal.stages.validate.ValidateConstantDefaultLegalityStage;
 import io.github.joke.percolate.processor.internal.stages.validate.ValidateEnumOverridesStage;
 import io.github.joke.percolate.processor.internal.stages.validate.ValidateMappingShapeStage;
 import io.github.joke.percolate.processor.internal.stages.validate.ValidateNoDuplicateTargetsStage;
@@ -144,7 +143,6 @@ public final class ProcessorModule {
             final DumpTransformsStage dumpTransforms,
             final DumpPlanStage dumpPlan,
             final ValidateAmbientBindingsStage validateAmbientBindings,
-            final ValidateConstantDefaultLegalityStage validateConstantDefaultLegality,
             final ValidateOptionConsumptionStage validateOptionConsumption,
             final RealisationDiagnosticsStage realisationDiagnostics,
             final GenerateStage generateStage) {
@@ -163,7 +161,6 @@ public final class ProcessorModule {
                                 validateAmbientBindings,
                                 // Realisation outcome is computed before the Filer-writing stages (dumps,
                                 // generate) so they can skip a deferred round and write each artifact once.
-                                validateConstantDefaultLegality,
                                 validateOptionConsumption,
                                 realisationDiagnostics,
                                 dumpFullGraph,

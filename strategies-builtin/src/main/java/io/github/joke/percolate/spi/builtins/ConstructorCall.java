@@ -9,6 +9,7 @@ import io.github.joke.percolate.lib.javapoet.ClassName;
 import io.github.joke.percolate.lib.javapoet.CodeBlock;
 import io.github.joke.percolate.spi.ExpansionStrategy;
 import io.github.joke.percolate.spi.Nullability;
+import io.github.joke.percolate.spi.Offer;
 import io.github.joke.percolate.spi.OperationCodegen;
 import io.github.joke.percolate.spi.OperationSpec;
 import io.github.joke.percolate.spi.Port;
@@ -37,7 +38,7 @@ import lombok.NoArgsConstructor;
 public final class ConstructorCall implements ExpansionStrategy {
 
     @Override
-    public Stream<OperationSpec> expand(final ProduceDemand demand, final ResolveCtx ctx) {
+    public Stream<Offer> expand(final ProduceDemand demand, final ResolveCtx ctx) {
         final var targetType = demand.targetType();
         final var typeElement = ctx.asTypeElement(targetType).orElse(null);
         if (typeElement == null) {
@@ -54,7 +55,8 @@ public final class ConstructorCall implements ExpansionStrategy {
                 .map(ExecutableElement.class::cast)
                 .filter(ctor -> !ctx.isPrivate(ctor))
                 .filter(ctor -> parameterNames(ctor).equals(declared))
-                .map(ctor -> buildSpec(ctor, typeElement, targetType, demand));
+                .map(ctor -> buildSpec(ctor, typeElement, targetType, demand))
+                .map(Offer::of);
     }
 
     static Set<String> parameterNames(final ExecutableElement ctor) {

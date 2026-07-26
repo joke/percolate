@@ -155,8 +155,8 @@ public final class ExpandStage implements Stage {
             if (value.getLoc().role() != Location.Role.FREE) {
                 return;
             }
-            final var pinnedSource =
-                    sourcePathDescender.pinnedSource(value.getScope(), targetProducer.pinnedSourcePath(value));
+            final var pinnedSource = sourcePathDescender.pinnedSource(
+                    value.getScope(), targetProducer.pinnedSourcePath(value), targetProducer.pinnedDirective(value));
             for (final var spec : targetProducer.produce(value)) {
                 land(value, spec, pinnedSource).ifPresent(operation -> {
                     graph.portSourcesOf(operation).forEach(enqueue);

@@ -63,7 +63,7 @@ class FluxCollectListBlockSpec extends Specification {
         TypeMirror fluxOfElement = Mock()
 
         when:
-        def specs = new FluxCollectListBlock().expand(Demands.forTarget(to), ctx).toList()
+        def specs = new FluxCollectListBlock().expand(Demands.forTarget(to), ctx)*.spec
 
         then:
         1 * ctx.isList(to) >> true

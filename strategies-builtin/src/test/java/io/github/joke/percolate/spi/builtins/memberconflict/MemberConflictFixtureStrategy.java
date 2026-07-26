@@ -6,6 +6,7 @@ import io.github.joke.percolate.spi.DirectiveInput;
 import io.github.joke.percolate.spi.ExpansionStrategy;
 import io.github.joke.percolate.spi.MemberRequest;
 import io.github.joke.percolate.spi.Nullability;
+import io.github.joke.percolate.spi.Offer;
 import io.github.joke.percolate.spi.OperationCodegen;
 import io.github.joke.percolate.spi.OperationSpec;
 import io.github.joke.percolate.spi.Port;
@@ -32,7 +33,7 @@ public final class MemberConflictFixtureStrategy implements ExpansionStrategy {
     private static final ClassName WIDGET_TYPE = ClassName.get("examples.memberconflict", "Widget");
 
     @Override
-    public Stream<OperationSpec> expand(final ProduceDemand demand, final ResolveCtx ctx) {
+    public Stream<Offer> expand(final ProduceDemand demand, final ResolveCtx ctx) {
         if (!ctx.isType(demand.targetType(), WIDGET)) {
             return Stream.empty();
         }
@@ -47,7 +48,7 @@ public final class MemberConflictFixtureStrategy implements ExpansionStrategy {
         final OperationCodegen codegen =
                 inputs -> CodeBlock.of("new $T($L, $L)", WIDGET_TYPE, inputs.single(), inputs.member("widget-member"));
         final var consumed = formatInput.map(Set::of).orElseGet(Set::of);
-        return Stream.of(OperationSpec.of(
+        return Stream.of(Offer.of(OperationSpec.of(
                         "widget-from-" + tag,
                         codegen,
                         Weights.STEP,
@@ -55,6 +56,6 @@ public final class MemberConflictFixtureStrategy implements ExpansionStrategy {
                         demand.targetType(),
                         Nullability.NON_NULL)
                 .withConsumed(consumed)
-                .withMemberRequests(List.of(request)));
+                .withMemberRequests(List.of(request))));
     }
 }

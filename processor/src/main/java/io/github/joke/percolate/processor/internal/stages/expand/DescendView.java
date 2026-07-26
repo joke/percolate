@@ -2,25 +2,29 @@ package io.github.joke.percolate.processor.internal.stages.expand;
 
 import io.github.joke.percolate.processor.nullability.NullabilityResolver;
 import io.github.joke.percolate.spi.DescendDemand;
+import io.github.joke.percolate.spi.Directive;
 import io.github.joke.percolate.spi.Nullability;
+import java.util.Optional;
 import javax.lang.model.element.Element;
 import javax.lang.model.type.TypeMirror;
 import lombok.RequiredArgsConstructor;
 
 /**
- * The myopic {@link DescendDemand} the driver hands an accessor strategy for one source-path segment (design D2): the
- * concrete parent type and nullness read off the {@code Value} the previous segment landed, the single segment to
- * resolve, and the nullness oracle — no graph or engine handle, no candidate snapshot. The produced output type is the
- * strategy's answer, so the parent is never punned as a {@code targetType}.
+ * The myopic {@link DescendDemand} the driver hands an accessor strategy for one source-path segment (design D2/D9):
+ * the concrete parent type and nullness read off the {@code Value} the previous segment landed, the single segment to
+ * resolve, the walked binding's in-effect {@code @Map} {@link Directive} (not a per-segment one), and the nullness
+ * oracle — no graph or engine handle, no candidate snapshot. The produced output type is the strategy's answer, so the
+ * parent is never punned as a {@code targetType}.
  */
 @RequiredArgsConstructor
 // each field backs the DescendDemand accessor of the same name; a deliberate myopic data-carrier adapter
-@SuppressWarnings("PMD.AvoidFieldNameMatchingMethodName")
+@SuppressWarnings({"PMD.AvoidFieldNameMatchingMethodName", "PMD.DataClass"})
 final class DescendView implements DescendDemand {
 
     private final TypeMirror parentType;
     private final Nullability parentNullness;
     private final String segment;
+    private final Optional<Directive> directive;
     private final NullabilityResolver resolver;
 
     @Override
@@ -36,6 +40,11 @@ final class DescendView implements DescendDemand {
     @Override
     public String segment() {
         return segment;
+    }
+
+    @Override
+    public Optional<Directive> directive() {
+        return directive;
     }
 
     @Override

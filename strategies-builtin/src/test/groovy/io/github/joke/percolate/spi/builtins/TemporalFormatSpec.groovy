@@ -45,7 +45,7 @@ class TemporalFormatSpec extends Specification {
         ctx.isType(localDateType, 'java.time.LocalDate') >> true
 
         when:
-        def specs = new TemporalFormat().expand(Demands.withFormat(localDateType, 'yyyy-MM-dd'), ctx).toList()
+        def specs = new TemporalFormat().expand(Demands.withFormat(localDateType, 'yyyy-MM-dd'), ctx)*.spec
 
         then:
         specs.size() == 1
@@ -69,7 +69,7 @@ class TemporalFormatSpec extends Specification {
         ctx.isType(stringType, 'java.lang.String') >> true
 
         when:
-        def specs = new TemporalFormat().expand(Demands.withFormat(stringType, 'yyyy-MM-dd'), ctx).toList()
+        def specs = new TemporalFormat().expand(Demands.withFormat(stringType, 'yyyy-MM-dd'), ctx)*.spec
 
         then:
         specs.size() == 4
@@ -89,8 +89,8 @@ class TemporalFormatSpec extends Specification {
         ctx.isType(localDateType, 'java.time.LocalDate') >> true
 
         when:
-        def first = new TemporalFormat().expand(Demands.withFormat(localDateType, 'yyyy-MM-dd'), ctx).toList()
-        def second = new TemporalFormat().expand(Demands.withFormat(localDateType, 'yyyy-MM-dd'), ctx).toList()
+        def first = new TemporalFormat().expand(Demands.withFormat(localDateType, 'yyyy-MM-dd'), ctx)*.spec
+        def second = new TemporalFormat().expand(Demands.withFormat(localDateType, 'yyyy-MM-dd'), ctx)*.spec
 
         then:
         first[0].memberRequests[0].dedupKey == second[0].memberRequests[0].dedupKey
@@ -100,8 +100,8 @@ class TemporalFormatSpec extends Specification {
         ctx.isType(localDateType, 'java.time.LocalDate') >> true
 
         when:
-        def first = new TemporalFormat().expand(Demands.withFormat(localDateType, 'yyyy-MM-dd'), ctx).toList()
-        def second = new TemporalFormat().expand(Demands.withFormat(localDateType, 'dd.MM.yyyy'), ctx).toList()
+        def first = new TemporalFormat().expand(Demands.withFormat(localDateType, 'yyyy-MM-dd'), ctx)*.spec
+        def second = new TemporalFormat().expand(Demands.withFormat(localDateType, 'dd.MM.yyyy'), ctx)*.spec
 
         then:
         first[0].memberRequests[0].dedupKey != second[0].memberRequests[0].dedupKey

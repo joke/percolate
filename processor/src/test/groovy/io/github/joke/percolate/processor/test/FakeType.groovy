@@ -17,8 +17,8 @@ import javax.lang.model.type.TypeVisitor
  * <p>Only the {@link #declared} factory's result implements {@link DeclaredType}, and only {@link #array}'s
  * implements {@link ArrayType} — matching the real API, where {@code instanceof DeclaredType}/{@code ArrayType} is
  * consistent with {@code getKind()}. This matters because the (boundary-exempt, never-ctx-routed) code that still
- * casts a raw {@code TypeMirror} directly — {@code ValidateConstantDefaultLegalityStage} — relies on that
- * {@code instanceof} check to route primitives/arrays away from the declared-type branch; a type that always
+ * casts a raw {@code TypeMirror} directly — {@code ConstantValue}/{@code NullnessCrossing}'s {@code typeName} —
+ * relies on that {@code instanceof} check to route primitives/arrays away from the declared-type branch; a type that always
  * answered {@code true} to both interfaces would silently break it. {@code DotRenderer}'s own spec stubs this shape
  * locally rather than sharing this class (change {@code decompose-engine-stages}).
  */

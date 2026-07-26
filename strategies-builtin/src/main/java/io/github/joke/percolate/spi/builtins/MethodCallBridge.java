@@ -6,6 +6,7 @@ import com.google.auto.service.AutoService;
 import io.github.joke.percolate.lib.javapoet.CodeBlock;
 import io.github.joke.percolate.spi.ExpansionStrategy;
 import io.github.joke.percolate.spi.MethodCandidate;
+import io.github.joke.percolate.spi.Offer;
 import io.github.joke.percolate.spi.OperationCodegen;
 import io.github.joke.percolate.spi.OperationSpec;
 import io.github.joke.percolate.spi.Port;
@@ -36,7 +37,7 @@ public final class MethodCallBridge implements ExpansionStrategy {
     private final SubtypeDistance subtypeDistance = new SubtypeDistance();
 
     @Override
-    public Stream<OperationSpec> expand(final ProduceDemand demand, final ResolveCtx ctx) {
+    public Stream<Offer> expand(final ProduceDemand demand, final ResolveCtx ctx) {
         if (!demand.declaredChildren().isEmpty()) {
             // A target the user declared field-by-field is assembled, not produced by a method call: a method-call
             // bridge applies only to leaf demands. (Degenerate self-calls are refused at bind time by the driver
@@ -54,7 +55,8 @@ public final class MethodCallBridge implements ExpansionStrategy {
                     return nonAmbientParameterCount(method, ctx) == NON_AMBIENT_PARAM_COUNT
                             && ctx.isAssignable(method.getReturnType(), targetType);
                 })
-                .map(candidate -> buildSpec(candidate, targetType, demand, ctx));
+                .map(candidate -> buildSpec(candidate, targetType, demand, ctx))
+                .map(Offer::of);
     }
 
     long nonAmbientParameterCount(final ExecutableElement method, final ResolveCtx ctx) {

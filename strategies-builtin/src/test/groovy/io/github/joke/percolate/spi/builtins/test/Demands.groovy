@@ -35,6 +35,8 @@ final class Demands {
 
             String segment() { seg }
 
+            Optional<Directive> directive() { Optional.empty() }
+
             @SuppressWarnings('UnusedMethodParameter')
             Nullability nullnessOf(final TypeMirror type, final Element scope) { oracleNullness }
         }

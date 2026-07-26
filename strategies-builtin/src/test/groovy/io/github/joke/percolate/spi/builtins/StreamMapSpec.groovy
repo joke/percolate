@@ -35,7 +35,7 @@ class StreamMapSpec extends Specification {
         def expectedTemplate = PortType.app(streamElement, [PortType.variable(0)])
 
         when:
-        def specs = new StreamMap().expand(Demands.forTarget(streamOfString), ctx).toList()
+        def specs = new StreamMap().expand(Demands.forTarget(streamOfString), ctx)*.spec
 
         then: 'exactly a map and a flatMap'
         specs.size() == 2
@@ -68,7 +68,7 @@ class StreamMapSpec extends Specification {
         streamElement.asType() >> streamRawType
 
         when:
-        def specs = new StreamMap().expand(Demands.forTarget(streamOfString), ctx).toList()
+        def specs = new StreamMap().expand(Demands.forTarget(streamOfString), ctx)*.spec
 
         then: 'every emitted port carries the App template — grounding, not the strategy, supplies the concrete source'
         specs.every { it.ports[0].template instanceof PortType.App }
@@ -96,7 +96,7 @@ class StreamMapSpec extends Specification {
         streamElement.asType() >> streamRawType
 
         when:
-        def specs = new StreamMap().expand(Demands.forTarget(streamOfString), ctx).toList()
+        def specs = new StreamMap().expand(Demands.forTarget(streamOfString), ctx)*.spec
 
         then:
         def flatMap = specs.find { it.label == 'flatMap' }

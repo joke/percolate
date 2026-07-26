@@ -54,7 +54,7 @@ class ConstructorCallSpec extends Specification {
 
         when:
         def declared = ['number', 'street'] as Set
-        def specs = new ConstructorCall().expand(Demands.assembling(targetType, declared), ctx).toList()
+        def specs = new ConstructorCall().expand(Demands.assembling(targetType, declared), ctx)*.spec
 
         then:
         specs.size() == 1

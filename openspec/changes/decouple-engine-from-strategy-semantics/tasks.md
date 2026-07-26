@@ -52,19 +52,19 @@ through `tail`.
 
 ## 4. Offers and refusals (group A2)
 
-- [ ] 4.1 Add `Offer` as a pseudo-sealed production/refusal pair, mirroring `PortType`'s Java 11 closed-hierarchy convention
-- [ ] 4.2 Change `expand` and `descend` to return `Stream<Offer>` and pull `directive()` up from `ProduceDemand` to `Demand`
-- [ ] 4.3 Re-wrap in the three SPI base classes (`Conversion`, `Accessor`, `Container`) so their 13 leaf strategies need no edit
-- [ ] 4.4 Add the feature-neutral refusal record and the `inadmissible` list on `Value`, asserting `MapperGraph` gains no member
-- [ ] 4.5 Split offers in `TargetProducer` and `SourcePathDescender`: productions ground and land, refusals record on the demanded `Value`
-- [ ] 4.6 Thread the walked binding's `Directive` through `SourcePathDescender` into `DescendView`
-- [ ] 4.7 Migrate the 21 direct overriders in `strategies-builtin`, `reactor` and `reactor-blocking`
-- [ ] 4.8 Make `ConstantValue` refuse on coercion failure, carrying the `constant` input's subject
-- [ ] 4.9 Make `NullnessCrossing` refuse on an uncoercible `defaultValue`, carrying that input's subject
-- [ ] 4.10 Render refusals in `RealisationDiagnosticsStage` at the deepest miss in place of the generic message, deduplicating only byte-identical text
-- [ ] 4.11 Delete `ValidateConstantDefaultLegalityStage` — coercion is now a refusal, the dead default rides the rail
-- [ ] 4.12 Update the strategy unit specs to distinguish an empty stream from a refusal, and assert refusal message and subject identity
-- [ ] 4.13 Run `./gradlew check --no-configuration-cache` and fix every violation
+- [x] 4.1 Add `Offer` as a pseudo-sealed production/refusal pair, mirroring `PortType`'s Java 11 closed-hierarchy convention
+- [x] 4.2 Change `expand` and `descend` to return `Stream<Offer>` and pull `directive()` up from `ProduceDemand` to `Demand`
+- [x] 4.3 Re-wrap in the three SPI base classes (`Conversion`, `Accessor`, `Container`) so their 13 leaf strategies need no edit
+- [x] 4.4 Add the feature-neutral refusal record and the `inadmissible` list on `Value`, asserting `MapperGraph` gains no member
+- [x] 4.5 Split offers in `TargetProducer` and `SourcePathDescender`: productions ground and land, refusals record on the demanded `Value`
+- [x] 4.6 Thread the walked binding's `Directive` through `SourcePathDescender` into `DescendView`
+- [x] 4.7 Migrate the 21 direct overriders in `strategies-builtin`, `reactor` and `reactor-blocking`
+- [x] 4.8 Make `ConstantValue` refuse on coercion failure, carrying the `constant` input's subject
+- [x] 4.9 Make `NullnessCrossing` refuse on an uncoercible `defaultValue`, carrying that input's subject
+- [x] 4.10 Render refusals in `RealisationDiagnosticsStage` at the deepest miss in place of the generic message, deduplicating only byte-identical text
+- [x] 4.11 Delete `ValidateConstantDefaultLegalityStage` — coercion is now a refusal, the dead default rides the rail
+- [x] 4.12 Update the strategy unit specs to distinguish an empty stream from a refusal, and assert refusal message and subject identity
+- [x] 4.13 Run `./gradlew check --no-configuration-cache` and fix every violation
 
 ## 5. Bounded type variables (group A3)
 

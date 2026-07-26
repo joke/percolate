@@ -40,7 +40,7 @@ class LegacyTemporalFormatSpec extends Specification {
         ctx.isType(dateType, 'java.lang.String') >> true
 
         when:
-        def specs = new LegacyTemporalFormat().expand(Demands.withFormat(dateType, 'yyyy-MM-dd'), ctx).toList()
+        def specs = new LegacyTemporalFormat().expand(Demands.withFormat(dateType, 'yyyy-MM-dd'), ctx)*.spec
 
         then:
         specs.size() == 2
@@ -59,7 +59,7 @@ class LegacyTemporalFormatSpec extends Specification {
         ctx.isType(dateType, 'java.util.Date') >> true
 
         when:
-        def specs = new LegacyTemporalFormat().expand(Demands.withFormat(dateType, 'yyyy-MM-dd'), ctx).toList()
+        def specs = new LegacyTemporalFormat().expand(Demands.withFormat(dateType, 'yyyy-MM-dd'), ctx)*.spec
 
         then:
         specs.size() == 1
@@ -81,7 +81,7 @@ class LegacyTemporalFormatSpec extends Specification {
         ctx.isType(timestampType, 'java.sql.Timestamp') >> true
 
         when:
-        def specs = new LegacyTemporalFormat().expand(Demands.withFormat(timestampType, 'yyyy-MM-dd'), ctx).toList()
+        def specs = new LegacyTemporalFormat().expand(Demands.withFormat(timestampType, 'yyyy-MM-dd'), ctx)*.spec
 
         then:
         specs.size() == 1

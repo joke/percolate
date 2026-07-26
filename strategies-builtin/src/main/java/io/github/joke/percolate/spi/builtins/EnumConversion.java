@@ -9,6 +9,7 @@ import io.github.joke.percolate.spi.BodyRenderContext;
 import io.github.joke.percolate.spi.DirectiveInput;
 import io.github.joke.percolate.spi.ExpansionStrategy;
 import io.github.joke.percolate.spi.Nullability;
+import io.github.joke.percolate.spi.Offer;
 import io.github.joke.percolate.spi.OperationSpec;
 import io.github.joke.percolate.spi.Port;
 import io.github.joke.percolate.spi.PortType;
@@ -56,7 +57,7 @@ public final class EnumConversion implements ExpansionStrategy {
     private static final SourceVersion JAVA_14 = SourceVersion.valueOf("RELEASE_14");
 
     @Override
-    public Stream<OperationSpec> expand(final ProduceDemand demand, final ResolveCtx ctx) {
+    public Stream<Offer> expand(final ProduceDemand demand, final ResolveCtx ctx) {
         final var target = demand.targetType();
         if (!ctx.isEnum(target)) {
             return Stream.empty();
@@ -64,14 +65,14 @@ public final class EnumConversion implements ExpansionStrategy {
         final var overrides = demand.directive().map(d -> d.inputs(ENUM_KEY)).orElseGet(List::of);
         final var port = new Port(VALUE_ROLE, target, Nullability.NON_NULL, PortType.variable(0));
         final BodyCodegen codegen = context -> render(context, target, overrides);
-        return Stream.of(OperationSpec.of(
+        return Stream.of(Offer.of(OperationSpec.of(
                         "enum" + Labels.ARROW + Labels.simple(target),
                         codegen,
                         Weights.EXPENSIVE,
                         List.of(port),
                         target,
                         Nullability.NON_NULL)
-                .withConsumed(Set.copyOf(overrides)));
+                .withConsumed(Set.copyOf(overrides))));
     }
 
     /** Renders the whole method body: a switch over the grounded source enum, form chosen by the effective style. */

@@ -4,6 +4,7 @@ import com.google.auto.service.AutoService;
 import io.github.joke.percolate.lib.javapoet.CodeBlock;
 import io.github.joke.percolate.spi.ExpansionStrategy;
 import io.github.joke.percolate.spi.Nullability;
+import io.github.joke.percolate.spi.Offer;
 import io.github.joke.percolate.spi.OperationCodegen;
 import io.github.joke.percolate.spi.OperationSpec;
 import io.github.joke.percolate.spi.Port;
@@ -27,7 +28,7 @@ import reactor.core.publisher.Flux;
 public final class FluxFromStream implements ExpansionStrategy {
 
     @Override
-    public Stream<OperationSpec> expand(final ProduceDemand demand, final ResolveCtx ctx) {
+    public Stream<Offer> expand(final ProduceDemand demand, final ResolveCtx ctx) {
         final var to = demand.targetType();
         if (!ctx.isType(to, Reactors.FLUX)) {
             return Stream.empty();
@@ -40,6 +41,7 @@ public final class FluxFromStream implements ExpansionStrategy {
                         List.of(new Port("stream", stream, Nullability.NON_NULL)),
                         to,
                         Nullability.NON_NULL))
+                .map(Offer::of)
                 .stream();
     }
 }

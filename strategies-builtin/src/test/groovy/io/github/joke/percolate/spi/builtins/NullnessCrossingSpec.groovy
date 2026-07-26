@@ -4,6 +4,7 @@ import io.github.joke.percolate.lib.javapoet.CodeBlock
 import io.github.joke.percolate.spi.DirectiveInput
 import io.github.joke.percolate.spi.IncomingValues
 import io.github.joke.percolate.spi.Nullability
+import io.github.joke.percolate.spi.Offer
 import io.github.joke.percolate.spi.OperationCodegen
 import io.github.joke.percolate.spi.Port
 import io.github.joke.percolate.spi.ResolveCtx
@@ -36,7 +37,7 @@ class NullnessCrossingSpec extends Specification {
         ctx.isDeclared(stringType) >> true
 
         when:
-        def specs = new NullnessCrossing().expand(Demands.crossing(stringType, 'name'), ctx).toList()
+        def specs = new NullnessCrossing().expand(Demands.crossing(stringType, 'name'), ctx)*.spec
 
         then:
         specs.size() == 1
@@ -81,7 +82,7 @@ class NullnessCrossingSpec extends Specification {
         ctx.declaredType(optionalElement, stringType) >> optionalOfString
 
         when:
-        def specs = new NullnessCrossing().expand(Demands.crossing(stringType, 'name', 'unknown'), ctx).toList()
+        def specs = new NullnessCrossing().expand(Demands.crossing(stringType, 'name', 'unknown'), ctx)*.spec
 
         then: 'a total coalesce over a NULLABLE scalar port'
         def scalar = specs.find { !it.partial && it.ports[0].type.is(stringType) }
@@ -118,7 +119,7 @@ class NullnessCrossingSpec extends Specification {
         ctx.declaredType(optionalElement, integerType) >> Mock(TypeMirror)
 
         when:
-        def specs = new NullnessCrossing().expand(Demands.crossing(integerType, 'n', '0'), ctx).toList()
+        def specs = new NullnessCrossing().expand(Demands.crossing(integerType, 'n', '0'), ctx)*.spec
 
         then:
         def scalar = specs.find { !it.partial && it.ports[0].type.is(integerType) }
@@ -137,19 +138,24 @@ class NullnessCrossingSpec extends Specification {
         new NullnessCrossing().expand(Demands.crossing(intType, 'n', '0'), ctx).toList().empty
     }
 
-    def 'an uncoercible default yields only the guard, no coalesce'() {
+    def 'an uncoercible default refuses the whole demand, dropping the partial guard'() {
         DeclaredType integerType = Mock()
         TypeElement integerElement = Mock()
         integerType.kind >> TypeKind.DECLARED
         integerType.asElement() >> integerElement
         integerElement.qualifiedName >> nameOf('java.lang.Integer')
+        integerElement.simpleName >> nameOf('Integer')
         ctx.isDeclared(integerType) >> true
 
         when:
-        def specs = new NullnessCrossing().expand(Demands.crossing(integerType, 'n', 'abc'), ctx).toList()
+        def offers = new NullnessCrossing().expand(Demands.crossing(integerType, 'n', 'abc'), ctx).toList()
 
-        then: 'the requireNonNull guard remains (NON_NULL declared target) but no total coalesce is offered'
-        specs.every { it.partial }
+        then: 'a single refusal is emitted — no partial requireNonNull guard survives (design D1)'
+        offers.size() == 1
+        def refusal = offers[0]
+        refusal instanceof Offer.Refusal
+        refusal.subject.is(Subjects.none())
+        refusal.message == "cannot coerce 'abc' to Integer"
     }
 
     def 'requireNonNullGuard is empty when the target is not NON_NULL-guarded'() {

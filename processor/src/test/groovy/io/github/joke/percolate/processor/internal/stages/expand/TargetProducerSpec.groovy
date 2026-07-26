@@ -7,13 +7,16 @@ import io.github.joke.percolate.processor.internal.graph.Value
 import io.github.joke.percolate.processor.model.GoalSpec
 import io.github.joke.percolate.processor.model.MappingDirective
 import io.github.joke.percolate.processor.nullability.NullabilityResolver
+import io.github.joke.percolate.processor.internal.graph.Refusal
 import io.github.joke.percolate.processor.test.MappingDirectives
 import io.github.joke.percolate.spi.Codegen
 import io.github.joke.percolate.spi.ExpansionStrategy
 import io.github.joke.percolate.spi.Nullability
+import io.github.joke.percolate.spi.Offer
 import io.github.joke.percolate.spi.OperationSpec
 import io.github.joke.percolate.spi.Port
 import io.github.joke.percolate.spi.ResolveCtx
+import io.github.joke.percolate.spi.Subject
 import spock.lang.Specification
 import spock.lang.Tag
 
@@ -58,7 +61,7 @@ class TargetProducerSpec extends Specification {
         value.nullness() >> Nullability.NON_NULL
         1 * strategy.expand({ it.targetType() == valueType && it.targetNullness() == Nullability.NON_NULL &&
                 !it.directive().present && it.declaredChildren().empty && it.bindingName() == 'address' },
-                resolveCtx) >> Stream.of(spec0)
+                resolveCtx) >> Stream.of(Offer.of(spec0))
         1 * sourceCandidates.sourceTypes(scope) >> sourceTypes
         1 * grounding.ground(spec0, sourceTypes) >> Stream.of(spec0, spec1)
         0 * _
@@ -106,7 +109,7 @@ class TargetProducerSpec extends Specification {
         value.loc >> loc
         value.type() >> valueType
         value.nullness() >> Nullability.NON_NULL
-        1 * strategy.expand(_, resolveCtx) >> Stream.of(spec)
+        1 * strategy.expand(_, resolveCtx) >> Stream.of(Offer.of(spec))
         1 * sourceCandidates.sourceTypes(scope) >> []
         1 * grounding.ground(spec, []) >> Stream.of(spec, sameSignature)
         0 * _
@@ -157,26 +160,60 @@ class TargetProducerSpec extends Specification {
         producer.pinnedSourcePath(value).empty
     }
 
-    // ---- run: queries every strategy for one demand ---------------------------------------------------------------
+    // ---- run: queries every strategy for one demand, returning every offer verbatim -------------------------------
 
-    def 'run queries every strategy for one demand'() {
+    def 'run queries every strategy for one demand and collects every offer'() {
         ExpansionStrategy strategy0 = Mock()
         ExpansionStrategy strategy1 = Mock()
         def producer = new TargetProducer([strategy0, strategy1], [:], sourceCandidates, grounding, resolveCtx, resolver)
         DemandView demand = Mock()
         def spec0 = OperationSpec.of('a', codegen, 1, [], valueType, Nullability.NON_NULL)
-        def spec1 = OperationSpec.of('b', codegen, 1, [], valueType, Nullability.NON_NULL)
+        Subject subject = Mock()
 
         when:
         def result = producer.run(demand, resolveCtx)
 
         then:
-        1 * strategy0.expand(demand, resolveCtx) >> Stream.of(spec0)
-        1 * strategy1.expand(demand, resolveCtx) >> Stream.of(spec1)
+        1 * strategy0.expand(demand, resolveCtx) >> Stream.of(Offer.of(spec0))
+        1 * strategy1.expand(demand, resolveCtx) >> Stream.of(Offer.refusal(subject, 'nope'))
+        0 * _
+
+        expect:
+        result == [Offer.of(spec0), Offer.refusal(subject, 'nope')]
+    }
+
+    // ---- productionsOf: splits offers into productions, recording every refusal on value's inadmissible list ------
+
+    def 'productionsOf collects productions and records each refusal as inadmissible on value'() {
+        Value value = Mock()
+        Subject subject = Mock()
+        def spec0 = OperationSpec.of('a', codegen, 1, [], valueType, Nullability.NON_NULL)
+        def spec1 = OperationSpec.of('b', codegen, 1, [], valueType, Nullability.NON_NULL)
+        def offers = [Offer.of(spec0), Offer.refusal(subject, 'nope'), Offer.of(spec1)]
+
+        when:
+        def result = TargetProducer.productionsOf(offers, value)
+
+        then:
+        1 * value.addInadmissible(new Refusal(subject, 'nope'))
         0 * _
 
         expect:
         result == [spec0, spec1]
+    }
+
+    def 'productionsOf records nothing inadmissible when every offer is a production'() {
+        Value value = Mock()
+        def spec0 = OperationSpec.of('a', codegen, 1, [], valueType, Nullability.NON_NULL)
+
+        when:
+        def result = TargetProducer.productionsOf([Offer.of(spec0)], value)
+
+        then:
+        0 * _
+
+        expect:
+        result == [spec0]
     }
 
     // ---- dedup / signature: static structural utilities -------------------------------------------------------------

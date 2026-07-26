@@ -5,6 +5,7 @@ import io.github.joke.percolate.lib.javapoet.CodeBlock;
 import io.github.joke.percolate.spi.ChildScopeSpec;
 import io.github.joke.percolate.spi.ExpansionStrategy;
 import io.github.joke.percolate.spi.Nullability;
+import io.github.joke.percolate.spi.Offer;
 import io.github.joke.percolate.spi.OperationSpec;
 import io.github.joke.percolate.spi.Port;
 import io.github.joke.percolate.spi.PortType;
@@ -43,7 +44,7 @@ public final class FluxMap implements ExpansionStrategy {
             (operand, var, body) -> CodeBlock.of("$L$Z.flatMap($N -> $L)", operand, var, body);
 
     @Override
-    public Stream<OperationSpec> expand(final ProduceDemand demand, final ResolveCtx ctx) {
+    public Stream<Offer> expand(final ProduceDemand demand, final ResolveCtx ctx) {
         final var to = demand.targetType();
         if (!ctx.isType(to, FLUX)) {
             return Stream.empty();
@@ -60,8 +61,9 @@ public final class FluxMap implements ExpansionStrategy {
         final var flatMapChild =
                 ChildScopeSpec.lifted(PortType.variable(0), Nullability.NON_NULL, to, Nullability.NON_NULL);
         return Stream.of(
-                OperationSpec.mapping("map", MAP, Weights.CONTAINER, ports, to, Nullability.NON_NULL, mapChild),
-                OperationSpec.mapping(
-                        "flatMap", FLAT_MAP, Weights.CONTAINER, ports, to, Nullability.NON_NULL, flatMapChild));
+                        OperationSpec.mapping("map", MAP, Weights.CONTAINER, ports, to, Nullability.NON_NULL, mapChild),
+                        OperationSpec.mapping(
+                                "flatMap", FLAT_MAP, Weights.CONTAINER, ports, to, Nullability.NON_NULL, flatMapChild))
+                .map(Offer::of);
     }
 }

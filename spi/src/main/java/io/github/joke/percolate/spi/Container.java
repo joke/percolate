@@ -130,7 +130,7 @@ public abstract class Container implements ExpansionStrategy, SourceProjection {
      * sources each port and prunes the unreachable ones — no candidate is read.
      */
     @Override
-    public final Stream<OperationSpec> expand(final ProduceDemand demand, final ResolveCtx ctx) {
+    public final Stream<Offer> expand(final ProduceDemand demand, final ResolveCtx ctx) {
         final var to = demand.targetType();
         final var specs = Stream.<OperationSpec>builder();
         if (matches(to, ctx)) {
@@ -140,7 +140,7 @@ public abstract class Container implements ExpansionStrategy, SourceProjection {
             iterateInto(to, ctx, specs);
         }
         unwrapInto(to, demand, ctx, specs);
-        return specs.build();
+        return specs.build().map(Offer::of);
     }
 
     /**
