@@ -1,5 +1,18 @@
 # Changelog
 
+## [1.2.0](https://github.com/joke/percolate/compare/v1.1.0...v1.2.0) (2026-07-26)
+
+
+### Features
+
+* **processor,spi,strategies-builtin:** add @Ambient parameters and multi-parameter mapper methods ([d203b40](https://github.com/joke/percolate/commit/d203b405bc8baa27063a71859db151117b8ff1e5))
+
+
+### Bug Fixes
+
+* **ci:** gate docs deploy and Maven publish on release-please cut ([3dd153d](https://github.com/joke/percolate/commit/3dd153d0c1a0d0035e99b98ddbf8ade042ab905b))
+* **spi:** exclude test-fixtures variants from Maven publication ([db53aad](https://github.com/joke/percolate/commit/db53aadc38cc8c0ff4bd4a732b732f73d4b2bf4f))
+
 ## [1.1.0](https://github.com/joke/percolate/compare/v1.0.1...v1.1.0) (2026-07-25)
 
 
