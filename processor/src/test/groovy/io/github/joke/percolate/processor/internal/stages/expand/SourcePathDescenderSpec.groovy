@@ -148,7 +148,7 @@ class SourcePathDescenderSpec extends Specification {
         def result = descender.materialiseRoot(scope, 'person')
 
         then:
-        1 * scope.inputDecls(_) >> Stream.of(decl)
+        1 * scope.inputDecls() >> Stream.of(decl)
         decl.location >> loc
         loc.slotName() >> 'person'
         decl.type >> type
@@ -170,7 +170,7 @@ class SourcePathDescenderSpec extends Specification {
         def result = descender.materialiseRoot(scope, 'ghost')
 
         then:
-        1 * scope.inputDecls(_) >> Stream.of(decl)
+        1 * scope.inputDecls() >> Stream.of(decl)
         decl.location >> loc
         loc.slotName() >> 'person'
         0 * _

@@ -98,7 +98,7 @@ public final class ExpandStage implements Stage {
                 final ResolveCtx resolveCtx) {
             this.graph = graph;
             final var applier = new Applier();
-            final var sourceCandidates = new SourceCandidates(graph, applier, resolver, resolveCtx);
+            final var sourceCandidates = new SourceCandidates(graph, applier, resolveCtx);
             final var unifier = new Unifier(resolveCtx);
             final var grounding = new Grounding(
                     new SourceWidener(resolveCtx, projections),

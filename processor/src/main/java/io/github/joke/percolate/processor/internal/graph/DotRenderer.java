@@ -107,10 +107,11 @@ public final class DotRenderer {
     }
 
     /**
-     * The type rendered with simple names and JSpecify nullness marks: the top (reference) level carries the
-     * Value's own {@code ?}/{@code !} (authoritative); each nested type argument carries {@code ?} only when its
-     * own annotation declares it nullable (non-null is the unmarked JSpecify default). Non-declared kinds
-     * (primitives, arrays, wildcards) fall back to their text form, unmarked.
+     * The type rendered with simple names and a JSpecify {@code ?}/{@code !} mark at the top (reference) level,
+     * read from the {@code Value}'s own resolved nullness — the only nullness this renderer knows (design
+     * {@code nullability}, change {@code decouple-engine-from-strategy-semantics}): nested type arguments carry
+     * no mark, since the graph records no resolved nullness for them and this renderer re-derives none of its
+     * own. Non-declared kinds (primitives, arrays, wildcards) fall back to their text form, unmarked.
      */
     @VisibleForTesting
     static String formatType(final TypeMirror type, final @Nullable Nullability topNullness) {
@@ -131,13 +132,8 @@ public final class DotRenderer {
         if (args.isEmpty()) {
             return name;
         }
-        final var inner = args.stream().map(DotRenderer::nested).collect(Collectors.joining(", "));
+        final var inner = args.stream().map(DotRenderer::body).collect(Collectors.joining(", "));
         return name + '<' + inner + '>';
-    }
-
-    @VisibleForTesting
-    static String nested(final TypeMirror type) {
-        return body(type) + (nullnessOf(type) == Nullability.NULLABLE ? "?" : "");
     }
 
     @VisibleForTesting
@@ -146,16 +142,6 @@ public final class DotRenderer {
             return "?";
         }
         return nullness == Nullability.NON_NULL ? "!" : "";
-    }
-
-    @VisibleForTesting
-    static Nullability nullnessOf(final TypeMirror type) {
-        final var nullable = type.getAnnotationMirrors().stream().anyMatch(annotation -> annotation
-                .getAnnotationType()
-                .asElement()
-                .getSimpleName()
-                .contentEquals("Nullable"));
-        return nullable ? Nullability.NULLABLE : Nullability.NON_NULL;
     }
 
     @VisibleForTesting

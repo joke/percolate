@@ -1,88 +1,60 @@
 package io.github.joke.percolate.processor.internal.graph
 
-import io.github.joke.percolate.Ambient
 import io.github.joke.percolate.spi.Nullability
 import spock.lang.Specification
 import spock.lang.Tag
 
 import javax.lang.model.element.ExecutableElement
-import javax.lang.model.element.Name
-import javax.lang.model.element.VariableElement
 import javax.lang.model.type.TypeMirror
 
 /**
- * {@link MethodScope#ambientDecls} unit-tested over plain {@code javax.lang.model} mocks: one entry per
- * {@code @Ambient} parameter, keyed by {@link Ambient#value()} or the parameter's own simple name when unset, at
- * the same single-segment location an ordinary {@code @Map} source would resolve to for that parameter.
+ * {@link MethodScope} unit-tested mock-only: its identity is {@code method} alone (design D5 of change
+ * {@code decouple-engine-from-strategy-semantics}), so two instances for the same method are equal regardless of
+ * their declarations, and a bare {@code new MethodScope(method)} is a valid map-key-only scope carrying no
+ * declarations. {@code inputDecls()} is a plain accessor over whatever {@link InputDecl} list the caller supplied
+ * — the annotation-reading rule that decides a parameter's name/visibility lives in
+ * {@code internal.stages.discover.AmbientAnnotations}, exercised on its own.
  */
 @Tag('unit')
 class MethodScopeSpec extends Specification {
 
+    ExecutableElement method = Mock()
     TypeMirror personType = Mock()
-    TypeMirror orderType = Mock()
 
-    def 'a parameter with no @Ambient annotation publishes no entry'() {
-        MethodScope scope = new MethodScope(methodWith(plainParam('customer', personType)))
-
-        expect:
-        scope.ambientDecls { t, e -> Nullability.NON_NULL }.toList().empty
-    }
-
-    def 'an unqualified @Ambient parameter is keyed by its own simple name'() {
-        MethodScope scope = new MethodScope(methodWith(ambientParam('order', orderType, '')))
-        def decls = scope.ambientDecls { t, e -> Nullability.NON_NULL }.toList()
+    def 'two instances for the same method are equal regardless of their declarations'() {
+        def decl = new InputDecl(new SourceLocation(AccessPath.of('customer')), personType, Nullability.NON_NULL,
+                'customer', Visibility.LOCAL)
 
         expect:
-        decls.size() == 1
-        decls[0].key == 'order'
-        decls[0].location == new SourceLocation(AccessPath.of('order'))
-        decls[0].type.is(orderType)
-        decls[0].nullness == Nullability.NON_NULL
+        new MethodScope(method) == new MethodScope(method, [decl])
+        new MethodScope(method).hashCode() == new MethodScope(method, [decl]).hashCode()
     }
 
-    def 'an explicit @Ambient value overrides the key but not the location'() {
-        MethodScope scope = new MethodScope(methodWith(ambientParam('p', orderType, 'simon')))
-        def decls = scope.ambientDecls { t, e -> Nullability.NON_NULL }.toList()
+    def 'a bare MethodScope carries no input declarations'() {
+        expect:
+        new MethodScope(method).inputDecls().toList().empty
+    }
+
+    def 'inputDecls streams exactly the supplied declarations, in order'() {
+        def first = new InputDecl(new SourceLocation(AccessPath.of('a')), personType, Nullability.NON_NULL, 'a', Visibility.LOCAL)
+        def second = new InputDecl(new SourceLocation(AccessPath.of('b')), personType, Nullability.NON_NULL, 'b', Visibility.INHERITED)
+        MethodScope scope = new MethodScope(method, [first, second])
 
         expect:
-        decls.size() == 1
-        decls[0].key == 'simon'
-        decls[0].location == new SourceLocation(AccessPath.of('p'))
+        scope.inputDecls().toList() == [first, second]
     }
 
-    def 'a mix of plain and ambient parameters yields one entry per ambient parameter, in declaration order'() {
-        MethodScope scope = new MethodScope(methodWith(
-                plainParam('customer', personType), ambientParam('order', orderType, ''), plainParam('other', personType)))
-        def decls = scope.ambientDecls { t, e -> Nullability.NON_NULL }.toList()
+    def 'parent is the mapper-root scope'() {
+        expect:
+        new MethodScope(method).parent() == Optional.of(MapperScope.INSTANCE)
+    }
+
+    def 'encode derives a stable string from the method name and parameter type strings'() {
+        TypeMirror paramType = Stub(TypeMirror) { toString() >> 'Person' }
+        method.simpleName >> Stub(javax.lang.model.element.Name) { toString() >> 'map' }
+        method.parameters >> [Stub(javax.lang.model.element.VariableElement) { asType() >> paramType }]
 
         expect:
-        decls.size() == 1
-        decls[0].key == 'order'
-    }
-
-    private ExecutableElement methodWith(final VariableElement... parameters) {
-        Mock(ExecutableElement) {
-            getParameters() >> (parameters as List)
-        }
-    }
-
-    private VariableElement plainParam(final String paramName, final TypeMirror type) {
-        Mock(VariableElement) {
-            getAnnotation(Ambient) >> null
-            getSimpleName() >> name(paramName)
-            asType() >> type
-        }
-    }
-
-    private VariableElement ambientParam(final String paramName, final TypeMirror type, final String keyOverride) {
-        Mock(VariableElement) {
-            getAnnotation(Ambient) >> Mock(Ambient) { value() >> keyOverride }
-            getSimpleName() >> name(paramName)
-            asType() >> type
-        }
-    }
-
-    private Name name(final String value) {
-        Stub(Name) { toString() >> value }
+        new MethodScope(method).encode() == 'map(Person)'
     }
 }

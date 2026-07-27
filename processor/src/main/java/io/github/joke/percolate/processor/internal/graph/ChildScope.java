@@ -2,12 +2,8 @@ package io.github.joke.percolate.processor.internal.graph;
 
 import static java.util.Objects.requireNonNull;
 
-import io.github.joke.percolate.spi.Nullability;
 import java.util.Optional;
-import java.util.function.BiFunction;
 import java.util.stream.Stream;
-import javax.lang.model.element.Element;
-import javax.lang.model.type.TypeMirror;
 import org.jspecify.annotations.Nullable;
 
 /**
@@ -56,16 +52,10 @@ public final class ChildScope implements Scope {
         this.elementInput = newElementInput;
     }
 
-    /** The single element input declaration; {@code nullness} is unused (the element nullness is already known). */
+    /** The single element input declaration — already resolved, set when the owning Operation lands. */
     @Override
-    public Stream<InputDecl> inputDecls(final BiFunction<TypeMirror, Element, Nullability> nullness) {
+    public Stream<InputDecl> inputDecls() {
         return Stream.of(getElementInput());
-    }
-
-    /** Inherits the parent scope's ambient environment unchanged (graph-expansion "child scopes inherit"). */
-    @Override
-    public Stream<AmbientDecl> ambientDecls(final BiFunction<TypeMirror, Element, Nullability> nullness) {
-        return parentScope.ambientDecls(nullness);
     }
 
     @Override

@@ -6,17 +6,21 @@ import lombok.Value;
 
 /**
  * A scope's base-case input declaration: a scope-relative {@code (location, type, nullness)} — an {@link AddValue}
- * lacking only its scope. A {@link Scope} declares these lazily ({@link Scope#inputDecls}); the driver materialises
- * one into a {@code LEAF} source {@link io.github.joke.percolate.processor.internal.graph.Value} on demand (idempotent through
- * the {@code valueFor} dedup index) only when a port reuses it.
+ * lacking only its scope — plus a {@code name} and a {@link Visibility} (design D5 of change
+ * {@code decouple-engine-from-strategy-semantics}). A {@link Scope} declares these lazily ({@link Scope#inputDecls});
+ * the driver materialises one into a {@code LEAF} source {@link Value} on demand (idempotent through the
+ * {@code valueFor} dedup index) only when a port reuses it.
  *
- * <p>Carrying the declaration without minting a {@link io.github.joke.percolate.processor.internal.graph.Value} is what lets an
- * unreferenced input — an unused method parameter, or an unused container element — never enter the graph, while its
- * binding (the parameter name / lambda variable) still exists for code generation.
+ * <p>Carrying the declaration without minting a {@link Value} is what lets an unreferenced input — an unused
+ * method parameter, or an unused container element — never enter the graph, while its binding (the parameter
+ * name / lambda variable) still exists for code generation. The name and visibility let a {@code BY_NAME} port
+ * select this declaration by name, from its own scope or (when {@link Visibility#INHERITED}) from a descendant.
  */
 @Value
 public class InputDecl {
     Location location;
     TypeMirror type;
     Nullability nullness;
+    String name;
+    Visibility visibility;
 }

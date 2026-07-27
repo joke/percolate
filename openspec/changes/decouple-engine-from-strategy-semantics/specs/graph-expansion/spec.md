@@ -49,10 +49,10 @@ named self-call) and remains so — see "A method never calls itself on its own 
 - **WHEN** a child (element) scope sources a `BY_TYPE` port whose type matches an ancestor method scope's `INHERITED` declaration
 - **THEN** the ancestor's declaration is not offered, and the port is sourced or missed using only the child scope's own declarations
 
-#### Scenario: One declaration serves both access paths
+#### Scenario: One declaration backs both access paths, at the requesting scope
 
 - **WHEN** a parameter declared `INHERITED` is reached once by a `BY_TYPE` port in its own scope and once by a `BY_NAME` port from a child scope
-- **THEN** both materialise the identical `Value` at that declaration's location
+- **THEN** both materialise a `Value` at that declaration's location; a same-scope match dedups to the identical `Value`, while the child scope's match is its own `Value` at that location — a `Dep` edge never crosses a scope boundary, so the same declaration cannot back a single `Value` shared across scopes
 
 ### Requirement: A method never calls itself on its own whole parameter
 

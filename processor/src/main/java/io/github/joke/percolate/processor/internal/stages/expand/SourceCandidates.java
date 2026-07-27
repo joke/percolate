@@ -3,13 +3,12 @@ package io.github.joke.percolate.processor.internal.stages.expand;
 import static java.util.stream.Collectors.toUnmodifiableList;
 
 import io.github.joke.percolate.processor.internal.graph.AddValue;
-import io.github.joke.percolate.processor.internal.graph.AmbientDecl;
 import io.github.joke.percolate.processor.internal.graph.InputDecl;
 import io.github.joke.percolate.processor.internal.graph.Location;
 import io.github.joke.percolate.processor.internal.graph.MapperGraph;
 import io.github.joke.percolate.processor.internal.graph.Scope;
 import io.github.joke.percolate.processor.internal.graph.Value;
-import io.github.joke.percolate.processor.nullability.NullabilityResolver;
+import io.github.joke.percolate.processor.internal.graph.Visibility;
 import io.github.joke.percolate.spi.Nullability;
 import io.github.joke.percolate.spi.Port;
 import io.github.joke.percolate.spi.ResolveCtx;
@@ -37,7 +36,6 @@ final class SourceCandidates {
 
     private final MapperGraph graph;
     private final Applier applier;
-    private final NullabilityResolver resolver;
     private final ResolveCtx resolveCtx;
 
     /**
@@ -53,7 +51,7 @@ final class SourceCandidates {
      */
     List<TypeMirror> sourceTypes(final Scope scope) {
         return Stream.concat(
-                        scope.inputDecls(resolver::resolve).map(InputDecl::getType),
+                        scope.inputDecls().map(InputDecl::getType),
                         sourceValues(scope).map(Value::type))
                 .collect(toUnmodifiableList());
     }
@@ -91,7 +89,7 @@ final class SourceCandidates {
      */
     @Nullable
     Value materialiseMatchingInput(final Scope scope, final Port port) {
-        return scope.inputDecls(resolver::resolve)
+        return scope.inputDecls()
                 .filter(decl -> matches(decl.getType(), decl.getNullness(), port))
                 .findFirst()
                 .map(decl -> applier.apply(
@@ -100,30 +98,49 @@ final class SourceCandidates {
     }
 
     /**
-     * The named {@link Value} feeding a {@code BY_NAME} port: the scope's named-input environment entry whose key
-     * equals {@code port.getBindingName()}, materialised at its own declaration — the same location an ordinary
-     * {@code @Map} source would resolve to for that parameter (design Decision 7). {@code null} when the name is
-     * unbound, or when it is bound but the binding's type is not assignable to the port's declared type (design
-     * Decision 2: verified, not encoded into the name). Either failure is reported by {@link PortSourceResolver}'s
-     * {@code REQUIRE} handling — the engine's own concern, not this collaborator's.
+     * The named {@link Value} feeding a {@code BY_NAME} port: the declaration named {@code port.getBindingName()}
+     * in the scope's own declarations, or failing that in the nearest ancestor scope declaring it
+     * {@link Visibility#INHERITED} (design D5) — materialised at that declaration's own location, but in the
+     * <b>requesting</b> {@code scope}: a {@link Dep} edge never crosses a scope boundary, so a descendant scope
+     * consuming an inherited binding gets its own {@code Value} at the same location, not the declaring scope's.
+     * {@code null} when the name is unbound anywhere in the chain, or when it is bound but the binding's type is
+     * not assignable to the port's declared type (design Decision 2: verified, not encoded into the name). Either
+     * failure is reported by {@link PortSourceResolver}'s {@code REQUIRE} handling — the engine's own concern, not
+     * this collaborator's.
      */
     @Nullable
     Value byNameSource(final Scope scope, final Port port) {
-        return byNameDecl(scope, port)
+        return byNameDecl(scope, port.getBindingName())
                 .filter(decl -> resolveCtx.isAssignable(decl.getType(), port.getType()))
                 .map(decl -> applier.apply(
                         graph, new AddValue(scope, decl.getLocation(), decl.getType(), decl.getNullness())))
                 .orElse(null);
     }
 
-    /** The declared type of the scope's named input matching {@code port.getBindingName()}, for a REQUIRE-miss mismatch message. */
+    /** The declared type of the binding named {@code port.getBindingName()}, for a REQUIRE-miss mismatch message. */
     Optional<TypeMirror> byNameDeclaredType(final Scope scope, final Port port) {
-        return byNameDecl(scope, port).map(AmbientDecl::getType);
+        return byNameDecl(scope, port.getBindingName()).map(InputDecl::getType);
     }
 
-    Optional<AmbientDecl> byNameDecl(final Scope scope, final Port port) {
-        return scope.ambientDecls(resolver::resolve)
-                .filter(decl -> decl.getKey().equals(port.getBindingName()))
+    /** {@code scope}'s own declaration named {@code name}, else the nearest ancestor's {@code INHERITED} one. */
+    Optional<InputDecl> byNameDecl(final Scope scope, final String name) {
+        return ownNamedDecl(scope, name).or(() -> inheritedAncestorDecl(scope, name));
+    }
+
+    Optional<InputDecl> ownNamedDecl(final Scope scope, final String name) {
+        return scope.inputDecls().filter(decl -> decl.getName().equals(name)).findFirst();
+    }
+
+    /** Walks {@code scope}'s ancestor chain for the nearest {@code INHERITED} declaration named {@code name}. */
+    Optional<InputDecl> inheritedAncestorDecl(final Scope scope, final String name) {
+        return scope.parent()
+                .flatMap(parent -> ownInheritedDecl(parent, name).or(() -> inheritedAncestorDecl(parent, name)));
+    }
+
+    Optional<InputDecl> ownInheritedDecl(final Scope scope, final String name) {
+        return scope.inputDecls()
+                .filter(decl -> decl.getVisibility() == Visibility.INHERITED
+                        && decl.getName().equals(name))
                 .findFirst();
     }
 

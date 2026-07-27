@@ -59,7 +59,7 @@ final class SourcePathDescender {
     /** The scope-input root {@code LEAF} for the path's first {@code segment}, or {@code null} when no input declares it. */
     @Nullable
     Value materialiseRoot(final Scope scope, final String segment) {
-        return scope.inputDecls(resolver::resolve)
+        return scope.inputDecls()
                 .filter(decl -> decl.getLocation().slotName().equals(segment))
                 .findFirst()
                 .map(decl -> applier.apply(

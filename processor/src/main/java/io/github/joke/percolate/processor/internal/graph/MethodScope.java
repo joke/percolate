@@ -1,18 +1,39 @@
 package io.github.joke.percolate.processor.internal.graph;
 
-import io.github.joke.percolate.spi.Nullability;
+import java.util.List;
 import java.util.Optional;
-import java.util.function.BiFunction;
 import java.util.stream.Stream;
-import javax.lang.model.element.Element;
 import javax.lang.model.element.ExecutableElement;
-import javax.lang.model.element.VariableElement;
-import javax.lang.model.type.TypeMirror;
+import lombok.EqualsAndHashCode;
+import lombok.ToString;
 import lombok.Value;
 
+/**
+ * A method scope's identity is its {@link #method} alone (design D5 of change
+ * {@code decouple-engine-from-strategy-semantics}) — two instances for the same method are the same scope
+ * regardless of which {@link InputDecl}s they were built with, so scope dedup (used pervasively as a map key) is
+ * unaffected by how a caller constructed it. {@code MethodScope} itself reads no annotation and holds no
+ * resolver: its declarations arrive already resolved, built by whoever seeds the method's scope.
+ */
 @Value
 public class MethodScope implements Scope {
+
     ExecutableElement method;
+
+    @EqualsAndHashCode.Exclude
+    @ToString.Exclude
+    List<InputDecl> declarations;
+
+    /** A map-key-only scope carrying no input declarations; never call {@link #inputDecls()} on this instance. */
+    public MethodScope(final ExecutableElement method) {
+        this(method, List.of());
+    }
+
+    /** The scope actually used during expansion: {@code declarations} is one resolved {@link InputDecl} per parameter. */
+    public MethodScope(final ExecutableElement method, final List<InputDecl> declarations) {
+        this.method = method;
+        this.declarations = List.copyOf(declarations);
+    }
 
     @Override
     public String encode() {
@@ -28,36 +49,8 @@ public class MethodScope implements Scope {
         return Optional.of(MapperScope.INSTANCE);
     }
 
-    /** One input declaration per method parameter — a single-segment {@code SourceLocation} typed from the signature. */
     @Override
-    public Stream<InputDecl> inputDecls(final BiFunction<TypeMirror, Element, Nullability> nullness) {
-        return method.getParameters().stream()
-                .map(param -> new InputDecl(
-                        new SourceLocation(AccessPath.of(param.getSimpleName().toString())),
-                        param.asType(),
-                        nullness.apply(param.asType(), param)));
-    }
-
-    /**
-     * One ambient entry per {@code @Ambient} parameter, keyed per {@link AmbientKeys#keyOf}, at the same
-     * single-segment {@code SourceLocation} an ordinary {@code @Map} source would resolve to — so both paths
-     * materialise the identical graph {@link Value} for that parameter.
-     */
-    @Override
-    public Stream<AmbientDecl> ambientDecls(final BiFunction<TypeMirror, Element, Nullability> nullness) {
-        return method.getParameters().stream().flatMap(param -> ambientDecl(param, nullness).stream());
-    }
-
-    Optional<AmbientDecl> ambientDecl(
-            final VariableElement param, final BiFunction<TypeMirror, Element, Nullability> nullness) {
-        final var key = AmbientKeys.keyOf(param);
-        if (key == null) {
-            return Optional.empty();
-        }
-        return Optional.of(new AmbientDecl(
-                key,
-                new SourceLocation(AccessPath.of(param.getSimpleName().toString())),
-                param.asType(),
-                nullness.apply(param.asType(), param)));
+    public Stream<InputDecl> inputDecls() {
+        return declarations.stream();
     }
 }

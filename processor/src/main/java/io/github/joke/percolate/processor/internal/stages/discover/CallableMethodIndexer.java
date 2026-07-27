@@ -3,10 +3,9 @@ package io.github.joke.percolate.processor.internal.stages.discover;
 import static java.util.stream.Collectors.toUnmodifiableList;
 
 import com.groupcdg.pitest.annotations.CoverageIgnore;
-import io.github.joke.percolate.processor.internal.graph.AmbientKeys;
+import io.github.joke.percolate.processor.internal.graph.Visibility;
 import jakarta.inject.Inject;
 import java.util.List;
-import java.util.Objects;
 import javax.lang.model.element.Element;
 import javax.lang.model.element.ExecutableElement;
 import javax.lang.model.element.TypeElement;
@@ -48,8 +47,8 @@ final class CallableMethodIndexer {
 
     List<String> ambientKeys(final ExecutableElement method) {
         return method.getParameters().stream()
-                .map(AmbientKeys::keyOf)
-                .filter(Objects::nonNull)
+                .filter(param -> AmbientAnnotations.visibilityOf(param) == Visibility.INHERITED)
+                .map(AmbientAnnotations::nameOf)
                 .collect(toUnmodifiableList());
     }
 

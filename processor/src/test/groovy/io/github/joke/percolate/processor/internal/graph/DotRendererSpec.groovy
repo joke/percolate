@@ -153,22 +153,17 @@ class DotRendererSpec extends Specification {
         DotRenderer.body(raw) == 'int'
     }
 
-    def 'body: a declared type with type arguments renders simple-name generics, marking a nullable argument'() {
-        def nullableArg = Stub(DeclaredType) {
-            getKind() >> TypeKind.DECLARED
-            getTypeArguments() >> []
-            asElement() >> Stub(TypeElement) { getSimpleName() >> Stub(Name) { toString() >> 'String' } }
-            getAnnotationMirrors() >> [nullableAnnotationMirror()]
-        }
-        def nonNullArg = declaredType('Integer')
+    def 'body: a declared type with type arguments renders simple-name generics, with no nested nullness mark'() {
+        def stringArg = declaredType('String')
+        def integerArg = declaredType('Integer')
         def list = Stub(DeclaredType) {
             getKind() >> TypeKind.DECLARED
-            getTypeArguments() >> [nullableArg, nonNullArg]
+            getTypeArguments() >> [stringArg, integerArg]
             asElement() >> Stub(TypeElement) { getSimpleName() >> Stub(Name) { toString() >> 'Map' } }
         }
 
         expect:
-        DotRenderer.body(list) == 'Map<String?, Integer>'
+        DotRenderer.body(list) == 'Map<String, Integer>'
     }
 
     def 'topMark: NULLABLE renders ?, NON_NULL renders !, unset renders nothing'() {
@@ -213,14 +208,6 @@ class DotRendererSpec extends Specification {
 
     private Value valueAt(final Location loc) {
         new Value(loc, scope, Optional.of(STRING), Optional.of(Nullability.NON_NULL))
-    }
-
-    private javax.lang.model.element.AnnotationMirror nullableAnnotationMirror() {
-        Stub(javax.lang.model.element.AnnotationMirror) {
-            getAnnotationType() >> Stub(DeclaredType) {
-                asElement() >> Stub(TypeElement) { getSimpleName() >> Stub(Name) { contentEquals('Nullable') >> true } }
-            }
-        }
     }
 
     private AddValue leaf(final String slot, final TypeMirror type) {

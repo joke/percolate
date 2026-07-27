@@ -92,16 +92,16 @@ through `tail`.
 
 ## 7. Scope inputs: name and visibility (group B2)
 
-- [ ] 7.1 Extend the single input declaration with a name and a `LOCAL`/`INHERITED` visibility, and delete `AmbientDecl`
-- [ ] 7.2 Collapse `Scope` to one declaration stream taking no nullness callback, with nullness resolved where the declaration is built
-- [ ] 7.3 Implement selection: `BY_TYPE` searches the scope's own declarations only; `BY_NAME` searches its own then the nearest ancestor's `INHERITED` declarations
-- [ ] 7.4 Delete `internal/graph/AmbientKeys` and publish parameter names and visibility from discovery
-- [ ] 7.5 Drop the `NullabilityResolver` field from `SourceCandidates`, `SourcePathDescender` and `Seeder`
-- [ ] 7.6 Make `DotRenderer` read nullness from the graph and delete its simple-name `Nullable` match
-- [ ] 7.7 Add the regression scenario: a child scope must **not** type-match an enclosing method's inherited parameter
-- [ ] 7.8 Add a scenario proving both access paths materialise the identical `Value`
-- [ ] 7.9 Update the graph-model, graph-expansion, ambient and nullability specs
-- [ ] 7.10 Run `./gradlew check --no-configuration-cache` and fix every violation
+- [x] 7.1 Extend the single input declaration with a name and a `LOCAL`/`INHERITED` visibility, and delete `AmbientDecl`
+- [x] 7.2 Collapse `Scope` to one declaration stream taking no nullness callback, with nullness resolved where the declaration is built
+- [x] 7.3 Implement selection: `BY_TYPE` searches the scope's own declarations only; `BY_NAME` searches its own then the nearest ancestor's `INHERITED` declarations
+- [x] 7.4 Delete `internal/graph/AmbientKeys` and publish parameter names and visibility from discovery
+- [x] 7.5 Drop the `NullabilityResolver` field from `SourceCandidates` (its only uses were the removed scope-input callback); `SourcePathDescender` and `Seeder` keep it — each also uses it for a discovered element's nullness (`DescendView`, the return type), which D13 keeps SPI-facing
+- [x] 7.6 Make `DotRenderer` read nullness from the graph and delete its simple-name `Nullable` match — nested type-argument nullness has no resolved source on the graph, so the nested mark is dropped rather than re-derived
+- [x] 7.7 Add the regression scenario: a child scope must **not** type-match an enclosing method's inherited parameter
+- [x] 7.8 Add a scenario proving both access paths resolve to the declaration's one location — corrected from "identical Value": a `Dep` edge cannot cross a scope boundary, so a descendant's `BY_NAME` match mints its own `Value` there, same-scope matches dedup as before (graph-expansion and ambient-parameters specs corrected accordingly)
+- [x] 7.9 Update the graph-model, graph-expansion, ambient and nullability specs
+- [x] 7.10 Run `./gradlew check --no-configuration-cache` and fix every violation
 
 ## 8. Directive reading moves to the SPI (group C1)
 

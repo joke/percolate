@@ -89,8 +89,11 @@ An annotated parameter SHALL remain an ordinary source root: a binding may desce
 `BY_TYPE` port in that parameter's own scope may bind it by type. Publishing a name is **additive** — it adds a
 by-name access path and descendant visibility, and removes nothing.
 
-Because a parameter is declared exactly once, both access paths SHALL materialise the identical `Value`; this
-follows from there being one declaration rather than from an invariant maintained between two.
+Because a parameter is declared exactly once, both access paths SHALL materialise at that one declaration's
+location; a same-scope match dedups to the identical `Value` (there being one declaration, not an invariant
+maintained between two), while a `BY_NAME` match from a descendant scope materialises its own `Value` at that
+same location — a `Dep` edge never crosses a scope boundary, so a value consumed by a descendant's operation
+cannot be the declaring scope's own `Value`.
 
 #### Scenario: A named parameter is still a source root
 - **WHEN** a binding declares a source path whose first segment is the annotated parameter's name
@@ -100,9 +103,9 @@ follows from there being one declaration rather than from an invariant maintaine
 - **WHEN** a `BY_TYPE` port in the declaring method's scope matches the annotated parameter's type
 - **THEN** it binds that parameter
 
-#### Scenario: Both access paths yield one Value
+#### Scenario: Both access paths resolve to the declaration's one location
 - **WHEN** the parameter is reached once by name from a child scope and once by type in its own scope
-- **THEN** the identical `Value` is materialised, because a single declaration backs both
+- **THEN** each materialises a `Value` at that declaration's location, in its own requesting scope
 
 #### Scenario: A named parameter is not type-matchable from a descendant scope
 - **WHEN** a `BY_TYPE` port in a child (element) scope matches the type of an enclosing method's named parameter

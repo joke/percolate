@@ -2,14 +2,13 @@ package io.github.joke.percolate.processor.internal.stages.expand
 
 import io.github.joke.percolate.processor.internal.graph.AccessPath
 import io.github.joke.percolate.processor.internal.graph.AddValue
-import io.github.joke.percolate.processor.internal.graph.AmbientDecl
 import io.github.joke.percolate.processor.internal.graph.InputDecl
 import io.github.joke.percolate.processor.internal.graph.Location
 import io.github.joke.percolate.processor.internal.graph.MapperGraph
 import io.github.joke.percolate.processor.internal.graph.Scope
 import io.github.joke.percolate.processor.internal.graph.SourceLocation
 import io.github.joke.percolate.processor.internal.graph.Value
-import io.github.joke.percolate.processor.nullability.NullabilityResolver
+import io.github.joke.percolate.processor.internal.graph.Visibility
 import io.github.joke.percolate.spi.Nullability
 import io.github.joke.percolate.spi.Port
 import io.github.joke.percolate.spi.ResolveCtx
@@ -21,19 +20,20 @@ import java.util.stream.Stream
 
 /**
  * {@link SourceCandidates} unit-tested mock-only over the {@link ResolveCtx} type-query seam (change
- * {@code type-query-seam}): the sole type question — same-type — is stubbed on a mocked {@code ResolveCtx}, every
- * {@link TypeMirror} is an opaque never-interrogated token, and the graph is a real in-memory structure. No javac.
- * The cases isolate the {@code matchesPort} type/nullness rule, the {@code matchingSource} ranking (pinned source
- * first, then least-id graph source, then a materialised input, else {@code null}), and {@code sourceTypes}.
+ * {@code type-query-seam}, extended by {@code decouple-engine-from-strategy-semantics}): the sole type question —
+ * same-type — is stubbed on a mocked {@code ResolveCtx}, every {@link TypeMirror} is an opaque never-interrogated
+ * token, and the graph is a real in-memory structure. No javac. The cases isolate the {@code matchesPort}
+ * type/nullness rule, the {@code matchingSource} ranking (pinned source first, then least-id graph source, then a
+ * materialised input, else {@code null}), {@code sourceTypes}, and {@code byNameSource}'s own-scope-then-nearest-
+ * inherited-ancestor walk (design D5).
  */
 @Tag('unit')
 class SourceCandidatesSpec extends Specification {
 
     ResolveCtx resolveCtx = Mock()
-    NullabilityResolver resolver = Mock()
     Scope scope = Mock()
     MapperGraph graph = new MapperGraph()
-    SourceCandidates candidates = new SourceCandidates(graph, new Applier(), resolver, resolveCtx)
+    SourceCandidates candidates = new SourceCandidates(graph, new Applier(), resolveCtx)
 
     TypeMirror personType = Mock()
     TypeMirror intType = Mock()
@@ -81,7 +81,7 @@ class SourceCandidatesSpec extends Specification {
         resolveCtx.isSameType(intType, personType) >> false
         resolveCtx.isSameType(personType, personType) >> true
         def pinned = value(intType, Nullability.NON_NULL)
-        scope.inputDecls(_) >> Stream.of(inputDecl(personType, Nullability.NON_NULL, leaf('p')))
+        scope.inputDecls() >> Stream.of(inputDecl(personType, Nullability.NON_NULL, leaf('p')))
         def chosen = candidates.matchingSource(scope, port(personType, Nullability.NON_NULL), pinned)
 
         expect:
@@ -101,7 +101,7 @@ class SourceCandidatesSpec extends Specification {
 
     def 'matchingSource materialises the matching parameter when no graph source exists'() {
         resolveCtx.isSameType(personType, personType) >> true
-        scope.inputDecls(_) >> Stream.of(inputDecl(personType, Nullability.NON_NULL, leaf('p')))
+        scope.inputDecls() >> Stream.of(inputDecl(personType, Nullability.NON_NULL, leaf('p')))
         def chosen = candidates.matchingSource(scope, port(personType, Nullability.NON_NULL), null)
 
         expect:
@@ -111,7 +111,7 @@ class SourceCandidatesSpec extends Specification {
     }
 
     def 'matchingSource returns null when nothing in scope matches the port'() {
-        scope.inputDecls(_) >> Stream.empty()
+        scope.inputDecls() >> Stream.empty()
 
         expect:
         candidates.matchingSource(scope, port(personType, Nullability.NON_NULL), null) == null
@@ -121,17 +121,29 @@ class SourceCandidatesSpec extends Specification {
         resolveCtx.isSameType(personType, personType) >> true
         def before = inputDecl(personType, Nullability.NON_NULL, leaf('before'))
         def after = inputDecl(personType, Nullability.NON_NULL, leaf('after'))
-        scope.inputDecls(_) >> Stream.of(before, after)
+        scope.inputDecls() >> Stream.of(before, after)
         def chosen = candidates.matchingSource(scope, port(personType, Nullability.NON_NULL), null)
 
         expect:
         chosen.loc == before.location
     }
 
+    def "matchingSource never matches an ancestor scope's INHERITED declaration — BY_TYPE stays scope-own-only"() {
+        Scope childScope = Mock()
+        resolveCtx.isSameType(personType, personType) >> true
+        def inherited = inputDecl(personType, Nullability.NON_NULL, leaf('order'), 'order', Visibility.INHERITED)
+        childScope.inputDecls() >> Stream.empty()
+        childScope.parent() >> Optional.of(scope)
+        scope.inputDecls() >> Stream.of(inherited)
+
+        expect:
+        candidates.matchingSource(childScope, port(personType, Nullability.NON_NULL), null) == null
+    }
+
     // ---- sourceTypes -----------------------------------------------------------------------------------------
 
     def 'sourceTypes lists the declared parameter input types plus discovered graph sources'() {
-        scope.inputDecls(_) >> Stream.of(inputDecl(personType, Nullability.NON_NULL, leaf('p')))
+        scope.inputDecls() >> Stream.of(inputDecl(personType, Nullability.NON_NULL, leaf('p')))
         source(access('x', 'y'), intType, Nullability.NON_NULL)
         def types = candidates.sourceTypes(scope)
 
@@ -143,7 +155,7 @@ class SourceCandidatesSpec extends Specification {
     def 'sourceTypes orders declared inputs before discovered graph sources, each in a stable order'() {
         def firstDecl = inputDecl(personType, Nullability.NON_NULL, leaf('first'))
         def secondDecl = inputDecl(intType, Nullability.NON_NULL, leaf('second'))
-        scope.inputDecls(_) >> Stream.of(firstDecl, secondDecl)
+        scope.inputDecls() >> Stream.of(firstDecl, secondDecl)
         def firstGraphSource = source(access('g', 'a'), personType, Nullability.NON_NULL)
         def secondGraphSource = source(access('g', 'b'), intType, Nullability.NON_NULL)
 
@@ -151,58 +163,87 @@ class SourceCandidatesSpec extends Specification {
         candidates.sourceTypes(scope) == [personType, intType, firstGraphSource.type(), secondGraphSource.type()]
     }
 
-    // ---- byNameSource ------------------------------------------------------------------------------------------
+    // ---- byNameSource: own scope first, then the nearest INHERITED ancestor ------------------------------------
 
-    def 'byNameSource materialises the binding whose key matches the port, when the type is assignable'() {
+    def 'byNameSource materialises the binding whose name matches the port, when the type is assignable'() {
         resolveCtx.isAssignable(personType, personType) >> true
-        scope.ambientDecls(_) >> Stream.of(ambientDecl('order', personType, Nullability.NON_NULL, leaf('order')))
-        def bound = candidates.byNameSource(scope, ambientPort('order', personType))
+        scope.inputDecls() >> Stream.of(inputDecl(personType, Nullability.NON_NULL, leaf('order'), 'order'))
+        def bound = candidates.byNameSource(scope, byNamePort('order', personType))
 
         expect:
         bound.loc == leaf('order')
         bound.type.get().is(personType)
     }
 
-    def 'byNameSource returns null when no binding matches the key'() {
-        scope.ambientDecls(_) >> Stream.of(ambientDecl('other', personType, Nullability.NON_NULL, leaf('other')))
+    def 'byNameSource returns null when no declaration matches the name anywhere in the ancestor chain'() {
+        scope.inputDecls() >> Stream.of(inputDecl(personType, Nullability.NON_NULL, leaf('other'), 'other'))
+        scope.parent() >> Optional.empty()
 
         expect:
-        candidates.byNameSource(scope, ambientPort('order', personType)) == null
+        candidates.byNameSource(scope, byNamePort('order', personType)) == null
     }
 
     def "byNameSource returns null when the binding's type is not assignable to the port's declared type"() {
         resolveCtx.isAssignable(intType, personType) >> false
-        scope.ambientDecls(_) >> Stream.of(ambientDecl('order', intType, Nullability.NON_NULL, leaf('order')))
+        scope.inputDecls() >> Stream.of(inputDecl(intType, Nullability.NON_NULL, leaf('order'), 'order'))
+        def result = candidates.byNameSource(scope, byNamePort('order', personType))
 
         expect:
-        candidates.byNameSource(scope, ambientPort('order', personType)) == null
+        result == null
     }
 
-    def 'byNameSource selects the earlier-declared binding when two entries share a key'() {
+    def 'byNameSource selects the earlier-declared binding when two of its own declarations share a name'() {
         resolveCtx.isAssignable(personType, personType) >> true
-        def before = ambientDecl('order', personType, Nullability.NON_NULL, leaf('before'))
-        def after = ambientDecl('order', personType, Nullability.NON_NULL, leaf('after'))
-        scope.ambientDecls(_) >> Stream.of(before, after)
-        def bound = candidates.byNameSource(scope, ambientPort('order', personType))
+        def before = inputDecl(personType, Nullability.NON_NULL, leaf('before'), 'order')
+        def after = inputDecl(personType, Nullability.NON_NULL, leaf('after'), 'order')
+        scope.inputDecls() >> Stream.of(before, after)
+        def bound = candidates.byNameSource(scope, byNamePort('order', personType))
 
         expect:
         bound.loc == leaf('before')
     }
 
+    def 'byNameSource walks to the nearest ancestor scope declaring the name INHERITED, but materialises in the requesting scope'() {
+        Scope childScope = Mock()
+        resolveCtx.isAssignable(personType, personType) >> true
+        def inherited = inputDecl(personType, Nullability.NON_NULL, leaf('order'), 'order', Visibility.INHERITED)
+        childScope.inputDecls() >> Stream.empty()
+        childScope.parent() >> Optional.of(scope)
+        scope.inputDecls() >> Stream.of(inherited)
+        def bound = candidates.byNameSource(childScope, byNamePort('order', personType))
+
+        expect:
+        bound.scope.is(childScope)
+        bound.loc == leaf('order')
+    }
+
+    def "byNameSource ignores an ancestor's own declaration that is not marked INHERITED"() {
+        Scope childScope = Mock()
+        def local = inputDecl(personType, Nullability.NON_NULL, leaf('order'), 'order', Visibility.LOCAL)
+        childScope.inputDecls() >> Stream.empty()
+        childScope.parent() >> Optional.of(scope)
+        scope.inputDecls() >> Stream.of(local)
+        scope.parent() >> Optional.empty()
+
+        expect:
+        candidates.byNameSource(childScope, byNamePort('order', personType)) == null
+    }
+
     // ---- byNameDeclaredType --------------------------------------------------------------------------------------
 
     def 'byNameDeclaredType reports the declared type of a matching binding regardless of assignability'() {
-        scope.ambientDecls(_) >> Stream.of(ambientDecl('order', intType, Nullability.NON_NULL, leaf('order')))
+        scope.inputDecls() >> Stream.of(inputDecl(intType, Nullability.NON_NULL, leaf('order'), 'order'))
 
         expect:
-        candidates.byNameDeclaredType(scope, ambientPort('order', personType)).get().is(intType)
+        candidates.byNameDeclaredType(scope, byNamePort('order', personType)).get().is(intType)
     }
 
-    def 'byNameDeclaredType is empty when no binding matches the key'() {
-        scope.ambientDecls(_) >> Stream.of(ambientDecl('other', personType, Nullability.NON_NULL, leaf('other')))
+    def 'byNameDeclaredType is empty when no binding matches the name'() {
+        scope.inputDecls() >> Stream.of(inputDecl(personType, Nullability.NON_NULL, leaf('other'), 'other'))
+        scope.parent() >> Optional.empty()
 
         expect:
-        candidates.byNameDeclaredType(scope, ambientPort('order', personType)).empty
+        candidates.byNameDeclaredType(scope, byNamePort('order', personType)).empty
     }
 
     // ---- helpers ---------------------------------------------------------------------------------------------
@@ -227,25 +268,13 @@ class SourceCandidatesSpec extends Specification {
         new SourceLocation(new AccessPath([segment]))
     }
 
-    private InputDecl inputDecl(final TypeMirror type, final Nullability nullness, final Location location) {
-        def decl = Mock(InputDecl)
-        decl.type >> type
-        decl.nullness >> nullness
-        decl.location >> location
-        decl
+    private InputDecl inputDecl(
+            final TypeMirror type, final Nullability nullness, final Location location,
+            final String name = 'x', final Visibility visibility = Visibility.LOCAL) {
+        new InputDecl(location, type, nullness, name, visibility)
     }
 
-    private AmbientDecl ambientDecl(
-            final String key, final TypeMirror type, final Nullability nullness, final Location location) {
-        def decl = Mock(AmbientDecl)
-        decl.key >> key
-        decl.type >> type
-        decl.nullness >> nullness
-        decl.location >> location
-        decl
-    }
-
-    private Port ambientPort(final String key, final TypeMirror type) {
-        Port.byName(key, type, Nullability.NON_NULL, key)
+    private Port byNamePort(final String bindingName, final TypeMirror type) {
+        Port.byName(bindingName, type, Nullability.NON_NULL, bindingName)
     }
 }

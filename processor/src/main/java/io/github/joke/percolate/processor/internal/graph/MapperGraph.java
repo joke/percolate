@@ -116,7 +116,8 @@ public final class MapperGraph {
         final var child = operation.getChildScope().orElseThrow();
         final var returnRoot = valueFor(
                 child, new TargetLocation(TargetPath.of("")), decl.getElementOut(), decl.getElementOutNullness());
-        final var elementInput = new InputDecl(new ElementLocation(), decl.getElementIn(), decl.getElementInNullness());
+        final var elementInput = new InputDecl(
+                new ElementLocation(), decl.getElementIn(), decl.getElementInNullness(), "element", Visibility.LOCAL);
         child.initialise(returnRoot, elementInput);
     }
 
