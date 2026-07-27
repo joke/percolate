@@ -145,6 +145,8 @@ class ModuleBoundariesSpec extends Specification {
         noClasses().that().resideInAPackage(PROCESSOR)
                 .should().dependOnClassesThat().haveNameMatching(
                         mappingAnnotations.collect { java.util.regex.Pattern.quote(it) }.join('|'))
+                .because('user-facing mapping annotations are read at the DirectiveReader boundary and never '
+                        + 'inside the processor — only @Mapper, which decides what to generate, stays core')
                 .check(imported)
 
         then:
@@ -181,6 +183,8 @@ class ModuleBoundariesSpec extends Specification {
                 .that().areDeclaredInClassesThat(notNullabilityResolver)
                 .and().areDeclaredInClassesThat().resideInAPackage(PROCESSOR)
                 .should(callsRawAnnotationRead)
+                .because('the engine interprets no annotation — reading one belongs to the DirectiveReaders and '
+                        + 'to the single nullability resolver, both outside the engine')
                 .check(imported)
 
         then:

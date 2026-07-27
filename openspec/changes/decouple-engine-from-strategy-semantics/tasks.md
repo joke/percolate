@@ -146,7 +146,7 @@ through `tail`.
 - [x] 11.1 Add the rule that no `processor` class depends on `@Map`/`@MapList`/`@MapEnum`/`@MapEnumList`/`@Ambient`, matching the annotations' exact package with no trailing wildcard, permitting only the mapper step's `@Mapper`
 - [x] 11.2 Add the rule that no engine class calls `getAnnotationMirrors()` or `getAnnotation(Class)`, leaving the readers and the nullability resolver unaffected
 - [x] 11.3 Write both rules' failure messages to state the invariant they protect
-- [x] 11.4 Reconcile `ProcessorModule`'s ordered `Stage` list with the five surviving stages and update its pinned scenario
+- [x] 11.4 Reconcile `ProcessorModule`'s ordered `Stage` list with the surviving stages and update its pinned scenario — "the five surviving stages" as originally written miscounted: the four deleted validation stages (`ValidateConstantDefaultLegality`, `ValidateEnumOverrides`, `ValidateAmbientBindings`, `ValidateMappingShape`) leave four (`ValidateNoDuplicateTargets`, `ValidateSourceParameters`, `ValidateOptionConsumption`, `RealisationDiagnostics`) inside a twelve-stage roster
 - [x] 11.5 Confirm the `*Stage` naming convention and the no-private and size-ceiling rules still hold across every touched package
 - [x] 11.6 Run `./gradlew check --no-configuration-cache` and fix every violation
 
