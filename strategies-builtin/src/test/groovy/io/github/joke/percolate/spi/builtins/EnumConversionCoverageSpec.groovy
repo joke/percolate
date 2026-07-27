@@ -9,29 +9,43 @@ import spock.lang.Tag
 import javax.tools.JavaFileObject
 
 /**
- * Compile-time coverage safety across both switch tiers (design D5): an uncovered source constant fails the build
- * either way, but through a different mechanism — javac's own exhaustiveness check on the {@code ARROW} tier
- * (Java 14+, no percolate diagnostic at all), and percolate's own coverage check on the {@code CLASSIC} tier
- * (Java 11, where statement-switch totality is unchecked by the compiler).
+ * Compile-time coverage safety, uniform across both switch tiers (design D6 of change
+ * {@code decouple-engine-from-strategy-semantics}): an uncovered source constant is refused by the strategy's
+ * bound before grounding ever competes, so it fails the build identically on {@code CLASSIC} and {@code ARROW}
+ * targets — the modern tier's own switch-expression exhaustiveness check is retained only as a second line of
+ * defence, never reached once the bound is in place.
  */
 @Tag('integration')
 class EnumConversionCoverageSpec extends Specification {
 
-    def 'an uncovered source constant fails the compile via javac exhaustiveness on a Java 17 (arrow) target'() {
+    def 'an uncovered source constant fails the compile via a positioned diagnostic naming it on a Java 17 (arrow) target'() {
         when:
         Compilation compilation = compile(['--release', '17'], MY_STATUS_UNCOVERED)
-
-        then: "javac's own exhaustiveness check rejects it — not percolate's own coverage diagnostic"
-        !compilation.errors().empty
-        !compilation.errors().any { it.getMessage(null).contains('no @MapEnum or same-name match') }
-    }
-
-    def 'an uncovered source constant fails the compile via a percolate diagnostic naming it on a Java 11 (classic) target'() {
-        when:
-        Compilation compilation = compile(['--release', '11'], MY_STATUS_UNCOVERED)
+        def error = compilation.errors().find { it.getMessage(null).contains('CANCELLED') }
 
         then:
-        compilation.errors().any { it.getMessage(null).contains('CANCELLED') }
+        error != null
+        error.lineNumber > 0
+    }
+
+    def 'an uncovered source constant fails the compile via a positioned diagnostic naming it on a Java 11 (classic) target'() {
+        when:
+        Compilation compilation = compile(['--release', '11'], MY_STATUS_UNCOVERED)
+        def error = compilation.errors().find { it.getMessage(null).contains('CANCELLED') }
+
+        then:
+        error != null
+        error.lineNumber > 0
+    }
+
+    def 'a non-enum source fails the compile via a positioned diagnostic naming the bound, rather than a processor crash'() {
+        when:
+        Compilation compilation = PercolateCompiler.compile(ORDER_STATUS, TAG_STATUS_MAPPER)
+        def error = compilation.errors().find { it.getMessage(null).contains('enum conversion requires an enum source') }
+
+        then:
+        error != null
+        error.lineNumber > 0
     }
 
     def 'a fully-covered conversion compiles cleanly on the arrow tier'() {
@@ -71,6 +85,15 @@ class EnumConversionCoverageSpec extends Specification {
             '    @MapEnum(source = "NEW", target = "CREATED")',
             '    @MapEnum(source = "COMPLETED", target = "FULFILLED")',
             '    OrderStatus toStatus(MyStatus s);',
+            '}')
+
+    private static final JavaFileObject TAG_STATUS_MAPPER = JavaFileObjects.forSourceLines(
+            'examples.enumcoverage.TagStatusMapper',
+            'package examples.enumcoverage;',
+            'import io.github.joke.percolate.Mapper;',
+            '@Mapper',
+            'public interface TagStatusMapper {',
+            '    OrderStatus map(String tag);',
             '}')
 
     private static Compilation compile(final List<String> options, final JavaFileObject myStatus) {

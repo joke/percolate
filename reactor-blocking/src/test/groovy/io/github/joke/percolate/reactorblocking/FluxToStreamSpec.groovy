@@ -79,7 +79,7 @@ class FluxToStreamSpec extends Specification {
         spec.label == 'toStream'
         !spec.partial
         spec.weight == Blockings.WEIGHT
-        spec.ports == [Port.reuse('flux', fluxOfElement, Nullability.NON_NULL)]
+        spec.ports == [Port.byTypeOrDecline('flux', fluxOfElement, Nullability.NON_NULL)]
         spec.outputType.is(to)
         spec.outputNullness == Nullability.NON_NULL
         spec.childScope.empty

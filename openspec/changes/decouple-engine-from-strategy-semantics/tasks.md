@@ -68,27 +68,27 @@ through `tail`.
 
 ## 5. Bounded type variables (group A3)
 
-- [ ] 5.1 Add `PortType.variable(int, Bound)` with `Bound.check(TypeMirror, ResolveCtx)` returning an optional refusal
-- [ ] 5.2 Consult the bound in `Unifier.bindVariable` so a refused grounding instantiates no spec and records its refusal
-- [ ] 5.3 Give `EnumConversion` a bound covering both "source is an enum" and "every source constant is covered"
-- [ ] 5.4 Delete both `IllegalStateException` throws from `EnumConversion.render`
-- [ ] 5.5 Delete `ValidateEnumOverridesStage` — target-side checks ride the rail, source-side checks are the bound
-- [ ] 5.6 Delete `Weights.SENTINEL_UNREALISED` and `Weights.isSentinel`, plus their tests
-- [ ] 5.7 Add an e2e for `Status map(String tag)` proving a positioned compile error rather than a processor crash
-- [ ] 5.8 Add an e2e for an uncovered source constant on the Java 11 classic tier proving the same
-- [ ] 5.9 Run `./gradlew check --no-configuration-cache` and fix every violation
+- [x] 5.1 Add `PortType.variable(int, Bound)` with `Bound.check(TypeMirror, ResolveCtx)` returning an optional refusal
+- [x] 5.2 Consult the bound in `Unifier.bindVariable` so a refused grounding instantiates no spec and records its refusal
+- [x] 5.3 Give `EnumConversion` a bound covering both "source is an enum" and "every source constant is covered"
+- [x] 5.4 Delete both `IllegalStateException` throws from `EnumConversion.render`
+- [x] 5.5 Delete `ValidateEnumOverridesStage` — target-side checks ride the rail, source-side checks are the bound
+- [x] 5.6 Delete `Weights.SENTINEL_UNREALISED` and `Weights.isSentinel`, plus their tests
+- [x] 5.7 Add an e2e for `Status map(String tag)` proving a positioned compile error rather than a processor crash
+- [x] 5.8 Add an e2e for an uncovered source constant on the Java 11 classic tier proving the same
+- [x] 5.9 Run `./gradlew check --no-configuration-cache` and fix every violation
 
 ## 6. Port axes (group B1)
 
-- [ ] 6.1 Replace `Port.Sourcing` and `Port.key` with a selector (`BY_TYPE`/`BY_NAME`) and an on-miss rule (`DECLINE`/`MINT`/`REQUIRE`), keeping `SUBTARGET` as the distinct third case
-- [ ] 6.2 Provide the named factories (`byType`, `byTypeOrDecline`, `subTarget`, `byName`) with `BY_TYPE` + `MINT` as the plain-constructor default
-- [ ] 6.3 Dispatch on the two axes in `PortSourceResolver`, removing the second lookup method
-- [ ] 6.4 Record a refusal when a `REQUIRE` port cannot be sourced, naming the port, the binding name and (for a mismatch) both types, positioned at the spec's call target when present
-- [ ] 6.5 Make `MethodCallBridge` read the annotation itself and delete `ResolveCtx.ambientKey`
-- [ ] 6.6 Migrate every `Port` construction site across the SPI, built-ins, reactor modules and test fixtures
-- [ ] 6.7 Delete `ValidateAmbientBindingsStage`
-- [ ] 6.8 Update the port, ambient and engine specs
-- [ ] 6.9 Run `./gradlew check --no-configuration-cache` and fix every violation
+- [x] 6.1 Replace `Port.Sourcing` and `Port.key` with a selector (`BY_TYPE`/`BY_NAME`) and an on-miss rule (`DECLINE`/`MINT`/`REQUIRE`), keeping `SUBTARGET` as the distinct third case
+- [x] 6.2 Provide the named factories (`byType`, `byTypeOrDecline`, `subTarget`, `byName`) with `BY_TYPE` + `MINT` as the plain-constructor default
+- [x] 6.3 Dispatch on the two axes in `PortSourceResolver`, removing the second lookup method
+- [x] 6.4 Record a refusal when a `REQUIRE` port cannot be sourced, naming the port, the binding name and (for a mismatch) both types, positioned at the spec's call target when present
+- [x] 6.5 Make `MethodCallBridge` read the annotation itself and delete `ResolveCtx.ambientKey`
+- [x] 6.6 Migrate every `Port` construction site across the SPI, built-ins, reactor modules and test fixtures
+- [x] 6.7 Delete `ValidateAmbientBindingsStage`
+- [x] 6.8 Update the port, ambient and engine specs
+- [x] 6.9 Run `./gradlew check --no-configuration-cache` and fix every violation
 
 ## 7. Scope inputs: name and visibility (group B2)
 

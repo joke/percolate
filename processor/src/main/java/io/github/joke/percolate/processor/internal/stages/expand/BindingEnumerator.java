@@ -1,5 +1,6 @@
 package io.github.joke.percolate.processor.internal.stages.expand;
 
+import io.github.joke.percolate.spi.Offer;
 import io.github.joke.percolate.spi.Port;
 import io.github.joke.percolate.spi.PortType;
 import java.util.ArrayList;
@@ -23,10 +24,14 @@ final class BindingEnumerator {
 
     private final Unifier unifier;
 
-    /** Every consistent binding map assigning each of {@code ports}' templates to a unifying source in {@code sources}. */
-    List<Map<Integer, TypeMirror>> enumerate(final List<Port> ports, final List<TypeMirror> sources) {
+    /**
+     * Every consistent binding map assigning each of {@code ports}' templates to a unifying source in
+     * {@code sources}; every bound refusal along the way is recorded to {@code refusals}.
+     */
+    List<Map<Integer, TypeMirror>> enumerate(
+            final List<Port> ports, final List<TypeMirror> sources, final List<Offer> refusals) {
         final var out = new ArrayList<Map<Integer, TypeMirror>>();
-        assign(ports, 0, sources, new HashMap<>(), out);
+        assign(ports, 0, sources, new HashMap<>(), out, refusals);
         return out;
     }
 
@@ -36,14 +41,15 @@ final class BindingEnumerator {
             final int index,
             final List<TypeMirror> sources,
             final Map<Integer, TypeMirror> current,
-            final List<Map<Integer, TypeMirror>> out) {
+            final List<Map<Integer, TypeMirror>> out,
+            final List<Offer> refusals) {
         if (index == ports.size()) {
             out.add(new HashMap<>(current));
             return;
         }
         final var template = Objects.requireNonNull(ports.get(index).getTemplate());
         for (final var source : sources) {
-            tryAssign(ports, index, sources, current, out, template, source);
+            tryAssign(ports, index, sources, current, out, template, source, refusals);
         }
     }
 
@@ -54,10 +60,11 @@ final class BindingEnumerator {
             final Map<Integer, TypeMirror> current,
             final List<Map<Integer, TypeMirror>> out,
             final PortType template,
-            final TypeMirror source) {
+            final TypeMirror source,
+            final List<Offer> refusals) {
         final var trial = new HashMap<>(current);
-        if (unifier.unify(template, source, trial, 0)) {
-            assign(ports, index + 1, sources, trial, out);
+        if (unifier.unify(template, source, trial, 0, refusals)) {
+            assign(ports, index + 1, sources, trial, out, refusals);
         }
     }
 }

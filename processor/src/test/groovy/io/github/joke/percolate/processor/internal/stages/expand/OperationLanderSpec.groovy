@@ -36,7 +36,7 @@ class OperationLanderSpec extends Specification {
     Operation landed = Mock()
 
     def 'landOperation builds and applies a plain AddOperation carrying no child scope'() {
-        def port = Port.reuse('src', Mock(TypeMirror), Nullability.NON_NULL)
+        def port = Port.byTypeOrDecline('src', Mock(TypeMirror), Nullability.NON_NULL)
         def source = new AddValue(Mock(Scope), Mock(Location), Mock(TypeMirror), Nullability.NON_NULL)
         def ports = [new PortBinding(port, source)]
         def spec = OperationSpec.of('copy', codegen, 3, [port], outputType, Nullability.NON_NULL)
@@ -54,7 +54,7 @@ class OperationLanderSpec extends Specification {
     }
 
     def 'landOperation builds and applies a partial AddOperation'() {
-        def port = Port.reuse('src', Mock(TypeMirror), Nullability.NON_NULL)
+        def port = Port.byTypeOrDecline('src', Mock(TypeMirror), Nullability.NON_NULL)
         def ports = [new PortBinding(port, new AddValue(Mock(Scope), Mock(Location), Mock(TypeMirror), Nullability.NON_NULL))]
         def spec = OperationSpec.ofPartial('firstOrThrow', codegen, 2, [port], outputType, Nullability.NON_NULL)
         def output = new AddValue(Mock(Scope), Mock(Location), outputType, Nullability.NON_NULL)
@@ -73,7 +73,7 @@ class OperationLanderSpec extends Specification {
     def 'landOperation builds an AddOperation carrying a ChildScopeDecl for a mapping spec'() {
         def elementIn = Mock(TypeMirror)
         def elementOut = Mock(TypeMirror)
-        def port = Port.reuse('src', Mock(TypeMirror), Nullability.NON_NULL)
+        def port = Port.byTypeOrDecline('src', Mock(TypeMirror), Nullability.NON_NULL)
         def ports = [new PortBinding(port, new AddValue(Mock(Scope), Mock(Location), Mock(TypeMirror), Nullability.NON_NULL))]
         def child = new ChildScopeSpec(elementIn, Nullability.NON_NULL, elementOut, Nullability.NULLABLE)
         def spec = OperationSpec.mapping('map', codegen, 5, [port], outputType, Nullability.NON_NULL, child)

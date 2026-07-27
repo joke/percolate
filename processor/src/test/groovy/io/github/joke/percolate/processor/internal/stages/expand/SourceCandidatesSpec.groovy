@@ -151,42 +151,58 @@ class SourceCandidatesSpec extends Specification {
         candidates.sourceTypes(scope) == [personType, intType, firstGraphSource.type(), secondGraphSource.type()]
     }
 
-    // ---- ambientSource -----------------------------------------------------------------------------------------
+    // ---- byNameSource ------------------------------------------------------------------------------------------
 
-    def 'ambientSource materialises the binding whose key matches the port, when the type is assignable'() {
+    def 'byNameSource materialises the binding whose key matches the port, when the type is assignable'() {
         resolveCtx.isAssignable(personType, personType) >> true
         scope.ambientDecls(_) >> Stream.of(ambientDecl('order', personType, Nullability.NON_NULL, leaf('order')))
-        def bound = candidates.ambientSource(scope, ambientPort('order', personType))
+        def bound = candidates.byNameSource(scope, ambientPort('order', personType))
 
         expect:
         bound.loc == leaf('order')
         bound.type.get().is(personType)
     }
 
-    def 'ambientSource returns null when no binding matches the key'() {
+    def 'byNameSource returns null when no binding matches the key'() {
         scope.ambientDecls(_) >> Stream.of(ambientDecl('other', personType, Nullability.NON_NULL, leaf('other')))
 
         expect:
-        candidates.ambientSource(scope, ambientPort('order', personType)) == null
+        candidates.byNameSource(scope, ambientPort('order', personType)) == null
     }
 
-    def "ambientSource returns null when the binding's type is not assignable to the port's declared type"() {
+    def "byNameSource returns null when the binding's type is not assignable to the port's declared type"() {
         resolveCtx.isAssignable(intType, personType) >> false
         scope.ambientDecls(_) >> Stream.of(ambientDecl('order', intType, Nullability.NON_NULL, leaf('order')))
 
         expect:
-        candidates.ambientSource(scope, ambientPort('order', personType)) == null
+        candidates.byNameSource(scope, ambientPort('order', personType)) == null
     }
 
-    def 'ambientSource selects the earlier-declared binding when two entries share a key'() {
+    def 'byNameSource selects the earlier-declared binding when two entries share a key'() {
         resolveCtx.isAssignable(personType, personType) >> true
         def before = ambientDecl('order', personType, Nullability.NON_NULL, leaf('before'))
         def after = ambientDecl('order', personType, Nullability.NON_NULL, leaf('after'))
         scope.ambientDecls(_) >> Stream.of(before, after)
-        def bound = candidates.ambientSource(scope, ambientPort('order', personType))
+        def bound = candidates.byNameSource(scope, ambientPort('order', personType))
 
         expect:
         bound.loc == leaf('before')
+    }
+
+    // ---- byNameDeclaredType --------------------------------------------------------------------------------------
+
+    def 'byNameDeclaredType reports the declared type of a matching binding regardless of assignability'() {
+        scope.ambientDecls(_) >> Stream.of(ambientDecl('order', intType, Nullability.NON_NULL, leaf('order')))
+
+        expect:
+        candidates.byNameDeclaredType(scope, ambientPort('order', personType)).get().is(intType)
+    }
+
+    def 'byNameDeclaredType is empty when no binding matches the key'() {
+        scope.ambientDecls(_) >> Stream.of(ambientDecl('other', personType, Nullability.NON_NULL, leaf('other')))
+
+        expect:
+        candidates.byNameDeclaredType(scope, ambientPort('order', personType)).empty
     }
 
     // ---- helpers ---------------------------------------------------------------------------------------------
@@ -200,7 +216,7 @@ class SourceCandidatesSpec extends Specification {
     }
 
     private Port port(final TypeMirror type, final Nullability nullness) {
-        Port.reuse('p', type, nullness)
+        Port.byTypeOrDecline('p', type, nullness)
     }
 
     private SourceLocation access(final String a, final String b) {
@@ -230,6 +246,6 @@ class SourceCandidatesSpec extends Specification {
     }
 
     private Port ambientPort(final String key, final TypeMirror type) {
-        Port.ambient(key, type, Nullability.NON_NULL, key)
+        Port.byName(key, type, Nullability.NON_NULL, key)
     }
 }

@@ -212,7 +212,7 @@ public abstract class Container implements ExpansionStrategy, SourceProjection {
                         "unwrap",
                         (OperationCodegen) inputs -> collapse.render(inputs.single(), demand.targetNullness()),
                         Weights.CONTAINER,
-                        List.of(Port.reuse(SOURCE_ROLE, source, Nullability.NON_NULL)),
+                        List.of(Port.byTypeOrDecline(SOURCE_ROLE, source, Nullability.NON_NULL)),
                         to,
                         demand.targetNullness()))));
     }

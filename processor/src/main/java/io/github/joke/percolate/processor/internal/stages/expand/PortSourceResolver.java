@@ -2,21 +2,23 @@ package io.github.joke.percolate.processor.internal.stages.expand;
 
 import io.github.joke.percolate.processor.internal.graph.AddValue;
 import io.github.joke.percolate.processor.internal.graph.Location;
+import io.github.joke.percolate.processor.internal.graph.Refusal;
 import io.github.joke.percolate.processor.internal.graph.Value;
 import io.github.joke.percolate.spi.Port;
+import io.github.joke.percolate.spi.Subject;
 import lombok.RequiredArgsConstructor;
 import org.jspecify.annotations.Nullable;
 
 /**
- * Resolves one {@link Port}'s feeding {@link AddValue} by its declared {@link Port.Sourcing} mode (design D1 of
- * change {@code target-driven-engine}, decomposed out of {@code ExpandStage.Driver} by
- * {@code decompose-engine-stages}): {@code SUBTARGET} mints a deeper child-target demand; {@code REUSE} and
- * {@code REUSE_OR_MINT} both bind an in-scope source (directive-pinned first), differing only when none is found —
- * {@code REUSE} declines (returns {@code null}) while {@code REUSE_OR_MINT} mints a fresh intermediate at the output
- * location. {@code AMBIENT} resolves the port's key against the scope's ambient environment (verifying the
- * binding's type), declining exactly like {@code REUSE} when the key is unbound or the type doesn't verify — the
- * engine stays diagnostics-free; a downstream validation re-derives the same failure to report it loudly (design
- * Decision 3: an unmatched ambient port must not merely vanish the way a declined {@code REUSE} does).
+ * Resolves one {@link Port}'s feeding {@link AddValue} by its declared axes (design D5 of change
+ * {@code decouple-engine-from-strategy-semantics}, decomposed out of {@code ExpandStage.Driver} by
+ * {@code decompose-engine-stages}): a sub-target port mints a deeper child-target demand; otherwise the port is
+ * sourced by its {@link Port.Selector} ({@code BY_TYPE} matches an in-scope source, directive-pinned first;
+ * {@code BY_NAME} resolves the scope's named input) and a miss is handled by its {@link Port.OnMiss} rule —
+ * {@code DECLINE} returns {@code null}, {@code MINT} mints a fresh intermediate at the output location, and
+ * {@code REQUIRE} records a refusal on {@code output} and returns {@code null}. The engine stays diagnostics-free
+ * for a {@code DECLINE}/{@code MINT} miss; a {@code REQUIRE} miss is the one case the engine itself reports, in
+ * port vocabulary, because an unsourceable required port is the engine failing its own declared contract.
  */
 @RequiredArgsConstructor
 final class PortSourceResolver {
@@ -24,36 +26,55 @@ final class PortSourceResolver {
     private final SourceCandidates sourceCandidates;
     private final OperationLander operationLander;
 
-    /** The feeding {@link AddValue} for {@code port} on {@code output}, or {@code null} when the port finds no source. */
+    /**
+     * The feeding {@link AddValue} for {@code port} on {@code output}, or {@code null} when the port finds no
+     * source. {@code subject} positions any {@code REQUIRE}-miss refusal — the spec's call target when present,
+     * else {@code Subjects.none()}.
+     */
     @Nullable
     AddValue sourceForPort(
-            final Value output, final String parentPath, final Port port, final @Nullable Value pinnedSource) {
-        if (port.getSourcing() == Port.Sourcing.SUBTARGET) {
+            final Value output,
+            final String parentPath,
+            final Port port,
+            final @Nullable Value pinnedSource,
+            final Subject subject) {
+        if (port.isSubTarget()) {
             return new AddValue(
                     output.getScope(), Location.child(parentPath, port.getName()), port.getType(), port.getNullness());
         }
-        if (port.getSourcing() == Port.Sourcing.AMBIENT) {
-            return ambientAddValue(output, port);
-        }
-        return reuseOrMint(output, port, pinnedSource);
+        final var bound = boundSource(output, port, pinnedSource);
+        return bound != null ? operationLander.reuse(bound) : onMiss(output, port, subject);
     }
 
     @Nullable
-    AddValue ambientAddValue(final Value output, final Port port) {
-        final var ambient = sourceCandidates.ambientSource(output.getScope(), port);
-        return ambient == null ? null : operationLander.reuse(ambient);
+    Value boundSource(final Value output, final Port port, final @Nullable Value pinnedSource) {
+        return port.getSelector() == Port.Selector.BY_NAME
+                ? sourceCandidates.byNameSource(output.getScope(), port)
+                : sourceCandidates.matchingSource(output.getScope(), port, pinnedSource);
     }
 
     @Nullable
-    AddValue reuseOrMint(final Value output, final Port port, final @Nullable Value pinnedSource) {
-        final var reused = sourceCandidates.matchingSource(output.getScope(), port, pinnedSource);
-        if (reused != null) {
-            return operationLander.reuse(reused);
+    AddValue onMiss(final Value output, final Port port, final Subject subject) {
+        if (port.getOnMiss() == Port.OnMiss.MINT) {
+            return new AddValue(output.getScope(), output.getLoc(), port.getType(), port.getNullness());
         }
-        // A REUSE port whose input is larger than its output is never minted (you never wrap a value just to
-        // unwrap it): with no in-scope source the consuming operation simply does not apply.
-        return port.getSourcing() == Port.Sourcing.REUSE
-                ? null
-                : new AddValue(output.getScope(), output.getLoc(), port.getType(), port.getNullness());
+        recordRequireRefusal(output, port, subject);
+        return null;
+    }
+
+    void recordRequireRefusal(final Value output, final Port port, final Subject subject) {
+        if (port.getOnMiss() == Port.OnMiss.REQUIRE) {
+            output.addInadmissible(new Refusal(subject, requireMissMessage(output, port)));
+        }
+    }
+
+    /** Names the port, the binding name, and — for a resolvable-but-mismatched name — both types. */
+    String requireMissMessage(final Value output, final Port port) {
+        return sourceCandidates
+                .byNameDeclaredType(output.getScope(), port)
+                .map(declaredType -> "port '" + port.getName() + "' names scope input '" + port.getBindingName()
+                        + "' of type " + declaredType + ", not assignable to declared type " + port.getType())
+                .orElseGet(() -> "port '" + port.getName() + "' names scope input '" + port.getBindingName()
+                        + "', which no enclosing scope publishes");
     }
 }

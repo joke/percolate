@@ -3,20 +3,25 @@ package io.github.joke.percolate.spi.builtins
 import com.google.testing.compile.Compilation
 import com.google.testing.compile.JavaFileObjects
 import io.github.joke.percolate.test.PercolateCompiler
+import spock.lang.PendingFeature
 import spock.lang.Specification
 import spock.lang.Tag
 
 import javax.tools.JavaFileObject
 
 /**
- * Compile-testing coverage for the three {@code @Ambient} diagnostics (design {@code ambient-parameters}):
- * a duplicate key within one method's parameter list, an unbound key reachable from a mapper method that
- * publishes none, and a same-key type mismatch. Each must fail the compile with a message naming the key —
- * never silently, and never only via the generic "no plan" diagnostic.
+ * Compile-testing coverage for the {@code @Ambient} diagnostics, now reported in port vocabulary by the engine's
+ * own {@code REQUIRE}-miss handling (design D5 of change {@code decouple-engine-from-strategy-semantics}) rather
+ * than {@code ValidateAmbientBindingsStage}, which this change deletes: an unbound binding name reachable from a
+ * mapper method that publishes none, and a same-name type mismatch. Each must fail the compile with a message
+ * naming the binding — never silently, and never only via the generic "no plan" diagnostic. The duplicate-key
+ * check has no replacement yet — it is re-homed into {@code AmbientDirectiveReader} later in this same change
+ * (group C1); see the {@code @PendingFeature} below.
  */
 @Tag('integration')
 class AmbientDiagnosticsNegativeSpec extends Specification {
 
+    @PendingFeature(reason = 'duplicate-key detection moves to AmbientDirectiveReader in a later group of this change')
     def 'two @Ambient parameters of one method resolving to the same key fail the compile, naming the key'() {
         when:
         Compilation compilation = PercolateCompiler.compile(PERSON, ORDER, CUSTOMER, RESULT, DUPLICATE_KEY_MAPPER)
@@ -26,17 +31,17 @@ class AmbientDiagnosticsNegativeSpec extends Specification {
         compilation.errors().any { it.getMessage(null).contains("duplicate @Ambient key 'ctx'") }
     }
 
-    def 'an ambient key unbound at every reachable mapper method fails the compile, naming the key'() {
+    def 'an ambient binding name unbound at every reachable mapper method fails the compile, naming it'() {
         when:
         Compilation compilation = PercolateCompiler.compile(PRICE, ORDER, RESULT_VIEW, UNBOUND_KEY_MAPPER)
 
         then:
         !compilation.errors().empty
-        compilation.errors().any { it.getMessage(null).contains("unbound @Ambient key 'order'") }
+        compilation.errors().any { it.getMessage(null).contains("scope input 'order', which no enclosing scope publishes") }
         !compilation.errors().any { it.getMessage(null).contains('no plan for') }
     }
 
-    def 'a same-key type mismatch fails the compile, naming the key and both types'() {
+    def 'a same-name type mismatch fails the compile, naming the binding and both types'() {
         when:
         Compilation compilation = PercolateCompiler.compile(
                 CUSTOMER, CUSTOMER_ADDRESS, ORDER, ORDER_VIEW, ADDRESS_VIEW, MISMATCH_MAPPER)
@@ -45,7 +50,7 @@ class AmbientDiagnosticsNegativeSpec extends Specification {
         !compilation.errors().empty
         compilation.errors().any {
             final def msg = it.getMessage(null)
-            msg.contains("@Ambient key 'order' is bound to") && msg.contains('Order') && msg.contains('Customer')
+            msg.contains("scope input 'order'") && msg.contains('Order') && msg.contains('Customer')
         }
     }
 

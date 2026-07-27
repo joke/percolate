@@ -15,8 +15,6 @@ import io.github.joke.percolate.processor.internal.stages.dump.DumpTransformsSta
 import io.github.joke.percolate.processor.internal.stages.expand.ExpandStage;
 import io.github.joke.percolate.processor.internal.stages.generate.GenerateStage;
 import io.github.joke.percolate.processor.internal.stages.validate.RealisationDiagnosticsStage;
-import io.github.joke.percolate.processor.internal.stages.validate.ValidateAmbientBindingsStage;
-import io.github.joke.percolate.processor.internal.stages.validate.ValidateEnumOverridesStage;
 import io.github.joke.percolate.processor.internal.stages.validate.ValidateMappingShapeStage;
 import io.github.joke.percolate.processor.internal.stages.validate.ValidateNoDuplicateTargetsStage;
 import io.github.joke.percolate.processor.internal.stages.validate.ValidateOptionConsumptionStage;
@@ -137,12 +135,10 @@ public final class ProcessorModule {
             final ValidateNoDuplicateTargetsStage validateNoDuplicateTargets,
             final ValidateMappingShapeStage validateMappingShape,
             final ValidateSourceParametersStage validateSourceParameters,
-            final ValidateEnumOverridesStage validateEnumOverrides,
             final ExpandStage expandStage,
             final DumpFullGraphStage dumpFullGraph,
             final DumpTransformsStage dumpTransforms,
             final DumpPlanStage dumpPlan,
-            final ValidateAmbientBindingsStage validateAmbientBindings,
             final ValidateOptionConsumptionStage validateOptionConsumption,
             final RealisationDiagnosticsStage realisationDiagnostics,
             final GenerateStage generateStage) {
@@ -152,13 +148,7 @@ public final class ProcessorModule {
                                 validateNoDuplicateTargets,
                                 validateMappingShape,
                                 validateSourceParameters,
-                                validateEnumOverrides,
                                 expandStage,
-                                // Ambient bindings are checked right after expansion, before the generic
-                                // realisation diagnostic, so an unresolved AMBIENT port — which declines and
-                                // leaves nothing to inspect afterward — gets its own targeted message instead of
-                                // a "no plan" pointing away from the mistake.
-                                validateAmbientBindings,
                                 // Realisation outcome is computed before the Filer-writing stages (dumps,
                                 // generate) so they can skip a deferred round and write each artifact once.
                                 validateOptionConsumption,

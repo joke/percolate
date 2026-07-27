@@ -26,7 +26,7 @@ import lombok.NoArgsConstructor;
 /**
  * The {@code NULLABLE → NON_NULL} crossing, target-driven (design D1/D2): keyed only on the demanded target, it
  * over-emits the crossings that can produce it and reads <b>no</b> candidate. Each crossing's input is a
- * <b>reuse-only</b> {@link Port#reuse} — bound to an already-in-scope source of that shape or the operation does not
+ * <b>reuse-only</b> {@link Port#byTypeOrDecline} — bound to an already-in-scope source of that shape or the operation does not
  * apply (never minted), which is the candidate-free equivalent of the former "fire against an existing source":
  *
  * <ul>
@@ -113,7 +113,7 @@ public final class NullnessCrossing implements ExpansionStrategy {
         final var message = "source for slot '" + slotName + "' is null but target is non-null";
         final OperationCodegen codegen =
                 inputs -> CodeBlock.of("$T.requireNonNull($L, $S)", Objects.class, inputs.single(), message);
-        final var port = Port.reuse(VALUE_ROLE, target, Nullability.NULLABLE);
+        final var port = Port.byTypeOrDecline(VALUE_ROLE, target, Nullability.NULLABLE);
         return OperationSpec.ofPartial(
                 "requireNonNull", codegen, Weights.NOOP, List.of(port), target, Nullability.NON_NULL);
     }
@@ -146,7 +146,7 @@ public final class NullnessCrossing implements ExpansionStrategy {
             final TypeMirror target,
             final OperationCodegen codegen,
             final DirectiveInput defaultInput) {
-        final var port = Port.reuse(VALUE_ROLE, from, fromNullness);
+        final var port = Port.byTypeOrDecline(VALUE_ROLE, from, fromNullness);
         return OperationSpec.of("coalesce", codegen, Weights.NOOP, List.of(port), target, Nullability.NON_NULL)
                 .withConsumed(Set.of(defaultInput));
     }

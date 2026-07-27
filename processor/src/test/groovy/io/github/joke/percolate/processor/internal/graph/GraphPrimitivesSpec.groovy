@@ -4,18 +4,11 @@ import spock.lang.Specification
 import spock.lang.Tag
 
 /**
- * The small value types of the graph package: {@link Weights}'s unrealised-sentinel predicate and the empty-path
- * edge cases of {@link TargetPath} / {@link AccessPath}. Pure functions — no javac substrate, so no isolation.
+ * The small value types of the graph package: the empty-path edge cases of {@link TargetPath} / {@link AccessPath}.
+ * Pure functions — no javac substrate, so no isolation.
  */
 @Tag('unit')
 class GraphPrimitivesSpec extends Specification {
-
-    def 'the unrealised sentinel is recognised at and above its floor, not below'() {
-        expect:
-        Weights.isSentinel(Weights.SENTINEL_UNREALISED)
-        Weights.isSentinel(Integer.MAX_VALUE)
-        !Weights.isSentinel(0)
-    }
 
     def 'TargetPath.of maps a null or empty segment to the empty path and a segment to a single-element path'() {
         expect:

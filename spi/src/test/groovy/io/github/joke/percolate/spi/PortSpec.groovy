@@ -10,13 +10,17 @@ class PortSpec extends Specification {
 
     TypeMirror type = Mock()
 
-    def 'the sourcing mode set is exactly the four closed modes, in declaration order'() {
+    def 'the selector set is exactly the two closed selectors, in declaration order'() {
         expect:
-        Port.Sourcing.values().toList() == [
-                Port.Sourcing.SUBTARGET, Port.Sourcing.REUSE, Port.Sourcing.REUSE_OR_MINT, Port.Sourcing.AMBIENT]
+        Port.Selector.values().toList() == [Port.Selector.BY_TYPE, Port.Selector.BY_NAME]
     }
 
-    def 'a plain concrete port carries its name/type/nullness, no template, defaults to REUSE_OR_MINT, and has no key'() {
+    def 'the on-miss set is exactly the three closed rules, in declaration order'() {
+        expect:
+        Port.OnMiss.values().toList() == [Port.OnMiss.DECLINE, Port.OnMiss.MINT, Port.OnMiss.REQUIRE]
+    }
+
+    def 'a plain concrete port carries its name/type/nullness, no template, defaults to BY_TYPE/MINT, not a sub-target, no binding name'() {
         when:
         def port = new Port('value', type, Nullability.NON_NULL)
 
@@ -25,11 +29,13 @@ class PortSpec extends Specification {
         port.type.is(type)
         port.nullness == Nullability.NON_NULL
         port.template == null
-        port.sourcing == Port.Sourcing.REUSE_OR_MINT
-        port.key == ''
+        !port.subTarget
+        port.selector == Port.Selector.BY_TYPE
+        port.onMiss == Port.OnMiss.MINT
+        port.bindingName == ''
     }
 
-    def 'a template port carries the given PortType template, defaults to REUSE_OR_MINT, and has no key'() {
+    def 'a template port carries the given PortType template, defaults to BY_TYPE/MINT, no binding name'() {
         def template = PortType.variable(0)
 
         when:
@@ -40,24 +46,43 @@ class PortSpec extends Specification {
         port.type.is(type)
         port.nullness == Nullability.NON_NULL
         port.template.is(template)
-        port.sourcing == Port.Sourcing.REUSE_OR_MINT
-        port.key == ''
+        !port.subTarget
+        port.selector == Port.Selector.BY_TYPE
+        port.onMiss == Port.OnMiss.MINT
+        port.bindingName == ''
     }
 
-    def 'Port.reuse builds a REUSE port carrying its name/type/nullness, with no template and no key'() {
+    def 'Port.byType builds the same BY_TYPE/MINT port as the plain constructor'() {
         when:
-        def port = Port.reuse('value', type, Nullability.NULLABLE)
+        def port = Port.byType('value', type, Nullability.NULLABLE)
 
         then:
         port.name == 'value'
         port.type.is(type)
         port.nullness == Nullability.NULLABLE
         port.template == null
-        port.sourcing == Port.Sourcing.REUSE
-        port.key == ''
+        !port.subTarget
+        port.selector == Port.Selector.BY_TYPE
+        port.onMiss == Port.OnMiss.MINT
+        port.bindingName == ''
     }
 
-    def 'Port.subTarget builds a SUBTARGET port carrying its name/type/nullness, with no template and no key'() {
+    def 'Port.byTypeOrDecline builds a BY_TYPE/DECLINE port carrying its name/type/nullness, with no template and no binding name'() {
+        when:
+        def port = Port.byTypeOrDecline('value', type, Nullability.NULLABLE)
+
+        then:
+        port.name == 'value'
+        port.type.is(type)
+        port.nullness == Nullability.NULLABLE
+        port.template == null
+        !port.subTarget
+        port.selector == Port.Selector.BY_TYPE
+        port.onMiss == Port.OnMiss.DECLINE
+        port.bindingName == ''
+    }
+
+    def 'Port.subTarget builds a sub-target port carrying its name/type/nullness, with no template, no selector/on-miss and no binding name'() {
         when:
         def port = Port.subTarget('value', type, Nullability.NULLABLE)
 
@@ -66,32 +91,36 @@ class PortSpec extends Specification {
         port.type.is(type)
         port.nullness == Nullability.NULLABLE
         port.template == null
-        port.sourcing == Port.Sourcing.SUBTARGET
-        port.key == ''
+        port.subTarget
+        port.selector == null
+        port.onMiss == null
+        port.bindingName == ''
     }
 
-    def 'Port.ambient builds an AMBIENT port carrying its name/type/nullness/key, with no template'() {
+    def 'Port.byName builds a BY_NAME/REQUIRE port carrying its name/type/nullness/binding name, with no template'() {
         when:
-        def port = Port.ambient('order', type, Nullability.NON_NULL, 'order')
+        def port = Port.byName('order', type, Nullability.NON_NULL, 'order')
 
         then:
         port.name == 'order'
         port.type.is(type)
         port.nullness == Nullability.NON_NULL
         port.template == null
-        port.sourcing == Port.Sourcing.AMBIENT
-        port.key == 'order'
+        !port.subTarget
+        port.selector == Port.Selector.BY_NAME
+        port.onMiss == Port.OnMiss.REQUIRE
+        port.bindingName == 'order'
     }
 
-    def 'Port.ambient rejects an empty key'() {
+    def 'Port.byName rejects an empty binding name'() {
         when:
-        Port.ambient('order', type, Nullability.NON_NULL, '')
+        Port.byName('order', type, Nullability.NON_NULL, '')
 
         then:
         def error = thrown(IllegalArgumentException)
         0 * _
 
         expect:
-        error.message == 'an AMBIENT port requires a non-empty key'
+        error.message == 'a BY_NAME port requires a non-empty binding name'
     }
 }

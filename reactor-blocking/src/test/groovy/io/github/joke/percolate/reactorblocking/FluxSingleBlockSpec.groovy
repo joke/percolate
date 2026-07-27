@@ -95,7 +95,7 @@ class FluxSingleBlockSpec extends Specification {
         spec.label == 'single().block'
         spec.partial
         spec.weight == Blockings.WEIGHT
-        spec.ports == [Port.reuse('flux', fluxOfTo, Nullability.NON_NULL)]
+        spec.ports == [Port.byTypeOrDecline('flux', fluxOfTo, Nullability.NON_NULL)]
         spec.outputType.is(to)
         spec.outputNullness == Nullability.NON_NULL
         spec.childScope.empty

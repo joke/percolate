@@ -35,7 +35,7 @@ public final class FluxCollectListBlock implements ExpansionStrategy {
                         "collectList().block",
                         (OperationCodegen) inputs -> CodeBlock.of("$L$Z.collectList()$Z.block()", inputs.single()),
                         Blockings.WEIGHT,
-                        List.of(Port.reuse("flux", flux, Nullability.NON_NULL)),
+                        List.of(Port.byTypeOrDecline("flux", flux, Nullability.NON_NULL)),
                         to,
                         Nullability.NON_NULL))
                 .map(Offer::of)

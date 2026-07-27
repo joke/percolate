@@ -63,11 +63,38 @@ class TargetProducerSpec extends Specification {
                 !it.directive().present && it.declaredChildren().empty && it.bindingName() == 'address' },
                 resolveCtx) >> Stream.of(Offer.of(spec0))
         1 * sourceCandidates.sourceTypes(scope) >> sourceTypes
-        1 * grounding.ground(spec0, sourceTypes) >> Stream.of(spec0, spec1)
+        1 * grounding.ground(spec0, sourceTypes) { it.empty } >> Stream.of(spec0, spec1)
         0 * _
 
         expect:
         result == [spec0, spec1]
+    }
+
+    def 'produce records each refusal grounding collects as inadmissible on the demanded value'() {
+        Scope scope = Mock()
+        def loc = new TargetLocation(TargetPath.of('address'))
+        Value value = Mock()
+        Subject subject = Mock()
+        def producer = new TargetProducer([strategy], [(scope): GoalSpec.from([])], sourceCandidates, grounding,
+                resolveCtx, resolver)
+        def spec0 = OperationSpec.of('a', codegen, 1, [], valueType, Nullability.NON_NULL)
+
+        when:
+        producer.produce(value)
+
+        then:
+        value.scope >> scope
+        value.loc >> loc
+        value.type() >> valueType
+        value.nullness() >> Nullability.NON_NULL
+        1 * strategy.expand(_, resolveCtx) >> Stream.of(Offer.of(spec0))
+        1 * sourceCandidates.sourceTypes(scope) >> []
+        1 * grounding.ground(spec0, []) { it.empty } >> { args ->
+            args[2].add(Offer.refusal(subject, 'nope'))
+            Stream.empty()
+        }
+        1 * value.addInadmissible(new Refusal(subject, 'nope'))
+        0 * _
     }
 
     def 'produce derives the demand\'s directive and declared children from the goal spec'() {
@@ -111,7 +138,7 @@ class TargetProducerSpec extends Specification {
         value.nullness() >> Nullability.NON_NULL
         1 * strategy.expand(_, resolveCtx) >> Stream.of(Offer.of(spec))
         1 * sourceCandidates.sourceTypes(scope) >> []
-        1 * grounding.ground(spec, []) >> Stream.of(spec, sameSignature)
+        1 * grounding.ground(spec, []) { it.empty } >> Stream.of(spec, sameSignature)
         0 * _
 
         expect:

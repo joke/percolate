@@ -2,6 +2,7 @@ package io.github.joke.percolate.processor.internal.stages.expand;
 
 import static java.util.stream.Collectors.toUnmodifiableList;
 
+import io.github.joke.percolate.spi.Offer;
 import io.github.joke.percolate.spi.OperationSpec;
 import java.util.List;
 import java.util.stream.Stream;
@@ -27,8 +28,10 @@ final class Grounding {
     /**
      * Grounds {@code spec} against the {@code sources} in scope: a spec with no type-variable port is returned as-is;
      * otherwise one concrete spec is emitted per consistent match (none when nothing unifies — no bridge invented).
+     * Every bound refusal encountered along the way (design D6 of change
+     * {@code decouple-engine-from-strategy-semantics}) is recorded to {@code refusals}.
      */
-    Stream<OperationSpec> ground(final OperationSpec spec, final List<TypeMirror> sources) {
+    Stream<OperationSpec> ground(final OperationSpec spec, final List<TypeMirror> sources, final List<Offer> refusals) {
         final var templatePorts = spec.getPorts().stream()
                 .filter(port -> port.getTemplate() != null)
                 .collect(toUnmodifiableList());
@@ -36,7 +39,7 @@ final class Grounding {
             return Stream.of(spec);
         }
         final var matchSet = widener.widen(sources);
-        final var bindingSets = enumerator.enumerate(templatePorts, matchSet);
+        final var bindingSets = enumerator.enumerate(templatePorts, matchSet, refusals);
         return bindingSets.stream().map(bindings -> instantiator.instantiate(spec, bindings));
     }
 }

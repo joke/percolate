@@ -26,7 +26,7 @@ class BindingEnumeratorSpec extends Specification {
         BindingEnumerator enumerator = new BindingEnumerator(unifier)
 
         when:
-        def bindings = enumerator.enumerate([], [sourceA, sourceB])
+        def bindings = enumerator.enumerate([], [sourceA, sourceB], [])
 
         then:
         0 * unifier._
@@ -38,13 +38,14 @@ class BindingEnumeratorSpec extends Specification {
     def 'enumerate yields one binding per source that unifies, dropping the rest'() {
         BindingEnumerator enumerator = new BindingEnumerator(unifier)
         def port = new Port('p', Mock(TypeElement).asType(), Nullability.NON_NULL, PortType.variable(0))
+        def refusals = []
 
         when:
-        def bindings = enumerator.enumerate([port], [sourceA, sourceB])
+        def bindings = enumerator.enumerate([port], [sourceA, sourceB], refusals)
 
         then:
-        1 * unifier.unify(port.template, sourceA, { it.isEmpty() }, 0) >> true
-        1 * unifier.unify(port.template, sourceB, { it.isEmpty() }, 0) >> false
+        1 * unifier.unify(port.template, sourceA, { it.isEmpty() }, 0, refusals) >> true
+        1 * unifier.unify(port.template, sourceB, { it.isEmpty() }, 0, refusals) >> false
         0 * _
 
         expect:
@@ -55,15 +56,16 @@ class BindingEnumeratorSpec extends Specification {
         BindingEnumerator enumerator = new BindingEnumerator(unifier)
         def port0 = new Port('a', Mock(TypeElement).asType(), Nullability.NON_NULL, PortType.variable(0))
         def port1 = new Port('b', Mock(TypeElement).asType(), Nullability.NON_NULL, PortType.variable(1))
+        def refusals = []
 
         when:
-        def bindings = enumerator.enumerate([port0, port1], [sourceA, sourceB])
+        def bindings = enumerator.enumerate([port0, port1], [sourceA, sourceB], refusals)
 
         then:
-        1 * unifier.unify(port0.template, sourceA, { it.isEmpty() }, 0) >> true
-        1 * unifier.unify(port0.template, sourceB, { it.isEmpty() }, 0) >> false
-        1 * unifier.unify(port1.template, sourceA, { it.isEmpty() }, 0) >> true
-        1 * unifier.unify(port1.template, sourceB, { it.isEmpty() }, 0) >> true
+        1 * unifier.unify(port0.template, sourceA, { it.isEmpty() }, 0, refusals) >> true
+        1 * unifier.unify(port0.template, sourceB, { it.isEmpty() }, 0, refusals) >> false
+        1 * unifier.unify(port1.template, sourceA, { it.isEmpty() }, 0, refusals) >> true
+        1 * unifier.unify(port1.template, sourceB, { it.isEmpty() }, 0, refusals) >> true
         0 * _
 
         expect:

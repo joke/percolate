@@ -30,7 +30,7 @@ import java.lang.annotation.Target;
  * <h2>Loud failure</h2>
  *
  * <p>An {@code @Ambient} port whose key resolves to no binding is reported as an error naming the unbound key,
- * rather than silently declining the way {@code Port.Sourcing.REUSE} does. A duplicate key within one method's
+ * rather than silently declining the way {@code BY_TYPE}/{@code DECLINE} does. A duplicate key within one method's
  * parameters is likewise an error, positioned at the second {@code @Ambient}.
  */
 @Documented

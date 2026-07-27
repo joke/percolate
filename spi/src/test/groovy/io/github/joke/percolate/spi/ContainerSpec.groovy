@@ -354,7 +354,8 @@ class ContainerSpec extends Specification {
         result[0].partial
         result[0].childScope.empty
         ctx.isSameType(result[0].ports[0].type, optionalOfString)
-        result[0].ports[0].sourcing == Port.Sourcing.REUSE
+        result[0].ports[0].selector == Port.Selector.BY_TYPE
+        result[0].ports[0].onMiss == Port.OnMiss.DECLINE
         ctx.isSameType(result[0].outputType, STRING)
         result[0].outputNullness == Nullability.NULLABLE
     }

@@ -91,7 +91,7 @@ class SelfCallGuardSpec extends Specification {
         def method = mapMethod()
         def scope = new MethodScope(method)
         def producer = OperationSpec.of('new', codegen, Weights.STEP,
-                [Port.reuse('arg', personType, Nullability.NON_NULL)],
+                [Port.byTypeOrDecline('arg', personType, Nullability.NON_NULL)],
                 humanType, Nullability.NON_NULL)
 
         expect:
@@ -128,12 +128,12 @@ class SelfCallGuardSpec extends Specification {
 
     private OperationSpec call(final String label, final ExecutableElement target) {
         OperationSpec.callOf(label, codegen, Weights.METHOD,
-                [Port.reuse('arg', personType, Nullability.NON_NULL)],
+                [Port.byTypeOrDecline('arg', personType, Nullability.NON_NULL)],
                 humanType, Nullability.NON_NULL, target)
     }
 
     private PortBinding bind(final Scope scope, final SourceLocation location) {
-        new PortBinding(Port.reuse('arg', personType, Nullability.NON_NULL),
+        new PortBinding(Port.byTypeOrDecline('arg', personType, Nullability.NON_NULL),
                 new AddValue(scope, location, personType, Nullability.NON_NULL))
     }
 }

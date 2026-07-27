@@ -9,6 +9,7 @@ import io.github.joke.percolate.spi.Codegen
 import io.github.joke.percolate.spi.Nullability
 import io.github.joke.percolate.spi.OperationSpec
 import io.github.joke.percolate.spi.Port
+import io.github.joke.percolate.spi.Subjects
 import spock.lang.Specification
 import spock.lang.Tag
 
@@ -30,8 +31,8 @@ class PortBinderSpec extends Specification {
     TypeMirror type = Mock()
 
     def 'binds every port of a spec that all resolve a source'() {
-        def port0 = Port.reuse('a', type, Nullability.NON_NULL)
-        def port1 = Port.reuse('b', type, Nullability.NON_NULL)
+        def port0 = Port.byTypeOrDecline('a', type, Nullability.NON_NULL)
+        def port1 = Port.byTypeOrDecline('b', type, Nullability.NON_NULL)
         def spec = OperationSpec.of('zip', codegen, 1, [port0, port1], type, Nullability.NON_NULL)
         def source0 = new AddValue(Mock(Scope), Mock(Location), type, Nullability.NON_NULL)
         def source1 = new AddValue(Mock(Scope), Mock(Location), type, Nullability.NON_NULL)
@@ -40,8 +41,8 @@ class PortBinderSpec extends Specification {
         def result = binder.bind(output, 'root', spec, null)
 
         then:
-        1 * portSourceResolver.sourceForPort(output, 'root', port0, null) >> source0
-        1 * portSourceResolver.sourceForPort(output, 'root', port1, null) >> source1
+        1 * portSourceResolver.sourceForPort(output, 'root', port0, null, Subjects.none()) >> source0
+        1 * portSourceResolver.sourceForPort(output, 'root', port1, null, Subjects.none()) >> source1
         0 * _
 
         expect:
@@ -49,15 +50,15 @@ class PortBinderSpec extends Specification {
     }
 
     def 'declines the moment a port resolves no source, never checking the rest'() {
-        def port0 = Port.reuse('a', type, Nullability.NON_NULL)
-        def port1 = Port.reuse('b', type, Nullability.NON_NULL)
+        def port0 = Port.byTypeOrDecline('a', type, Nullability.NON_NULL)
+        def port1 = Port.byTypeOrDecline('b', type, Nullability.NON_NULL)
         def spec = OperationSpec.of('zip', codegen, 1, [port0, port1], type, Nullability.NON_NULL)
 
         when:
         def result = binder.bind(output, 'root', spec, null)
 
         then:
-        1 * portSourceResolver.sourceForPort(output, 'root', port0, null) >> null
+        1 * portSourceResolver.sourceForPort(output, 'root', port0, null, Subjects.none()) >> null
         0 * _
 
         expect:
@@ -66,7 +67,7 @@ class PortBinderSpec extends Specification {
 
     def 'passes the pinned source and parent path through to every port'() {
         Value pinned = Mock()
-        def port = Port.reuse('a', type, Nullability.NON_NULL)
+        def port = Port.byTypeOrDecline('a', type, Nullability.NON_NULL)
         def spec = OperationSpec.of('copy', codegen, 1, [port], type, Nullability.NON_NULL)
         def source = new AddValue(Mock(Scope), Mock(Location), type, Nullability.NON_NULL)
 
@@ -74,7 +75,26 @@ class PortBinderSpec extends Specification {
         def result = binder.bind(output, 'parent.path', spec, pinned)
 
         then:
-        1 * portSourceResolver.sourceForPort(output, 'parent.path', port, pinned) >> source
+        1 * portSourceResolver.sourceForPort(output, 'parent.path', port, pinned, Subjects.none()) >> source
+        0 * _
+
+        expect:
+        result.get() == [new PortBinding(port, source)]
+    }
+
+    def "a spec carrying a call target positions the port's subject at that call target"() {
+        def port = Port.byTypeOrDecline('a', type, Nullability.NON_NULL)
+        def callTarget = Mock(javax.lang.model.element.ExecutableElement)
+        def spec = OperationSpec.callOf('call', codegen, 1, [port], type, Nullability.NON_NULL, callTarget)
+        def source = new AddValue(Mock(Scope), Mock(Location), type, Nullability.NON_NULL)
+
+        when:
+        def result = binder.bind(output, 'root', spec, null)
+
+        then:
+        1 * portSourceResolver.sourceForPort(output, 'root', port, null) {
+            Subjects.resolve(it, Mock(javax.lang.model.element.TypeElement)).element.is(callTarget)
+        } >> source
         0 * _
 
         expect:

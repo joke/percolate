@@ -18,7 +18,6 @@ dependencies {
     compileOnly 'org.jetbrains:annotations'
 
     api project(':lib:javapoet')
-    implementation project(':annotations')
 
     testFixturesAnnotationProcessor platform(project(':dependencies'))
     testFixturesAnnotationProcessor 'org.projectlombok:lombok'
@@ -31,6 +30,7 @@ dependencies {
     testFixturesImplementation 'org.apache.groovy:groovy'
 
     testImplementation platform(project(':dependencies'))
+    testImplementation project(':annotations')
     testImplementation 'org.spockframework:spock-core'
     testImplementation 'org.apache.groovy:groovy'
     testImplementation 'org.jspecify:jspecify'

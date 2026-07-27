@@ -10,8 +10,8 @@ import lombok.experimental.UtilityClass;
  * Shared reactor FQNs, a concrete-type builder, and the deliberately high upward-crossing weight for the blocking
  * (async-to-sync) bridge strategies. Every blocking edge is weighted strictly above any non-blocking alternative so
  * that, whenever a lazy reactive path exists, it always wins on cost — a correctness property (deferred vs
- * blocks-at-assembly), not a style one. The weight is finite (well below {@code Weights.SENTINEL_UNREALISED}), so a
- * blocking edge is still chosen when it is the only producer.
+ * blocks-at-assembly), not a style one. The weight stays finite, so a blocking edge is still chosen when it is the
+ * only producer.
  */
 @UtilityClass
 class Blockings {

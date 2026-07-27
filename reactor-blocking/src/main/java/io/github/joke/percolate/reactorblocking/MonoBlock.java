@@ -38,7 +38,7 @@ public final class MonoBlock implements ExpansionStrategy {
                         "block",
                         (OperationCodegen) inputs -> CodeBlock.of("$L$Z.block()", inputs.single()),
                         Blockings.WEIGHT,
-                        List.of(Port.reuse("mono", mono, Nullability.NON_NULL)),
+                        List.of(Port.byTypeOrDecline("mono", mono, Nullability.NON_NULL)),
                         to,
                         Nullability.NON_NULL))
                 .map(Offer::of)

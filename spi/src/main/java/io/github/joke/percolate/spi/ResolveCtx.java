@@ -1,13 +1,11 @@
 package io.github.joke.percolate.spi;
 
-import io.github.joke.percolate.Ambient;
 import java.util.Optional;
 import java.util.stream.Stream;
 import javax.lang.model.element.Element;
 import javax.lang.model.element.ElementKind;
 import javax.lang.model.element.Modifier;
 import javax.lang.model.element.TypeElement;
-import javax.lang.model.element.VariableElement;
 import javax.lang.model.type.ArrayType;
 import javax.lang.model.type.DeclaredType;
 import javax.lang.model.type.PrimitiveType;
@@ -256,21 +254,5 @@ public interface ResolveCtx {
     /** Whether {@code member} is declared {@code static}. */
     default boolean isStatic(final Element member) {
         return member.getModifiers().contains(Modifier.STATIC);
-    }
-
-    // ---- ambient parameters (design ambient-parameters) -------------------------------------------------------
-
-    /**
-     * The {@code @Ambient} binding key {@code param} declares, or empty when it carries no {@code @Ambient}
-     * annotation: an explicit {@link Ambient#value()} overrides the key, else the key is the parameter's own
-     * simple name (Decision 2). This is the one seam question a strategy asks to tell an ambient parameter from
-     * the mapped one, without itself depending on the {@code annotations} module.
-     */
-    default Optional<String> ambientKey(final VariableElement param) {
-        final var ambient = param.getAnnotation(Ambient.class);
-        if (ambient == null) {
-            return Optional.empty();
-        }
-        return Optional.of(ambient.value().isEmpty() ? param.getSimpleName().toString() : ambient.value());
     }
 }

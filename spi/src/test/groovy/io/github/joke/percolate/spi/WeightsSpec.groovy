@@ -24,12 +24,6 @@ class WeightsSpec extends Specification {
         Weights.NOOP == 0
     }
 
-    def 'isSentinel recognises the unrealised marker'() {
-        expect:
-        Weights.isSentinel(Weights.SENTINEL_UNREALISED)
-        !Weights.isSentinel(Weights.CONTAINER)
-    }
-
     def 'path-segment access weights encode getter < method < field precedence'() {
         expect:
         Weights.STEP_GETTER == 1

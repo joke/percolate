@@ -37,7 +37,7 @@ public final class FluxSingleBlock implements ExpansionStrategy {
                         "single().block",
                         (OperationCodegen) inputs -> CodeBlock.of("$L$Z.single()$Z.block()", inputs.single()),
                         Blockings.WEIGHT,
-                        List.of(Port.reuse("flux", flux, Nullability.NON_NULL)),
+                        List.of(Port.byTypeOrDecline("flux", flux, Nullability.NON_NULL)),
                         to,
                         Nullability.NON_NULL))
                 .map(Offer::of)

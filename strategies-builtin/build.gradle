@@ -18,6 +18,7 @@ dependencies {
     compileOnly 'org.jetbrains:annotations'
 
     implementation project(':spi')
+    implementation project(':annotations')
 
     testImplementation platform(project(':dependencies'))
     testImplementation project(':annotations')

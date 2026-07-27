@@ -33,7 +33,7 @@ class GroundingSpec extends Specification {
                 [new Port('src', concreteType, Nullability.NON_NULL)], concreteType, Nullability.NON_NULL)
 
         when:
-        def result = grounding.ground(spec, [sourceA]).toList()
+        def result = grounding.ground(spec, [sourceA], []).toList()
 
         then:
         0 * widener._
@@ -52,13 +52,14 @@ class GroundingSpec extends Specification {
         def binding1 = [0: sourceA]
         def grounded0 = OperationSpec.of('lift0', codegen, 1, [], concreteType, Nullability.NON_NULL)
         def grounded1 = OperationSpec.of('lift1', codegen, 1, [], concreteType, Nullability.NON_NULL)
+        def refusals = []
 
         when:
-        def result = grounding.ground(spec, [sourceA]).toList()
+        def result = grounding.ground(spec, [sourceA], refusals).toList()
 
         then:
         1 * widener.widen([sourceA]) >> widened
-        1 * enumerator.enumerate([port], widened) >> [binding0, binding1]
+        1 * enumerator.enumerate([port], widened, refusals) >> [binding0, binding1]
         1 * instantiator.instantiate(spec, binding0) >> grounded0
         1 * instantiator.instantiate(spec, binding1) >> grounded1
         0 * _
@@ -72,26 +73,28 @@ class GroundingSpec extends Specification {
         def concretePort = new Port('b', concreteType, Nullability.NON_NULL)
         def spec = OperationSpec.of('merge', codegen, 1, [templatePort, concretePort], concreteType,
                 Nullability.NON_NULL)
+        def refusals = []
 
         when:
-        grounding.ground(spec, [sourceA]).toList()
+        grounding.ground(spec, [sourceA], refusals).toList()
 
         then:
         1 * widener.widen([sourceA]) >> [sourceA]
-        1 * enumerator.enumerate([templatePort], [sourceA]) >> []
+        1 * enumerator.enumerate([templatePort], [sourceA], refusals) >> []
         0 * _
     }
 
     def 'no consistent binding yields no grounded specs, without ever instantiating'() {
         def port = new Port('src', concreteType, Nullability.NON_NULL, PortType.variable(0))
         def spec = OperationSpec.of('lift', codegen, 1, [port], concreteType, Nullability.NON_NULL)
+        def refusals = []
 
         when:
-        def result = grounding.ground(spec, [sourceA]).toList()
+        def result = grounding.ground(spec, [sourceA], refusals).toList()
 
         then:
         1 * widener.widen([sourceA]) >> [sourceA]
-        1 * enumerator.enumerate([port], [sourceA]) >> []
+        1 * enumerator.enumerate([port], [sourceA], refusals) >> []
         0 * _
 
         expect:

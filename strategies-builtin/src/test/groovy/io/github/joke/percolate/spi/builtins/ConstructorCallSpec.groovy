@@ -66,7 +66,7 @@ class ConstructorCallSpec extends Specification {
         spec.weight == Weights.STEP
         spec.ports.size() == 2
         (spec.ports*.name as Set) == declared
-        spec.ports.every { it.sourcing == Port.Sourcing.SUBTARGET }
+        spec.ports.every { it.subTarget }
         spec.ports[0].type.is(numberType)
         spec.ports[1].type.is(streetType)
     }

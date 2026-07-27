@@ -7,8 +7,8 @@ import org.jspecify.annotations.Nullable;
 
 /**
  * One input of an operation's ordered port signature: the consumer contract a feeding value must satisfy —
- * the port's name, its declared type, its declared nullness, and its {@link Sourcing} mode. The port signature
- * lives on the consumer (the operation), never on an edge or a grouping label.
+ * the port's name, its declared type, its declared nullness, and how the engine binds its feeding value. The
+ * port signature lives on the consumer (the operation), never on an edge or a grouping label.
  *
  * <p>A port is <b>concrete</b> by default (use the three-argument constructor): its {@link #type} fully determines
  * the feeding value. A <b>type-variable</b> port additionally carries a {@link PortType} {@link #template} (e.g.
@@ -16,17 +16,26 @@ import org.jspecify.annotations.Nullable;
  * concrete source and instantiating one concrete port per match. For a template port {@link #type} holds only a
  * representative shape (the template's erasure) and is never used to source the port; grounding replaces it.
  *
- * <p>Each port declares an explicit {@link Sourcing} mode telling the engine how to bind its feeding value, so the
- * driver dispatches on a declared fact rather than reconstructing intent from a name-match or a boolean. The
- * three-argument and template constructors default to {@link Sourcing#REUSE_OR_MINT}; {@link #reuse},
- * {@link #subTarget}, and {@link #ambient} build the other three modes.
+ * <p>Every port declares how the engine binds its feeding value through <b>two orthogonal axes</b> (design D5 of
+ * change {@code decouple-engine-from-strategy-semantics}), so the driver dispatches on declared facts rather than
+ * reconstructing intent from a name-match or a boolean, and so no axis names a user-facing feature:
  *
- * <p>A port also carries a {@link #key}, meaningful only in {@link Sourcing#AMBIENT} mode: the ambient binding
- * name the engine resolves against the enclosing scope's ambient environment. It is the empty string in every
- * other mode.
+ * <ul>
+ *   <li>a {@link Selector}: {@code BY_TYPE} (matched by type and assignment-compatible nullness) or {@code BY_NAME}
+ *       (the scope input published under this port's {@link #bindingName});
+ *   <li>an {@link OnMiss} rule: {@code DECLINE} (the operation does not apply), {@code MINT} (a fresh intermediate
+ *       is minted at the output location) or {@code REQUIRE} (an error, reported by the engine in port vocabulary).
+ * </ul>
+ *
+ * <p>{@link #isSubTarget()} is a distinct third case, not a selection at all: the engine mints a fresh demand at
+ * the child location and re-demands it. A sub-target port's {@link #selector} and {@link #onMiss} are {@code null}.
+ *
+ * <p>{@link #bindingName} is meaningful only for a {@code BY_NAME} port: the scope-input name the engine resolves
+ * against the enclosing scope's named inputs. It is the empty string in every other case.
  */
 @Value
 @AllArgsConstructor
+@SuppressWarnings("PMD.AvoidFieldNameMatchingMethodName") // subTarget backs the unwrapped isSubTarget() accessor
 public class Port {
 
     String name;
@@ -37,65 +46,85 @@ public class Port {
     @Nullable
     PortType template;
 
-    /** How the engine binds this port's feeding value — a declared fact, never reconstructed from a name-match. */
-    Sourcing sourcing;
+    /** Whether this port is the distinct {@code SUBTARGET} case; when {@code true}, {@link #selector}/{@link #onMiss} are {@code null}. */
+    boolean subTarget;
 
-    /** The ambient binding key, meaningful only in {@link Sourcing#AMBIENT} mode; the empty string otherwise. */
-    String key;
+    /** How the feeding value is selected; {@code null} for a sub-target port. */
+    @Nullable
+    Selector selector;
 
-    /** A concrete port whose {@link #type} fully determines the feeding value (no type variable), {@code REUSE_OR_MINT}. */
+    /** What a selection miss means; {@code null} for a sub-target port. */
+    @Nullable
+    OnMiss onMiss;
+
+    /** The scope-input name to resolve, meaningful only for a {@code BY_NAME} port; the empty string otherwise. */
+    String bindingName;
+
+    /** A concrete port whose {@link #type} fully determines the feeding value (no type variable), {@code BY_TYPE}/{@code MINT}. */
     public Port(final String name, final TypeMirror type, final Nullability nullness) {
-        this(name, type, nullness, null, Sourcing.REUSE_OR_MINT, "");
+        this(name, type, nullness, null, false, Selector.BY_TYPE, OnMiss.MINT, "");
     }
 
-    /** A type-variable port carrying a {@link PortType} {@code template} the engine grounds by match, {@code REUSE_OR_MINT}. */
+    /** A type-variable port carrying a {@link PortType} {@code template} the engine grounds by match, {@code BY_TYPE}/{@code MINT}. */
     public Port(
             final String name, final TypeMirror type, final Nullability nullness, final @Nullable PortType template) {
-        this(name, type, nullness, template, Sourcing.REUSE_OR_MINT, "");
+        this(name, type, nullness, template, false, Selector.BY_TYPE, OnMiss.MINT, "");
     }
 
-    /** A concrete {@link Sourcing#REUSE} port: bound to an in-scope source or the operation does not apply (never minted). */
-    public static Port reuse(final String name, final TypeMirror type, final Nullability nullness) {
-        return new Port(name, type, nullness, null, Sourcing.REUSE, "");
+    /** A concrete {@code BY_TYPE}/{@code MINT} port — the plain-constructor default, named for readability at the call site. */
+    public static Port byType(final String name, final TypeMirror type, final Nullability nullness) {
+        return new Port(name, type, nullness);
     }
 
-    /** A concrete {@link Sourcing#SUBTARGET} port: a structural sub-target the engine demands at the child location. */
+    /** A concrete {@code BY_TYPE}/{@code DECLINE} port: bound to an in-scope source or the operation does not apply (never minted). */
+    public static Port byTypeOrDecline(final String name, final TypeMirror type, final Nullability nullness) {
+        return new Port(name, type, nullness, null, false, Selector.BY_TYPE, OnMiss.DECLINE, "");
+    }
+
+    /** A concrete sub-target port: a structural sub-target the engine demands at the child location. */
     public static Port subTarget(final String name, final TypeMirror type, final Nullability nullness) {
-        return new Port(name, type, nullness, null, Sourcing.SUBTARGET, "");
+        return new Port(name, type, nullness, null, true, null, null, "");
     }
 
     /**
-     * A concrete {@link Sourcing#AMBIENT} port: the engine resolves {@code key} against the enclosing scope's
-     * ambient environment, verifies the binding's type, and binds it — or reports an error if the key is unbound.
-     * {@code key} MUST be non-empty.
+     * A concrete {@code BY_NAME}/{@code REQUIRE} port: the engine resolves {@code bindingName} against the
+     * enclosing scope's named inputs, verifies the binding's type, and binds it — or reports an error if the name
+     * is unresolvable. {@code bindingName} MUST be non-empty.
      */
-    public static Port ambient(final String name, final TypeMirror type, final Nullability nullness, final String key) {
-        if (key.isEmpty()) {
-            throw new IllegalArgumentException("an AMBIENT port requires a non-empty key");
+    public static Port byName(
+            final String name, final TypeMirror type, final Nullability nullness, final String bindingName) {
+        if (bindingName.isEmpty()) {
+            throw new IllegalArgumentException("a BY_NAME port requires a non-empty binding name");
         }
-        return new Port(name, type, nullness, null, Sourcing.AMBIENT, key);
+        return new Port(name, type, nullness, null, false, Selector.BY_NAME, OnMiss.REQUIRE, bindingName);
     }
 
     /**
-     * How the engine binds a port's feeding value. A closed set, but <b>extensible</b>: a further binding mode can
-     * be added beside these four without changing them or the strategies that declare them.
+     * How a port's feeding value is selected. A closed set, but <b>extensible</b>: a further selector can be added
+     * beside these two without changing them or the strategies that declare them.
      */
-    public enum Sourcing {
+    public enum Selector {
 
-        /** A structural sub-target: the engine mints a fresh demand at the child location and re-demands it. */
-        SUBTARGET,
+        /** Matched by type and assignment-compatible nullness against an in-scope source. */
+        BY_TYPE,
 
-        /** The feeding value must already exist in scope: bound to an in-scope source, or the operation does not apply. */
-        REUSE,
+        /** The scope input published under this port's {@link Port#bindingName}. */
+        BY_NAME
+    }
 
-        /** The default: bound to an in-scope source, else a fresh intermediate is minted at the output location. */
-        REUSE_OR_MINT,
+    /**
+     * What a selection miss means. A closed set, but <b>extensible</b>: a further rule can be added beside these
+     * three without changing them or the strategies that declare them.
+     */
+    public enum OnMiss {
 
-        /**
-         * The feeding value is the ambient binding registered under this port's {@link #key} in the enclosing
-         * scope's ambient environment. Unlike {@link #REUSE}, an unresolved key is an error, never a quiet
-         * non-application.
-         */
-        AMBIENT
+        /** The feeding value must already exist in scope: a miss means the operation does not apply. */
+        DECLINE,
+
+        /** A miss mints a fresh intermediate of the port's type and nullness at the output location. */
+        MINT,
+
+        /** A miss is an error: the engine reports it, in port vocabulary, rather than declining quietly. */
+        REQUIRE
     }
 }

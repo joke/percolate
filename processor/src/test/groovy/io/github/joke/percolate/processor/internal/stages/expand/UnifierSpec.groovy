@@ -1,7 +1,9 @@
 package io.github.joke.percolate.processor.internal.stages.expand
 
+import io.github.joke.percolate.spi.Offer
 import io.github.joke.percolate.spi.PortType
 import io.github.joke.percolate.spi.ResolveCtx
+import io.github.joke.percolate.spi.Subject
 import spock.lang.Specification
 import spock.lang.Tag
 
@@ -14,9 +16,11 @@ import javax.lang.model.type.TypeMirror
  * {@code unifyApp}'s per-argument recursion back into {@code unify} are the collaborator's genuine self-recursion
  * (design D4/D5 of change {@code decompose-engine-stages}) — isolated here with a {@code Spy} on the subject; every
  * other method ({@code bindVariable}, {@code isGroundable}, {@code unifyApp}'s own guards) is tested directly against
- * a mocked {@code ResolveCtx}.
+ * a mocked {@code ResolveCtx}. {@code bindVariable}'s bound consultation (design D6 of change
+ * {@code decouple-engine-from-strategy-semantics}) is tested against a stubbed {@link PortType.Bound}.
  */
 @Tag('unit')
+@SuppressWarnings('UnnecessaryGetter') // bindings is Map-typed: .empty resolves to get('empty'), not isEmpty()
 class UnifierSpec extends Specification {
 
     ResolveCtx ctx = Mock()
@@ -29,7 +33,7 @@ class UnifierSpec extends Specification {
         Unifier unifier = new Unifier(ctx)
 
         when:
-        def result = unifier.unify(PortType.concrete(concreteType), source, [:], 33)
+        def result = unifier.unify(PortType.concrete(concreteType), source, [:], 33, [])
 
         then:
         0 * ctx._
@@ -43,18 +47,20 @@ class UnifierSpec extends Specification {
         ctx.isSameType(concreteType, source) >> true
 
         expect:
-        unifier.unify(PortType.concrete(concreteType), source, [:], 32)
+        unifier.unify(PortType.concrete(concreteType), source, [:], 32, [])
     }
 
     def 'unify dispatches a Var template to bindVariable, returning its verdict'() {
         Unifier unifier = Spy(constructorArgs: [ctx])
         def bindings = [:]
+        def refusals = []
+        def template = PortType.variable(2)
 
         when:
-        def result = unifier.unify(PortType.variable(2), source, bindings, 5)
+        def result = unifier.unify(template, source, bindings, 5, refusals)
 
         then:
-        1 * unifier.bindVariable(2, source, bindings) >> verdict
+        1 * unifier.bindVariable(template, source, bindings, refusals) >> verdict
         1 * unifier._
         0 * _
 
@@ -69,12 +75,13 @@ class UnifierSpec extends Specification {
         Unifier unifier = Spy(constructorArgs: [ctx])
         def template = PortType.app(Mock(TypeElement), [])
         def bindings = [:]
+        def refusals = []
 
         when:
-        def result = unifier.unify(template, source, bindings, 5)
+        def result = unifier.unify(template, source, bindings, 5, refusals)
 
         then:
-        1 * unifier.unifyApp(template, source, bindings, 5) >> verdict
+        1 * unifier.unifyApp(template, source, bindings, 5, refusals) >> verdict
         1 * unifier._
         0 * _
 
@@ -92,7 +99,7 @@ class UnifierSpec extends Specification {
         ctx.isSameType(concreteType, source) >> same
 
         expect:
-        unifier.unify(PortType.concrete(concreteType), source, [:], 0) == same
+        unifier.unify(PortType.concrete(concreteType), source, [:], 0, []) == same
 
         where:
         same << [true, false]
@@ -106,7 +113,7 @@ class UnifierSpec extends Specification {
         ctx.isArray(source) >> false
 
         expect:
-        !unifier.bindVariable(0, source, [:])
+        !unifier.bindVariable(PortType.variable(0), source, [:], [])
     }
 
     def 'bindVariable stores a fresh binding for a groundable source'() {
@@ -115,7 +122,7 @@ class UnifierSpec extends Specification {
         def bindings = [:]
 
         when:
-        def result = unifier.bindVariable(3, source, bindings)
+        def result = unifier.bindVariable(PortType.variable(3), source, bindings, [])
 
         then:
         result
@@ -129,10 +136,58 @@ class UnifierSpec extends Specification {
         def bindings = [1: concreteType]
 
         expect:
-        unifier.bindVariable(1, source, bindings) == consistent
+        unifier.bindVariable(PortType.variable(1), source, bindings, []) == consistent
 
         where:
         consistent << [true, false]
+    }
+
+    // ---- bindVariable: an unbound Var carries no Bound, so binding proceeds untouched -----------------------
+
+    def 'bindVariable with no bound proceeds straight to binding, consulting nothing'() {
+        Unifier unifier = new Unifier(ctx)
+        ctx.isDeclared(source) >> true
+        def bindings = [:]
+
+        expect:
+        unifier.bindVariable(PortType.variable(0), source, bindings, [])
+        bindings[0].is(source)
+    }
+
+    // ---- bindVariable: a bound is consulted before binding, refusing (and recording) a rejected grounding ----
+
+    def 'bindVariable accepts a groundable source its bound does not refuse, then binds it'() {
+        Unifier unifier = new Unifier(ctx)
+        ctx.isDeclared(source) >> true
+        PortType.Bound bound = { s, c -> Optional.empty() }
+        def bindings = [:]
+        def refusals = []
+
+        when:
+        def result = unifier.bindVariable(PortType.variable(0, bound), source, bindings, refusals)
+
+        then:
+        result
+        bindings[0].is(source)
+        refusals.empty
+    }
+
+    def 'bindVariable refuses a groundable source its bound rejects, recording the refusal and binding nothing'() {
+        Unifier unifier = new Unifier(ctx)
+        ctx.isDeclared(source) >> true
+        Subject subject = Mock()
+        def refusal = Offer.refusal(subject, 'not an enum')
+        PortType.Bound bound = { s, c -> Optional.of(refusal) }
+        def bindings = [:]
+        def refusals = []
+
+        when:
+        def result = unifier.bindVariable(PortType.variable(0, bound), source, bindings, refusals)
+
+        then:
+        !result
+        bindings.isEmpty() // Map-typed: .empty resolves to a get('empty') key lookup, not isEmpty()
+        refusals == [refusal]
     }
 
     // ---- isGroundable: declared or array, never neither ------------------------------------------------------
@@ -175,7 +230,7 @@ class UnifierSpec extends Specification {
         Unifier unifier = new Unifier(ctx)
 
         when:
-        def result = unifier.unifyApp(PortType.app(Mock(TypeElement), [PortType.variable(0)]), source, [:], 0)
+        def result = unifier.unifyApp(PortType.app(Mock(TypeElement), [PortType.variable(0)]), source, [:], 0, [])
 
         then:
         1 * ctx.isDeclared(source) >> false
@@ -194,7 +249,7 @@ class UnifierSpec extends Specification {
         def template = PortType.app(erasureElement, [PortType.variable(0)])
 
         when:
-        def result = unifier.unifyApp(template, source, [:], 0)
+        def result = unifier.unifyApp(template, source, [:], 0, [])
 
         then:
         1 * ctx.isDeclared(source) >> true
@@ -220,7 +275,7 @@ class UnifierSpec extends Specification {
         def template = PortType.app(erasureElement, [PortType.variable(0)])
 
         when:
-        def result = unifier.unifyApp(template, source, [:], 0)
+        def result = unifier.unifyApp(template, source, [:], 0, [])
 
         then:
         0 * ctx.typeArgument(_, _)
@@ -240,9 +295,10 @@ class UnifierSpec extends Specification {
         def argTemplate = PortType.concrete(argType)
         def template = PortType.app(erasureElement, [argTemplate])
         def bindings = [:]
+        def refusals = []
 
         when:
-        def result = unifier.unifyApp(template, source, bindings, 0)
+        def result = unifier.unifyApp(template, source, bindings, 0, refusals)
 
         then:
         1 * erasureElement.asType() >> erasureType
@@ -252,7 +308,7 @@ class UnifierSpec extends Specification {
         1 * ctx.isSameType(erasureType, erasureType) >> true
         1 * ctx.typeArgumentCount(source) >> 1
         1 * ctx.typeArgument(source, 0) >> argSource
-        1 * unifier.unify(argTemplate, argSource, bindings, 1) >> true
+        1 * unifier.unify(argTemplate, argSource, bindings, 1, refusals) >> true
         1 * unifier._
         0 * _
 
@@ -269,9 +325,10 @@ class UnifierSpec extends Specification {
         def secondTemplate = PortType.variable(1)
         def template = PortType.app(erasureElement, [firstTemplate, secondTemplate])
         def bindings = [:]
+        def refusals = []
 
         when:
-        def result = unifier.unifyApp(template, source, bindings, 0)
+        def result = unifier.unifyApp(template, source, bindings, 0, refusals)
 
         then:
         1 * erasureElement.asType() >> erasureType
@@ -281,7 +338,7 @@ class UnifierSpec extends Specification {
         1 * ctx.isSameType(erasureType, erasureType) >> true
         1 * ctx.typeArgumentCount(source) >> 2
         1 * ctx.typeArgument(source, 0) >> firstArgSource
-        1 * unifier.unify(firstTemplate, firstArgSource, bindings, 1) >> false
+        1 * unifier.unify(firstTemplate, firstArgSource, bindings, 1, refusals) >> false
         1 * unifier._
         0 * _
 

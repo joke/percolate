@@ -68,14 +68,16 @@ final class SpecInstantiator {
         if (template == null) {
             return port;
         }
-        // Preserve the original port's sourcing mode and key: grounding produces a concrete port, never resets them.
+        // Preserve the original port's axes and binding name: grounding produces a concrete port, never resets them.
         return new Port(
                 port.getName(),
                 ground(template, bindings),
                 port.getNullness(),
                 null,
-                port.getSourcing(),
-                port.getKey());
+                port.isSubTarget(),
+                port.getSelector(),
+                port.getOnMiss(),
+                port.getBindingName());
     }
 
     /** {@code child} with its element-in/out templates (if any) substituted by {@code bindings}. */

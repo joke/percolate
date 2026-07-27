@@ -48,7 +48,7 @@ class NullnessCrossingSpec extends Specification {
         spec.codegen instanceof OperationCodegen
         spec.ports[0].type.is(stringType)
         spec.ports[0].nullness == Nullability.NULLABLE
-        spec.ports[0].sourcing == Port.Sourcing.REUSE
+        spec.ports[0].selector == Port.Selector.BY_TYPE && spec.ports[0].onMiss == Port.OnMiss.DECLINE
         spec.outputType.is(stringType)
         spec.outputNullness == Nullability.NON_NULL
 
@@ -103,7 +103,7 @@ class NullnessCrossingSpec extends Specification {
         specs.any { it.partial }
 
         and: 'every crossing port is REUSE — the driver binds an in-scope source or the op does not apply'
-        specs.every { it.ports[0].sourcing == Port.Sourcing.REUSE }
+        specs.every { it.ports[0].selector == Port.Selector.BY_TYPE && it.ports[0].onMiss == Port.OnMiss.DECLINE }
     }
 
     def 'coerces the default literal to a wrapper target type'() {
@@ -204,7 +204,7 @@ class NullnessCrossingSpec extends Specification {
         spec.label == 'coalesce'
         spec.weight == Weights.NOOP
         spec.ports[0].nullness == Nullability.NULLABLE
-        spec.ports[0].sourcing == Port.Sourcing.REUSE
+        spec.ports[0].selector == Port.Selector.BY_TYPE && spec.ports[0].onMiss == Port.OnMiss.DECLINE
         spec.outputNullness == Nullability.NON_NULL
     }
 

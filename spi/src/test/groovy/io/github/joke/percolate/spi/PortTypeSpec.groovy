@@ -25,7 +25,14 @@ class PortTypeSpec extends Specification {
 
     def 'variable wraps the given index'() {
         expect:
-        PortType.variable(3) == new PortType.Var(3)
+        PortType.variable(3) == new PortType.Var(3, null)
+    }
+
+    def 'variable with a bound wraps the given index, ignoring the bound for equality'() {
+        PortType.Bound bound = { source, ctx -> Optional.empty() }
+
+        expect:
+        PortType.variable(3, bound) == new PortType.Var(3, null)
     }
 
     def 'app wraps the erasure over a defensive copy of the argument shapes'() {

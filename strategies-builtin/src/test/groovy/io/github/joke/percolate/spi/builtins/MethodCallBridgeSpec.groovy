@@ -1,5 +1,6 @@
 package io.github.joke.percolate.spi.builtins
 
+import io.github.joke.percolate.Ambient
 import io.github.joke.percolate.lib.javapoet.CodeBlock
 import io.github.joke.percolate.spi.CallableMethods
 import io.github.joke.percolate.spi.IncomingValues
@@ -22,13 +23,13 @@ import java.util.stream.Stream
 
 /**
  * {@link MethodCallBridge} unit-tested mock-only over the {@link ResolveCtx} type-query seam (change
- * {@code cutover-strategies-to-mock-seam}, extended by {@code add-ambient-parameters}): candidate filtering and
- * spec assembly are driven by a mocked {@code CallableMethods}/{@code ResolveCtx} over opaque tokens. No javac.
- * The subtype-distance walk it delegates to is covered on its own in {@link SubtypeDistanceSpec}; here the seam
- * supplies just enough (same-type, distance 0) for the real {@link SubtypeDistance} collaborator to resolve
- * without further stubbing. An unstubbed {@code ctx.ambientKey(param)} on a plain (non-{@code @Ambient}) mocked
- * parameter falls through to the real default method, which reads {@code param.getAnnotation(Ambient)} — {@code
- * null} on an unstubbed mock — so a plain parameter needs no explicit ambient stubbing.
+ * {@code cutover-strategies-to-mock-seam}, extended by {@code decouple-engine-from-strategy-semantics}):
+ * candidate filtering and spec assembly are driven by a mocked {@code CallableMethods}/{@code ResolveCtx} over
+ * opaque tokens. No javac. The subtype-distance walk it delegates to is covered on its own in
+ * {@link SubtypeDistanceSpec}; here the seam supplies just enough (same-type, distance 0) for the real
+ * {@link SubtypeDistance} collaborator to resolve without further stubbing. The strategy reads {@code @Ambient}
+ * itself — an unstubbed {@code param.getAnnotation(Ambient)} on a plain (non-{@code @Ambient}) mocked parameter
+ * returns {@code null}, so a plain parameter needs no explicit stubbing.
  */
 @Tag('unit')
 class MethodCallBridgeSpec extends Specification {
@@ -66,7 +67,7 @@ class MethodCallBridgeSpec extends Specification {
         method.simpleName >> nameOf('concat')
         param.simpleName >> nameOf('arg')
         param.asType() >> paramType
-        ctx.ambientKey(param) >> Optional.empty()
+        param.getAnnotation(Ambient) >> null
         ctx.isAssignable(target, target) >> true
         ctx.isSameType(target, target) >> true
         receiver.asExpression() >> CodeBlock.of('obj')
@@ -80,7 +81,8 @@ class MethodCallBridgeSpec extends Specification {
         spec.childScope.empty
         spec.codegen instanceof OperationCodegen
         spec.ports.size() == 1
-        spec.ports[0].sourcing == Port.Sourcing.REUSE_OR_MINT
+        spec.ports[0].selector == Port.Selector.BY_TYPE
+        spec.ports[0].onMiss == Port.OnMiss.MINT
         spec.weight >= Weights.METHOD
         spec.outputType.is(target)
         spec.outputNullness == Nullability.NON_NULL
@@ -101,8 +103,8 @@ class MethodCallBridgeSpec extends Specification {
         ctx.callableMethods() >> callableMethods
         callableMethods.producing(target) >> Stream.of(candidate)
         method.parameters >> [first, second]
-        ctx.ambientKey(first) >> Optional.empty()
-        ctx.ambientKey(second) >> Optional.empty()
+        first.getAnnotation(Ambient) >> null
+        second.getAnnotation(Ambient) >> null
 
         expect:
         new MethodCallBridge().expand(Demands.forTarget(target), ctx).toList().empty
@@ -124,8 +126,8 @@ class MethodCallBridgeSpec extends Specification {
         taxFactor.asType() >> Mock(TypeMirror)
         order.simpleName >> nameOf('order')
         order.asType() >> Mock(TypeMirror)
-        ctx.ambientKey(taxFactor) >> Optional.empty()
-        ctx.ambientKey(order) >> Optional.of('order')
+        taxFactor.getAnnotation(Ambient) >> null
+        order.getAnnotation(Ambient) >> ambient()
         ctx.isAssignable(target, target) >> true
         ctx.isSameType(target, target) >> true
 
@@ -144,7 +146,7 @@ class MethodCallBridgeSpec extends Specification {
         callableMethods.producing(target) >> Stream.of(candidate)
         method.parameters >> [param]
         method.returnType >> returnType
-        ctx.ambientKey(param) >> Optional.empty()
+        param.getAnnotation(Ambient) >> null
         ctx.isAssignable(returnType, target) >> false
 
         expect:
@@ -162,7 +164,7 @@ class MethodCallBridgeSpec extends Specification {
         method.simpleName >> nameOf('concat')
         param.simpleName >> nameOf('arg')
         param.asType() >> paramType
-        ctx.ambientKey(param) >> Optional.empty()
+        param.getAnnotation(Ambient) >> null
         ctx.isSameType(target, target) >> true
 
         expect:
@@ -177,7 +179,7 @@ class MethodCallBridgeSpec extends Specification {
         spec.callTarget.get().is(method)
     }
 
-    def 'buildSpec emits ports in declaration order, an AMBIENT port carrying its key beside the mapped one'() {
+    def 'buildSpec emits ports in declaration order, a BY_NAME/REQUIRE port carrying its binding name beside the mapped one'() {
         ExecutableElement method = Mock()
         VariableElement taxFactor = Mock()
         VariableElement order = Mock()
@@ -192,19 +194,21 @@ class MethodCallBridgeSpec extends Specification {
         taxFactor.asType() >> taxFactorType
         order.simpleName >> nameOf('order')
         order.asType() >> orderType
-        ctx.ambientKey(taxFactor) >> Optional.empty()
-        ctx.ambientKey(order) >> Optional.of('order')
+        taxFactor.getAnnotation(Ambient) >> null
+        order.getAnnotation(Ambient) >> ambient()
         ctx.isSameType(target, target) >> true
 
         expect:
         def spec = new MethodCallBridge().buildSpec(candidate, target, Demands.forTarget(target), ctx)
         spec.ports.size() == 2
         spec.ports[0].name == 'taxFactor'
-        spec.ports[0].sourcing == Port.Sourcing.REUSE_OR_MINT
-        spec.ports[0].key == ''
+        spec.ports[0].selector == Port.Selector.BY_TYPE
+        spec.ports[0].onMiss == Port.OnMiss.MINT
+        spec.ports[0].bindingName == ''
         spec.ports[1].name == 'order'
-        spec.ports[1].sourcing == Port.Sourcing.AMBIENT
-        spec.ports[1].key == 'order'
+        spec.ports[1].selector == Port.Selector.BY_NAME
+        spec.ports[1].onMiss == Port.OnMiss.REQUIRE
+        spec.ports[1].bindingName == 'order'
     }
 
     def 'renderCodegen renders receiver.method(arg) chained via the zero-width wrap marker'() {
@@ -228,7 +232,7 @@ class MethodCallBridgeSpec extends Specification {
         method.simpleName >> nameOf('mapPrice')
         receiver.asExpression() >> CodeBlock.of('obj')
         def taxFactor = new Port('taxFactor', Mock(TypeMirror), Nullability.NON_NULL)
-        def order = Port.ambient('order', Mock(TypeMirror), Nullability.NON_NULL, 'order')
+        def order = Port.byName('order', Mock(TypeMirror), Nullability.NON_NULL, 'order')
 
         expect:
         def rendered = CodeBlock.of('$L\n', new MethodCallBridge().renderCodegen(candidate, [taxFactor, order])
@@ -242,7 +246,7 @@ class MethodCallBridgeSpec extends Specification {
         def candidate = new MethodCandidate(method, receiver)
         method.simpleName >> nameOf('mapPrice')
         receiver.asExpression() >> CodeBlock.of('obj')
-        def order = Port.ambient('order', Mock(TypeMirror), Nullability.NON_NULL, 'order')
+        def order = Port.byName('order', Mock(TypeMirror), Nullability.NON_NULL, 'order')
         def taxFactor = new Port('taxFactor', Mock(TypeMirror), Nullability.NON_NULL)
 
         expect:
@@ -257,5 +261,9 @@ class MethodCallBridgeSpec extends Specification {
 
     private static Name nameOf(final String value) {
         [contentEquals: { CharSequence cs -> cs.toString() == value }, toString: { value }] as Name
+    }
+
+    private static Ambient ambient(final String value = '') {
+        [value: { -> value }] as Ambient
     }
 }

@@ -10,11 +10,9 @@ import io.github.joke.percolate.processor.internal.stages.dump.DumpTransformsSta
 import io.github.joke.percolate.processor.internal.stages.expand.ExpandStage
 import io.github.joke.percolate.processor.internal.stages.generate.GenerateStage
 import io.github.joke.percolate.processor.internal.stages.validate.RealisationDiagnosticsStage
-import io.github.joke.percolate.processor.internal.stages.validate.ValidateAmbientBindingsStage
 import io.github.joke.percolate.processor.internal.stages.validate.ValidateMappingShapeStage
 import io.github.joke.percolate.processor.internal.stages.validate.ValidateNoDuplicateTargetsStage
 import io.github.joke.percolate.processor.internal.stages.validate.ValidateOptionConsumptionStage
-import io.github.joke.percolate.processor.internal.stages.validate.ValidateEnumOverridesStage
 import io.github.joke.percolate.processor.internal.stages.validate.ValidateSourceParametersStage
 import io.github.joke.percolate.processor.nullability.JspecifyNullabilityResolver
 import io.github.joke.percolate.processor.nullability.NullabilityResolver
@@ -166,28 +164,25 @@ class ProcessorModuleSpec extends Specification {
         ValidateNoDuplicateTargetsStage noDuplicateTargets = Mock()
         ValidateMappingShapeStage mappingShape = Mock()
         ValidateSourceParametersStage sourceParameters = Mock()
-        ValidateEnumOverridesStage enumOverrides = Mock()
         ExpandStage expand = Mock()
         DumpFullGraphStage dumpFullGraph = Mock()
         DumpTransformsStage dumpTransforms = Mock()
         DumpPlanStage dumpPlan = Mock()
-        ValidateAmbientBindingsStage ambientBindings = Mock()
         ValidateOptionConsumptionStage optionConsumption = Mock()
         RealisationDiagnosticsStage realisation = Mock()
         GenerateStage generate = Mock()
 
         when:
         def stages = ProcessorModule.stages(
-                [discoverA, discoverB], noDuplicateTargets, mappingShape, sourceParameters, enumOverrides, expand,
-                dumpFullGraph, dumpTransforms, dumpPlan, ambientBindings, optionConsumption,
+                [discoverA, discoverB], noDuplicateTargets, mappingShape, sourceParameters, expand,
+                dumpFullGraph, dumpTransforms, dumpPlan, optionConsumption,
                 realisation, generate)
 
         then:
         stages == [
                 discoverA, discoverB,
-                noDuplicateTargets, mappingShape, sourceParameters, enumOverrides,
+                noDuplicateTargets, mappingShape, sourceParameters,
                 expand,
-                ambientBindings,
                 optionConsumption, realisation,
                 dumpFullGraph, dumpTransforms, dumpPlan,
                 generate

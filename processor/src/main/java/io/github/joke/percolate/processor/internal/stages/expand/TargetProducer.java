@@ -57,10 +57,22 @@ final class TargetProducer {
                 value.getLoc().slotName(),
                 resolver);
         final var sourceTypes = sourceCandidates.sourceTypes(scope);
+        final var refusals = new ArrayList<Offer>();
         final var grounded = productionsOf(run(demand, resolveCtx), value).stream()
-                .flatMap(spec -> grounding.ground(spec, sourceTypes))
+                .flatMap(spec -> grounding.ground(spec, sourceTypes, refusals))
                 .collect(toUnmodifiableList());
+        recordRefusals(refusals, value);
         return dedup(grounded);
+    }
+
+    /** Records every bound refusal {@code Grounding} collected on {@code value}'s inadmissible list. */
+    static void recordRefusals(final List<Offer> refusals, final Value value) {
+        for (final var refusal : refusals) {
+            if (refusal instanceof Offer.Refusal) {
+                final var offerRefusal = (Offer.Refusal) refusal;
+                value.addInadmissible(new Refusal(offerRefusal.getSubject(), offerRefusal.getMessage()));
+            }
+        }
     }
 
     /** The walked binding's own {@link Directive} for {@code value}'s target path (design D9) — never per-segment. */

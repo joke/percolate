@@ -3,6 +3,7 @@ package io.github.joke.percolate.processor.internal.stages.expand;
 import static java.util.stream.Collectors.toUnmodifiableList;
 
 import io.github.joke.percolate.processor.internal.graph.AddValue;
+import io.github.joke.percolate.processor.internal.graph.AmbientDecl;
 import io.github.joke.percolate.processor.internal.graph.InputDecl;
 import io.github.joke.percolate.processor.internal.graph.Location;
 import io.github.joke.percolate.processor.internal.graph.MapperGraph;
@@ -99,22 +100,31 @@ final class SourceCandidates {
     }
 
     /**
-     * The ambient {@link Value} feeding an {@code AMBIENT} port: the scope's ambient environment entry whose key
-     * equals {@code port.getKey()}, materialised at its own declaration — the same location an ordinary
-     * {@code @Map} source would resolve to for that parameter (design Decision 7). {@code null} when the key is
+     * The named {@link Value} feeding a {@code BY_NAME} port: the scope's named-input environment entry whose key
+     * equals {@code port.getBindingName()}, materialised at its own declaration — the same location an ordinary
+     * {@code @Map} source would resolve to for that parameter (design Decision 7). {@code null} when the name is
      * unbound, or when it is bound but the binding's type is not assignable to the port's declared type (design
-     * Decision 2: verified, not encoded into the key). Either failure declines the port exactly like
-     * {@code REUSE} does; the loud, key-naming diagnostic is a downstream validation concern, not the engine's.
+     * Decision 2: verified, not encoded into the name). Either failure is reported by {@link PortSourceResolver}'s
+     * {@code REQUIRE} handling — the engine's own concern, not this collaborator's.
      */
     @Nullable
-    Value ambientSource(final Scope scope, final Port port) {
-        return scope.ambientDecls(resolver::resolve)
-                .filter(decl -> decl.getKey().equals(port.getKey()))
-                .findFirst()
+    Value byNameSource(final Scope scope, final Port port) {
+        return byNameDecl(scope, port)
                 .filter(decl -> resolveCtx.isAssignable(decl.getType(), port.getType()))
                 .map(decl -> applier.apply(
                         graph, new AddValue(scope, decl.getLocation(), decl.getType(), decl.getNullness())))
                 .orElse(null);
+    }
+
+    /** The declared type of the scope's named input matching {@code port.getBindingName()}, for a REQUIRE-miss mismatch message. */
+    Optional<TypeMirror> byNameDeclaredType(final Scope scope, final Port port) {
+        return byNameDecl(scope, port).map(AmbientDecl::getType);
+    }
+
+    Optional<AmbientDecl> byNameDecl(final Scope scope, final Port port) {
+        return scope.ambientDecls(resolver::resolve)
+                .filter(decl -> decl.getKey().equals(port.getBindingName()))
+                .findFirst();
     }
 
     Stream<Value> sourceValues(final Scope scope) {

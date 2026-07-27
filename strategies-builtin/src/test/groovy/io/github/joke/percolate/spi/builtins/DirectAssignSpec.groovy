@@ -44,7 +44,7 @@ class DirectAssignSpec extends Specification {
         def specs = new DirectAssign().expand(Demands.forTarget(target), ctx)*.spec
 
         then: 'never minted — a same-type value already feeds the target directly (no self-copy manufacturing)'
-        specs[0].ports[0].sourcing == Port.Sourcing.REUSE
+        specs[0].ports[0].selector == Port.Selector.BY_TYPE && specs[0].ports[0].onMiss == Port.OnMiss.DECLINE
     }
 
     def 'is nullness-transparent: port and output carry the demanded nullness'() {

@@ -5,6 +5,7 @@ import io.github.joke.percolate.spi.BodyCodegen
 import io.github.joke.percolate.spi.BodyRenderContext
 import io.github.joke.percolate.spi.DirectiveInput
 import io.github.joke.percolate.spi.Nullability
+import io.github.joke.percolate.spi.Offer
 import io.github.joke.percolate.spi.PortType
 import io.github.joke.percolate.spi.ResolveCtx
 import io.github.joke.percolate.spi.Subjects
@@ -22,12 +23,13 @@ import javax.lang.model.element.TypeElement
 import javax.lang.model.type.TypeMirror
 
 /**
- * {@link EnumConversion} unit-tested mock-only: {@code expand} declares the type-variable port and weight over the
- * {@link ResolveCtx} seam only; the source-shape-dependent decisions (name-matching, {@code @MapEnum} precedence,
- * classic-vs-arrow coverage safety) live in the pure {@code buildMapping}/{@code renderArrow}/{@code renderClassic}
- * helpers, tested directly on plain data. A rendered {@code $T} placeholder bound to a mocked {@link TypeMirror} is
- * never stringified here (it needs a real compiler type to resolve, per the {@code AbsoluteTemporalConversion}
- * precedent) — only structural/throwing behaviour is asserted for the render paths.
+ * {@link EnumConversion} unit-tested mock-only: {@code expand} declares the bounded type-variable port and weight
+ * over the {@link ResolveCtx} seam only; the non-enum and uncovered-constant vetoes live in {@code sourceBound}
+ * (design D6 of change {@code decouple-engine-from-strategy-semantics}), so {@code render} itself never fails —
+ * the source-shape-dependent decisions (name-matching, {@code @MapEnum} precedence, classic-vs-arrow coverage)
+ * live in the pure {@code buildMapping}/{@code renderArrow}/{@code renderClassic} helpers, tested directly on plain
+ * data. A rendered {@code $T} placeholder bound to a mocked {@link TypeMirror} is never stringified here (it needs
+ * a real compiler type to resolve, per the {@code AbsoluteTemporalConversion} precedent).
  */
 @Tag('unit')
 class EnumConversionSpec extends Specification {
@@ -74,9 +76,9 @@ class EnumConversionSpec extends Specification {
         context.portType('value') >> sourceType
         ctx.isEnum(sourceType) >> true
         ctx.asTypeElement(sourceType) >> Optional.of(sourceElement)
-        ctx.membersOf(sourceElement) >> [constant('NEW')].stream()
+        ctx.membersOf(sourceElement) >> { [constant('NEW')].stream() }
         ctx.asTypeElement(targetType) >> Optional.of(targetElement)
-        ctx.membersOf(targetElement) >> [constant('CREATED')].stream()
+        ctx.membersOf(targetElement) >> { [constant('CREATED')].stream() }
         context.switchStyle() >> SwitchStyle.CLASSIC
         context.sourceVersion() >> SourceVersion.RELEASE_11
         context.single() >> CodeBlock.of('v')
@@ -87,6 +89,19 @@ class EnumConversionSpec extends Specification {
 
         then: 'NEW has no same-name match in the target — only the override covers it, so no coverage exception'
         ((BodyCodegen) spec.codegen).render(context) != null
+    }
+
+    // ---- effectiveOverrides: only a real target constant is stamped consumed (design D3) ----------------------------
+
+    def 'effectiveOverrides keeps only the overrides naming a real target constant'() {
+        TypeElement targetElement = Mock()
+        ctx.asTypeElement(targetType) >> Optional.of(targetElement)
+        ctx.membersOf(targetElement) >> [constant('CREATED')].stream()
+        def valid = enumOverride('NEW', 'CREATED')
+        def invalid = enumOverride('OLD', 'ARCHIVED')
+
+        expect:
+        EnumConversion.effectiveOverrides(targetType, [valid, invalid], ctx) == [valid] as Set
     }
 
     // ---- resolveStyle -----------------------------------------------------------------------------------------
@@ -131,21 +146,9 @@ class EnumConversionSpec extends Specification {
         EnumConversion.buildMapping(['NEW'], ['CREATED'], [enumOverride('NEW', 'CREATED')]) == [NEW: 'CREATED']
     }
 
-    // ---- renderClassic: coverage is a compile-time failure, not deferred to javac ----------------------------------
+    // ---- renderClassic: coverage is guaranteed by sourceBound before render ever runs ------------------------------
 
-    def 'renderClassic fails fast, naming every uncovered constant, when coverage is incomplete'() {
-        when:
-        EnumConversion.renderClassic(CodeBlock.of('v'), targetType, ['NEW', 'CANCELLED'], [NEW: 'CREATED'])
-
-        then:
-        def error = thrown(IllegalStateException)
-
-        expect:
-        error.message.contains('CANCELLED')
-        !error.message.contains('NEW')
-    }
-
-    def 'renderClassic does not throw when every source constant is covered'() {
+    def 'renderClassic renders every constant when every source constant is covered'() {
         expect:
         EnumConversion.renderClassic(CodeBlock.of('v'), targetType, ['NEW', 'COMPLETED'],
                 [NEW: 'CREATED', COMPLETED: 'FULFILLED']) != null
@@ -159,31 +162,6 @@ class EnumConversionSpec extends Specification {
     }
 
     // ---- render: dispatches by the effective style, and the classic/arrow coverage split holds end-to-end ----------
-
-    def 'render defers to renderClassic and fails fast on the classic tier with incomplete coverage'() {
-        TypeMirror sourceType = Mock()
-        TypeElement sourceElement = Mock()
-        TypeElement targetElement = Mock()
-        BodyRenderContext context = Mock()
-        context.resolveCtx() >> ctx
-        context.portType('value') >> sourceType
-        ctx.isEnum(sourceType) >> true
-        ctx.asTypeElement(sourceType) >> Optional.of(sourceElement)
-        ctx.membersOf(sourceElement) >> [constant('NEW'), constant('CANCELLED')].stream()
-        ctx.asTypeElement(targetType) >> Optional.of(targetElement)
-        ctx.membersOf(targetElement) >> [constant('NEW')].stream()
-        context.switchStyle() >> SwitchStyle.CLASSIC
-        context.sourceVersion() >> SourceVersion.RELEASE_11
-
-        when:
-        EnumConversion.render(context, targetType, [])
-
-        then:
-        def error = thrown(IllegalStateException)
-
-        expect:
-        error.message.contains('CANCELLED')
-    }
 
     def 'render defers coverage entirely to javac on the arrow tier — no throw for the same incomplete coverage'() {
         TypeMirror sourceType = Mock()
@@ -205,18 +183,52 @@ class EnumConversionSpec extends Specification {
         EnumConversion.render(context, targetType, []) != null
     }
 
-    def 'render fails fast when the grounded source is not an enum'() {
+    // ---- sourceBound: vetoes a non-enum source or an uncovered one before render ever runs (design D6) -------------
+
+    def 'sourceBound refuses a non-enum source, naming it, without inspecting its constants'() {
         TypeMirror sourceType = Mock()
-        BodyRenderContext context = Mock()
-        context.resolveCtx() >> ctx
-        context.portType('value') >> sourceType
         ctx.isEnum(sourceType) >> false
 
         when:
-        EnumConversion.render(context, targetType, [])
+        def refusal = EnumConversion.sourceBound(targetType, []).check(sourceType, ctx)
 
         then:
-        thrown(IllegalStateException)
+        0 * ctx.asTypeElement(_)
+
+        expect:
+        refusal.present
+    }
+
+    def 'sourceBound refuses an enum source with an uncovered constant, naming it'() {
+        TypeMirror sourceType = Mock()
+        TypeElement sourceElement = Mock()
+        TypeElement targetElement = Mock()
+        ctx.isEnum(sourceType) >> true
+        ctx.asTypeElement(sourceType) >> Optional.of(sourceElement)
+        ctx.membersOf(sourceElement) >> [constant('NEW'), constant('CANCELLED')].stream()
+        ctx.asTypeElement(targetType) >> Optional.of(targetElement)
+        ctx.membersOf(targetElement) >> [constant('NEW')].stream()
+
+        when:
+        def refusal = EnumConversion.sourceBound(targetType, []).check(sourceType, ctx)
+
+        then:
+        refusal.present
+        ((Offer.Refusal) refusal.get()).message.contains('CANCELLED')
+    }
+
+    def 'sourceBound accepts an enum source whose constants are fully covered'() {
+        TypeMirror sourceType = Mock()
+        TypeElement sourceElement = Mock()
+        TypeElement targetElement = Mock()
+        ctx.isEnum(sourceType) >> true
+        ctx.asTypeElement(sourceType) >> Optional.of(sourceElement)
+        ctx.membersOf(sourceElement) >> [constant('NEW')].stream()
+        ctx.asTypeElement(targetType) >> Optional.of(targetElement)
+        ctx.membersOf(targetElement) >> [constant('NEW')].stream()
+
+        expect:
+        EnumConversion.sourceBound(targetType, []).check(sourceType, ctx).empty
     }
 
     // ---- enumConstantNames -------------------------------------------------------------------------------------

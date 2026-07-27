@@ -41,7 +41,8 @@ class AccessorSpec extends Specification {
         spec.codegen instanceof OperationCodegen
         spec.ports.size() == 1
         spec.ports[0].name == 'value'
-        spec.ports[0].sourcing == Port.Sourcing.REUSE_OR_MINT
+        spec.ports[0].selector == Port.Selector.BY_TYPE
+        spec.ports[0].onMiss == Port.OnMiss.MINT
         spec.ports[0].type.is(stringType)
         spec.ports[0].nullness == Nullability.NON_NULL
         spec.outputType.is(integerType)

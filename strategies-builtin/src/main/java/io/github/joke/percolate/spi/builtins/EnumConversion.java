@@ -1,6 +1,7 @@
 package io.github.joke.percolate.spi.builtins;
 
 import static java.util.stream.Collectors.toUnmodifiableList;
+import static java.util.stream.Collectors.toUnmodifiableSet;
 
 import com.google.auto.service.AutoService;
 import io.github.joke.percolate.lib.javapoet.CodeBlock;
@@ -15,11 +16,13 @@ import io.github.joke.percolate.spi.Port;
 import io.github.joke.percolate.spi.PortType;
 import io.github.joke.percolate.spi.ProduceDemand;
 import io.github.joke.percolate.spi.ResolveCtx;
+import io.github.joke.percolate.spi.Subjects;
 import io.github.joke.percolate.spi.SwitchStyle;
 import io.github.joke.percolate.spi.Weights;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Stream;
 import javax.lang.model.SourceVersion;
@@ -63,7 +66,8 @@ public final class EnumConversion implements ExpansionStrategy {
             return Stream.empty();
         }
         final var overrides = demand.directive().map(d -> d.inputs(ENUM_KEY)).orElseGet(List::of);
-        final var port = new Port(VALUE_ROLE, target, Nullability.NON_NULL, PortType.variable(0));
+        final var port = new Port(
+                VALUE_ROLE, target, Nullability.NON_NULL, PortType.variable(0, sourceBound(target, overrides)));
         final BodyCodegen codegen = context -> render(context, target, overrides);
         return Stream.of(Offer.of(OperationSpec.of(
                         "enum" + Labels.ARROW + Labels.simple(target),
@@ -72,7 +76,49 @@ public final class EnumConversion implements ExpansionStrategy {
                         List.of(port),
                         target,
                         Nullability.NON_NULL)
-                .withConsumed(Set.copyOf(overrides))));
+                .withConsumed(effectiveOverrides(target, overrides, ctx))));
+    }
+
+    /**
+     * The overrides that name a real target constant — the rail (design D3 of change
+     * {@code decouple-engine-from-strategy-semantics}) reports any other {@code @MapEnum} entry as declared but
+     * having had no effect, replacing {@code ValidateEnumOverridesStage}'s target-side check.
+     */
+    static Set<DirectiveInput> effectiveOverrides(
+            final TypeMirror target, final List<DirectiveInput> overrides, final ResolveCtx ctx) {
+        if (overrides.isEmpty()) {
+            return Set.of();
+        }
+        final var targetConstants = Set.copyOf(enumConstantNames(ctx, target));
+        return overrides.stream()
+                .filter(override ->
+                        targetConstants.contains(override.member(TARGET_PART).orElseThrow()))
+                .collect(toUnmodifiableSet());
+    }
+
+    /**
+     * A {@link PortType.Bound} rejecting a non-enum source or one whose constants are not all covered by a
+     * same-name match or {@code @MapEnum} (design D6 of change {@code decouple-engine-from-strategy-semantics}):
+     * the grounding is vetoed before it ever competes, so {@link #render} never sees either failure.
+     */
+    static PortType.Bound sourceBound(final TypeMirror target, final List<DirectiveInput> overrides) {
+        return (source, ctx) -> {
+            if (!ctx.isEnum(source)) {
+                return Optional.of(
+                        Offer.refusal(Subjects.none(), "enum conversion requires an enum source, found " + source));
+            }
+            final var sourceConstants = enumConstantNames(ctx, source);
+            final var mapping = buildMapping(sourceConstants, enumConstantNames(ctx, target), overrides);
+            final var uncovered = sourceConstants.stream()
+                    .filter(constant -> !mapping.containsKey(constant))
+                    .collect(toUnmodifiableList());
+            return uncovered.isEmpty()
+                    ? Optional.empty()
+                    : Optional.of(Offer.refusal(
+                            Subjects.none(),
+                            "no @MapEnum or same-name match covers source constant(s): "
+                                    + String.join(", ", uncovered)));
+        };
     }
 
     /** Renders the whole method body: a switch over the grounded source enum, form chosen by the effective style. */
@@ -80,9 +126,6 @@ public final class EnumConversion implements ExpansionStrategy {
             final BodyRenderContext context, final TypeMirror target, final List<DirectiveInput> overrides) {
         final var resolveCtx = context.resolveCtx();
         final var source = context.portType(VALUE_ROLE);
-        if (!resolveCtx.isEnum(source)) {
-            throw new IllegalStateException("EnumConversion grounded to a non-enum source: " + source);
-        }
         final var sourceConstants = enumConstantNames(resolveCtx, source);
         final var mapping = buildMapping(sourceConstants, enumConstantNames(resolveCtx, target), overrides);
         final var style = resolveStyle(context.switchStyle(), context.sourceVersion());
@@ -132,19 +175,12 @@ public final class EnumConversion implements ExpansionStrategy {
         return builder.unindent().add("};\n").build();
     }
 
-    /** A classic switch statement: every source constant must be covered, else code generation fails outright. */
+    /** A classic switch statement: {@link #sourceBound} guarantees every source constant is already covered. */
     static CodeBlock renderClassic(
             final CodeBlock sourceExpr,
             final TypeMirror target,
             final List<String> sourceConstants,
             final Map<String, String> mapping) {
-        final var uncovered = sourceConstants.stream()
-                .filter(constant -> !mapping.containsKey(constant))
-                .collect(toUnmodifiableList());
-        if (!uncovered.isEmpty()) {
-            throw new IllegalStateException(
-                    "no @MapEnum or same-name match covers source constant(s): " + String.join(", ", uncovered));
-        }
         final var builder =
                 CodeBlock.builder().add("switch ($L) {\n", sourceExpr).indent();
         for (final var constant : sourceConstants) {
