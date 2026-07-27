@@ -2,40 +2,52 @@
 
 ## Purpose
 
-Defines the `@Map defaultValue` member and the `[coalesce]` form of the `NullnessCrossing` built-in strategy that supplies a fallback used only when a source value is absent (there is no separate `DefaultValue` strategy — coalesce is folded into `NullnessCrossing`). A default never replaces a present source value; it coalesces target-side per source kind (`requireNonNullElse` for a nullable scalar, `orElse` for an `Optional`), reusing the constant literal-coercion to the target type. A default on a source that can never be absent (a `NON_NULL` reference or a primitive) is dead code and is rejected. Coalesced values are non-null by construction.
+Defines the `@Map defaultValue` member and the `[coalesce]` form of the `NullnessCrossing` built-in strategy that supplies a fallback used only when a source value is absent (there is no separate `DefaultValue` strategy — coalesce is folded into `NullnessCrossing`). A default never replaces a present source value; it coalesces target-side per source kind (`requireNonNullElse` for a nullable scalar, `orElse` for an `Optional`), reusing the constant literal-coercion to the target type. A default on a source that can never be absent (a `NON_NULL` reference or a primitive) is dead code: no crossing is demanded, so nothing consumes the `defaultValue` input and the generic option-consumption rail reports it, positioned at the written literal. An uncoercible default is refused by the crossing strategy itself. Coalesced values are non-null by construction.
 
 ## Requirements
 
 ### Requirement: @Map defaultValue member declares an absent-source fallback
 
-`@Map` SHALL expose a `String defaultValue()` member defaulting to the `Map.UNSET` sentinel. When a directive's `defaultValue` is present (`!Map.UNSET.equals(defaultValue)`), it declares a fallback used **only when the source value is absent**. The directive's source path is unchanged; the default never replaces a present source value. An empty-string default (`defaultValue = ""`) SHALL be a legitimate present value, distinct from absent.
+`@Map` SHALL expose an optional `String defaultValue()` member with an empty-string default. Presence SHALL be decided by whether the member was **written**, never by comparing against that default: a written `defaultValue` declares a fallback used **only when the source value is absent**. The binding's source path is unchanged; the default never replaces a present source value. An empty-string default (`defaultValue = ""`) SHALL be a legitimate present value, distinct from absent.
 
 #### Scenario: A present default declares a fallback for an existing source
 - **WHEN** an abstract method is annotated with `@Map(target = "name", source = "in.name", defaultValue = "unknown")`
-- **THEN** the directive retains its source path `in.name`
-- **AND** the directive is recognized as carrying a present default value `"unknown"`
+- **THEN** the binding retains its source path `in.name`
+- **AND** carries a `defaultValue` input whose value is `"unknown"`
 
 #### Scenario: Empty-string default is present, not absent
 - **WHEN** a directive declares `@Map(target = "note", source = "in.note", defaultValue = "")`
-- **THEN** the default is recognized as present with the empty-string value
-- **AND** it is NOT treated as `Map.UNSET`/absent
+- **THEN** the binding carries a `defaultValue` input whose value is the empty string
+- **AND** it is NOT treated as absent, because the member was written
 
 ### Requirement: A default on a non-absent source is a dead default
 
-A `defaultValue` can only fire when the source can be absent. After nullability inference, if the source resolves to a `NON_NULL` reference scalar or a primitive (which can never be absent), the default is dead code. The processor SHALL emit one error via `Diagnostics` identifying the dead default, carrying the directive's method `Element`, `AnnotationMirror`, and the `AnnotationValue` of `defaultValue` for IDE positioning. This check runs after nullability stamping; it cannot be decided earlier because the source's nullability is unknown until producer-commit.
+A `defaultValue` SHALL only fire when the source can be absent. When the source resolves to a `NON_NULL`
+reference scalar or a primitive (which can never be absent), no nullness crossing is demanded, so no strategy is
+ever asked and none can refuse: the default is dead and nothing fails.
 
-#### Scenario: Default on a NON_NULL source is rejected
-- **WHEN** a directive `@Map(target = "name", source = "in.name", defaultValue = "x")` has a source `in.name` that resolves `NON_NULL`
-- **THEN** the processor emits one error reporting the default can never fire
-- **AND** the `Diagnostics.error(...)` call receives the `AnnotationValue` of `defaultValue`
+The processor SHALL therefore diagnose a dead default through the **generic consumption rail**: the
+`defaultValue` input is declared and no operation in the winning plan stamps it consumed, so it is reported as
+having had no effect, positioned at that input's own `Subject`.
 
-#### Scenario: Default on a primitive source is rejected
-- **WHEN** a directive's source resolves to a primitive type
-- **THEN** the processor emits one dead-default error (a primitive can never be absent)
+No core stage SHALL independently decide when a default can fire, and no stage SHALL reimplement absence
+semantics.
+
+#### Scenario: Default on a NON_NULL source is reported by the rail
+- **WHEN** a binding declares a `defaultValue` for a source that resolves `NON_NULL`
+- **THEN** no crossing consumes the input, and an error is reported positioned at the `defaultValue` literal
+
+#### Scenario: Default on a primitive source is reported by the rail
+- **WHEN** a binding's source resolves to a primitive type
+- **THEN** the `defaultValue` input is unconsumed and is reported
 
 #### Scenario: Default on a nullable or Optional source is accepted
-- **WHEN** a directive's source resolves to a `@Nullable` reference scalar or an `Optional<T>`
-- **THEN** no dead-default error is emitted
+- **WHEN** a binding's source resolves to a `@Nullable` reference scalar or an `Optional<T>`
+- **THEN** the crossing consumes the input and no diagnostic is reported
+
+#### Scenario: No core stage owns absence semantics
+- **WHEN** the processor's validation stages are inspected
+- **THEN** none tests whether a source can be absent in order to judge a default
 
 ### Requirement: A default is the coalesce Operation on the nullness crossing
 
@@ -58,3 +70,17 @@ crossing Operation survives into the plan.
 #### Scenario: Optional source coalesces with orElse
 - **WHEN** the source is `Optional<String>` and the binding declares a default
 - **THEN** the `[coalesce]` Operation renders `orElse` with the coerced literal
+
+### Requirement: An uncoercible default is refused by the crossing strategy
+
+The crossing strategy SHALL refuse, with a message naming the value and the type and carrying the `defaultValue`
+input's `Subject`, when a `defaultValue` is declared for a demand it recognises but the literal cannot be coerced
+to the target type. It SHALL NOT emit a diagnostic itself.
+
+#### Scenario: An uncoercible default is refused with a reason
+- **WHEN** a binding declares `defaultValue = "abc"` for a nullable `Integer` target
+- **THEN** the crossing strategy returns a refusal naming the value and the type, positioned at the `defaultValue` literal
+
+#### Scenario: A coercible default produces the coalesce and stamps its input
+- **WHEN** a binding declares a coercible `defaultValue` for a nullable source
+- **THEN** the crossing produces the coalesce operation and stamps the `defaultValue` input consumed

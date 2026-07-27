@@ -2,114 +2,57 @@
 
 ## Purpose
 
-`DiscoverMappingsStage` is the second pipeline stage. It reads each abstract method's `@Map` (and `@MapList`) annotations into a typed `MapperMappings` structure. Each `MappingDirective` retains the underlying `AnnotationMirror` and the `AnnotationValue`s for `target` and `source`, so later validation and diagnostic stages can point at the exact source token rather than the enclosing method.
+`DiscoverMappingsStage` is the second pipeline stage. It owns no annotation knowledge: it invokes the service-loaded `DirectiveReader`s (see `directive-reading`) and assembles one `MethodDirectives` per abstract method from what they declare through their `DirectiveSink` — the ordered bindings, the inputs keyed by target path, the published scope inputs, and the attached constraints. Every binding and input retains the underlying `AnnotationMirror` and the `AnnotationValue` of the member it came from, so later validation and diagnostic stages can point at the exact source token rather than the enclosing method.
 
 ## Requirements
 
 ### Requirement: @Map directives SHALL be discovered for every abstract method
 
-`DiscoverMappingsStage` SHALL accept a `MapperShape` and produce a `MapperMappings` containing one `MethodMappings` for each abstract method, in the same order. Each `MethodMappings` carries the `ExecutableElement` and the list of `MappingDirective`s declared on that method.
+`DiscoverMappingsStage` SHALL produce one `MethodDirectives` for each abstract method of the `MapperShape`, in
+the same order. Each `MethodDirectives` carries the `ExecutableElement` together with what the readers declared
+for it: the ordered bindings, the inputs keyed by target path, the published scope inputs, and the attached
+constraints. The stage SHALL assemble these from `DirectiveSink` calls and SHALL read no annotation itself, so
+what a binding means is the reader's knowledge and never the stage's.
 
-#### Scenario: A method with one @Map produces one directive
+#### Scenario: A method with one @Map produces one binding
 
 - **WHEN** an abstract method is annotated with `@Map(target = "lastName", source = "lastName")`
-- **THEN** the corresponding `MethodMappings.directives` list has exactly one entry whose `target` equals `"lastName"` and `source` equals `"lastName"`
+- **THEN** the corresponding `MethodDirectives` carries exactly one binding, at target path `["lastName"]` with source path `["lastName"]`
 
-#### Scenario: A method with multiple @Maps produces multiple directives in source order
+#### Scenario: A method with multiple @Maps produces multiple bindings in source order
 
 - **WHEN** an abstract method is annotated with `@Map(target = "lastName", source = "lastName")` followed by `@Map(target = "firstName", source = "firsty")`
-- **THEN** the corresponding `MethodMappings.directives` list has two entries in that order
-
-### Requirement: Each MappingDirective SHALL preserve mirror and value references
-
-Every `MappingDirective` SHALL carry the `AnnotationMirror` for the `@Map` annotation it represents, plus the `AnnotationValue`s for the `target` member and for each of the `source`, `constant`, and `defaultValue` members that is **explicitly present** on the annotation, so that downstream errors can point at the exact source token. A member left at its `Map.UNSET` default need not carry an `AnnotationValue` (none is required for positioning when the member was not written).
-
-#### Scenario: Mirror and values are populated
-
-- **WHEN** an abstract method is annotated with `@Map(target = "lastName", source = "firsty")`
-- **THEN** the resulting `MappingDirective.mirror` is the `AnnotationMirror` for that `@Map` invocation
-- **AND** `MappingDirective.targetValue` is the `AnnotationValue` for `target = "lastName"`
-- **AND** `MappingDirective.sourceValue` is the `AnnotationValue` for `source = "firsty"`
-
-#### Scenario: Constant value reference is populated for positioning
-
-- **WHEN** an abstract method is annotated with `@Map(target = "status", constant = "ACTIVE")`
-- **THEN** `MappingDirective` carries the `AnnotationValue` for `constant = "ACTIVE"` so a coercion error can underline that literal
-
-#### Scenario: Default value reference is populated for positioning
-
-- **WHEN** an abstract method is annotated with `@Map(target = "name", source = "in.name", defaultValue = "unknown")`
-- **THEN** `MappingDirective` carries the `AnnotationValue` for `defaultValue = "unknown"` so a dead-default error can underline that literal
+- **THEN** the corresponding `MethodDirectives` carries two bindings in that order
 
 ### Requirement: @MapList container SHALL be unwrapped transparently
 
-When the compiler wraps multiple `@Map` annotations into the `@MapList` container, `DiscoverMappingsStage` SHALL unwrap the container and expose each contained `@Map` as an individual `MappingDirective`. The `@MapList` annotation itself SHALL NOT appear as a directive.
+A repeatable mapping annotation's compiler-generated container SHALL be unwrapped by the reader that owns the
+annotation, which exposes each contained entry as an individual binding; the container itself SHALL NOT appear
+as one. The unwrapping SHALL be generic — derived from the annotation's own `@Repeatable` declaration rather
+than from a hardcoded `@MapList`/`@MapEnumList` pair — so a third-party repeatable annotation unwraps on the
+same path with no core change.
 
-#### Scenario: Two @Maps result in two directives, not one MapList directive
+#### Scenario: Two @Maps result in two bindings, not one container binding
 
 - **WHEN** an abstract method has two `@Map` annotations (which the compiler aggregates into `@MapList`)
-- **THEN** the resulting `MethodMappings.directives` has two `MappingDirective` entries
-- **AND** no directive references the `@MapList` annotation mirror
+- **THEN** the resulting `MethodDirectives` carries two bindings
+- **AND** no binding references the `@MapList` annotation mirror
+
+#### Scenario: A third-party repeatable annotation unwraps identically
+
+- **WHEN** a third-party reader reads a repeatable annotation of its own
+- **THEN** the container is unwrapped by the same generic `@Repeatable` path, with no core change
 
 ### Requirement: Methods without @Map directives SHALL produce empty directive lists
 
-A method with no `@Map` annotation SHALL produce a `MethodMappings` whose `directives` list is empty (and not `null`).
+A method for which no reader declares anything SHALL produce a `MethodDirectives` whose bindings, inputs,
+scope-input overrides and constraints are all empty (and never `null`), so a mapper method carrying no mapping
+annotation is an ordinary, fully-assembled unit of work rather than a special case.
 
 #### Scenario: Unannotated method has empty directives
 
-- **WHEN** an abstract method has no `@Map` annotation
-- **THEN** the corresponding `MethodMappings.directives` is an empty list
-
-### Requirement: Discovery SHALL use AnnotationMirror walking, not annotation proxies
-
-Implementation SHALL walk `Element.getAnnotationMirrors()` (optionally via `auto-common`'s `AnnotationMirrors` helpers). Implementation SHALL NOT call `Element.getAnnotation(Map.class)` or `Element.getAnnotationsByType(Map.class)`, because those proxies discard the mirror and value information that downstream error reporting depends on.
-
-#### Scenario: Source code does not invoke proxy annotation APIs
-
-- **WHEN** the source of `DiscoverMappingsStage` is reviewed
-- **THEN** it contains no calls to `getAnnotation(Map.class)` or `getAnnotationsByType(Map.class)`
-
-### Requirement: @Map constant and defaultValue members SHALL be discovered against the UNSET sentinel
-
-`DiscoverMappingsStage` SHALL read the `@Map` members `source`, `constant`, and `defaultValue`, each treated as **present** when its value is not equal to `Map.UNSET` and **absent** otherwise. `source` is now optional (it defaults to `Map.UNSET`). Discovery SHALL NOT use `String.isEmpty()` to decide presence, because an empty string is a legitimate value for `constant` and `defaultValue`.
-
-#### Scenario: A constant directive is discovered with no source
-
-- **WHEN** an abstract method is annotated with `@Map(target = "status", constant = "ACTIVE")`
-- **THEN** the resulting `MappingDirective` reports `constant` present with value `"ACTIVE"`
-- **AND** reports `source` absent (it equals `Map.UNSET`)
-
-#### Scenario: A default directive is discovered alongside a source
-
-- **WHEN** an abstract method is annotated with `@Map(target = "name", source = "in.name", defaultValue = "unknown")`
-- **THEN** the resulting `MappingDirective` reports `source` present with value `"in.name"`
-- **AND** reports `defaultValue` present with value `"unknown"`
-
-#### Scenario: Empty-string values are present, not absent
-
-- **WHEN** an abstract method is annotated with `@Map(target = "note", constant = "")`
-- **THEN** the resulting `MappingDirective` reports `constant` present with the empty-string value
-- **AND** discovery does not treat the empty string as `Map.UNSET`
-
-### Requirement: @Map format and zone members SHALL be discovered against the UNSET sentinel
-
-`DiscoverMappingsStage` SHALL read the `@Map` members `format` and `zone`, each treated as **present** when its value is not equal to `Map.UNSET` and **absent** otherwise, exactly as `constant` and `defaultValue` are discovered. Discovery SHALL NOT use `String.isEmpty()` to decide presence. The discovered `format` and `zone` SHALL be carried on the `MappingDirective` and surfaced to strategies through the `Directive` SPI type as options.
-
-#### Scenario: A format directive is discovered
-
-- **WHEN** an abstract method is annotated with `@Map(target = "day", source = "in.ts", format = "yyyy-MM-dd")`
-- **THEN** the resulting `MappingDirective` reports `format` present with value `"yyyy-MM-dd"`
-- **AND** reports `zone` absent (it equals `Map.UNSET`)
-
-#### Scenario: A zone directive is discovered
-
-- **WHEN** an abstract method is annotated with `@Map(target = "at", source = "in.local", zone = "Europe/Berlin")`
-- **THEN** the resulting `MappingDirective` reports `zone` present with value `"Europe/Berlin"`
-
-#### Scenario: Absent format and zone are reported absent
-
-- **WHEN** an abstract method is annotated with `@Map(target = "name", source = "in.name")`
-- **THEN** the resulting `MappingDirective` reports both `format` and `zone` absent (each equal to `Map.UNSET`)
+- **WHEN** an abstract method carries no annotation any registered reader owns
+- **THEN** the corresponding `MethodDirectives` carries an empty binding list
 
 ### Requirement: Declared-bindings goal spec derived during discovery
 
@@ -137,3 +80,76 @@ a pure reshaping of already-discovered directives.
 - **WHEN** expansion processes a method's return-root demand
 - **THEN** the method's goal spec is obtained from the per-mapper context (derived during discovery),
   not produced by any seed stage
+
+### Requirement: Discovery runs directive readers and owns no annotation knowledge
+
+The discovery stage SHALL, for each abstract mapper method, invoke every registered `DirectiveReader` with a
+`DirectiveSink` and assemble the resulting bindings, inputs, scope inputs and constraints into the per-mapper
+state the engine consumes. It SHALL interpret no annotation itself.
+
+What a reader **rejects** SHALL be reported here as a permanent diagnostic carrying the reader's own message
+verbatim, positioned at the `Subject` the reader supplied. Discovery SHALL neither reword a rejection nor make
+reporting it conditional on anything demanding the declaration it concerns.
+
+Discovery SHALL remain the place where `javax.lang.model` reading is confined relative to the engine, but the
+reading is now performed by readers, which live outside the `processor` module.
+
+#### Scenario: Discovery invokes every registered reader
+- **WHEN** an abstract mapper method is discovered
+- **THEN** each registered `DirectiveReader` is invoked exactly once for that method with a sink
+
+#### Scenario: Discovery interprets no annotation
+- **WHEN** the discovery stage's sources are inspected
+- **THEN** no class reads `@Map`, `@MapList`, `@MapEnum`, `@MapEnumList`, or `@Ambient`
+
+#### Scenario: A reader's rejection is reported verbatim
+- **WHEN** a reader calls `reject` while reading a method
+- **THEN** a permanent error carrying that message and subject is recorded against the mapper
+
+#### Scenario: Bindings are ordered by declaration
+- **WHEN** a reader declares several bindings for one method
+- **THEN** the assembled state preserves the order in which the sink received them
+
+### Requirement: Presence is decided by written members, not a sentinel
+
+An author-declared value SHALL be **present** exactly when the author wrote it, as reported by
+`AnnotationMirror.getElementValues()`. An empty string written by the author SHALL be present. A member left
+at its declared default SHALL be absent and SHALL carry no `AnnotationValue`. No sentinel value SHALL
+participate in the presence decision, and `String.isEmpty()` SHALL NOT be used to decide presence.
+
+#### Scenario: A written empty string is present
+- **WHEN** a method declares an annotation member as the empty string
+- **THEN** the assembled input is present with the empty string as its value
+
+#### Scenario: An unwritten member is absent with no token
+- **WHEN** a method leaves an annotation member at its default
+- **THEN** no input is attached for it, and no `AnnotationValue` is retained
+
+#### Scenario: No sentinel remains in the presence path
+- **WHEN** the discovery and reader sources are searched
+- **THEN** no comparison against a sentinel constant decides presence
+
+### Requirement: Every binding and input SHALL preserve mirror and value references
+Every binding and every attached input SHALL carry an opaque `Subject` resolving to the `AnnotationMirror` and
+the `AnnotationValue` of the exact member the author wrote, so that a downstream diagnostic can underline that
+token. An absent member SHALL carry no input and therefore no subject, there being no written token to point
+at. Subjects SHALL be constructed only through the SPI's `Subjects` factory.
+
+#### Scenario: A written member's subject resolves to its token
+- **WHEN** a reader attaches an input for a written member
+- **THEN** that input's subject resolves to the method `Element`, the annotation `AnnotationMirror`, and that member's `AnnotationValue`
+
+#### Scenario: A binding carries a subject
+- **WHEN** a reader declares a binding
+- **THEN** the binding carries a subject suitable for positioning a duplicate-binding or source-root diagnosticEvery binding and every attached input SHALL carry an opaque `Subject` resolving to the `AnnotationMirror` and
+the `AnnotationValue` of the exact member the author wrote, so that a downstream diagnostic can underline that
+token. An absent member SHALL carry no input and therefore no subject, there being no written token to point
+at. Subjects SHALL be constructed only through the SPI's `Subjects` factory.
+
+#### Scenario: A written member's subject resolves to its token
+- **WHEN** a reader attaches an input for a written member
+- **THEN** that input's subject resolves to the method `Element`, the annotation `AnnotationMirror`, and that member's `AnnotationValue`
+
+#### Scenario: A binding carries a subject
+- **WHEN** a reader declares a binding
+- **THEN** the binding carries a subject suitable for positioning a duplicate-binding or source-root diagnostic

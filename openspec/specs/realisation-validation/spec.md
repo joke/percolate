@@ -2,7 +2,7 @@
 
 ## Purpose
 
-This spec defines the post-expansion validation stage that emits diagnostics for demands that did not satisfy. `RealisationDiagnosticsStage` walks unsatisfied demands — a `Value` with no reachable (finite-cost) producer, or an `Operation` naming its unsatisfied ports — and produces user-facing error messages with closest-miss information.
+This spec defines the post-expansion validation stage that emits diagnostics for demands that did not satisfy. `RealisationDiagnosticsStage` walks unsatisfied demands — a `Value` with no reachable (finite-cost) producer, or an `Operation` naming its unsatisfied ports — and produces user-facing error messages with closest-miss information. It is also the single renderer for **refusals**: where a strategy, a bound or a constraint recorded a reason on the demanded `Value`, that reason is rendered at the deepest miss in place of the generic no-producer line.
 
 The validation model is **demand-driven, not topology-driven**: the engine derives, via the plan-extraction minimum-cost fold, which Values and Operations are reachable (finite cost). The validation stage's job is to translate the unsatisfied demands into actionable diagnostics — closest-miss is the deepest unsatisfied port chain — not to re-derive realisability from edge inspection.
 
@@ -10,13 +10,27 @@ The validation model is **demand-driven, not topology-driven**: the engine deriv
 
 ### Requirement: Diagnostics anchor on the MapperContext.mapperType
 
-`RealisationDiagnosticsStage` SHALL **record** the realisation outcome into the per-mapper `MapperContext` rather than emit it in-stage. When that recorded outcome is later emitted by `MapperStep` (flushed at `processingOver` for a still-deferred mapper), the `Diagnostics.error(...)` call SHALL pass the mapper `TypeElement` (re-resolved by fully-qualified name) as the `Element` location argument. The IDE that consumes the diagnostic underlines the mapper class name (not individual `@Map` annotations).
+The realisation renderer SHALL **record** its outcome as diagnostic values on the per-mapper context rather
+than emitting, marked **transient** — an unreachable demand may become reachable in a later round once an
+upstream processor has generated the missing member.
 
-Anchoring at the mapper-type level is intentional: with the demand work-list model, the failing demand is not tied to a single `@Map` directive — an unreachable target often crosses multiple directives and conversion hops, so the mapper class name is the stable locus. Moving emission to `MapperStep` does not change the anchor.
+The generic "no plan" message, which is not tied to a single binding, SHALL carry `Subjects.none()` and
+therefore resolve to the mapper `TypeElement` at emission: with the demand work-list model an unreachable
+target often crosses multiple bindings and conversion hops, so the mapper class name is the stable locus. A
+rendered **refusal**, by contrast, SHALL carry the subject the refusal itself supplied and is not anchored at
+the mapper type.
 
-#### Scenario: Recorded diagnostic is anchored on the mapper TypeElement
-- **WHEN** `MapperStep` emits a recorded realisation diagnostic for an unreachable demand
-- **THEN** the `Diagnostics.error(...)` call passes the mapper's `TypeElement` (`ctx.getMapperType()`) as its location argument
+#### Scenario: The generic message anchors at the mapper type
+- **WHEN** a recorded generic realisation diagnostic is emitted
+- **THEN** it is positioned at the mapper's `TypeElement`
+
+#### Scenario: A rendered refusal anchors at its own subject
+- **WHEN** a recorded refusal is emitted
+- **THEN** it is positioned at the token the refusal's subject names, which may lie outside the mapper type
+
+#### Scenario: Realisation diagnostics are transient
+- **WHEN** the renderer records a generic "no plan" outcome
+- **THEN** the diagnostic is marked transient, so an otherwise clean mapper is deferred to a later round
 
 ### Requirement: Diagnostics walk unsatisfied demands
 
@@ -30,23 +44,26 @@ SHALL NOT be treated as return roots and SHALL NOT contribute a message. "Unsati
 extracted plan (`reachable(value) == false`); there is no stored SAT predicate and no group outcome
 records.
 
-The stage SHALL **record** the collected messages onto `MapperContext` (an ordered list, empty when
-the mapper is fully realised) and SHALL NOT call `Diagnostics.error(...)` itself; emission is owned
-by `MapperStep` and flushed at `processingOver` for a still-deferred mapper. As today, when the mapper is already scarred
-(`diagnostics.hasErrorsFor(mapperType)`) the stage SHALL record nothing (a targeted earlier
-diagnostic already explains the failure).
+The stage SHALL **record** what it collects as `Diagnostic` values on the `MapperContext` and SHALL emit
+nothing itself; emission is owned by `MapperStep` and flushed at one point. The generic "no plan" message
+SHALL be recorded as **transient**, since a later round may still realise the mapper. When the mapper already
+carries an error (`ctx.hasErrors()`) the stage SHALL record nothing — a targeted earlier diagnostic already
+explains the failure.
 
 #### Scenario: Unsatisfiable method is recorded, not emitted in-stage
 - **WHEN** expansion ends with a method's seeded return-root unreachable (infinite extraction cost)
 - **THEN** `RealisationDiagnosticsStage` records one closest-miss message naming the unresolved
   return-root target (its location label) and the deepest-miss demand onto `MapperContext`
-- **AND** it does not call `Diagnostics.error(...)` directly
+- **AND** it emits nothing through the `Messager` itself
 - **AND** code generation skips the mapper without throwing
 
+#### Scenario: The generic message is transient
+- **WHEN** the stage records a "no plan" message and nothing else has recorded a permanent diagnostic
+- **THEN** the mapper is deferred rather than consumed, and the message is not emitted in that round
+
 #### Scenario: An earlier targeted diagnostic suppresses the recorded message
-- **WHEN** the mapper already has an error (e.g. a constant coercion failure or dead default)
-- **THEN** `RealisationDiagnosticsStage` records no "no plan" message (it returns early on
-  `diagnostics.hasErrorsFor(mapperType)`)
+- **WHEN** the mapper already has an error (e.g. a constant coercion failure or a rejected declaration)
+- **THEN** `RealisationDiagnosticsStage` records no "no plan" message (it returns early on `ctx.hasErrors()`)
 
 #### Scenario: Dead typed siblings at the return location are not recorded
 - **WHEN** a container-return method's seeded root `List<E>` is reachable but over-emission left
@@ -69,3 +86,29 @@ type is likely missing.
 - **WHEN** `new Address(int number, String street)` is UNSAT because no binding feeds `street`
 - **THEN** the diagnostic names the unresolved root target and the deepest-miss demand for `street`
   (its location label and `String` type), reporting it as having no producer in the graph
+
+### Requirement: The realisation renderer is the single renderer for refusals
+
+The realisation renderer SHALL be the only component that turns recorded refusals into diagnostics. Having
+descended to the deepest unsatisfied miss for an unreachable return root, it SHALL report the refusals recorded
+on that `Value` **instead of** its generic "no producer" message, each positioned at the refusal's own
+`Subject`. When the miss carries no refusal, the generic message SHALL be reported unchanged.
+
+The renderer SHALL treat a refusal as opaque text plus a position; it SHALL NOT inspect, classify, or
+special-case a refusal by its origin.
+
+#### Scenario: Refusals replace the generic message at the miss
+- **WHEN** the deepest miss for an unreachable return root carries two refusals
+- **THEN** both are reported, each at its own subject, and the generic "no plan for …" message is not reported for that root
+
+#### Scenario: A miss with no refusal keeps the generic message
+- **WHEN** the deepest miss carries no refusal
+- **THEN** the generic message naming the miss and its type is reported unchanged
+
+#### Scenario: The renderer does not classify refusals
+- **WHEN** the renderer processes a refusal
+- **THEN** it reads only the message and the subject, branching on neither the producing strategy nor the refusal's cause
+
+#### Scenario: Refusals off the miss chain are not rendered
+- **WHEN** a reachable `Value` carries a refusal
+- **THEN** no diagnostic is produced for it

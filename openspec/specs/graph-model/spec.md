@@ -6,21 +6,6 @@ This spec defines the bipartite graph model: two `GraphVertex` kinds — `Value`
 
 ## Requirements
 
-### Requirement: Weights constants
-The processor SHALL define a non-instantiable utility class `Weights` in `io.github.joke.percolate.processor.graph` exposing only the unreachable sentinel used by cost extraction:
-- `Weights.SENTINEL_UNREALISED = Integer.MAX_VALUE / 2` — the cost a producerless / unreachable Value carries.
-- `Weights.isSentinel(int)` — true when a weight is at or above the sentinel.
-
-The strategy-facing realised-cost scale (`NOOP`, `STEP`, `METHOD`, `STEP_GETTER`/`STEP_METHOD`/`STEP_FIELD`, `COPY`, `CONTAINER`, `EXPENSIVE`) lives on the **SPI** `io.github.joke.percolate.spi.Weights` utility, where the built-in strategies read it; the processor `Weights` does not duplicate that scale.
-
-#### Scenario: Sentinel value is Integer.MAX_VALUE / 2
-- **WHEN** `Weights.SENTINEL_UNREALISED` is evaluated
-- **THEN** its value is exactly `Integer.MAX_VALUE / 2`
-
-#### Scenario: isSentinel detects the unreachable cost
-- **WHEN** `Weights.isSentinel(weight)` is evaluated for a `weight` at or above `SENTINEL_UNREALISED`
-- **THEN** it returns `true`; for a finite realised weight it returns `false`
-
 ### Requirement: ElementLocation case
 
 The processor SHALL define a `Location` implementation `ElementLocation` for phantom container element nodes. `ElementLocation` SHALL carry a single `String name` field that discriminates between scopes within multi-role containers; the default value for single-element-scope containers is the literal string `"element"`. Its `role()` SHALL be `LEAF`.
@@ -120,12 +105,14 @@ The processor SHALL define `AccessPath` and `TargetPath` Lombok `@Value` classes
 - **THEN** the code SHALL not compile (different types)
 
 ### Requirement: Scope interface and cases
-The processor SHALL define a `Scope` interface — declaring `String encode()`, a `default Optional<Scope> parent()`, and a declaration of the scope's **base-case inputs** (a lazy sequence of scope-relative `(Location, type, nullness)` input declarations) — with three implementations forming a tree:
+The processor SHALL define a `Scope` interface — declaring `String encode()`, a `default Optional<Scope> parent()`, and a declaration of the scope's **base-case inputs** (a lazy sequence of scope-relative input declarations, each carrying a `Location`, a type, a resolved nullness, a **name**, and a **visibility** of `LOCAL` or `INHERITED`) — with three implementations forming a tree:
 - `MapperScope` — the tree root, reserved for mapper-shared elements (e.g. routable methods); it declares no inputs.
-- `MethodScope(ExecutableElement method)` — one per abstract mapper method; the scope of that method's Values and Operations; it declares one input per method parameter.
+- `MethodScope(ExecutableElement method)` — one per abstract mapper method; the scope of that method's Values and Operations; it declares one input per method parameter, named after the parameter.
 - `ChildScope` — an element scope owned by a scope-owning `Operation` (a container element mapping); its `parent()` is the owning Operation's scope and its `encode()` nests the owning Operation's id; it declares its single element input.
 
-`Scope` SHALL produce a stable text-encoding (`encode()`) suitable for embedding into `GraphVertex.id()` and DOT cluster names. The input declaration carries only types and nullness (and the scope-relative location); materialising it into a `Value` is the driver's job, done lazily.
+There SHALL be exactly one input-declaration type and one declaration stream per scope. `Scope` SHALL be plain data: it SHALL NOT accept a nullness-resolving callback, and an input declaration SHALL carry its nullness already resolved.
+
+`Scope` SHALL produce a stable text-encoding (`encode()`) suitable for embedding into `GraphVertex.id()` and DOT cluster names. The input declaration carries only the location, name, visibility, type and nullness; materialising it into a `Value` is the driver's job, done lazily.
 
 #### Scenario: Method scope encodes the method signature
 - **WHEN** a `MethodScope` is constructed for an `ExecutableElement` representing `Human map(Person person)`
@@ -138,6 +125,14 @@ The processor SHALL define a `Scope` interface — declaring `String encode()`, 
 #### Scenario: Each scope declares its base-case inputs
 - **WHEN** a `MethodScope`, a `ChildScope`, and the mapper-root scope are asked for their input declarations
 - **THEN** the method scope yields one declaration per parameter, the child scope yields its single element declaration, and the mapper-root scope yields none
+
+#### Scenario: There is one declaration stream
+- **WHEN** the `Scope` interface is inspected
+- **THEN** it declares exactly one input-declaration method, and no second stream for named or inherited declarations
+
+#### Scenario: Scope takes no resolver callback
+- **WHEN** the `Scope` interface's method signatures are inspected
+- **THEN** none accepts a function resolving nullness, and no `Scope` implementation reads an annotation
 
 ### Requirement: MapperGraph is append-only after construction
 
@@ -167,10 +162,14 @@ underlying graph is a single JGraphT `DirectedMultigraph<GraphVertex, Dep>`.
 ### Requirement: Value vertex type
 
 `Value` represents a typed variable: it SHALL carry a `Location`, a `Scope`, an optional
-`TypeMirror` type, and an optional `Nullability` nullness. Type and nullness are write-once
-(unknown → determined → frozen), set together at the single mutation site. `Value` SHALL NOT carry
-group labels, directives, codegen, or weight. A `Value` is an OR over its inbound producer
-`Operation`s.
+`TypeMirror` type, an optional `Nullability` nullness, and the ordered list of **refusals** recorded against it
+(productions considered and found inadmissible, each carrying an opaque position handle and a message). Type and
+nullness are write-once (unknown → determined → frozen), set together at the single mutation site. `Value` SHALL
+NOT carry group labels, directives, codegen, or weight. A `Value` is an OR over its inbound producer
+`Operation`s; its refusals are not producers and take no part in the cost fold.
+
+The refusal shape SHALL be feature-neutral: it SHALL name no strategy, annotation, or user-facing concept, and
+SHALL be the single channel by which an inadmissible production is remembered.
 
 #### Scenario: Typing is write-once
 - **WHEN** `setTyping` is invoked on an already-typed Value
@@ -179,6 +178,14 @@ group labels, directives, codegen, or weight. A `Value` is an OR over its inboun
 #### Scenario: Value carries no engine bookkeeping
 - **WHEN** the public surface of `Value` is inspected
 - **THEN** it exposes no group membership, no directive, no codegen, and no weight
+
+#### Scenario: Refusals are not producers
+- **WHEN** a `Value` carries both producers and refusals
+- **THEN** the cost fold and plan extraction consider only the producers
+
+#### Scenario: The refusal shape names no feature
+- **WHEN** the refusal type is inspected
+- **THEN** it carries only a position handle and a message, and no field, method, or parameter naming a strategy, annotation, or feature
 
 ### Requirement: Operation vertex type
 
@@ -324,3 +331,17 @@ even though forward target-bound descent lands every `ACCESS` `Value` with an ac
 #### Scenario: ACCESS values are produced forward, not demanded
 - **WHEN** a multi-segment `SourceLocation` `Value` exists in the graph
 - **THEN** it was landed as an accessor Operation's output by forward target-bound descent — it is never enqueued and expanded — so it carries a producer by construction
+
+### Requirement: MapperGraph SHALL NOT accumulate per-feature collections
+
+`MapperGraph` SHALL expose no collection, field, method, or parameter introduced to serve one feature's
+diagnostics or bookkeeping. Anything a feature needs to remember about a demand SHALL be recorded on the
+`Value` through the single feature-neutral refusal channel.
+
+#### Scenario: The graph declares no feature-named collection
+- **WHEN** `MapperGraph`'s members are enumerated
+- **THEN** none is named after an annotation member, a strategy, or a user-facing feature
+
+#### Scenario: A new feature adds no graph member
+- **WHEN** a feature needs to remember why a production was unavailable
+- **THEN** it records a refusal on the demanded `Value` and adds nothing to `MapperGraph`

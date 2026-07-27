@@ -58,8 +58,8 @@ The stage SHALL NOT walk methods declared on any other types — including types
 `DiscoverCallableMethodsStage` SHALL keep only methods whose **non-ambient** declared-parameter count is
 **exactly one**: a method qualifies iff `getParameters().size() - <count of parameters annotated @Ambient> == 1`.
 Any method with zero non-ambient parameters, or with more than one, SHALL be excluded. `@Ambient` parameters
-SHALL NOT participate in this decision — they are sourced from the ambient environment rather than from the
-mapped value, so a method carrying them is still structurally a one-port bridge (`MethodCallBridge` consumes
+SHALL NOT participate in this decision — they are sourced by name from an enclosing scope's named inputs
+rather than from the mapped value, so a method carrying them is still structurally a one-port bridge (`MethodCallBridge` consumes
 only single-mapped-parameter candidates; see `ambient-parameters` and expansion-strategy-spi).
 
 The former deferral of multi-parameter methods to a future multi-argument assembly strategy (an

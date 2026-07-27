@@ -2,138 +2,110 @@
 
 ## Purpose
 
-The mapping-validation stages run after discovery and reject mapper inputs that violate locally-checkable invariants before the graph pipeline starts. `ValidateNoDuplicateTargetsStage` rejects two `@Map` directives that bind the same `target` on a single method; `ValidateMappingShapeStage` enforces the directive shape (exactly one of `source`/`constant`, and `defaultValue` only on a source-bearing directive), dropping malformed directives; `ValidateSourceParametersStage` rejects directives whose `source` first segment does not name a method parameter. All emit through `Diagnostics` (never `Messager` directly) and continue processing other methods and mappers so a single bad directive does not silence the rest of the round.
+The mapping-validation stages run after discovery and reject mapper inputs that violate the engine's own structural invariants before the graph pipeline starts — invariants about bindings and scope inputs, never about what an annotation means (annotation shape rules belong to the owning `DirectiveReader`; see `directive-reading`). `ValidateNoDuplicateTargetsStage` rejects two bindings at one target path on a single method; `ValidateSourceParametersStage` rejects a source path whose first segment does not name a scope input, and rejects two scope inputs of one method published under the same name. Both record `Diagnostic` values on the `MapperContext` (never writing to the `Messager` directly) and continue processing other methods and mappers so a single bad declaration does not silence the rest of the round.
 
 ## Requirements
 
 ### Requirement: A method SHALL NOT have duplicate @Map targets
 
-On a single abstract method, two or more `@Map` directives MUST NOT specify the same `target`. `ValidateNoDuplicateTargetsStage` SHALL emit one error for each duplicate occurrence beyond the first.
+On a single abstract method, two bindings MUST NOT be declared at the same target path, regardless of which
+`DirectiveReader` declared them. The core SHALL emit one error for each duplicate occurrence beyond the first,
+positioned at the offending binding's `Subject`. The rule is a property of the sink, not of any annotation: it
+holds when one reader declares both and when two different readers collide, and the message SHALL name neither.
 
-#### Scenario: Two @Maps with the same target produce one error
+#### Scenario: Two bindings at the same target produce one error
 
-- **WHEN** a method is annotated with `@Map(target = "lastName", source = "lastName")` and `@Map(target = "lastName", source = "alt")`
-- **THEN** `ValidateNoDuplicateTargetsStage` emits one error via `Diagnostics.error(...)` for the second occurrence
+- **WHEN** a method's readers declare bindings at target path `lastName` twice
+- **THEN** one error is emitted for the second occurrence
 
-#### Scenario: Three @Maps with the same target produce two errors
+#### Scenario: Three bindings at the same target produce two errors
 
-- **WHEN** a method has three `@Map` directives all with `target = "name"`
-- **THEN** `ValidateNoDuplicateTargetsStage` emits two errors via `Diagnostics.error(...)` — one per duplicate beyond the first
+- **WHEN** a method's readers declare three bindings at target path `name`
+- **THEN** two errors are emitted — one per duplicate beyond the first
 
 #### Scenario: Different targets produce no error
 
-- **WHEN** a method has `@Map(target = "a", ...)` and `@Map(target = "b", ...)`
-- **THEN** `ValidateNoDuplicateTargetsStage` emits no error
+- **WHEN** a method's readers declare bindings at `a` and `b`
+- **THEN** no error is emitted
+
+#### Scenario: Two readers colliding at one path is an error
+
+- **WHEN** two different `DirectiveReader`s each declare a binding at target path `name` on one method
+- **THEN** one error is emitted, and the message names neither annotation
 
 ### Requirement: Duplicate-target errors SHALL point at the offending target literal
 
-Each duplicate-target error SHALL be emitted with the offending `MappingDirective`'s method `Element`, `AnnotationMirror`, and the `AnnotationValue` of `target`, so that an IDE underlines the duplicated `target = "..."` literal.
+Each duplicate-binding error SHALL be positioned at the offending binding's own `Subject`, so that an IDE
+underlines the duplicated declaration, not the one that was kept.
 
-#### Scenario: Error carries the targetValue
+#### Scenario: Error carries the offending binding's subject
 
-- **WHEN** `ValidateNoDuplicateTargetsStage` reports a duplicate `target = "lastName"`
-- **THEN** the `Diagnostics.error(...)` call receives the offending `AnnotationValue` (the `target` value of the duplicate `@Map`), not the value from the original (kept) directive
-
-### Requirement: ValidateNoDuplicateTargetsStage SHALL NOT halt the pipeline
-
-`ValidateNoDuplicateTargetsStage` SHALL emit errors via `Diagnostics` and return normally. The `Pipeline` SHALL continue to invoke subsequent stages on other methods of the same mapper, and SHALL continue processing other mappers in the same round.
-
-#### Scenario: Other methods on the same mapper continue
-
-- **WHEN** method `m1` on a mapper has duplicate targets and method `m2` does not
-- **THEN** the pipeline emits errors for `m1` and continues processing `m2` without exception
-
-#### Scenario: Other mappers in the round continue
-
-- **WHEN** mapper `A` has duplicate targets and mapper `B` does not
-- **THEN** the pipeline emits errors for `A` and continues processing `B` without exception
+- **WHEN** a duplicate binding at target path `lastName` is reported
+- **THEN** the diagnostic carries the second binding's subject, not the first's
 
 ### Requirement: Every @Map directive's source first segment SHALL name a method parameter
 
-This check SHALL apply only to directives that declare a `source`. A **constant** directive declares no source and SHALL be skipped by this check entirely.
+This check SHALL apply only to bindings that declare a source path; a binding with no source path SHALL be
+skipped entirely. The first segment of every declared source path MUST name a scope input of the method. The
+core SHALL emit one error for each binding whose first segment names no scope input, positioned at the
+binding's `Subject`.
 
-On a single abstract method, the first segment of every source-bearing `@Map` directive's `source` value MUST match the simple name of one of the method's parameters. The first segment is the portion of the source string before the first `.` (or the entire string if there is no `.`). `ValidateSourceParametersStage` SHALL emit one error for each source-bearing directive whose source first segment does not match any parameter name.
+The rule SHALL be stated as a property of the engine's own forward walk — a path it cannot begin — and SHALL
+name no annotation.
 
 #### Scenario: Source first segment matching a parameter produces no error
 
-- **WHEN** a method `Human map(Person person)` has `@Map(target = "firstName", source = "person.first")`
-- **THEN** `ValidateSourceParametersStage` emits no error (first segment `"person"` matches parameter `"person"`)
+- **WHEN** a binding on `Human map(Person person)` declares the source path `["person", "first"]`
+- **THEN** no error is emitted
 
-#### Scenario: Single-segment source not matching any parameter produces an error
+#### Scenario: Source first segment naming no parameter produces an error
 
-- **WHEN** a method `Human map(Person person)` has `@Map(target = "firstName", source = "first")`
-- **THEN** `ValidateSourceParametersStage` emits one error via `Diagnostics.error(...)` with message `"unknown source parameter 'first' in @Map on map(Person)"`
+- **WHEN** a binding on `Human map(Person person)` declares the source path `["custmer", "name"]`
+- **THEN** one error is emitted naming the unresolvable first segment
 
-#### Scenario: Multi-segment source with non-matching first segment produces an error
+#### Scenario: A binding with no source path is skipped
 
-- **WHEN** a method `Human map(Person person)` has `@Map(target = "lastName", source = "lastName.value")`
-- **THEN** `ValidateSourceParametersStage` emits one error via `Diagnostics.error(...)` with message `"unknown source parameter 'lastName' in @Map on map(Person)"`
+- **WHEN** a binding declares no source path
+- **THEN** the check does not apply and no error is emitted
 
-#### Scenario: Multiple directives with unknown source parameters produce one error each
+### Requirement: The validation stages hold no strategy semantics
 
-- **WHEN** a method has `@Map(target = "a", source = "bad1")` and `@Map(target = "b", source = "bad2")`
-- **THEN** `ValidateSourceParametersStage` emits two errors, one per directive
+Every validation stage remaining in the `processor` module SHALL satisfy the test: *with no SPI strategy and no
+directive reader on the processor path, would this check still be meaningful?* A stage that re-derives a
+strategy's decision, reimplements a strategy's rules, or interprets a mapping annotation's members SHALL NOT
+exist in the `processor` module.
 
-#### Scenario: Error points at the offending source literal
+#### Scenario: No stage re-derives a strategy decision
+- **WHEN** the validation stages are inspected
+- **THEN** none walks a candidate set a strategy considers, and none reimplements a rule a strategy applies
 
-- **WHEN** `ValidateSourceParametersStage` reports an unknown source parameter
-- **THEN** the `Diagnostics.error(...)` call receives the offending `MappingDirective`'s method `Element`, `AnnotationMirror`, and the `AnnotationValue` of `source`, so that an IDE underlines the offending `source = "..."` literal
+#### Scenario: No stage interprets a mapping annotation
+- **WHEN** the validation stages are inspected
+- **THEN** none reads `@Map`, `@MapEnum`, or `@Ambient`, and none tests how their members combine
 
-#### Scenario: Constant directive is skipped by the source-parameter check
+#### Scenario: The surviving checks are engine-owned or protocol-owned
+- **WHEN** the remaining checks are enumerated
+- **THEN** each is about the engine's own contract (a duplicate binding at a path, a source path that roots
+  nowhere, two scope inputs sharing one name, a declared input nothing consumed, an unrealised demand, a class
+  member declared twice with different definitions)
 
-- **WHEN** a method `Human map(Person person)` has `@Map(target = "status", constant = "ACTIVE")`
-- **THEN** `ValidateSourceParametersStage` emits no error (a constant directive has no source to validate)
+### Requirement: Two scope inputs of one method SHALL NOT share a name
 
-### Requirement: A @Map directive SHALL declare exactly one of source or constant
+The core SHALL emit one error for each scope input published under a name an earlier scope input of the same
+method already carries, positioned at the offending parameter and naming both the name and the method. A scope
+input's name is the parameter's own simple name unless a `DirectiveReader` published an override.
 
-Every `@Map` directive MUST declare exactly one of `source` or `constant` (present = not equal to `Map.UNSET`). A directive that declares **both** is contradictory; a directive that declares **neither** has nothing to map. Validation SHALL emit one error per offending directive, carrying the directive's method `Element`, `AnnotationMirror`, and an offending `AnnotationValue` (`constant` when both are present, otherwise `target`) for IDE positioning.
+The rule SHALL be stated as a property of the engine's own by-name selection — a name that selects two things
+selects neither — and SHALL name no annotation, so it holds identically for a third-party reader.
 
-#### Scenario: Both source and constant produce an error
+#### Scenario: Two published names collide
+- **WHEN** two parameters of one method are published under the name `ctx`
+- **THEN** one error is emitted, positioned at the second parameter and naming `ctx`
 
-- **WHEN** a directive declares `@Map(target = "status", source = "in.status", constant = "ACTIVE")`
-- **THEN** validation emits one error stating that `source` and `constant` are mutually exclusive
+#### Scenario: A published name collides with a parameter's own simple name
+- **WHEN** a reader renames one parameter to another parameter's own simple name
+- **THEN** one error is emitted naming that name
 
-#### Scenario: Neither source nor constant produces an error
-
-- **WHEN** a directive declares `@Map(target = "status")` with neither `source` nor `constant`
-- **THEN** validation emits one error stating that a directive must declare a `source` or a `constant`
-
-#### Scenario: Exactly one of source or constant produces no error
-
-- **WHEN** a directive declares `@Map(target = "status", constant = "ACTIVE")` (constant only)
-- **THEN** validation emits no mutual-exclusion error
-- **AND** the same holds for a directive declaring only a `source`
-
-### Requirement: A defaultValue SHALL accompany a source
-
-A `defaultValue` is a fallback for an absent source value, so it is meaningful only on a source-bearing directive. A directive that declares a present `defaultValue` without a present `source` (including a `constant` directive) SHALL be rejected with one error per offending directive, carrying the `AnnotationValue` of `defaultValue` for IDE positioning.
-
-#### Scenario: defaultValue with a source is allowed
-
-- **WHEN** a directive declares `@Map(target = "name", source = "in.name", defaultValue = "unknown")`
-- **THEN** validation emits no error for the default
-
-#### Scenario: defaultValue on a constant directive is rejected
-
-- **WHEN** a directive declares `@Map(target = "status", constant = "ACTIVE", defaultValue = "x")`
-- **THEN** validation emits one error stating `defaultValue` requires a `source`
-- **AND** the error carries the `AnnotationValue` of `defaultValue`
-
-#### Scenario: defaultValue with no source is rejected
-
-- **WHEN** a directive declares `@Map(target = "name", defaultValue = "unknown")` with no `source`
-- **THEN** validation emits one error stating `defaultValue` requires a `source`
-
-### Requirement: ValidateSourceParametersStage SHALL NOT halt the pipeline
-
-`ValidateSourceParametersStage` SHALL emit errors via `Diagnostics` and return normally. The `Pipeline` SHALL continue to invoke subsequent stages on other methods of the same mapper, and SHALL continue processing other mappers in the same round.
-
-#### Scenario: Other methods on the same mapper continue
-
-- **WHEN** method `m1` on a mapper has unknown source parameters and method `m2` does not
-- **THEN** the pipeline emits errors for `m1` and continues processing `m2` without exception
-
-#### Scenario: Other mappers in the round continue
-
-- **WHEN** mapper `A` has unknown source parameters and mapper `B` does not
-- **THEN** the pipeline emits errors for `A` and continues processing `B` without exception
+#### Scenario: Distinct names produce no error
+- **WHEN** every scope input of a method carries a distinct name
+- **THEN** no error is emitted
