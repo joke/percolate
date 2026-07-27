@@ -15,10 +15,13 @@ import static javax.lang.model.element.ElementKind.METHOD
 
 /**
  * {@link CallableMethodFilter} (and the {@link IndexCallableMethods} view it builds) unit-tested on plain
- * {@link CandidateDescriptor}s: it keeps the single-parameter, non-{@code Object} methods, and {@code producing}
- * answers with the ones whose return type is assignable to the demand, each carrying the {@link ThisReceiver}.
- * Assignability is the one seam question — a single stub on a mocked {@link Types} — while every return-type/output
- * {@link TypeMirror} and {@link ExecutableElement} stays an opaque, never-stubbed token.
+ * {@link CandidateDescriptor}s: it keeps every non-{@code Object} {@code METHOD}, and {@code producing} answers with
+ * the ones whose return type is assignable to the demand, each carrying the {@link ThisReceiver}. Arity — including
+ * any {@code @Ambient} adjustment — is left entirely to {@code MethodCallBridge} (design D7 of change
+ * {@code decouple-engine-from-strategy-semantics}: the processor reads no user-facing annotation), so this filter no
+ * longer discriminates on parameter count. Assignability is the one seam question — a single stub on a mocked
+ * {@link Types} — while every return-type/output {@link TypeMirror} and {@link ExecutableElement} stays an opaque,
+ * never-stubbed token.
  */
 @Tag('unit')
 class CallableMethodFilterSpec extends Specification {
@@ -26,7 +29,7 @@ class CallableMethodFilterSpec extends Specification {
     Types types = Mock()
     CallableMethodFilter filter = new CallableMethodFilter(types)
 
-    def 'keeps only single-parameter non-Object methods; producing answers the assignable ones with a this-receiver'() {
+    def 'keeps every non-Object method regardless of arity; producing answers the assignable ones with a this-receiver'() {
         ExecutableElement makeHuman = Mock()
         ExecutableElement noArg = Mock()
         ExecutableElement pair = Mock()
@@ -46,8 +49,10 @@ class CallableMethodFilterSpec extends Specification {
         when:
         def result = filter.filter(descriptors).producing(output).toList()
 
-        then: 'only the single-parameter non-Object method survives the filter and reaches the assignability check'
+        then: 'every non-Object METHOD survives the filter and reaches the assignability check'
         1 * types.isAssignable(humanReturn, output) >> true
+        1 * types.isAssignable(irrelevant, output) >> false
+        1 * types.isAssignable(irrelevant, output) >> false
         0 * _
 
         expect:
@@ -98,36 +103,26 @@ class CallableMethodFilterSpec extends Specification {
         result*.method == [method]
     }
 
-    def 'isCallable requires a non-Object METHOD whose non-ambient parameter count is exactly one'() {
+    def 'isCallable requires a non-Object METHOD, regardless of parameter count'() {
         ExecutableElement method = Mock()
         TypeMirror returnType = Mock()
 
         expect:
-        filter.isCallable(candidate(kind, params, onObject, returnType, method, ambientKeys)) == expected
+        filter.isCallable(candidate(kind, params, onObject, returnType, method)) == expected
 
         where:
-        kind        | params | onObject | ambientKeys        | expected
-        METHOD      | 1      | false    | []                 | true
-        METHOD      | 0      | false    | []                 | false
-        METHOD      | 2      | false    | []                 | false
-        METHOD      | 1      | true     | []                 | false
-        FIELD       | 1      | false    | []                 | false
-        CONSTRUCTOR | 1      | false    | []                 | false
-        METHOD      | 2      | false    | ['order']          | true
-        METHOD      | 3      | false    | ['order', 'locale']| true
-        METHOD      | 1      | false    | ['order']          | false
-        METHOD      | 3      | false    | ['order']          | false
+        kind        | params | onObject | expected
+        METHOD      | 1      | false    | true
+        METHOD      | 0      | false    | true
+        METHOD      | 2      | false    | true
+        METHOD      | 1      | true     | false
+        FIELD       | 1      | false    | false
+        CONSTRUCTOR | 1      | false    | false
     }
 
     private CandidateDescriptor candidate(
             final ElementKind kind, final int parameterCount, final boolean enclosingIsObject,
             final TypeMirror returnType, final ExecutableElement method) {
-        candidate(kind, parameterCount, enclosingIsObject, returnType, method, [])
-    }
-
-    private CandidateDescriptor candidate(
-            final ElementKind kind, final int parameterCount, final boolean enclosingIsObject,
-            final TypeMirror returnType, final ExecutableElement method, final List<String> ambientKeys) {
-        new CandidateDescriptor(kind, parameterCount, enclosingIsObject, returnType, method, ambientKeys)
+        new CandidateDescriptor(kind, parameterCount, enclosingIsObject, returnType, method)
     }
 }

@@ -11,9 +11,8 @@ import io.github.joke.percolate.processor.internal.graph.PortBinding
 import io.github.joke.percolate.processor.internal.graph.SourceLocation
 import io.github.joke.percolate.processor.internal.graph.TargetLocation
 import io.github.joke.percolate.processor.internal.graph.TargetPath
-import io.github.joke.percolate.processor.model.MapperMappings
-import io.github.joke.percolate.processor.model.MappingDirective
-import io.github.joke.percolate.processor.model.MethodMappings
+import io.github.joke.percolate.processor.model.Bind
+import io.github.joke.percolate.processor.model.MethodDirectives
 import io.github.joke.percolate.processor.test.FakeElements
 import io.github.joke.percolate.processor.test.FakeType
 import io.github.joke.percolate.spi.DirectiveInput
@@ -32,10 +31,10 @@ import javax.lang.model.element.TypeElement
 import javax.lang.model.type.TypeMirror
 
 /**
- * {@link ValidateOptionConsumptionStage} seam, unit-tested directly: computes {@code declared − consumed} for a
- * binding's {@code @Map} inputs against the operations of the graph's <strong>winning</strong> plan (least-cost,
- * {@link io.github.joke.percolate.processor.internal.graph.ExtractedPlan}), reporting a permanent diagnostic
- * (design D14) for any declared {@link DirectiveInput} no operation in that plan stamped as consumed.
+ * {@link ValidateOptionConsumptionStage} seam, unit-tested directly: computes {@code declared − consumed} for every
+ * target path a reader attached inputs to, against the operations of the graph's <strong>winning</strong> plan
+ * (least-cost, {@link io.github.joke.percolate.processor.internal.graph.ExtractedPlan}), reporting a permanent
+ * diagnostic (design D14) for any declared {@link DirectiveInput} no operation in that plan stamped as consumed.
  */
 @Tag('unit')
 class ValidateOptionConsumptionStageSpec extends Specification {
@@ -55,7 +54,7 @@ class ValidateOptionConsumptionStageSpec extends Specification {
         given:
         def graph = new MapperGraph()
         landOp(graph, 'assign', Weights.STEP, [] as Set)
-        def ctx = context(graph, directive('', zoneInput()))
+        def ctx = context(graph, '', zoneInput())
 
         when:
         stage.run(ctx)
@@ -73,7 +72,7 @@ class ValidateOptionConsumptionStageSpec extends Specification {
         def graph = new MapperGraph()
         def zone = zoneInput()
         landOp(graph, 'bridge', Weights.STEP, [zone] as Set)
-        def ctx = context(graph, directive('', zone))
+        def ctx = context(graph, '', zone)
 
         when:
         stage.run(ctx)
@@ -87,7 +86,7 @@ class ValidateOptionConsumptionStageSpec extends Specification {
         def graph = new MapperGraph()
         def format = formatInput()
         landOp(graph, 'format', Weights.STEP, [format] as Set)
-        def ctx = context(graph, directive('', format))
+        def ctx = context(graph, '', format)
 
         when:
         stage.run(ctx)
@@ -96,11 +95,27 @@ class ValidateOptionConsumptionStageSpec extends Specification {
         ctx.diagnostics.empty
     }
 
-    def 'a directive with neither format nor zone is never diagnosed'() {
+    def 'a path with no attached inputs is never diagnosed'() {
         given:
         def graph = new MapperGraph()
         landOp(graph, 'assign', Weights.STEP, [] as Set)
-        def ctx = context(graph, new MappingDirective('', Subjects.none(), []))
+        def ctx = new MapperContext(Mock(TypeElement))
+        ctx.graph = graph
+        ctx.methodDirectives = [new MethodDirectives(method, [], [:], [], [:])]
+
+        when:
+        stage.run(ctx)
+
+        then:
+        ctx.diagnostics.empty
+    }
+
+    def 'an input attached at a path with no bind (e.g. a method-level @MapEnum table) is never checked'() {
+        given: 'nothing lands at all, so a bound path\'s zone would ordinarily be flagged'
+        def graph = new MapperGraph()
+        def ctx = new MapperContext(Mock(TypeElement))
+        ctx.graph = graph
+        ctx.methodDirectives = [new MethodDirectives(method, [], ['': [zoneInput()]], [], [:])]
 
         when:
         stage.run(ctx)
@@ -121,7 +136,7 @@ class ValidateOptionConsumptionStageSpec extends Specification {
         graph.apply(new AddOperation('expensive', { CodeBlock.of('x') } as OperationCodegen,
                 Weights.STEP * 100, false, [], output, Optional.empty(), [zone] as Set, []))
         graph.markReturnRoot(graph.outputOf(cheap).get())
-        def ctx = context(graph, directive('', zone))
+        def ctx = context(graph, '', zone)
 
         when:
         stage.run(ctx)
@@ -141,7 +156,7 @@ class ValidateOptionConsumptionStageSpec extends Specification {
                 false, [new PortBinding(new Port('x', STRING, Nullability.NON_NULL), spokeInput)],
                 bridgeOutput, Optional.empty(), [zone] as Set, []))
         graph.markReturnRoot(graph.outputOf(bridge).get())
-        def ctx = context(graph, directive('', zone))
+        def ctx = context(graph, '', zone)
 
         when:
         stage.run(ctx)
@@ -162,7 +177,7 @@ class ValidateOptionConsumptionStageSpec extends Specification {
                         new PortBinding(new Port('b', STRING, Nullability.NON_NULL), midOut)],
                 new AddValue(scope, root(), STRING, Nullability.NON_NULL), Optional.empty(), [] as Set, []))
         graph.markReturnRoot(graph.outputOf(rootOp).get())
-        def ctx = context(graph, directive('', zone))
+        def ctx = context(graph, '', zone)
 
         when:
         stage.run(ctx)
@@ -182,7 +197,7 @@ class ValidateOptionConsumptionStageSpec extends Specification {
                 false, [new PortBinding(new Port('x', STRING, Nullability.NON_NULL), child)],
                 new AddValue(scope, root(), STRING, Nullability.NON_NULL), Optional.empty(), [] as Set, []))
         graph.markReturnRoot(graph.outputOf(rootOp).get())
-        def ctx = context(graph, directive('x', zone))
+        def ctx = context(graph, 'x', zone)
 
         when:
         stage.run(ctx)
@@ -200,7 +215,7 @@ class ValidateOptionConsumptionStageSpec extends Specification {
                 false, [new PortBinding(new Port('y', STRING, Nullability.NON_NULL), child)],
                 new AddValue(scope, root(), STRING, Nullability.NON_NULL), Optional.empty(), [] as Set, []))
         graph.markReturnRoot(graph.outputOf(op).get())
-        def ctx = context(graph, directive('x', zoneInput()))
+        def ctx = context(graph, 'x', zoneInput())
 
         when:
         stage.run(ctx)
@@ -210,7 +225,7 @@ class ValidateOptionConsumptionStageSpec extends Specification {
         ctx.diagnostics[0].message.contains("'zone' has no effect")
     }
 
-    def 'nothing is checked when the context has no mappings'() {
+    def 'nothing is checked when the context has no method directives'() {
         given:
         def graph = new MapperGraph()
         landOp(graph, 'assign', Weights.STEP, [] as Set)
@@ -227,7 +242,7 @@ class ValidateOptionConsumptionStageSpec extends Specification {
     def 'nothing is checked when the context has no graph'() {
         given:
         def ctx = new MapperContext(Mock(TypeElement))
-        ctx.mappings = new MapperMappings(null, [new MethodMappings(method, [directive('', zoneInput())])])
+        ctx.methodDirectives = [new MethodDirectives(method, [], ['': [zoneInput()]], [], [:])]
 
         when:
         stage.run(ctx)
@@ -240,10 +255,6 @@ class ValidateOptionConsumptionStageSpec extends Specification {
         def op = graph.apply(new AddOperation(label, { CodeBlock.of('x') } as OperationCodegen, weight, false, [],
                 new AddValue(scope, root(), STRING, Nullability.NON_NULL), Optional.empty(), consumed, []))
         graph.markReturnRoot(graph.outputOf(op).get())
-    }
-
-    private MappingDirective directive(final String target, final DirectiveInput input) {
-        new MappingDirective(target, Subjects.none(), [input])
     }
 
     private DirectiveInput zoneInput(final String zone = 'Europe/Berlin') {
@@ -262,10 +273,11 @@ class ValidateOptionConsumptionStageSpec extends Specification {
         new SourceLocation(new AccessPath([segment]))
     }
 
-    private MapperContext context(final MapperGraph graph, final MappingDirective... directives) {
+    private MapperContext context(final MapperGraph graph, final String targetPath, final DirectiveInput input) {
         def ctx = new MapperContext(Mock(TypeElement))
         ctx.graph = graph
-        ctx.mappings = new MapperMappings(null, [new MethodMappings(method, directives as List)])
+        def bind = new Bind(targetPath.empty ? [] : targetPath.split('\\.').toList(), [], Subjects.none())
+        ctx.methodDirectives = [new MethodDirectives(method, [bind], [(targetPath): [input]], [], [:])]
         ctx
     }
 }

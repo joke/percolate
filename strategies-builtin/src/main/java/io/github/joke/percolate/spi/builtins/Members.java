@@ -9,11 +9,11 @@ import javax.lang.model.element.TypeElement;
 import lombok.experimental.UtilityClass;
 
 @UtilityClass
-class Members {
+public class Members {
 
     private static final String OBJECT_FQN = "java.lang.Object";
 
-    static Stream<? extends Element> declaredMembersOf(final TypeElement typeElement, final ResolveCtx ctx) {
+    public static Stream<? extends Element> declaredMembersOf(final TypeElement typeElement, final ResolveCtx ctx) {
         return ctx.membersOf(typeElement);
     }
 
@@ -33,7 +33,8 @@ class Members {
     }
 
     /** A zero-parameter, non-{@code Object} method named exactly {@code name}, else empty. */
-    static Optional<ExecutableElement> noArgMethodNamed(final Element member, final String name, final ResolveCtx ctx) {
+    public static Optional<ExecutableElement> noArgMethodNamed(
+            final Element member, final String name, final ResolveCtx ctx) {
         return asNoArgMethod(member, ctx)
                 .filter(method -> method.getSimpleName().contentEquals(name));
     }

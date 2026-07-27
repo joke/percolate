@@ -81,10 +81,10 @@ non-nullable (a primitive, or a reference proven non-null) is rejected as a dead
 
 == Presence and the empty string
 
-`source`, `constant`, and `defaultValue` are considered **present** whenever they are set — *including when
-set to the empty string* `""`. Percolate distinguishes "absent" from "empty" with an internal `UNSET`
-sentinel, not by testing for an empty string. So `constant = ""` is a real, present constant (the empty
-string), not a missing value.
+`source`, `constant`, and `defaultValue` are considered **present** whenever they are *written* on the
+annotation — *including when written as the empty string* `""`. Percolate reads only the annotation members a
+mapper method actually wrote, so an unwritten member carries no value at all and a written empty string is a
+real, present value. So `constant = ""` is a real, present constant (the empty string), not a missing value.
 
 == Where to next
 

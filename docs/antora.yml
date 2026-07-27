@@ -90,6 +90,18 @@ ext:
       dir: spi/build/generated/sources/annotationProcessor/java/test/io/github/joke/percolate/docs
       files: '**/*.java'
       into: modules/ROOT/examples
+  # The Extending page's DirectiveReader fixture (change decouple-engine-from-strategy-semantics):
+  # LiteralDirectiveReader/LiteralValue teach percolate a brand-new @Literal annotation. Genuinely
+  # compile-testing-based, not the real-source pattern above — a reader must be discoverable via ServiceLoader
+  # on the same compilation that processes the annotation it owns.
+  - scan:
+      dir: strategies-builtin/src/test/resources/examples
+      files: '**/*.java'
+      into: modules/ROOT/examples
+  - scan:
+      dir: strategies-builtin/build/generated-doc-examples
+      files: '**/*'
+      into: modules/ROOT/examples
   # The reactor-blocking module's own page (design D4/D3 — co-located, a reactor-blocking-owned feature).
   - scan:
       dir: reactor-blocking/src/docs

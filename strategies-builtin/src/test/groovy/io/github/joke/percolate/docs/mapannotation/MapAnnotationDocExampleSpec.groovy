@@ -16,10 +16,10 @@ class MapAnnotationDocExampleSpec extends Specification {
         def mapper = new AccountMapperImpl()
 
         when:
-        def account = mapper.map(new AccountForm('acc-1', 'Ada', Optional.of('lovelace'), 500))
+        def account = mapper.map(new AccountForm(1, 'Ada', Optional.of('lovelace'), 500))
 
         then:
-        account.id == 'acc-1'
+        account.id == 1
         account.status == 'ACTIVE'
         account.displayName == 'Ada'
         account.nickname == 'lovelace'
@@ -29,20 +29,20 @@ class MapAnnotationDocExampleSpec extends Specification {
         def mapper = new AccountMapperImpl()
 
         expect:
-        mapper.map(new AccountForm('acc-2', null, Optional.of('x'), 0)).displayName == 'unknown'
+        mapper.map(new AccountForm(2, null, Optional.of('x'), 0)).displayName == 'unknown'
     }
 
     def 'an absent Optional nickname falls back via orElse'() {
         def mapper = new AccountMapperImpl()
 
         expect:
-        mapper.map(new AccountForm('acc-3', 'Ada', Optional.empty(), 0)).nickname == 'anon'
+        mapper.map(new AccountForm(3, 'Ada', Optional.empty(), 0)).nickname == 'anon'
     }
 
     def 'an int source widens into a long target with no conversion method'() {
         def mapper = new AccountMapperImpl()
 
         expect:
-        mapper.map(new AccountForm('acc-4', 'Ada', Optional.of('x'), 500)).balanceCents == 500L
+        mapper.map(new AccountForm(4, 'Ada', Optional.of('x'), 500)).balanceCents == 500L
     }
 }

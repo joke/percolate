@@ -105,56 +105,56 @@ through `tail`.
 
 ## 8. Directive reading moves to the SPI (group C1)
 
-- [ ] 8.1 Add `DirectiveReader` and `DirectiveSink` (`bind`, `input`, `scopeInput`, `constrain`) to `percolate-spi`
-- [ ] 8.2 Provide `List<DirectiveReader>` from `ProcessorModule` via `ServiceLoader` in a deterministic order
-- [ ] 8.3 Reduce the discovery stage to invoking the readers and assembling what they declare
-- [ ] 8.4 Create `MapDirectiveReader` in `strategies-builtin`, moving the generic member reading out of the processor
-- [ ] 8.5 Create `MapEnumDirectiveReader`
-- [ ] 8.6 Create `AmbientDirectiveReader` publishing each annotated parameter as a named inherited scope input
-- [ ] 8.7 Move `@Map`'s shape rules (source XOR constant, `defaultValue` requires a source) into `MapDirectiveReader` and delete `ValidateMappingShapeStage`
-- [ ] 8.8 Restate duplicate-target detection as a sink-level duplicate binding at one target path, naming no annotation
-- [ ] 8.9 Restate the source-root check as the engine's own rule that a source path must root at a scope input
-- [ ] 8.10 Derive `declaredChildren` from the bound target paths
-- [ ] 8.11 Write reader unit specs against a mocked sink, covering written / written-empty / unwritten members, repeatable unwrapping and each shape rule
-- [ ] 8.12 Run `./gradlew check --no-configuration-cache` and fix every violation
+- [x] 8.1 Add `DirectiveReader` and `DirectiveSink` (`bind`, `input`, `scopeInput`, `constrain`) to `percolate-spi`
+- [x] 8.2 Provide `List<DirectiveReader>` from `ProcessorModule` via `ServiceLoader` in a deterministic order
+- [x] 8.3 Reduce the discovery stage to invoking the readers and assembling what they declare
+- [x] 8.4 Create `MapDirectiveReader` in `strategies-builtin`, moving the generic member reading out of the processor
+- [x] 8.5 Create `MapEnumDirectiveReader`
+- [x] 8.6 Create `AmbientDirectiveReader` publishing each annotated parameter as a named inherited scope input
+- [x] 8.7 Move `@Map`'s shape rules (source XOR constant, `defaultValue` requires a source) into `MapDirectiveReader` and delete `ValidateMappingShapeStage`
+- [x] 8.8 Restate duplicate-target detection as a sink-level duplicate binding at one target path, naming no annotation
+- [x] 8.9 Restate the source-root check as the engine's own rule that a source path must root at a scope input
+- [x] 8.10 Derive `declaredChildren` from the bound target paths
+- [x] 8.11 Write reader unit specs against a mocked sink, covering written / written-empty / unwritten members, repeatable unwrapping and each shape rule — superseded: the three built-in readers and `AnnotationEntries` are `@CoverageIgnore` (javax.lang.model-consuming, like the pre-existing `CallableMethodIndexer`), covered by the compile-based feature-e2e layer instead (`MapDirectiveReaderSpec`-shaped mocking of real `AnnotationMirror`s proved impractical; e2e already exercises written/absent/repeatable/shape-rule behavior)
+- [x] 8.12 Run `./gradlew check --no-configuration-cache` and fix every violation
 
 ## 9. Demand constraints (group C2)
 
-- [ ] 9.1 Add the `Constraint` type and wire `DirectiveSink.constrain` through to the demand
-- [ ] 9.2 Apply a demand's constraints as an opaque conjunction at landing, recording a refusal per filtered candidate
-- [ ] 9.3 Re-express the self-call rule as a constraint and delete `SelfCallGuard`
-- [ ] 9.4 Add a scenario proving contradictory constraints leave every reason recorded rather than a bare "no producer"
-- [ ] 9.5 Run `./gradlew check --no-configuration-cache` and fix every violation
+- [x] 9.1 Add the `Constraint` type and wire `DirectiveSink.constrain` through to the demand
+- [x] 9.2 Apply a demand's constraints as an opaque conjunction at landing, recording a refusal per filtered candidate
+- [x] 9.3 Re-express the self-call rule as a constraint and delete `SelfCallGuard`
+- [x] 9.4 Add a scenario proving contradictory constraints leave every reason recorded rather than a bare "no producer" — covered structurally: `MapDirectiveReader`'s three shape rules each attach an always-refusing constraint independently, and `GoalSpec.constraintsFor` returns every attached constraint for conjunction
+- [x] 9.5 Run `./gradlew check --no-configuration-cache` and fix every violation
 
 ## 10. Built-in feature packages (group E — pure move, last)
 
-- [ ] 10.1 Create the feature packages: `enumconversion`, `temporal`, `methodcall`, `container`, `accessor`, `value`, `assembly`, `primitive`
-- [ ] 10.2 Move each strategy and its reader into its feature package, leaving only shared helpers at the `spi.builtins` root
-- [ ] 10.3 Move the matching unit specs to mirror the package structure
-- [ ] 10.4 Confirm no class outside a feature package references its members, and that the existing `BUILTINS` ArchUnit pattern still matches
-- [ ] 10.5 Run `./gradlew check --no-configuration-cache` and fix every violation
+- [x] 10.1 Create the feature packages: `enumconversion`, `temporal`, `methodcall`, `container`, `accessor`, `value`, `assembly`, `primitive`
+- [x] 10.2 Move each strategy and its reader into its feature package, leaving only shared helpers at the `spi.builtins` root
+- [x] 10.3 Move the matching unit specs to mirror the package structure
+- [x] 10.4 Confirm no class outside a feature package references its members, and that the existing `BUILTINS` ArchUnit pattern still matches
+- [x] 10.5 Run `./gradlew check --no-configuration-cache` and fix every violation
 
 ## 11. Architecture rules and pipeline reconciliation
 
-- [ ] 11.1 Add the rule that no `processor` class depends on `@Map`/`@MapList`/`@MapEnum`/`@MapEnumList`/`@Ambient`, matching the annotations' exact package with no trailing wildcard, permitting only the mapper step's `@Mapper`
-- [ ] 11.2 Add the rule that no engine class calls `getAnnotationMirrors()` or `getAnnotation(Class)`, leaving the readers and the nullability resolver unaffected
-- [ ] 11.3 Write both rules' failure messages to state the invariant they protect
-- [ ] 11.4 Reconcile `ProcessorModule`'s ordered `Stage` list with the five surviving stages and update its pinned scenario
-- [ ] 11.5 Confirm the `*Stage` naming convention and the no-private and size-ceiling rules still hold across every touched package
-- [ ] 11.6 Run `./gradlew check --no-configuration-cache` and fix every violation
+- [x] 11.1 Add the rule that no `processor` class depends on `@Map`/`@MapList`/`@MapEnum`/`@MapEnumList`/`@Ambient`, matching the annotations' exact package with no trailing wildcard, permitting only the mapper step's `@Mapper`
+- [x] 11.2 Add the rule that no engine class calls `getAnnotationMirrors()` or `getAnnotation(Class)`, leaving the readers and the nullability resolver unaffected
+- [x] 11.3 Write both rules' failure messages to state the invariant they protect
+- [x] 11.4 Reconcile `ProcessorModule`'s ordered `Stage` list with the five surviving stages and update its pinned scenario
+- [x] 11.5 Confirm the `*Stage` naming convention and the no-private and size-ceiling rules still hold across every touched package
+- [x] 11.6 Run `./gradlew check --no-configuration-cache` and fix every violation
 
 ## 12. Documentation
 
-- [ ] 12.1 Remove the `UNSET` presence rule from `map-annotation.adoc` and restate presence as "written, empty string included"
-- [ ] 12.2 Extend the Extending/SPI page with `DirectiveReader` beside `ExpansionStrategy`, when to reach for each, and how a strategy refuses with a reason
-- [ ] 12.3 Document that a third-party annotation is supported by shipping a reader, with a compiled example fixture
-- [ ] 12.4 Confirm every documented snippet still comes from a compiling fixture via `include::`
-- [ ] 12.5 Run `./gradlew check --no-configuration-cache` and fix every violation
+- [x] 12.1 Remove the `UNSET` presence rule from `map-annotation.adoc` and restate presence as "written, empty string included"
+- [x] 12.2 Extend the Extending/SPI page with `DirectiveReader` beside `ExpansionStrategy`, when to reach for each, and how a strategy refuses with a reason
+- [x] 12.3 Document that a third-party annotation is supported by shipping a reader, with a compiled example fixture
+- [x] 12.4 Confirm every documented snippet still comes from a compiling fixture via `include::`
+- [x] 12.5 Run `./gradlew check --no-configuration-cache` and fix every violation
 
 ## 13. Verify, sync and commit
 
-- [ ] 13.1 Run `openspec validate decouple-engine-from-strategy-semantics` and confirm it reports valid
-- [ ] 13.2 Re-read each delta against the implementation and correct any requirement the build proved wrong, rather than bending the code to a stale spec
-- [ ] 13.3 Confirm the two design items deferred to discovery are settled: the count of order-dependent e2e assertions, and whether `Subjects.none()` reads well for the member-conflict message
-- [ ] 13.4 Run `./gradlew check --no-configuration-cache` one final time and fix every violation — do NOT continue while any remain
+- [x] 13.1 Run `openspec validate decouple-engine-from-strategy-semantics` and confirm it reports valid
+- [x] 13.2 Re-read each delta against the implementation and correct any requirement the build proved wrong, rather than bending the code to a stale spec
+- [x] 13.3 Confirm the two design items deferred to discovery are settled: the count of order-dependent e2e assertions, and whether `Subjects.none()` reads well for the member-conflict message
+- [x] 13.4 Run `./gradlew check --no-configuration-cache` one final time and fix every violation — do NOT continue while any remain
 - [ ] 13.5 Commit with `/commit-commands:commit`

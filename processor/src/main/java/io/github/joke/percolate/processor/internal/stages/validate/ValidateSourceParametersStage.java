@@ -1,87 +1,76 @@
 package io.github.joke.percolate.processor.internal.stages.validate;
 
 import static java.util.stream.Collectors.joining;
-import static java.util.stream.Collectors.toUnmodifiableList;
+import static java.util.stream.Collectors.toMap;
 import static java.util.stream.Collectors.toUnmodifiableSet;
 
 import io.github.joke.percolate.processor.Diagnostic;
 import io.github.joke.percolate.processor.MapperContext;
 import io.github.joke.percolate.processor.internal.stages.Stage;
-import io.github.joke.percolate.processor.model.MapperMappings;
-import io.github.joke.percolate.processor.model.MappingDirective;
-import io.github.joke.percolate.processor.model.MethodMappings;
+import io.github.joke.percolate.processor.model.Bind;
+import io.github.joke.percolate.processor.model.MethodDirectives;
+import io.github.joke.percolate.processor.model.ScopeInputOverride;
 import jakarta.inject.Inject;
+import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import javax.lang.model.element.ExecutableElement;
 import javax.lang.model.element.TypeElement;
+import javax.lang.model.element.VariableElement;
 import javax.lang.model.type.TypeKind;
 import lombok.RequiredArgsConstructor;
 
 /**
- * Hard precondition for the seed stage: every directive that survives this stage has a non-empty source whose
- * first segment names a method parameter. A directive that fails the check is diagnosed <em>and dropped</em> from
- * the mappings, so the seed stage never has to mint an orphan source node or silently skip an empty source.
+ * The engine's own rule about its own forward walk (design D7 of change
+ * {@code decouple-engine-from-strategy-semantics}): a bound source path must root at a scope input of the method —
+ * a path it cannot begin, not a property of {@code @Map}'s shape. A scope input's name is the parameter's own simple
+ * name unless a reader published an override via {@code scopeInput} (e.g. {@code @Ambient}'s rename).
  */
 @RequiredArgsConstructor(onConstructor_ = @Inject)
 public final class ValidateSourceParametersStage implements Stage {
 
     @Override
     public void run(final MapperContext ctx) {
-        final var mappings = ctx.getMappings();
-        if (mappings == null) {
+        final var methodDirectives = ctx.getMethodDirectives();
+        if (methodDirectives == null) {
             return;
         }
-        ctx.setMappings(validate(mappings, ctx));
+        methodDirectives.forEach(directives -> validate(directives, ctx));
     }
 
-    MapperMappings validate(final MapperMappings mappings, final MapperContext ctx) {
-        final var validated = mappings.getMethods().stream()
-                .map(method -> validateMethod(method, ctx))
-                .collect(toUnmodifiableList());
-        return new MapperMappings(mappings.getType(), validated);
+    void validate(final MethodDirectives directives, final MapperContext ctx) {
+        final var names = scopeInputNames(directives);
+        final var methodSig = formatMethodSig(directives.getMethod());
+        directives.getBinds().forEach(bind -> checkBind(bind, names, methodSig, ctx));
     }
 
-    MethodMappings validateMethod(final MethodMappings methodMappings, final MapperContext ctx) {
-        final var method = methodMappings.getMethod();
-        final var paramNames = method.getParameters().stream()
-                .map(p -> p.getSimpleName().toString())
+    /** The method's scope-input names: a parameter's own simple name, or a reader's published override. */
+    Set<String> scopeInputNames(final MethodDirectives directives) {
+        final var overrideByParam = directives.getScopeInputOverrides().stream()
+                .collect(toMap(ScopeInputOverride::getParameter, override -> override, (first, second) -> first));
+        return directives.getMethod().getParameters().stream()
+                .map(param -> nameOf(param, overrideByParam))
                 .collect(toUnmodifiableSet());
-        final var methodSig = formatMethodSig(method);
-
-        final var valid = methodMappings.getDirectives().stream()
-                .filter(d -> isValidOrDiagnose(d, paramNames, method, methodSig, ctx))
-                .collect(toUnmodifiableList());
-        return new MethodMappings(method, valid);
     }
 
-    boolean isValidOrDiagnose(
-            final MappingDirective directive,
-            final Set<String> paramNames,
-            final ExecutableElement method,
-            final String methodSig,
-            final MapperContext ctx) {
-        final var source = directive.getSource();
-        if (source == null) {
-            // A constant directive (or any sourceless directive) has no source to validate against a parameter.
-            return true;
+    String nameOf(final VariableElement param, final Map<VariableElement, ScopeInputOverride> overrideByParam) {
+        final var override = overrideByParam.get(param);
+        return override == null ? param.getSimpleName().toString() : override.getName();
+    }
+
+    void checkBind(final Bind bind, final Set<String> names, final String methodSig, final MapperContext ctx) {
+        final var source = bind.getSourcePath();
+        if (source.isEmpty()) {
+            return;
         }
-        final var seg = firstSegment(source);
-        if (paramNames.contains(seg)) {
-            return true;
+        final var root = source.get(0);
+        if (names.contains(root)) {
+            return;
         }
         ctx.report(Diagnostic.error(
-                        directive.getSourceSubject(), "unknown source parameter '" + seg + "' in @Map on " + methodSig)
+                        bind.getSubject(),
+                        "source path is rooted at unknown scope input '" + root + "' on " + methodSig)
                 .asPermanent());
-        return false;
-    }
-
-    static String firstSegment(final String source) {
-        final var dot = source.indexOf('.');
-        if (dot < 0) {
-            return source;
-        }
-        return source.substring(0, dot);
     }
 
     static String formatMethodSig(final ExecutableElement method) {

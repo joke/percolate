@@ -12,14 +12,14 @@ import javax.lang.model.type.TypeMirror;
  * their simple form recursively (generic arguments included); a conversion reads as {@code from→to} with the glyph
  * arrow. Best-effort for a debug label — never the basis of a behavioural decision.
  */
-final class Labels {
+public final class Labels {
 
-    static final String ARROW = "→";
+    public static final String ARROW = "→";
 
     private Labels() {}
 
     /** The simple name of {@code type}, recursing into generic arguments (e.g. {@code Optional<Set<Address>>}). */
-    static String simple(final TypeMirror type) {
+    public static String simple(final TypeMirror type) {
         if (type.getKind() != TypeKind.DECLARED) {
             return type.toString();
         }
@@ -33,7 +33,7 @@ final class Labels {
     }
 
     /** A conversion label {@code from→to} (e.g. {@code int→long}, {@code int→Integer}). */
-    static String conversion(final TypeMirror from, final TypeMirror to) {
+    public static String conversion(final TypeMirror from, final TypeMirror to) {
         return simple(from) + ARROW + simple(to);
     }
 }

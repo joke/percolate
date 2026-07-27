@@ -5,15 +5,20 @@ import io.github.joke.percolate.processor.internal.graph.ChildScope
 import io.github.joke.percolate.processor.internal.graph.Location
 import io.github.joke.percolate.processor.internal.graph.MapperGraph
 import io.github.joke.percolate.processor.internal.graph.Operation
-import io.github.joke.percolate.processor.internal.graph.PortBinding
+import io.github.joke.percolate.processor.internal.graph.Refusal
 import io.github.joke.percolate.processor.internal.graph.Scope
 import io.github.joke.percolate.processor.internal.graph.TargetLocation
 import io.github.joke.percolate.processor.internal.graph.TargetPath
 import io.github.joke.percolate.processor.internal.graph.Value
+import io.github.joke.percolate.spi.BoundPort
 import io.github.joke.percolate.spi.Codegen
+import io.github.joke.percolate.spi.Constraint
 import io.github.joke.percolate.spi.Nullability
+import io.github.joke.percolate.spi.Offer
 import io.github.joke.percolate.spi.OperationSpec
 import io.github.joke.percolate.spi.Port
+import io.github.joke.percolate.spi.ResolveCtx
+import io.github.joke.percolate.spi.Subjects
 import spock.lang.Specification
 import spock.lang.Tag
 
@@ -22,10 +27,13 @@ import java.util.stream.Stream
 
 /**
  * {@code ExpandStage.Driver}'s own orchestrating methods, unit-tested by mocking their direct collaborators — the
- * engine-test-quality scenario for an orchestrator: {@code land} mocks {@link PortBinder}/{@link SelfCallGuard}/
- * {@link OperationLander}; {@code expandValue} mocks {@link TargetProducer}/{@link SourcePathDescender} and asserts
- * the composition, rather than driving a full seed-and-expand pass (that full-pipeline behaviour is pinned by the
- * compile-based feature-e2e layer, per design {@code decompose-engine-stages} D7).
+ * engine-test-quality scenario for an orchestrator: {@code land} mocks {@link PortBinder}/{@link OperationLander}
+ * and {@link TargetProducer#constraintsFor}, exercising the demand-scoped admissibility mechanism (design D8 of
+ * change {@code decouple-engine-from-strategy-semantics}) — the driver's own built-in self-call constraint is a
+ * structural no-op here because {@code scope} is a bare {@link Scope} mock, never a {@code MethodScope}; {@code
+ * expandValue} mocks {@link TargetProducer}/{@link SourcePathDescender} and asserts the composition, rather than
+ * driving a full seed-and-expand pass (that full-pipeline behaviour is pinned by the compile-based feature-e2e
+ * layer, per design {@code decompose-engine-stages} D7).
  */
 @Tag('unit')
 class ExpandStageDriverOrchestrationSpec extends Specification {
@@ -34,12 +42,12 @@ class ExpandStageDriverOrchestrationSpec extends Specification {
     TargetProducer targetProducer = Mock()
     SourcePathDescender sourcePathDescender = Mock()
     PortBinder portBinder = Mock()
-    SelfCallGuard selfCallGuard = Mock()
+    ResolveCtx resolveCtx = Mock()
     OperationLander operationLander = Mock()
 
-    // ---- land: bind -> guard -> operationLander, a pure function of its inputs -------------------------------------
+    // ---- land: bind -> admissibility -> operationLander, a pure function of its inputs -------------------------
 
-    def 'land binds the spec\'s ports and lands the operation when the guard does not refuse'() {
+    def 'land binds the spec\'s ports and lands the operation when no constraint refuses'() {
         def driver = driver()
         Value output = Mock()
         def loc = new TargetLocation(TargetPath.of('addr'))
@@ -47,7 +55,7 @@ class ExpandStageDriverOrchestrationSpec extends Specification {
         Codegen codegen = Mock()
         TypeMirror type = Mock()
         def spec = OperationSpec.of('new', codegen, 1, [], type, Nullability.NON_NULL)
-        def ports = [Mock(PortBinding)]
+        def ports = []
         AddValue outputAddValue = Mock()
         Operation landed = Mock()
 
@@ -58,7 +66,7 @@ class ExpandStageDriverOrchestrationSpec extends Specification {
         output.loc >> loc
         output.scope >> scope
         1 * portBinder.bind(output, 'addr', spec, null) >> Optional.of(ports)
-        1 * selfCallGuard.refuses(scope, spec, ports) >> false
+        1 * targetProducer.constraintsFor(output) >> []
         1 * operationLander.outputOf(output) >> outputAddValue
         1 * operationLander.landOperation(spec, ports, outputAddValue) >> landed
         0 * _
@@ -67,7 +75,7 @@ class ExpandStageDriverOrchestrationSpec extends Specification {
         result.get().is(landed)
     }
 
-    def 'land declines when PortBinder cannot bind every port, never consulting the guard'() {
+    def 'land declines when PortBinder cannot bind every port, never consulting admissibility'() {
         def driver = driver()
         Value output = Mock()
         def loc = new TargetLocation(TargetPath.of(''))
@@ -81,14 +89,14 @@ class ExpandStageDriverOrchestrationSpec extends Specification {
         then:
         output.loc >> loc
         1 * portBinder.bind(output, '', spec, null) >> Optional.empty()
-        0 * selfCallGuard._
+        0 * targetProducer._
         0 * operationLander._
 
         expect:
         result.empty
     }
 
-    def 'land declines when the self-call guard refuses, never landing an operation'() {
+    def 'land declines and records the refusal when a contributed constraint refuses, never landing an operation'() {
         def driver = driver()
         Value output = Mock()
         def loc = new TargetLocation(TargetPath.of(''))
@@ -96,7 +104,8 @@ class ExpandStageDriverOrchestrationSpec extends Specification {
         Codegen codegen = Mock()
         TypeMirror type = Mock()
         def spec = OperationSpec.of('map', codegen, 1, [], type, Nullability.NON_NULL)
-        def ports = [Mock(PortBinding)]
+        def refusal = new Offer.Refusal(Subjects.none(), 'no')
+        Constraint refuses = { OperationSpec candidate, List<BoundPort> boundPorts -> Optional.of(refusal) }
 
         when:
         def result = driver.land(output, spec, null)
@@ -104,8 +113,9 @@ class ExpandStageDriverOrchestrationSpec extends Specification {
         then:
         output.loc >> loc
         output.scope >> scope
-        1 * portBinder.bind(output, '', spec, null) >> Optional.of(ports)
-        1 * selfCallGuard.refuses(scope, spec, ports) >> true
+        1 * portBinder.bind(output, '', spec, null) >> Optional.of([])
+        1 * targetProducer.constraintsFor(output) >> [refuses]
+        1 * output.addInadmissible(new Refusal(refusal.subject, refusal.message))
         0 * operationLander._
 
         expect:
@@ -129,7 +139,6 @@ class ExpandStageDriverOrchestrationSpec extends Specification {
         0 * targetProducer._
         0 * sourcePathDescender._
         0 * portBinder._
-        0 * selfCallGuard._
         0 * operationLander._
 
         expect:
@@ -162,7 +171,7 @@ class ExpandStageDriverOrchestrationSpec extends Specification {
         1 * sourcePathDescender.pinnedSource(scope, ['person'], Optional.empty()) >> pinned
         1 * targetProducer.produce(value) >> [spec]
         1 * portBinder.bind(value, '', spec, pinned) >> Optional.of([])
-        1 * selfCallGuard.refuses(scope, spec, []) >> false
+        1 * targetProducer.constraintsFor(value) >> []
         1 * operationLander.outputOf(value) >> outputAddValue
         1 * operationLander.landOperation(spec, [], outputAddValue) >> operation
         1 * graph.portSourcesOf(operation) >> Stream.of(source0, source1)
@@ -198,7 +207,7 @@ class ExpandStageDriverOrchestrationSpec extends Specification {
         1 * sourcePathDescender.pinnedSource(scope, [], Optional.empty()) >> null
         1 * targetProducer.produce(value) >> [spec]
         1 * portBinder.bind(value, '', spec, null) >> Optional.of([])
-        1 * selfCallGuard.refuses(scope, spec, []) >> false
+        1 * targetProducer.constraintsFor(value) >> []
         1 * operationLander.outputOf(value) >> outputAddValue
         1 * operationLander.landOperation(spec, [], outputAddValue) >> operation
         1 * graph.portSourcesOf(operation) >> Stream.empty()
@@ -241,6 +250,6 @@ class ExpandStageDriverOrchestrationSpec extends Specification {
     // ---- helpers ----------------------------------------------------------------------------------------------
 
     private ExpandStage.Driver driver() {
-        new ExpandStage.Driver(graph, targetProducer, sourcePathDescender, portBinder, selfCallGuard, operationLander, null)
+        new ExpandStage.Driver(graph, targetProducer, sourcePathDescender, portBinder, resolveCtx, operationLander, null)
     }
 }

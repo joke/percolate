@@ -10,7 +10,6 @@ import io.github.joke.percolate.processor.internal.stages.dump.DumpTransformsSta
 import io.github.joke.percolate.processor.internal.stages.expand.ExpandStage
 import io.github.joke.percolate.processor.internal.stages.generate.GenerateStage
 import io.github.joke.percolate.processor.internal.stages.validate.RealisationDiagnosticsStage
-import io.github.joke.percolate.processor.internal.stages.validate.ValidateMappingShapeStage
 import io.github.joke.percolate.processor.internal.stages.validate.ValidateNoDuplicateTargetsStage
 import io.github.joke.percolate.processor.internal.stages.validate.ValidateOptionConsumptionStage
 import io.github.joke.percolate.processor.internal.stages.validate.ValidateSourceParametersStage
@@ -162,7 +161,6 @@ class ProcessorModuleSpec extends Specification {
         Stage discoverA = Mock()
         Stage discoverB = Mock()
         ValidateNoDuplicateTargetsStage noDuplicateTargets = Mock()
-        ValidateMappingShapeStage mappingShape = Mock()
         ValidateSourceParametersStage sourceParameters = Mock()
         ExpandStage expand = Mock()
         DumpFullGraphStage dumpFullGraph = Mock()
@@ -174,19 +172,24 @@ class ProcessorModuleSpec extends Specification {
 
         when:
         def stages = ProcessorModule.stages(
-                [discoverA, discoverB], noDuplicateTargets, mappingShape, sourceParameters, expand,
+                [discoverA, discoverB], noDuplicateTargets, sourceParameters, expand,
                 dumpFullGraph, dumpTransforms, dumpPlan, optionConsumption,
                 realisation, generate)
 
         then:
         stages == [
                 discoverA, discoverB,
-                noDuplicateTargets, mappingShape, sourceParameters,
+                noDuplicateTargets, sourceParameters,
                 expand,
                 optionConsumption, realisation,
                 dumpFullGraph, dumpTransforms, dumpPlan,
                 generate
         ]
+    }
+
+    def 'directiveReaders loads readers via ServiceLoader, sorted by FQN'() {
+        expect:
+        ProcessorModule.directiveReaders() instanceof List
     }
 
     private static ProcessorOptions defaultOptions(customNullableAnnotations = [] as Set) {

@@ -11,17 +11,15 @@ import lombok.RequiredArgsConstructor;
 
 /**
  * The pure decision half of callable-method discovery: from plain {@link CandidateDescriptor}s it keeps the
- * non-{@code Object} methods whose <b>non-ambient</b> parameter count is exactly one, and hands them to an
- * {@link IndexCallableMethods} view. It interrogates no {@code javax.lang.model} value (the return-type/output
- * {@link javax.lang.model.type.TypeMirror}s stay opaque tokens, and {@link CandidateDescriptor#getAmbientKeys()}
- * is already resolved plain data; assignability is the {@code IndexCallableMethods}' one seam question), so it
- * unit-tests on plain descriptors. {@code @Ambient} parameters do not participate in this decision at all — a
- * method carrying them is still structurally a one-port bridge (design {@code ambient-parameters}).
+ * non-{@code Object} methods and hands them to an {@link IndexCallableMethods} view. Arity — including any
+ * {@code @Ambient}-parameter adjustment — is entirely a strategy concern (design D7 of change
+ * {@code decouple-engine-from-strategy-semantics}: the processor reads no user-facing annotation); {@code
+ * MethodCallBridge} filters its own non-ambient parameter count on the candidates this index offers. It interrogates
+ * no {@code javax.lang.model} value beyond {@link CandidateDescriptor}'s own plain fields, so it unit-tests on plain
+ * descriptors.
  */
 @RequiredArgsConstructor(onConstructor_ = @Inject)
 final class CallableMethodFilter {
-
-    private static final int NON_AMBIENT_PARAM_COUNT = 1;
 
     private final Types types;
 
@@ -32,8 +30,6 @@ final class CallableMethodFilter {
     }
 
     boolean isCallable(final CandidateDescriptor descriptor) {
-        return descriptor.getKind() == METHOD
-                && !descriptor.isEnclosingIsObject()
-                && descriptor.getParameterCount() - descriptor.getAmbientKeys().size() == NON_AMBIENT_PARAM_COUNT;
+        return descriptor.getKind() == METHOD && !descriptor.isEnclosingIsObject();
     }
 }

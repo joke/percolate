@@ -24,19 +24,19 @@ public interface AccountMapper {
 
 // tag::model[]
 final class AccountForm {
-    private final String id;
+    private final int id;
     private final String displayName;
     private final Optional<String> nickname;
     private final int balanceCents;
 
-    AccountForm(String id, String displayName, Optional<String> nickname, int balanceCents) {
+    AccountForm(int id, String displayName, Optional<String> nickname, int balanceCents) {
         this.id = id;
         this.displayName = displayName;
         this.nickname = nickname;
         this.balanceCents = balanceCents;
     }
 
-    public String getId() {
+    public int getId() {
         return id;
     }
 
@@ -54,21 +54,21 @@ final class AccountForm {
 }
 
 final class Account {
-    private final String id;
+    private final int id;
     private final String status;
-    private final String displayName;
     private final String nickname;
+    private final String displayName;
     private final long balanceCents;
 
-    Account(String id, String status, String displayName, String nickname, long balanceCents) {
+    Account(int id, String status, String nickname, String displayName, long balanceCents) {
         this.id = id;
         this.status = status;
-        this.displayName = displayName;
         this.nickname = nickname;
+        this.displayName = displayName;
         this.balanceCents = balanceCents;
     }
 
-    public String getId() {
+    public int getId() {
         return id;
     }
 

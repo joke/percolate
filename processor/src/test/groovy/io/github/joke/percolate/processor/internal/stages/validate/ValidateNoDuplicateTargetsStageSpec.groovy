@@ -1,10 +1,9 @@
 package io.github.joke.percolate.processor.internal.stages.validate
 
 import io.github.joke.percolate.processor.MapperContext
-import io.github.joke.percolate.processor.model.MapperMappings
-import io.github.joke.percolate.processor.model.MappingDirective
-import io.github.joke.percolate.processor.model.MethodMappings
-import io.github.joke.percolate.processor.test.MappingDirectives
+import io.github.joke.percolate.processor.model.Bind
+import io.github.joke.percolate.processor.model.MethodDirectives
+import io.github.joke.percolate.spi.Subjects
 import spock.lang.Specification
 import spock.lang.Subject
 import spock.lang.Tag
@@ -13,9 +12,10 @@ import javax.lang.model.element.ExecutableElement
 import javax.lang.model.element.TypeElement
 
 /**
- * {@link ValidateNoDuplicateTargetsStage} seam, unit-tested directly: directives are grouped by target and every
- * directive after the first on a shared target is reported as a permanent diagnostic (positioned at that directive's
- * {@code target} value, design D14). The first occurrence is spared.
+ * {@link ValidateNoDuplicateTargetsStage} seam, unit-tested directly: bindings are grouped by target path and every
+ * binding after the first on a shared target is reported as a permanent diagnostic (positioned at that binding's own
+ * {@link io.github.joke.percolate.spi.Subject}, design D14) — a property of the sink, regardless of which reader
+ * declared them. The first occurrence is spared.
  */
 @Tag('unit')
 class ValidateNoDuplicateTargetsStageSpec extends Specification {
@@ -28,9 +28,9 @@ class ValidateNoDuplicateTargetsStageSpec extends Specification {
 
     def method = Mock(ExecutableElement)
 
-    def 'a duplicate target is flagged once at the second directive; the first is spared'() {
+    def 'a duplicate target is flagged once at the second binding; the first is spared'() {
         when:
-        stage.validate(mappings(directive('status'), directive('status')), ctx)
+        stage.validate(directives(bind('status'), bind('status')), ctx)
 
         then:
         ctx.diagnostics.size() == 1
@@ -42,22 +42,22 @@ class ValidateNoDuplicateTargetsStageSpec extends Specification {
 
     def 'distinct targets produce no diagnostic'() {
         when:
-        stage.validate(mappings(directive('first'), directive('second')), ctx)
+        stage.validate(directives(bind('first'), bind('second')), ctx)
 
         then:
         ctx.diagnostics.empty
     }
 
-    def 'three directives on one target flag the two later ones, not the first'() {
+    def 'three bindings on one target flag the two later ones, not the first'() {
         when:
-        stage.validate(mappings(directive('x'), directive('x'), directive('x')), ctx)
+        stage.validate(directives(bind('x'), bind('x'), bind('x')), ctx)
 
         then:
         ctx.diagnostics.size() == 2
         ctx.diagnostics.every { it.permanent }
     }
 
-    def 'run does nothing when the context has no mappings'() {
+    def 'run does nothing when the context has no method directives'() {
         when:
         stage.run(ctx)
 
@@ -65,9 +65,9 @@ class ValidateNoDuplicateTargetsStageSpec extends Specification {
         ctx.diagnostics.empty
     }
 
-    def 'run validates the mappings installed on the context'() {
+    def 'run validates every method installed on the context'() {
         given:
-        ctx.mappings = mappings(directive('status'), directive('status'))
+        ctx.methodDirectives = [directives(bind('status'), bind('status'))]
 
         when:
         stage.run(ctx)
@@ -77,9 +77,9 @@ class ValidateNoDuplicateTargetsStageSpec extends Specification {
         ctx.diagnostics[0].message.contains("duplicate target 'status'")
     }
 
-    def 'groupByTarget buckets directives by their target name'() {
+    def 'groupByTarget buckets bindings by their dotted target path'() {
         when:
-        def grouped = stage.groupByTarget([directive('a'), directive('a'), directive('b')])
+        def grouped = stage.groupByTarget([bind('a'), bind('a'), bind('b')])
 
         then:
         grouped.keySet() == ['a', 'b'] as Set
@@ -87,11 +87,11 @@ class ValidateNoDuplicateTargetsStageSpec extends Specification {
         grouped['b'].size() == 1
     }
 
-    private MappingDirective directive(final String target) {
-        MappingDirectives.of(target)
+    private static Bind bind(final String target) {
+        new Bind([target], [], Subjects.none())
     }
 
-    private MapperMappings mappings(final MappingDirective... directives) {
-        new MapperMappings(null, [new MethodMappings(method, directives as List)])
+    private MethodDirectives directives(final Bind... binds) {
+        new MethodDirectives(method, binds as List, [:], [], [:])
     }
 }

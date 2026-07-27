@@ -11,9 +11,12 @@ import java.util.Optional;
  * {@code (partials, weight)}: {@code cost(Value)} is the {@code min} ({@code ⊕}) over its producers, and
  * {@code cost(Operation)} is its own {@code Cost} combined ({@code ⊗}, {@link Cost#plus}) with the sum over its
  * port Values and the child return-root. Totality therefore dominates weight by construction, and a partial
- * producer is chosen only when no total one is reachable; ties break on {@link Operation#id()} for compilation-
- * stable selection. The one fold subsumes satisfaction — a vertex is reachable iff its cost is finite (there is
- * no separate SAT pass). Losing producers remain in the underlying graph, unselected; this view never mutates it.
+ * producer is chosen only when no total one is reachable; ties break on the graph-assigned {@code seq} (creation
+ * order), compared numerically — never on {@link Operation#id()}, whose {@code seq} substring compares
+ * lexicographically and silently inverts across a digit-count boundary (e.g. {@code "op9"} > {@code "op10"}) — for
+ * compilation-stable selection. The one fold subsumes satisfaction — a vertex is reachable iff its cost is finite
+ * (there is no separate SAT pass). Losing producers remain in the underlying graph, unselected; this view never
+ * mutates it.
  */
 // IdentityHashMap is the point: every memo here is keyed by vertex instance identity, not value equality.
 @SuppressWarnings({"PMD.UseConcurrentHashMap", "IdentityHashMapUsage"})
@@ -85,13 +88,13 @@ public final class ExtractedPlan {
 
     /**
      * The chosen producer of {@code value}: the reachable producer of least {@link Cost} (totality dominating
-     * weight by the vector order), with {@link Operation#id()} the deterministic tie-break. Empty when the value
-     * has no reachable producer (so an all-unreachable Value falls back to its base case in {@link #cost}).
+     * weight by the vector order), with {@link Operation#getSeq()} the deterministic, numeric tie-break. Empty when
+     * the value has no reachable producer (so an all-unreachable Value falls back to its base case in {@link #cost}).
      */
     Optional<Operation> cheapestProducer(final Value value) {
         return graph.producersOf(value)
                 .filter(operation -> cost(operation).isReachable())
-                .min(Comparator.<Operation, Cost>comparing(this::cost).thenComparing(Operation::id));
+                .min(Comparator.<Operation, Cost>comparing(this::cost).thenComparingInt(Operation::getSeq));
     }
 
     Cost cost(final Operation operation) {

@@ -1,6 +1,5 @@
 package io.github.joke.percolate.processor.internal.stages.expand
 
-import io.github.joke.percolate.Ambient
 import io.github.joke.percolate.processor.internal.graph.AccessPath
 import io.github.joke.percolate.processor.internal.graph.AddValue
 import io.github.joke.percolate.processor.internal.graph.InputDecl
@@ -11,6 +10,8 @@ import io.github.joke.percolate.processor.internal.graph.TargetLocation
 import io.github.joke.percolate.processor.internal.graph.TargetPath
 import io.github.joke.percolate.processor.internal.graph.Value
 import io.github.joke.percolate.processor.internal.graph.Visibility
+import io.github.joke.percolate.processor.model.GoalSpec
+import io.github.joke.percolate.processor.model.ScopeInputOverride
 import io.github.joke.percolate.processor.nullability.NullabilityResolver
 import io.github.joke.percolate.spi.Nullability
 import spock.lang.Specification
@@ -24,7 +25,9 @@ import javax.lang.model.type.TypeMirror
 /**
  * {@link Seeder} unit-tested by mocking {@link MapperGraph}/{@link Applier}/{@link NullabilityResolver} — mints and
  * marks one method's return-root {@code Value} (decomposed out of {@code ExpandStage.Driver.seedReturnRoot} by
- * change {@code decompose-engine-stages}).
+ * change {@code decompose-engine-stages}). A parameter's name/visibility default to its own simple name/
+ * {@link Visibility#LOCAL} unless the method's {@code GoalSpec} carries a published {@link ScopeInputOverride}
+ * (design D5/D7 of change {@code decouple-engine-from-strategy-semantics}) — {@code Seeder} reads no annotation.
  */
 @Tag('unit')
 class SeederSpec extends Specification {
@@ -32,9 +35,9 @@ class SeederSpec extends Specification {
     MapperGraph graph = Mock()
     Applier applier = Mock()
     NullabilityResolver resolver = Mock()
-    Seeder seeder = new Seeder(graph, applier, resolver)
 
     def 'seed mints and marks the return-root Value, typed and nulled from the method return declaration'() {
+        def seeder = new Seeder(graph, applier, resolver, [:])
         ExecutableElement method = Mock()
         TypeMirror returnType = Mock()
         Value root = Mock()
@@ -55,26 +58,37 @@ class SeederSpec extends Specification {
         result.is(root)
     }
 
-    def 'declarationsFor builds one resolved InputDecl per parameter, LOCAL by default and INHERITED for @Ambient'() {
+    def 'declarationsFor builds one resolved InputDecl per parameter, LOCAL by default with its own simple name'() {
+        def seeder = new Seeder(graph, applier, resolver, [:])
         ExecutableElement method = Mock()
         VariableElement plain = Mock()
-        VariableElement ambient = Mock()
         TypeMirror plainType = Mock()
-        TypeMirror ambientType = Mock()
-        method.parameters >> [plain, ambient]
+        method.parameters >> [plain]
         plain.simpleName >> nameOf('customer')
         plain.asType() >> plainType
-        plain.getAnnotation(Ambient) >> null
-        ambient.simpleName >> nameOf('order')
-        ambient.asType() >> ambientType
-        ambient.getAnnotation(Ambient) >> ([value: { -> '' }] as Ambient)
         resolver.resolve(plainType, plain) >> Nullability.NON_NULL
-        resolver.resolve(ambientType, ambient) >> Nullability.NULLABLE
 
         expect:
         seeder.declarationsFor(method) == [
                 new InputDecl(new SourceLocation(AccessPath.of('customer')), plainType, Nullability.NON_NULL,
-                        'customer', Visibility.LOCAL),
+                        'customer', Visibility.LOCAL)
+        ]
+    }
+
+    def 'declarationsFor honours a published scope-input override, e.g. an @Ambient rename to INHERITED'() {
+        ExecutableElement method = Mock()
+        VariableElement ambient = Mock()
+        TypeMirror ambientType = Mock()
+        method.parameters >> [ambient]
+        ambient.simpleName >> nameOf('order')
+        ambient.asType() >> ambientType
+        resolver.resolve(ambientType, ambient) >> Nullability.NULLABLE
+        def override = new ScopeInputOverride(ambient, 'order', io.github.joke.percolate.spi.Visibility.INHERITED)
+        def goalSpecs = [(new MethodScope(method)): GoalSpec.from([], [:], [:], [override])]
+        def seeder = new Seeder(graph, applier, resolver, goalSpecs)
+
+        expect:
+        seeder.declarationsFor(method) == [
                 new InputDecl(new SourceLocation(AccessPath.of('order')), ambientType, Nullability.NULLABLE,
                         'order', Visibility.INHERITED)
         ]

@@ -1,10 +1,9 @@
 package io.github.joke.percolate.processor.internal.stages.validate
 
 import io.github.joke.percolate.processor.MapperContext
-import io.github.joke.percolate.processor.model.MapperMappings
-import io.github.joke.percolate.processor.model.MappingDirective
-import io.github.joke.percolate.processor.model.MethodMappings
-import io.github.joke.percolate.processor.test.MappingDirectives
+import io.github.joke.percolate.processor.model.Bind
+import io.github.joke.percolate.processor.model.MethodDirectives
+import io.github.joke.percolate.spi.Subjects
 import spock.lang.Specification
 import spock.lang.Subject
 import spock.lang.Tag
@@ -18,9 +17,10 @@ import javax.lang.model.type.TypeKind
 import javax.lang.model.type.TypeMirror
 
 /**
- * {@link ValidateSourceParametersStage} seam, unit-tested directly: a directive whose source's first segment does
- * not name a method parameter is reported as a permanent diagnostic (design D14, at the {@code source} value) and
- * dropped; a matching source, a single-segment source, and a sourceless (constant) directive all survive untouched.
+ * {@link ValidateSourceParametersStage} seam, unit-tested directly: a binding whose source path's first segment
+ * does not name a scope input of the method (a parameter's own simple name, since no reader published a
+ * {@code scopeInput} override in these specs) is reported as a permanent diagnostic (design D14, at the binding's
+ * own {@link io.github.joke.percolate.spi.Subject}) — the engine's own rule, read-only over {@code MethodDirectives}.
  */
 @Tag('unit')
 class ValidateSourceParametersStageSpec extends Specification {
@@ -31,92 +31,79 @@ class ValidateSourceParametersStageSpec extends Specification {
     def mapperType = Mock(TypeElement)
     def ctx = new MapperContext(mapperType)
 
-    def 'a source whose first segment names a known parameter is kept, no diagnostic'() {
+    def 'a source whose first segment names a known parameter produces no diagnostic'() {
         when:
-        def result = stage.validate(mappings(methodWith('in'), sourceDirective('in.name')), ctx)
+        stage.validate(directives(methodWith('in'), sourceBind('in.name')), ctx)
 
         then:
         ctx.diagnostics.empty
-        result.methods[0].directives.size() == 1
     }
 
-    def 'a source naming an unknown parameter is diagnosed at the source value and dropped'() {
+    def 'a source naming an unknown parameter is diagnosed at the binding subject'() {
         when:
-        def result = stage.validate(mappings(methodWith('in'), sourceDirective('bogus.name')), ctx)
+        stage.validate(directives(methodWith('in'), sourceBind('bogus.name')), ctx)
 
         then:
         ctx.diagnostics.size() == 1
         with(ctx.diagnostics[0]) {
             permanent
-            message.contains("unknown source parameter 'bogus'")
+            message.contains("unknown scope input 'bogus'")
         }
-        result.methods[0].directives.empty
     }
 
     def 'a single-segment source is validated as the whole parameter name'() {
         when:
-        def result = stage.validate(mappings(methodWith('in'), sourceDirective('in')), ctx)
+        stage.validate(directives(methodWith('in'), sourceBind('in')), ctx)
 
         then:
         ctx.diagnostics.empty
-        result.methods[0].directives.size() == 1
     }
 
-    def 'a sourceless (constant) directive is kept without parameter validation'() {
-        given:
-        def constant = MappingDirectives.of('status', [constant: 'ACTIVE'])
-
+    def 'a sourceless (constant) binding produces no diagnostic'() {
         when:
-        def result = stage.validate(mappings(methodWith('in'), constant), ctx)
+        stage.validate(directives(methodWith('in'), new Bind(['status'], [], Subjects.none())), ctx)
 
         then:
         ctx.diagnostics.empty
-        result.methods[0].directives.size() == 1
     }
 
-    def 'run is a no-op when the context has no mappings'() {
+    def 'run is a no-op when the context has no method directives'() {
         when:
         stage.run(ctx)
 
         then:
         ctx.diagnostics.empty
-
-        expect:
-        ctx.mappings == null
     }
 
-    def 'run installs the validated mappings, dropping the unknown-parameter directive'() {
+    def 'run validates every method installed on the context'() {
         given:
-        ctx.mappings = mappings(methodWith('in'), sourceDirective('bogus.name'))
+        ctx.methodDirectives = [directives(methodWith('in'), sourceBind('bogus.name'))]
 
         when:
         stage.run(ctx)
 
         then:
         ctx.diagnostics.size() == 1
-
-        expect:
-        ctx.mappings.methods[0].directives.empty
     }
 
     def 'the diagnostic names the method signature with the simple parameter type name'() {
         given:
-        def method = methodWith(typedParam('in', declared('Person')))
+        def method = methodWithParam(typedParam('in', declared('Person')))
 
         when:
-        stage.validate(mappings(method, sourceDirective('bogus')), ctx)
+        stage.validate(directives(method, sourceBind('bogus')), ctx)
 
         then:
         ctx.diagnostics.size() == 1
-        ctx.diagnostics[0].message.contains('in @Map on map(Person)')
+        ctx.diagnostics[0].message.contains('on map(Person)')
     }
 
     def 'a type-variable parameter renders by its own toString in the signature'() {
         given:
-        def method = methodWith(typedParam('in', Mock(TypeMirror) { getKind() >> TypeKind.TYPEVAR; toString() >> 'T' }))
+        def method = methodWithParam(typedParam('in', Mock(TypeMirror) { getKind() >> TypeKind.TYPEVAR; toString() >> 'T' }))
 
         when:
-        stage.validate(mappings(method, sourceDirective('bogus')), ctx)
+        stage.validate(directives(method, sourceBind('bogus')), ctx)
 
         then:
         ctx.diagnostics.size() == 1
@@ -125,14 +112,18 @@ class ValidateSourceParametersStageSpec extends Specification {
 
     def 'a parameter with no resolvable type renders as a question mark'() {
         given:
-        def method = methodWith(typedParam('in', null))
+        def method = methodWithParam(typedParam('in', null))
 
         when:
-        stage.validate(mappings(method, sourceDirective('bogus')), ctx)
+        stage.validate(directives(method, sourceBind('bogus')), ctx)
 
         then:
         ctx.diagnostics.size() == 1
         ctx.diagnostics[0].message.contains('map(?)')
+    }
+
+    private static Bind sourceBind(final String source) {
+        new Bind(['name'], source.split('\\.').toList(), Subjects.none())
     }
 
     private ExecutableElement methodWith(final String... paramNames) {
@@ -142,7 +133,7 @@ class ValidateSourceParametersStageSpec extends Specification {
         }
     }
 
-    private ExecutableElement methodWith(final VariableElement... parameters) {
+    private ExecutableElement methodWithParam(final VariableElement... parameters) {
         Mock(ExecutableElement) {
             getParameters() >> (parameters as List)
             getSimpleName() >> name('map')
@@ -176,11 +167,7 @@ class ValidateSourceParametersStageSpec extends Specification {
         }
     }
 
-    private MappingDirective sourceDirective(final String source) {
-        MappingDirectives.of('name', [source: source])
-    }
-
-    private MapperMappings mappings(final ExecutableElement method, final MappingDirective... directives) {
-        new MapperMappings(null, [new MethodMappings(method, directives as List)])
+    private MethodDirectives directives(final ExecutableElement method, final Bind... binds) {
+        new MethodDirectives(method, binds as List, [:], [], [:])
     }
 }

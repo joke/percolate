@@ -3,7 +3,6 @@ package io.github.joke.percolate.processor.internal.stages.discover;
 import static java.util.stream.Collectors.toUnmodifiableList;
 
 import com.groupcdg.pitest.annotations.CoverageIgnore;
-import io.github.joke.percolate.processor.internal.graph.Visibility;
 import jakarta.inject.Inject;
 import java.util.List;
 import javax.lang.model.element.Element;
@@ -41,15 +40,7 @@ final class CallableMethodIndexer {
                 method.getParameters().size(),
                 enclosingIsObject(method),
                 method.getReturnType(),
-                method,
-                ambientKeys(method));
-    }
-
-    List<String> ambientKeys(final ExecutableElement method) {
-        return method.getParameters().stream()
-                .filter(param -> AmbientAnnotations.visibilityOf(param) == Visibility.INHERITED)
-                .map(AmbientAnnotations::nameOf)
-                .collect(toUnmodifiableList());
+                method);
     }
 
     boolean enclosingIsObject(final ExecutableElement method) {

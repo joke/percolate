@@ -1,14 +1,13 @@
 package io.github.joke.percolate.processor.internal.stages.expand
 
+import io.github.joke.percolate.processor.internal.graph.Refusal
 import io.github.joke.percolate.processor.internal.graph.Scope
 import io.github.joke.percolate.processor.internal.graph.TargetLocation
 import io.github.joke.percolate.processor.internal.graph.TargetPath
 import io.github.joke.percolate.processor.internal.graph.Value
+import io.github.joke.percolate.processor.model.Bind
 import io.github.joke.percolate.processor.model.GoalSpec
-import io.github.joke.percolate.processor.model.MappingDirective
 import io.github.joke.percolate.processor.nullability.NullabilityResolver
-import io.github.joke.percolate.processor.internal.graph.Refusal
-import io.github.joke.percolate.processor.test.MappingDirectives
 import io.github.joke.percolate.spi.Codegen
 import io.github.joke.percolate.spi.ExpansionStrategy
 import io.github.joke.percolate.spi.Nullability
@@ -17,6 +16,7 @@ import io.github.joke.percolate.spi.OperationSpec
 import io.github.joke.percolate.spi.Port
 import io.github.joke.percolate.spi.ResolveCtx
 import io.github.joke.percolate.spi.Subject
+import io.github.joke.percolate.spi.Subjects
 import spock.lang.Specification
 import spock.lang.Tag
 
@@ -45,7 +45,7 @@ class TargetProducerSpec extends Specification {
         Scope scope = Mock()
         def loc = new TargetLocation(TargetPath.of('address'))
         Value value = Mock()
-        def producer = new TargetProducer([strategy], [(scope): GoalSpec.from([])], sourceCandidates, grounding,
+        def producer = new TargetProducer([strategy], [(scope): GoalSpec.empty()], sourceCandidates, grounding,
                 resolveCtx, resolver)
         def spec0 = OperationSpec.of('a', codegen, 1, [], valueType, Nullability.NON_NULL)
         def spec1 = OperationSpec.of('b', codegen, 1, [], valueType, Nullability.NON_NULL)
@@ -75,7 +75,7 @@ class TargetProducerSpec extends Specification {
         def loc = new TargetLocation(TargetPath.of('address'))
         Value value = Mock()
         Subject subject = Mock()
-        def producer = new TargetProducer([strategy], [(scope): GoalSpec.from([])], sourceCandidates, grounding,
+        def producer = new TargetProducer([strategy], [(scope): GoalSpec.empty()], sourceCandidates, grounding,
                 resolveCtx, resolver)
         def spec0 = OperationSpec.of('a', codegen, 1, [], valueType, Nullability.NON_NULL)
 
@@ -101,7 +101,8 @@ class TargetProducerSpec extends Specification {
         Scope scope = Mock()
         def loc = new TargetLocation(TargetPath.of('address'))
         Value value = Mock()
-        def goalSpecs = [(scope): GoalSpec.from([directive('address', 'home.street'), directive('address.city', null)])]
+        def goalSpecs = [(scope): GoalSpec.from(
+                [bind('address', 'home.street'), bind('address.city', null)], [:], [:], [])]
         def producer = new TargetProducer([strategy], goalSpecs, sourceCandidates, grounding, resolveCtx, resolver)
 
         when:
@@ -122,7 +123,7 @@ class TargetProducerSpec extends Specification {
         Scope scope = Mock()
         def loc = new TargetLocation(TargetPath.of(''))
         Value value = Mock()
-        def producer = new TargetProducer([strategy], [(scope): GoalSpec.from([])], sourceCandidates, grounding,
+        def producer = new TargetProducer([strategy], [(scope): GoalSpec.empty()], sourceCandidates, grounding,
                 resolveCtx, resolver)
         def port = new Port('x', valueType, Nullability.NON_NULL)
         def spec = OperationSpec.of('dup', codegen, 1, [port], valueType, Nullability.NON_NULL)
@@ -153,7 +154,8 @@ class TargetProducerSpec extends Specification {
         Value value = Mock()
         value.scope >> scope
         value.loc >> loc
-        def producer = new TargetProducer([strategy], [(scope): GoalSpec.from([directive('address', 'home.street')])],
+        def producer = new TargetProducer([strategy],
+                [(scope): GoalSpec.from([bind('address', 'home.street')], [:], [:], [])],
                 sourceCandidates, grounding, resolveCtx, resolver)
 
         expect:
@@ -166,9 +168,9 @@ class TargetProducerSpec extends Specification {
         Value value = Mock()
         value.scope >> scope
         value.loc >> loc
-        def directive = MappingDirectives.of('address', [constant: 'literal'])
-        def producer = new TargetProducer([strategy], [(scope): GoalSpec.from([directive])], sourceCandidates,
-                grounding, resolveCtx, resolver)
+        def producer = new TargetProducer([strategy],
+                [(scope): GoalSpec.from([new Bind(['address'], [], Subjects.none())], [:], [:], [])],
+                sourceCandidates, grounding, resolveCtx, resolver)
 
         expect:
         producer.pinnedSourcePath(value).empty
@@ -180,7 +182,7 @@ class TargetProducerSpec extends Specification {
         Value value = Mock()
         value.scope >> scope
         value.loc >> loc
-        def producer = new TargetProducer([strategy], [(scope): GoalSpec.from([])], sourceCandidates, grounding,
+        def producer = new TargetProducer([strategy], [(scope): GoalSpec.empty()], sourceCandidates, grounding,
                 resolveCtx, resolver)
 
         expect:
@@ -265,7 +267,7 @@ class TargetProducerSpec extends Specification {
 
     // ---- helpers ----------------------------------------------------------------------------------------------
 
-    private MappingDirective directive(final String target, final String source) {
-        MappingDirectives.of(target, source == null ? [:] : [source: source])
+    private Bind bind(final String target, final String source) {
+        new Bind(target.split('\\.').toList(), source == null ? [] : source.split('\\.').toList(), Subjects.none())
     }
 }

@@ -15,13 +15,13 @@ import io.github.joke.percolate.processor.internal.stages.dump.DumpTransformsSta
 import io.github.joke.percolate.processor.internal.stages.expand.ExpandStage;
 import io.github.joke.percolate.processor.internal.stages.generate.GenerateStage;
 import io.github.joke.percolate.processor.internal.stages.validate.RealisationDiagnosticsStage;
-import io.github.joke.percolate.processor.internal.stages.validate.ValidateMappingShapeStage;
 import io.github.joke.percolate.processor.internal.stages.validate.ValidateNoDuplicateTargetsStage;
 import io.github.joke.percolate.processor.internal.stages.validate.ValidateOptionConsumptionStage;
 import io.github.joke.percolate.processor.internal.stages.validate.ValidateSourceParametersStage;
 import io.github.joke.percolate.processor.nullability.JspecifyNullabilityResolver;
 import io.github.joke.percolate.processor.nullability.NullabilityAnnotations;
 import io.github.joke.percolate.processor.nullability.NullabilityResolver;
+import io.github.joke.percolate.spi.DirectiveReader;
 import io.github.joke.percolate.spi.ExpansionStrategy;
 import io.github.joke.percolate.spi.SourceProjection;
 import jakarta.inject.Inject;
@@ -133,7 +133,6 @@ public final class ProcessorModule {
     static List<Stage> stages(
             @Named("discover") final List<Stage> discoverStages,
             final ValidateNoDuplicateTargetsStage validateNoDuplicateTargets,
-            final ValidateMappingShapeStage validateMappingShape,
             final ValidateSourceParametersStage validateSourceParameters,
             final ExpandStage expandStage,
             final DumpFullGraphStage dumpFullGraph,
@@ -146,7 +145,6 @@ public final class ProcessorModule {
                         discoverStages.stream(),
                         Stream.<Stage>of(
                                 validateNoDuplicateTargets,
-                                validateMappingShape,
                                 validateSourceParameters,
                                 expandStage,
                                 // Realisation outcome is computed before the Filer-writing stages (dumps,
@@ -173,6 +171,22 @@ public final class ProcessorModule {
                         false)
                 .sorted(Comparator.comparingInt(ExpansionStrategy::priority)
                         .thenComparing(strategy -> strategy.getClass().getName()))
+                .collect(toUnmodifiableList());
+    }
+
+    /**
+     * The {@link DirectiveReader} list (design D7 of change {@code decouple-engine-from-strategy-semantics}), loaded
+     * once via {@link ServiceLoader} exactly as {@link ExpansionStrategy} is; ordered by FQN for deterministic
+     * discovery.
+     */
+    @Singleton
+    @Provides
+    static List<DirectiveReader> directiveReaders() {
+        return StreamSupport.stream(
+                        ServiceLoader.load(DirectiveReader.class, ProcessorModule.class.getClassLoader())
+                                .spliterator(),
+                        false)
+                .sorted(Comparator.comparing(reader -> reader.getClass().getName()))
                 .collect(toUnmodifiableList());
     }
 

@@ -38,6 +38,41 @@ Two principles keep extensions composable:
 * **Over-emit, then prune.** A strategy returns *candidate* operations; the engine picks the cheapest
   viable plan by weight. You do not decide whether your candidate "wins".
 
+== Two SPI roles: ExpansionStrategy and DirectiveReader
+
+Producing a value and reading an annotation are two different jobs, so they are two different SPI roles:
+
+[cols="1,3"]
+|===
+| Role | Job
+
+| `ExpansionStrategy`
+| Answers a demand for a value with a candidate operation, or says why it cannot. Never reads an annotation —
+  it only sees the neutral `Directive` a `DirectiveReader` already assembled.
+
+| `DirectiveReader`
+| Translates the annotations it owns — built-in or third-party — into calls on `DirectiveSink`:
+  `bind` (a target is produced, optionally from a source path), `input` (an author-declared configuration
+  value, keyed by a name the engine never interprets), `scopeInput` (a mapper-method parameter becomes a
+  named scope input), and `constrain` (a demand-scoped admissibility rule). Percolate's own `@Map`, `@MapEnum`
+  and `@Ambient` readers ship in `strategies-builtin` and use exactly this surface — nothing built-in is
+  special-cased.
+|===
+
+Reach for `ExpansionStrategy` to teach percolate how to *produce* a value (a new conversion, a new container,
+a new accessor). Reach for `DirectiveReader` to teach percolate a *new annotation* — your own mapping
+vocabulary, read once per mapper method and turned into the same `bind`/`input`/`scopeInput`/`constrain`
+facts the built-in readers produce. The two compose: a reader publishes an `input` under a key of your
+choosing, and a strategy of yours reads that key back off the `Directive` — see below.
+
+=== Refusing with a reason
+
+A strategy that recognises a demand as its own but cannot serve it returns `Offer.refusal(subject, message)`
+instead of `Offer.of(spec)`. `Stream.empty()` still means "not mine" and produces no diagnostic; a refusal is
+for the narrower case — "this demand is mine, and here is exactly why I cannot serve it". The `subject` is an
+opaque positioning handle: a strategy never builds one, it only forwards a `Subject` it received from a
+`DirectiveInput`, so the eventual diagnostic points at the token the author actually wrote.
+
 == A third-party strategy, exactly like a built-in
 
 `reactor` is not special-cased by the engine at all — it is just another jar on the
@@ -58,6 +93,45 @@ include::example$extending/PreferenceMapperImpl.java[tag=wrap,indent=0]
 `JustOrEmpty` is discovered via `ServiceLoader` and its candidate operation competes and wins on cost like
 any built-in's — nothing here required `reactor` to be known to the engine in advance. Your own
 strategy module joins percolate the same way.
+
+== A third-party annotation, via DirectiveReader
+
+Percolate has never heard of `@Literal` below — `LiteralDirectiveReader` and its companion strategy
+`LiteralValue`, shipped alongside it and registered the same way as any `ExpansionStrategy`, are the whole
+extension needed to teach percolate a brand-new mapping annotation:
+
+[source,java]
+----
+include::example$extending/Literal.java[tag=annotation,indent=0]
+----
+
+The reader's whole job is translating the annotation it owns into `DirectiveSink` calls — here, a `bind` with
+no source path (the target is *supplied*, not moved) plus one `input` under a key of its own choosing:
+
+[source,java]
+----
+include::example$extending/LiteralDirectiveReader.java[tag=reader,indent=0]
+----
+
+The strategy side never learns `@Literal` exists — it reads only the `"literal"` key the reader published,
+exactly how the built-in `ConstantValue` reads `"constant"`:
+
+[source,java]
+----
+include::example$extending/LiteralValue.java[tag=strategy,indent=0]
+----
+
+A mapper method using `@Literal` compiles and generates like any built-in-backed mapper:
+
+[source,java]
+----
+include::example$extending/LiteralMapper.java[tag=mapper]
+----
+
+[source,java]
+----
+include::example$extending/LiteralMapperImpl.java[indent=0]
+----
 
 == Depending on the SPI
 

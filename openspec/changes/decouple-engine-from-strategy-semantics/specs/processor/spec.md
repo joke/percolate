@@ -39,10 +39,10 @@ The `ProcessorModule` class SHALL use `@RequiredArgsConstructor` to replace its 
 ### Requirement: MapperStep
 `MapperStep` SHALL implement `com.google.auto.common.BasicAnnotationProcessor.Step` and SHALL be a `@Singleton` `@Inject`-constructed by Dagger (so `PercolateProcessor.postRound` reaches the same instance). It SHALL declare exactly one annotation (`io.github.joke.percolate.Mapper`) via `annotations()` — the sole mapping annotation the `processor` module reads, because it decides **what to generate** rather than how a mapping behaves. Its `process(elementsByAnnotation)` SHALL, for each `@Mapper`-annotated `TypeElement`, run `Pipeline.process(...)` and classify the per-mapper outcome from the diagnostics that mapper's context collected:
 
-- **Deferred** — if the mapper is unrealised **and** every collected diagnostic is transient, the collected diagnostics SHALL be retained (keyed by fully-qualified name) and the mapper **deferred** by returning its `TypeElement` from `process(...)`, so `BasicAnnotationProcessor` re-resolves it **by name** in any later round (which occurs while an AST-modifying upstream processor is still working). Nothing SHALL be emitted in a normal round.
-- **Consumed** — otherwise (the mapper realised, or any collected diagnostic is permanent) it SHALL be removed from the deferred set, its collected diagnostics SHALL be emitted, and code generation SHALL have run only if it realised with no error.
+- **Deferred** — if the mapper is unrealised **and** every collected error diagnostic is transient, the message text of those error diagnostics SHALL be retained (keyed by fully-qualified name) and the mapper **deferred** by returning its `TypeElement` from `process(...)`, so `BasicAnnotationProcessor` re-resolves it **by name** in any later round (which occurs while an AST-modifying upstream processor is still working). Nothing SHALL be emitted in a normal round; any collected `WARNING` diagnostic is not retained across the deferral and so is never emitted for that round.
+- **Consumed** — otherwise (the mapper realised, or any collected error diagnostic is permanent) it SHALL be removed from the deferred set, every diagnostic collected this round SHALL be emitted, and code generation SHALL have run only if it realised with no error.
 
-`MapperStep` SHALL NOT reset any global diagnostic state; there is none. `process(...)` SHALL return the set of `@Mapper` `TypeElement`s deferred this round (empty when none are deferred). `MapperStep` SHALL also expose `flushDeferredDiagnostics()` which, for each still-deferred mapper, re-resolves its location by fully-qualified name and emits the retained diagnostics. The only cross-round state `MapperStep` holds SHALL be the deferred-diagnostic map, keyed by fully-qualified name and containing no `Element`/`TypeMirror` references.
+`MapperStep` SHALL NOT reset any global diagnostic state; there is none. `process(...)` SHALL return the set of `@Mapper` `TypeElement`s deferred this round (empty when none are deferred). `MapperStep` SHALL also expose `flushDeferredDiagnostics()` which, for each still-deferred mapper, re-resolves its location by fully-qualified name and re-emits the retained error messages as diagnostics positioned at the re-resolved mapper type — the original diagnostics' `Subject`s are not retained across rounds. The only cross-round state `MapperStep` holds SHALL be the deferred-diagnostic map, keyed by fully-qualified name and holding message strings only, no `Element`/`TypeMirror` references.
 
 #### Scenario: MapperStep declares the @Mapper annotation
 - **WHEN** `MapperStep.annotations()` is invoked
@@ -90,7 +90,7 @@ A genuinely un-realisable mapper compiled with no AST-modifying co-processor is 
 
 #### Scenario: Genuinely unrealisable mapper is diagnosed at processingOver
 - **WHEN** a `@Mapper` is unrealised with only transient diagnostics and remains deferred when processing reaches `processingOver`
-- **THEN** `PercolateProcessor.postRound` flushes the retained diagnostics, each at the position its subject names
+- **THEN** `PercolateProcessor.postRound` flushes the retained error messages as diagnostics positioned at the re-resolved mapper type, not at each original diagnostic's own subject
 
 #### Scenario: A realised mapper leaves nothing deferred
 - **WHEN** a deferred `@Mapper` realises in a later round

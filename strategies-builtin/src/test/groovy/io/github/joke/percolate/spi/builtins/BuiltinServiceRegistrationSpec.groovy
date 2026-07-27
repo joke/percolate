@@ -16,36 +16,36 @@ class BuiltinServiceRegistrationSpec extends Specification {
                 .collect(Collectors.toSet())
 
         // Conversions and assembly
-        discovered.contains('io.github.joke.percolate.spi.builtins.DirectAssign')
-        discovered.contains('io.github.joke.percolate.spi.builtins.MethodCallBridge')
-        discovered.contains('io.github.joke.percolate.spi.builtins.ConstructorCall')
-        discovered.contains('io.github.joke.percolate.spi.builtins.WidenPrimitive')
-        discovered.contains('io.github.joke.percolate.spi.builtins.PrimitiveWrapperConversion')
+        discovered.contains('io.github.joke.percolate.spi.builtins.assembly.DirectAssign')
+        discovered.contains('io.github.joke.percolate.spi.builtins.methodcall.MethodCallBridge')
+        discovered.contains('io.github.joke.percolate.spi.builtins.assembly.ConstructorCall')
+        discovered.contains('io.github.joke.percolate.spi.builtins.primitive.WidenPrimitive')
+        discovered.contains('io.github.joke.percolate.spi.builtins.primitive.PrimitiveWrapperConversion')
 
         // Constants and the nullness crossing (requireNonNull / coalesce)
-        discovered.contains('io.github.joke.percolate.spi.builtins.ConstantValue')
-        discovered.contains('io.github.joke.percolate.spi.builtins.NullnessCrossing')
+        discovered.contains('io.github.joke.percolate.spi.builtins.value.ConstantValue')
+        discovered.contains('io.github.joke.percolate.spi.builtins.value.NullnessCrossing')
 
         // Containers (the nine per-operation bridges were consolidated into these four)
-        discovered.contains('io.github.joke.percolate.spi.builtins.ListContainer')
-        discovered.contains('io.github.joke.percolate.spi.builtins.SetContainer')
-        discovered.contains('io.github.joke.percolate.spi.builtins.ArrayContainer')
-        discovered.contains('io.github.joke.percolate.spi.builtins.OptionalContainer')
+        discovered.contains('io.github.joke.percolate.spi.builtins.container.ListContainer')
+        discovered.contains('io.github.joke.percolate.spi.builtins.container.SetContainer')
+        discovered.contains('io.github.joke.percolate.spi.builtins.container.ArrayContainer')
+        discovered.contains('io.github.joke.percolate.spi.builtins.container.OptionalContainer')
 
         // Path resolvers (formerly the separate PathSegmentResolver service)
-        discovered.contains('io.github.joke.percolate.spi.builtins.GetterPathResolver')
-        discovered.contains('io.github.joke.percolate.spi.builtins.FieldPathResolver')
-        discovered.contains('io.github.joke.percolate.spi.builtins.MethodPathResolver')
+        discovered.contains('io.github.joke.percolate.spi.builtins.accessor.GetterPathResolver')
+        discovered.contains('io.github.joke.percolate.spi.builtins.accessor.FieldPathResolver')
+        discovered.contains('io.github.joke.percolate.spi.builtins.accessor.MethodPathResolver')
 
         // Temporal hubs + zone bridge + format (change add-temporal-type-mapping)
-        discovered.contains('io.github.joke.percolate.spi.builtins.AbsoluteTemporalConversion')
-        discovered.contains('io.github.joke.percolate.spi.builtins.LocalTemporalConversion')
-        discovered.contains('io.github.joke.percolate.spi.builtins.InstantLocalDateTimeBridge')
-        discovered.contains('io.github.joke.percolate.spi.builtins.TemporalFormat')
-        discovered.contains('io.github.joke.percolate.spi.builtins.LegacyTemporalFormat')
+        discovered.contains('io.github.joke.percolate.spi.builtins.temporal.AbsoluteTemporalConversion')
+        discovered.contains('io.github.joke.percolate.spi.builtins.temporal.LocalTemporalConversion')
+        discovered.contains('io.github.joke.percolate.spi.builtins.temporal.InstantLocalDateTimeBridge')
+        discovered.contains('io.github.joke.percolate.spi.builtins.temporal.TemporalFormat')
+        discovered.contains('io.github.joke.percolate.spi.builtins.temporal.LegacyTemporalFormat')
 
         // Enum-to-enum conversion (change add-enum-conversion-mapping)
-        discovered.contains('io.github.joke.percolate.spi.builtins.EnumConversion')
+        discovered.contains('io.github.joke.percolate.spi.builtins.enumconversion.EnumConversion')
     }
 
     def 'the retired per-operation and per-SPI builtins are gone'() {

@@ -126,6 +126,67 @@ class ModuleBoundariesSpec extends Specification {
         notThrown(AssertionError)
     }
 
+    // D7 of change decouple-engine-from-strategy-semantics: the processor module reads no user-facing mapping
+    // annotation — a DirectiveReader translates it instead. @Mapper stays core (MapperStep decides WHAT to
+    // generate), so it is the one exempt annotation. ANNOTATIONS has no trailing '..' (it names the exact
+    // package, not a subtree) because every one of these annotations lives directly in it, alongside unrelated
+    // root-level classes (e.g. Mapper itself) that must not be swept in by a wildcard.
+    def 'no processor class depends on a user-facing mapping annotation'() {
+        given:
+        final List<String> mappingAnnotations = [
+                ROOT + '.Map',
+                ROOT + '.MapList',
+                ROOT + '.MapEnum',
+                ROOT + '.MapEnumList',
+                ROOT + '.Ambient',
+        ]
+
+        when:
+        noClasses().that().resideInAPackage(PROCESSOR)
+                .should().dependOnClassesThat().haveNameMatching(
+                        mappingAnnotations.collect { java.util.regex.Pattern.quote(it) }.join('|'))
+                .check(imported)
+
+        then:
+        notThrown(AssertionError)
+    }
+
+    // D7/D13: annotation reading is confined to the readers (SPI-side, outside this scope) and the nullability
+    // resolver (D13: not a leak — it resolves nullness for elements no scope input declares, e.g. a method-call
+    // return type). Every other engine class asks the SPI's own opaque surfaces instead.
+    def 'no engine class reads a raw annotation off an Element'() {
+        given:
+        final DescribedPredicate<JavaClass> notNullabilityResolver = DescribedPredicate.describe(
+                'not the nullability resolver') { JavaClass javaClass ->
+            javaClass.packageName != ROOT + '.processor.nullability'
+        }
+        ArchCondition<JavaMethod> callsRawAnnotationRead = new ArchCondition<JavaMethod>(
+                'call Element#getAnnotationMirrors() or Element#getAnnotation(Class)') {
+            @Override
+            void check(final JavaMethod method, final ConditionEvents events) {
+                final boolean calls = method.callsFromSelf.any { call ->
+                    final String name = call.target.name
+                    (name == 'getAnnotationMirrors' || name == 'getAnnotation')
+                            && call.target.owner.isAssignableTo('javax.lang.model.element.Element')
+                }
+                final String message = "${method.fullName} ${calls ? 'reads' : 'does not read'} a raw annotation"
+                events.add(calls
+                        ? SimpleConditionEvent.violated(method, message)
+                        : SimpleConditionEvent.satisfied(method, message))
+            }
+        }
+
+        when:
+        (methods() & NOT_SYNTHETIC_OR_BRIDGE)
+                .that().areDeclaredInClassesThat(notNullabilityResolver)
+                .and().areDeclaredInClassesThat().resideInAPackage(PROCESSOR)
+                .should(callsRawAnnotationRead)
+                .check(imported)
+
+        then:
+        notThrown(AssertionError)
+    }
+
     def 'a strategy implementation may not touch the engine graph'() {
         when:
         noClasses().that().implement(ROOT + '.spi.ExpansionStrategy')

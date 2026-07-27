@@ -3,8 +3,8 @@ package io.github.joke.percolate.processor;
 import io.github.joke.percolate.processor.internal.graph.MapperGraph;
 import io.github.joke.percolate.processor.internal.graph.Scope;
 import io.github.joke.percolate.processor.model.GoalSpec;
-import io.github.joke.percolate.processor.model.MapperMappings;
 import io.github.joke.percolate.processor.model.MapperShape;
+import io.github.joke.percolate.processor.model.MethodDirectives;
 import io.github.joke.percolate.spi.CallableMethods;
 import io.github.joke.percolate.spi.ResolveCtx;
 import jakarta.inject.Inject;
@@ -25,7 +25,7 @@ import org.jspecify.annotations.Nullable;
 public final class MapperContext {
     private final TypeElement mapperType;
     private @Nullable MapperShape shape;
-    private @Nullable MapperMappings mappings;
+    private @Nullable List<MethodDirectives> methodDirectives;
     private @Nullable MapperGraph graph;
     private @Nullable CallableMethods callableMethods;
 

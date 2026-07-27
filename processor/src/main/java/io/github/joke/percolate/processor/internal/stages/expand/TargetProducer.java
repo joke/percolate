@@ -2,15 +2,13 @@ package io.github.joke.percolate.processor.internal.stages.expand;
 
 import static java.util.stream.Collectors.toUnmodifiableList;
 
-import io.github.joke.percolate.processor.internal.graph.AccessPath;
 import io.github.joke.percolate.processor.internal.graph.Refusal;
 import io.github.joke.percolate.processor.internal.graph.Scope;
 import io.github.joke.percolate.processor.internal.graph.TargetLocation;
 import io.github.joke.percolate.processor.internal.graph.Value;
-import io.github.joke.percolate.processor.model.EnumOverrideDirective;
 import io.github.joke.percolate.processor.model.GoalSpec;
-import io.github.joke.percolate.processor.model.MappingDirective;
 import io.github.joke.percolate.processor.nullability.NullabilityResolver;
+import io.github.joke.percolate.spi.Constraint;
 import io.github.joke.percolate.spi.Directive;
 import io.github.joke.percolate.spi.ExpansionStrategy;
 import io.github.joke.percolate.spi.Offer;
@@ -45,10 +43,9 @@ final class TargetProducer {
     List<OperationSpec> produce(final Value value) {
         final var scope = value.getScope();
         final var path = ((TargetLocation) value.getLoc()).getPath().toString();
-        final var goalSpec = goalSpecs.getOrDefault(scope, GoalSpec.from(List.of()));
+        final var goalSpec = goalSpecs.getOrDefault(scope, GoalSpec.empty());
         final var children = goalSpec.declaredChildren(path);
-        final var binding = goalSpec.bindingFor(path);
-        final var directive = directiveFor(binding, enumOverridesAt(goalSpec, path));
+        final var directive = goalSpec.bindingFor(path);
         final var demand = new DemandView(
                 value.type(),
                 value.nullness(),
@@ -79,8 +76,15 @@ final class TargetProducer {
     Optional<Directive> pinnedDirective(final Value value) {
         final var scope = value.getScope();
         final var path = ((TargetLocation) value.getLoc()).getPath().toString();
-        final var goalSpec = goalSpecs.getOrDefault(scope, GoalSpec.from(List.of()));
-        return directiveFor(goalSpec.bindingFor(path), enumOverridesAt(goalSpec, path));
+        final var goalSpec = goalSpecs.getOrDefault(scope, GoalSpec.empty());
+        return goalSpec.bindingFor(path);
+    }
+
+    /** The demand-scoped constraints a reader attached to {@code value}'s target path (design D8). */
+    List<Constraint> constraintsFor(final Value value) {
+        final var scope = value.getScope();
+        final var path = ((TargetLocation) value.getLoc()).getPath().toString();
+        return goalSpecs.getOrDefault(scope, GoalSpec.empty()).constraintsFor(path);
     }
 
     /**
@@ -101,32 +105,12 @@ final class TargetProducer {
         return productions;
     }
 
-    /** The {@link Directive} for a binding: present iff a {@code @Map} directive or an enum override table exists. */
-    static Optional<Directive> directiveFor(
-            final Optional<MappingDirective> binding, final List<EnumOverrideDirective> enumOverrides) {
-        if (binding.isEmpty() && enumOverrides.isEmpty()) {
-            return Optional.empty();
-        }
-        return Optional.of(BindingDirective.from(binding, enumOverrides));
-    }
-
-    /**
-     * The method's {@code @MapEnum} table, in effect only for its own return demand (the empty root path) — the
-     * sole consumer of an enum-conversion method's directive; {@code @MapEnum} is method-level, not per-target-path.
-     */
-    static List<EnumOverrideDirective> enumOverridesAt(final GoalSpec goalSpec, final String path) {
-        return path.isEmpty() ? goalSpec.getEnumOverrides() : List.of();
-    }
-
     /** The directive-pinned source path of the FREE demand {@code value}'s binding, or none. */
     List<String> pinnedSourcePath(final Value value) {
         final var scope = value.getScope();
         final var path = ((TargetLocation) value.getLoc()).getPath().toString();
-        final var goalSpec = goalSpecs.getOrDefault(scope, GoalSpec.from(List.of()));
-        return goalSpec.bindingFor(path)
-                .filter(MappingDirective::hasSource)
-                .map(d -> AccessPath.splitDotted(d.getSource()))
-                .orElse(List.of());
+        final var goalSpec = goalSpecs.getOrDefault(scope, GoalSpec.empty());
+        return goalSpec.bindingFor(path).map(Directive::sourcePath).orElse(List.of());
     }
 
     /** Every offer the strategy set makes for {@code demand}. */
