@@ -221,6 +221,38 @@ candidates).
 - **WHEN** a strategy refuses
 - **THEN** it does so within one of the two questions, returning a refusal `Offer` — no separate validation or explanation entry point exists on the interface
 
+
+### Requirement: TypeMirror is an opaque pass-through token
+
+Engine and strategy code SHALL treat every `javax.lang.model.type.TypeMirror` (and `Element`) it handles as
+an **opaque pass-through token**: it MAY hold one, store it in an `OperationSpec`/`Port`, and hand it back to
+the `ResolveCtx` seam or to codegen emission, but SHALL NOT invoke a `TypeMirror`/`Element` method on it
+(`getKind`, `getTypeArguments`, a cast to `DeclaredType`, …) and SHALL NOT call `Types`/`Elements` directly.
+Consequently a unit test's mocked `ResolveCtx` never stubs a method **on** a `TypeMirror`; the mirror is a
+never-stubbed opaque token, exactly as `ValidateNoDuplicateTargetsStageSpec` treats the `javax.lang.model`
+values it passes through.
+
+This is the default, not an absolute: design (`type-query-seam`) documents a small number of deliberate,
+narrow exceptions that read `.getKind()`/cast a `TypeMirror` or `Element` directly with zero
+`Types`/`Elements` involvement — `LiteralCoercion` (a static utility with no `ResolveCtx` in reach), the
+debug-only `Labels`/`DotRenderer` (cosmetic label formatting, never the basis of a behavioural decision),
+and `ValidateSourceParametersStage`, an engine `Stage` that structurally cannot reach a `ResolveCtx` (it is
+constructed per-mapper inside `ExpandStage.run` and unavailable to arbitrary stages). These carry no
+real-compiler burden and are unit-tested the same mock-free way `ValidateNoDuplicateTargetsStageSpec` already
+does.
+
+A `DirectiveReader` is **not** an exception to this rule but a different role entirely: reading
+`javax.lang.model` annotation structure is its whole purpose, it lives outside the engine, and
+`module-boundaries` confines that reading to it.
+
+#### Scenario: Engine and strategy code ask the seam, not the mirror
+- **WHEN** a strategy or engine stage needs a type fact about a `TypeMirror` it holds
+- **THEN** it calls a `ResolveCtx` seam method, and never calls a method on the `TypeMirror` or casts it to a `javax.lang.model` subtype
+- **UNLESS** it is one of the documented single-hop exceptions (`LiteralCoercion`, `Labels`/`DotRenderer`, `ValidateSourceParametersStage`)
+
+#### Scenario: A mocked ResolveCtx passes mirrors as never-stubbed tokens
+- **WHEN** a unit test drives a strategy or stage with a mocked `ResolveCtx`
+- **THEN** the `TypeMirror` values handed in are plain tokens with no stubbed interactions, and the test stubs only seam methods
 ## ADDED Requirements
 
 ### Requirement: Directive keys are declared by their owning strategy

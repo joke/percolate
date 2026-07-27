@@ -4,7 +4,9 @@
 
 Each built-in feature SHALL occupy its own package under `spi.builtins`, holding every strategy that implements
 it together with the `DirectiveReader` that reads its annotation, so that deleting the package deletes the
-feature entirely. Only genuinely shared helpers SHALL remain at the `spi.builtins` root.
+feature entirely. Only classes serving more than one feature package SHALL remain at the `spi.builtins` root —
+shared helpers, and the `@Map` reader, whose members are consumed by several features at once and which
+therefore belongs to no single one.
 
 Each feature package's unit specs SHALL mirror the package structure.
 
@@ -16,34 +18,40 @@ Each feature package's unit specs SHALL mirror the package structure.
 - **WHEN** a feature package is removed from the build
 - **THEN** no class outside it references its strategies or its reader
 
-#### Scenario: Only shared helpers remain at the root
+#### Scenario: Only cross-feature classes remain at the root
 - **WHEN** the `spi.builtins` root package is inspected
-- **THEN** it contains only helpers used by more than one feature package
+- **THEN** every class in it is used by more than one feature package, or is the cross-feature `@Map` reader
 
 #### Scenario: Specs mirror the package structure
 - **WHEN** a feature package's unit specs are located
 - **THEN** they reside in the matching test package
 
-### Requirement: Every directive reader has a unit spec
+### Requirement: Every directive reader is covered by the compile-based layer
 
-Each `DirectiveReader` SHALL have a unit spec named after it, covering: a written member reported present, a
-member written as the empty string reported present, an unwritten member reported absent with no positioning
-token, a repeated annotation unwrapped in declaration order, and each shape rule the reader owns.
+A `DirectiveReader` consumes `javax.lang.model` directly, so it SHALL be exempt from mutation coverage
+(`@CoverageIgnore`, as `CallableMethodIndexer` already is) and SHALL instead be covered by compile-testing
+specs that exercise it through a real compilation.
 
-A reader spec SHALL assert on the sink calls the reader makes, with the sink mocked; it SHALL NOT compile
-sources or assert on generated output.
+That coverage SHALL include, across the built-in readers: a written member reported present, a member written
+as the empty string reported present, an unwritten member reported absent, a repeated annotation unwrapped in
+declaration order, and **each shape rule a reader owns, asserted on the reported message**.
 
-#### Scenario: Reader specs exist and are named after their reader
-- **WHEN** the built-in readers are enumerated
-- **THEN** each has a correspondingly named unit spec in its own package
+Mocking the sink is not the seam here: substituting a mocked `DirectiveSink` still leaves the reader consuming
+real `AnnotationMirror`s, which cannot be constructed outside a compilation — so the mock buys isolation from
+the sink while the expensive half of the dependency remains. A compile-testing spec pays that cost once and
+asserts what the author actually sees.
 
-#### Scenario: A reader spec asserts on sink calls
-- **WHEN** a reader spec exercises a reader
-- **THEN** it verifies the bindings, inputs, scope inputs and constraints passed to a mocked sink
+#### Scenario: Readers are exempt from mutation coverage
+- **WHEN** the built-in readers are inspected
+- **THEN** each is marked `@CoverageIgnore`, with the same justification as the pre-existing javax-consuming indexer
+
+#### Scenario: Each shape rule is pinned by a compile-testing spec
+- **WHEN** a reader owns a rule about how its annotation's members combine
+- **THEN** a compile-testing spec asserts that violating it fails the compile with that rule's own message
 
 #### Scenario: Presence semantics are covered
-- **WHEN** a reader spec is inspected
-- **THEN** it covers a written value, a written empty string, and an unwritten member
+- **WHEN** the reader coverage is inspected
+- **THEN** a written value, a written empty string, and an unwritten member are each exercised through a real compilation
 
 ## MODIFIED Requirements
 

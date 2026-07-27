@@ -23,6 +23,19 @@ emit diagnostics directly; a refusal is returned as data.
 - **WHEN** the processor's validation stages are inspected
 - **THEN** none invokes the literal-coercion helper or decides when a constant applies
 
+
+### Requirement: @Map constant member declares a fixed literal target value
+
+`@Map` SHALL expose an optional `String constant()` member with an empty-string default. Presence SHALL be decided by whether the member was **written**, never by comparing against that default: a written `constant` declares that the target SHALL be produced from the given literal string with **no source** — the directive carries no source path and binds to no parameter. An empty-string constant (`constant = ""`) SHALL be a legitimate present value, distinct from absent, and the default exists only so the member may be omitted.
+
+#### Scenario: A present constant declares a sourceless literal mapping
+- **WHEN** an abstract method is annotated with `@Map(target = "status", constant = "ACTIVE")`
+- **THEN** the binding carries a `constant` input, and declares no source path
+
+#### Scenario: Empty-string constant is present, not absent
+- **WHEN** a directive declares `@Map(target = "note", constant = "")`
+- **THEN** the binding carries a `constant` input whose value is the empty string
+- **AND** it is NOT treated as absent, because the member was written
 ## ADDED Requirements
 
 ### Requirement: The constant input is an ordinary directive input

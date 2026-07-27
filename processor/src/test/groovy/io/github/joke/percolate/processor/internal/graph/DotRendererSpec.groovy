@@ -4,6 +4,7 @@ import io.github.joke.percolate.processor.test.HarnessScope
 import io.github.joke.percolate.spi.Codegen
 import io.github.joke.percolate.spi.Nullability
 import io.github.joke.percolate.spi.Port
+import io.github.joke.percolate.spi.Subjects
 import spock.lang.Shared
 import spock.lang.Specification
 import spock.lang.Tag
@@ -204,6 +205,96 @@ class DotRendererSpec extends Specification {
         DotRenderer.vertexAttributes(operation, true).fillcolor == '#DDDDDD'
         DotRenderer.vertexAttributes(value, true).style == 'filled,dashed'
         DotRenderer.vertexAttributes(value, true).fillcolor == '#DDDDDD'
+    }
+
+    def 'refusals render as note-shaped negative space beside their Value, in recorded order'() {
+        def value = valueAt(new TargetLocation(TargetPath.of('label')))
+        value.addInadmissible(new Refusal(Subjects.none(), 'first reason'))
+        value.addInadmissible(new Refusal(Subjects.none(), 'second reason'))
+        def dot = new StringBuilder()
+
+        when:
+        DotRenderer.appendRefusals(dot, value)
+
+        then:
+        dot.toString().indexOf('first reason') < dot.toString().indexOf('second reason')
+
+        expect:
+        dot.toString().contains('shape="note"')
+        dot.toString().contains('fillcolor="#FFD6D6"')
+        !dot.toString().contains('shape="box"')
+    }
+
+    def 'a refusal draws a dashed edge into the Value it was recorded against, carrying no port label'() {
+        def value = valueAt(new TargetLocation(TargetPath.of('label')))
+        value.addInadmissible(new Refusal(Subjects.none(), 'no producer here'))
+        def dot = new StringBuilder()
+
+        when:
+        DotRenderer.appendRefusals(dot, value)
+
+        then:
+        dot.toString().contains(DotRenderer.quote(value.id() + '#refused-0') + ' -> ' + DotRenderer.quote(value.id()))
+
+        expect:
+        dot.toString().contains('style="dashed"')
+    }
+
+    def 'an Operation vertex contributes no refusal node'() {
+        def operation = graph.apply(new AddOperation('new Address', Stub(Codegen), 1, false,
+                [port('street', STRING)], target('addr', STRING), Optional.empty(), [] as Set, []))
+        def dot = new StringBuilder()
+
+        when:
+        DotRenderer.appendRefusals(dot, operation)
+
+        then:
+        dot.toString().empty
+    }
+
+    def 'a Value with no refusals contributes nothing'() {
+        def dot = new StringBuilder()
+
+        when:
+        DotRenderer.appendRefusals(dot, valueAt(new SourceLocation(AccessPath.of('s'))))
+
+        then:
+        dot.toString().empty
+    }
+
+    def 'refusalAttributes: the message is carried verbatim as opaque text'() {
+        expect:
+        DotRenderer.refusalAttributes(new Refusal(Subjects.none(), 'why not')) == [
+                label    : 'why not',
+                shape    : 'note',
+                style    : 'filled,dashed',
+                fillcolor: '#FFD6D6',
+        ]
+    }
+
+    def 'render draws refusals only when asked, so the transforms view stays unchanged'() {
+        def value = graph.apply(target('label', STRING))
+        value.addInadmissible(new Refusal(Subjects.none(), 'refused candidate'))
+
+        when:
+        def without = renderer.render(graph.bipartiteView(), scope.encode()) { false }
+        def with = renderer.render(graph.bipartiteView(), scope.encode(), { false }, true)
+
+        then:
+        !without.contains('refused candidate')
+
+        expect:
+        with.contains('refused candidate')
+    }
+
+    def 'rendering the same graph twice yields identical refusal output'() {
+        def value = graph.apply(target('label', STRING))
+        value.addInadmissible(new Refusal(Subjects.none(), 'one'))
+        value.addInadmissible(new Refusal(Subjects.none(), 'two'))
+
+        expect:
+        renderer.render(graph.bipartiteView(), scope.encode(), { false }, true) ==
+                renderer.render(graph.bipartiteView(), scope.encode(), { false }, true)
     }
 
     private Value valueAt(final Location loc) {

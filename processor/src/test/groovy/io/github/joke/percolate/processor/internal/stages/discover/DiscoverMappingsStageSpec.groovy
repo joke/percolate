@@ -29,9 +29,11 @@ class DiscoverMappingsStageSpec extends Specification {
 
     def 'readMethod runs every reader against the same sink'() {
         ExecutableElement method = Mock()
+        TypeElement mapperType = Mock()
+        def ctx = new MapperContext(mapperType)
 
         when:
-        def result = stage.readMethod(method)
+        def result = stage.readMethod(method, ctx)
 
         then:
         1 * readerA.read(method, _ as DirectiveSink) >> { m, DirectiveSink sink -> sink.bind(['first'], [], Subjects.none()) }
@@ -41,6 +43,31 @@ class DiscoverMappingsStageSpec extends Specification {
         expect:
         result.method.is(method)
         result.binds == [new Bind(['first'], [], Subjects.none())]
+        ctx.diagnostics.empty
+    }
+
+    def 'readMethod reports what a reader rejects, verbatim and permanent'() {
+        ExecutableElement method = Mock()
+        TypeElement mapperType = Mock()
+        def ctx = new MapperContext(mapperType)
+
+        when:
+        def result = stage.readMethod(method, ctx)
+
+        then:
+        1 * readerA.read(method, _ as DirectiveSink) >> { m, DirectiveSink sink ->
+            sink.reject(Subjects.none(), 'malformed on the reader\'s own terms')
+        }
+        1 * readerB.read(method, _ as DirectiveSink)
+        0 * _
+
+        expect:
+        result.binds.empty
+        ctx.diagnostics.size() == 1
+        with(ctx.diagnostics[0]) {
+            permanent
+            message == 'malformed on the reader\'s own terms'
+        }
     }
 
     def 'run installs the goal spec, reachable by the method scope and declaring the child'() {

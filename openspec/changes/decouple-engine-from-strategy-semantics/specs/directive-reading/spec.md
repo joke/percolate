@@ -62,15 +62,22 @@ annotation being sought rather than by naming each container type at every call 
 - **WHEN** a `String` member is added to `@Map`
 - **THEN** the reader surfaces it as a directive input keyed by the member's own name, with no edit to the reader, the sink, or any core class
 
-### Requirement: DirectiveSink accepts bindings, inputs, scope inputs and constraints
+### Requirement: DirectiveSink accepts bindings, inputs, scope inputs, constraints and rejections
 
-`DirectiveSink` SHALL expose exactly four entry points:
+`DirectiveSink` SHALL expose exactly five entry points:
 
 - **bind** — declares a target binding at a target path, optionally pinned to a source path, with a `Subject`;
 - **input** — attaches an author-declared configuration value to a binding, keyed by a name the core does not
   interpret, carrying a `Subject`; a structured input MAY carry several named members;
 - **scopeInput** — publishes a mapper-method parameter as a named scope input with a declared visibility;
-- **constrain** — attaches a demand-scoped admissibility constraint to a target path (see `demand-constraints`).
+- **constrain** — attaches a demand-scoped admissibility constraint to a target path (see `demand-constraints`);
+- **reject** — states that what the author wrote is malformed on the reader's own terms, carrying a `Subject`
+  and a message the core reports verbatim as a permanent error.
+
+`constrain` and `reject` SHALL remain distinct. A constraint is **conditional**: it refuses candidates, so it is
+heard only if some strategy offers one, and a demand nothing can serve records no constraint refusal at all. A
+rejection is **unconditional**: it is reported whether or not anything ever demands the path the declaration
+names. A rule about a declaration's own well-formedness SHALL therefore be a rejection, never a constraint.
 
 The set of declared children at a target level SHALL be **derived** from the bound target paths, not declared
 separately, so it cannot disagree with the bindings.
@@ -122,8 +129,13 @@ the binding's `Subject`. This is a property of the engine's own forward walk —
 ### Requirement: Annotation shape rules belong to the owning reader
 
 A rule about how an annotation's own members combine SHALL be enforced by the reader that owns the annotation,
-which SHALL decline to bind and SHALL report the reason positioned at the offending member. The core SHALL hold
-no such rule.
+which SHALL decline to bind and SHALL `reject` with the reason positioned at the offending member. The core
+SHALL hold no such rule, and SHALL report the reader's message verbatim without rewording it or naming the
+annotation itself.
+
+The report SHALL NOT be contingent on the malformed path being demanded: a violated shape rule usually leaves
+nothing able to produce that path, so a candidate-scoped refusal would be silently swallowed and the author
+would see only a generic "no plan" line, or an unrelated refusal at a shallower miss.
 
 #### Scenario: Mutually exclusive members are rejected by the reader
 - **WHEN** a method declares `@Map(target = "x", source = "in.x", constant = "5")`
@@ -136,3 +148,7 @@ no such rule.
 #### Scenario: The core holds no annotation shape rule
 - **WHEN** the processor's validation stages are enumerated
 - **THEN** none of them tests how the members of a mapping annotation combine
+
+#### Scenario: A shape violation is reported even when nothing demands the path
+- **WHEN** a violated shape rule leaves no strategy able to offer any candidate for that target path
+- **THEN** the rule's own message is still reported, rather than only the generic no-plan diagnostic

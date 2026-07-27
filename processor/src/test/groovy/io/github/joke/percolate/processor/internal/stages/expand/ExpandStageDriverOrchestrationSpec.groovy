@@ -122,6 +122,35 @@ class ExpandStageDriverOrchestrationSpec extends Specification {
         result.empty
     }
 
+    def 'land records every constraint\'s refusal when two constraints admit no common candidate'() {
+        def driver = driver()
+        Value output = Mock()
+        def loc = new TargetLocation(TargetPath.of(''))
+        Scope scope = Mock()
+        Codegen codegen = Mock()
+        TypeMirror type = Mock()
+        def spec = OperationSpec.of('map', codegen, 1, [], type, Nullability.NON_NULL)
+        def first = new Offer.Refusal(Subjects.none(), 'needs a source')
+        def second = new Offer.Refusal(Subjects.none(), 'needs a constant')
+        Constraint refusesFirst = { OperationSpec candidate, List<BoundPort> boundPorts -> Optional.of(first) }
+        Constraint refusesSecond = { OperationSpec candidate, List<BoundPort> boundPorts -> Optional.of(second) }
+
+        when:
+        def result = driver.land(output, spec, null)
+
+        then:
+        output.loc >> loc
+        output.scope >> scope
+        1 * portBinder.bind(output, '', spec, null) >> Optional.of([])
+        1 * targetProducer.constraintsFor(output) >> [refusesFirst, refusesSecond]
+        1 * output.addInadmissible(new Refusal(first.subject, first.message))
+        1 * output.addInadmissible(new Refusal(second.subject, second.message))
+        0 * operationLander._
+
+        expect:
+        result.empty
+    }
+
     // ---- expandValue: FREE dispatch, produce + pinnedSource, land each spec, enqueue follow-ups --------------------
 
     def 'expandValue is a no-op for a non-FREE Value, touching no collaborator'() {

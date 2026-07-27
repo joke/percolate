@@ -17,12 +17,12 @@ class DumpFullGraphStageSpec extends Specification {
 
     def ctx = new MapperContext(Stub(TypeElement))
 
-    def 'dumps the full view for every vertex, dimming unreachable ones'() {
+    def 'dumps the full view for every vertex, dimming unreachable ones and drawing refusals'() {
         when:
         stage.run(ctx)
 
         then:
-        1 * writer.dump(ctx, 'full', { it.test(Stub(GraphVertex)) }, true)
+        1 * writer.dumpWithRefusals(ctx, 'full', { it.test(Stub(GraphVertex)) }, true)
         0 * _
     }
 }

@@ -89,6 +89,7 @@ class ConstantValueSpec extends Specification {
     def 'refuses an uncoercible constant, naming the offending literal and target'() {
         intType.kind >> TypeKind.INT
         intType.toString() >> 'int'
+        ctx.simpleName(intType) >> 'int'
 
         when:
         def offers = new ConstantValue().expand(Demands.withConstant(intType, 'abc'), ctx).toList()

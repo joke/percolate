@@ -51,3 +51,43 @@ the mapper type.
 #### Scenario: Realisation diagnostics are transient
 - **WHEN** the renderer records a generic "no plan" outcome
 - **THEN** the diagnostic is marked transient, so an otherwise clean mapper is deferred to a later round
+
+### Requirement: Diagnostics walk unsatisfied demands
+
+`RealisationDiagnosticsStage` SHALL walk the unsatisfied demands after expansion: a method whose
+**seeded return-root `Value`** (the graph-recorded return root per `graph-expansion`, **not** every
+`Value` at the empty-path return location) is **unreachable** contributes a closest-miss message
+naming the unresolved target. Over-emitted typed siblings that merely share the return location —
+e.g. a dead `Set<E>`/`Optional<E>`/scalar `E` candidate minted while the real return is `List<E>` —
+SHALL NOT be treated as return roots and SHALL NOT contribute a message. "Unsatisfied" SHALL mean
+**infinite extraction cost** — a `Value` with no finite-cost producer — queried through the
+extracted plan (`reachable(value) == false`); there is no stored SAT predicate and no group outcome
+records.
+
+The stage SHALL **record** what it collects as `Diagnostic` values on the `MapperContext` and SHALL emit
+nothing itself; emission is owned by `MapperStep` and flushed at one point. The generic "no plan" message
+SHALL be recorded as **transient**, since a later round may still realise the mapper. When the mapper already
+carries an error (`ctx.hasErrors()`) the stage SHALL record nothing — a targeted earlier diagnostic already
+explains the failure.
+
+#### Scenario: Unsatisfiable method is recorded, not emitted in-stage
+- **WHEN** expansion ends with a method's seeded return-root unreachable (infinite extraction cost)
+- **THEN** `RealisationDiagnosticsStage` records one closest-miss message naming the unresolved
+  return-root target (its location label) and the deepest-miss demand onto `MapperContext`
+- **AND** it emits nothing through the `Messager` itself
+- **AND** code generation skips the mapper without throwing
+
+#### Scenario: The generic message is transient
+- **WHEN** the stage records a "no plan" message and nothing else has recorded a permanent diagnostic
+- **THEN** the mapper is deferred rather than consumed, and the message is not emitted in that round
+
+#### Scenario: An earlier targeted diagnostic suppresses the recorded message
+- **WHEN** the mapper already has an error (e.g. a constant coercion failure or a rejected declaration)
+- **THEN** `RealisationDiagnosticsStage` records no "no plan" message (it returns early on `ctx.hasErrors()`)
+
+#### Scenario: Dead typed siblings at the return location are not recorded
+- **WHEN** a container-return method's seeded root `List<E>` is reachable but over-emission left
+  unreachable typed siblings (`Set<E>`, `Optional<E>`, scalar `E`, the source-side element types, …)
+  at the same return location
+- **THEN** no `no plan for tgt[]` message is recorded for any of those siblings; only an unreachable
+  *seeded* return root is ever recorded

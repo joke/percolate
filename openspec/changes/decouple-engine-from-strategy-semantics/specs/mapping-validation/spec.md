@@ -18,8 +18,29 @@ exist in the `processor` module.
 #### Scenario: The surviving checks are engine-owned or protocol-owned
 - **WHEN** the remaining checks are enumerated
 - **THEN** each is about the engine's own contract (a duplicate binding at a path, a source path that roots
-  nowhere, a declared input nothing consumed, an unrealised demand, a class member declared twice with
-  different definitions)
+  nowhere, two scope inputs sharing one name, a declared input nothing consumed, an unrealised demand, a class
+  member declared twice with different definitions)
+
+### Requirement: Two scope inputs of one method SHALL NOT share a name
+
+The core SHALL emit one error for each scope input published under a name an earlier scope input of the same
+method already carries, positioned at the offending parameter and naming both the name and the method. A scope
+input's name is the parameter's own simple name unless a `DirectiveReader` published an override.
+
+The rule SHALL be stated as a property of the engine's own by-name selection — a name that selects two things
+selects neither — and SHALL name no annotation, so it holds identically for a third-party reader.
+
+#### Scenario: Two published names collide
+- **WHEN** two parameters of one method are published under the name `ctx`
+- **THEN** one error is emitted, positioned at the second parameter and naming `ctx`
+
+#### Scenario: A published name collides with a parameter's own simple name
+- **WHEN** a reader renames one parameter to another parameter's own simple name
+- **THEN** one error is emitted naming that name
+
+#### Scenario: Distinct names produce no error
+- **WHEN** every scope input of a method carries a distinct name
+- **THEN** no error is emitted
 
 ## MODIFIED Requirements
 

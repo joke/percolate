@@ -11,7 +11,13 @@ import javax.lang.model.element.VariableElement;
  * <p>{@link #bind} declares a target binding, optionally pinned to a source path; {@link #input} attaches an
  * author-declared configuration value to a binding, keyed by a name the core does not interpret; {@link #scopeInput}
  * publishes a mapper-method parameter as a named scope input; {@link #constrain} attaches a demand-scoped
- * admissibility {@link Constraint} to a target path (see {@code demand-constraints}).
+ * admissibility {@link Constraint} to a target path (see {@code demand-constraints}); {@link #reject} states that
+ * what the author wrote is malformed on the reader's own terms.
+ *
+ * <p>{@link #reject} and {@link #constrain} answer different questions. A constraint is <b>conditional</b> — it
+ * refuses candidates, so it is only ever heard if something offers one; use it to veto how a demand may be served.
+ * A rejection is <b>unconditional</b> — the declaration itself is wrong, so it is reported whether or not anything
+ * ever demands that path. A shape rule ("these two members are mutually exclusive") is always the latter.
  *
  * <p>The set of declared children at a target level is <b>derived</b> from the bound target paths, never declared
  * separately, so it cannot disagree with the bindings.
@@ -29,4 +35,11 @@ public interface DirectiveSink {
 
     /** Attaches a demand-scoped admissibility {@code constraint} to {@code targetPath}. */
     void constrain(List<String> targetPath, Constraint constraint);
+
+    /**
+     * Rejects what the author wrote, with {@code message} reported verbatim at {@code subject} as a permanent error.
+     * The core neither interprets nor rewords it, so the reader — not the core — owns the vocabulary of its own
+     * annotation's rules.
+     */
+    void reject(Subject subject, String message);
 }

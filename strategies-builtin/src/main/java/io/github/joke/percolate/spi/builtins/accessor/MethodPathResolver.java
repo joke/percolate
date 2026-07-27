@@ -7,7 +7,6 @@ import io.github.joke.percolate.spi.ExpansionStrategy;
 import io.github.joke.percolate.spi.OperationCodegen;
 import io.github.joke.percolate.spi.ResolveCtx;
 import io.github.joke.percolate.spi.Weights;
-import io.github.joke.percolate.spi.builtins.Members;
 import java.util.Optional;
 import javax.lang.model.element.Element;
 import javax.lang.model.element.ExecutableElement;

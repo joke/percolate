@@ -7,6 +7,7 @@ import io.github.joke.percolate.processor.internal.graph.AccessPath
 import io.github.joke.percolate.processor.internal.graph.AddOperation
 import io.github.joke.percolate.processor.internal.graph.AddValue
 import io.github.joke.percolate.processor.internal.graph.DotRenderer
+import io.github.joke.percolate.processor.internal.graph.GraphVertex
 import io.github.joke.percolate.processor.internal.graph.MapperGraph
 import io.github.joke.percolate.processor.internal.graph.MethodScope
 import io.github.joke.percolate.processor.internal.graph.PortBinding
@@ -44,6 +45,19 @@ class GraphDumpWriterSpec extends Specification {
 
     def ctx = new MapperContext(mapperType)
 
+    def 'dumpWithRefusals asks the renderer to draw refusals'() {
+        GraphDumpWriter writer = Spy(constructorArgs: [filer, options, dotRenderer])
+        def include = { true }
+
+        when:
+        writer.dumpWithRefusals(ctx, 'plan', include, false)
+
+        then:
+        1 * writer.dump(ctx, 'plan', { it.test(Stub(GraphVertex)) }, false, true)
+        1 * writer._
+        0 * _
+    }
+
     def 'the two-argument overload dumps without dimming'() {
         GraphDumpWriter writer = Spy(constructorArgs: [filer, options, dotRenderer])
         def include = { true }
@@ -52,7 +66,7 @@ class GraphDumpWriterSpec extends Specification {
         writer.dump(ctx, 'full', include)
 
         then:
-        1 * writer.dump(ctx, 'full', _, false)
+        1 * writer.dump(ctx, 'full', _, false, false)
         1 * writer._
         0 * _
     }
@@ -63,7 +77,7 @@ class GraphDumpWriterSpec extends Specification {
         ctx.graph = graph
 
         when:
-        writer.dump(ctx, 'full', { true }, false)
+        writer.dump(ctx, 'full', { true }, false, false)
 
         then:
         options.debugGraphs >> false
@@ -76,7 +90,7 @@ class GraphDumpWriterSpec extends Specification {
         ctx.graph = graph
 
         when:
-        writer.dump(ctx, 'full', { true }, false)
+        writer.dump(ctx, 'full', { true }, false, false)
 
         then:
         options.debugGraphs >> true
@@ -91,7 +105,7 @@ class GraphDumpWriterSpec extends Specification {
         ctx.report(Diagnostic.error(Subjects.none(), 'no plan for tgt[]'))
 
         when:
-        writer.dump(ctx, 'full', { true }, false)
+        writer.dump(ctx, 'full', { true }, false, false)
 
         then:
         options.debugGraphs >> true
@@ -107,11 +121,11 @@ class GraphDumpWriterSpec extends Specification {
         def bytes = new ByteArrayOutputStream()
 
         when:
-        writer.dump(ctx, 'full', { true }, false)
+        writer.dump(ctx, 'full', { true }, false, false)
 
         then:
         options.debugGraphs >> true
-        1 * dotRenderer.render(_, scope.encode(), _) >> 'digraph {}'
+        1 * dotRenderer.render(_, scope.encode(), _, false) >> 'digraph {}'
         1 * filer.createResource(StandardLocation.SOURCE_OUTPUT, '', _, mapperType) >> resource
         1 * resource.openOutputStream() >> bytes
 
@@ -126,11 +140,11 @@ class GraphDumpWriterSpec extends Specification {
         ctx.graph = graph
 
         when:
-        writer.dump(ctx, 'full', { true }, false)
+        writer.dump(ctx, 'full', { true }, false, false)
 
         then:
         options.debugGraphs >> true
-        1 * dotRenderer.render(_, _, _) >> 'digraph {}'
+        1 * dotRenderer.render(_, _, _, false) >> 'digraph {}'
         1 * filer.createResource(*_) >> { throw new IOException('disk full') }
 
         expect:
@@ -153,11 +167,11 @@ class GraphDumpWriterSpec extends Specification {
         boolean dimmedRoot = true
 
         when:
-        writer.dump(ctx, 'full', { true }, true)
+        writer.dump(ctx, 'full', { true }, true, false)
 
         then:
         options.debugGraphs >> true
-        1 * dotRenderer.render(_, _, _) >> { args -> dimmedRoot = args[2].test(root); 'digraph {}' }
+        1 * dotRenderer.render(_, _, _, false) >> { args -> dimmedRoot = args[2].test(root); 'digraph {}' }
         1 * filer.createResource(*_) >> resource
 
         expect:

@@ -73,3 +73,16 @@ diagnostics or bookkeeping. Anything a feature needs to remember about a demand 
 #### Scenario: A new feature adds no graph member
 - **WHEN** a feature needs to remember why a production was unavailable
 - **THEN** it records a refusal on the demanded `Value` and adds nothing to `MapperGraph`
+
+## REMOVED Requirements
+
+### Requirement: Weights constants
+
+**Reason**: The processor-side `Weights` utility held only `SENTINEL_UNREALISED` and `isSentinel`, both of which
+this change deletes (design D8): an inadmissible candidate is now excluded by a refusal, never by a weight large
+enough to lose, so there is no sentinel cost and nothing left in the class. Admissibility SHALL NOT be expressible
+through cost — see `demand-constraints`.
+
+**Migration**: Unreachability is queried through the extracted plan (`reachable(value) == false`), which is how
+every caller already asked. The strategy-facing realised-cost scale is unaffected: it lives on the SPI
+`io.github.joke.percolate.spi.Weights`, which survives as a pure constant roster.

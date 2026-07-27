@@ -36,8 +36,9 @@ behavioural e2e so the extension surface shown cannot drift from a working strat
 
 The section SHALL additionally document the two extension roles a third party can implement and how they
 differ: an `ExpansionStrategy`, which answers a single demand locally and may **refuse** it with a reason, and
-a `DirectiveReader`, which reads an annotation the author wrote and declares bindings, inputs, scope inputs and
-constraints through a sink. It SHALL state that a third-party annotation is supported through a reader with no
+a `DirectiveReader`, which reads an annotation the author wrote and declares bindings, inputs, scope inputs,
+constraints and rejections through a sink. It SHALL distinguish the sink's conditional `constrain` from its
+unconditional `reject`, so a reader author knows which to reach for when a declaration is malformed. It SHALL state that a third-party annotation is supported through a reader with no
 change to percolate itself.
 
 #### Scenario: Extending section is reachable and uses a real strategy
@@ -47,8 +48,9 @@ change to percolate itself.
 
 #### Scenario: Both extension roles are documented
 - **WHEN** the Extending section is read
-- **THEN** it documents `ExpansionStrategy` and `DirectiveReader`, when to reach for each, and how a strategy
-  refuses a demand with a reason rather than emitting a diagnostic
+- **THEN** it documents `ExpansionStrategy` and `DirectiveReader`, when to reach for each, how a strategy
+  refuses a demand with a reason rather than emitting a diagnostic, and when a reader rejects rather than
+  constrains
 
 #### Scenario: Third-party annotation support is documented
 - **WHEN** the Extending section is read

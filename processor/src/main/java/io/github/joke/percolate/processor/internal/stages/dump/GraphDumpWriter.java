@@ -45,19 +45,30 @@ public final class GraphDumpWriter {
     private final DotRenderer dotRenderer;
 
     public void dump(final MapperContext ctx, final String view, final Predicate<GraphVertex> include) {
-        dump(ctx, view, include, false);
+        dump(ctx, view, include, false, false);
     }
 
     /**
-     * As {@link #dump(MapperContext, String, Predicate)}, but when {@code dimUnreachable} is set the rendered
-     * vertices that are unreachable (infinite extraction cost) are greyed/dashed rather than dropped — the full
-     * dump's view of the surviving plan against the pruned over-emission.
+     * As {@link #dump(MapperContext, String, Predicate)}, additionally drawing each {@code Value}'s recorded
+     * refusals as negative space — why a candidate that never became an operation is absent. When
+     * {@code dimUnreachable} is set the rendered vertices that are unreachable (infinite extraction cost) are
+     * greyed/dashed rather than dropped — the full dump's view of the surviving plan against the pruned
+     * over-emission.
      */
-    public void dump(
+    public void dumpWithRefusals(
             final MapperContext ctx,
             final String view,
             final Predicate<GraphVertex> include,
             final boolean dimUnreachable) {
+        dump(ctx, view, include, dimUnreachable, true);
+    }
+
+    void dump(
+            final MapperContext ctx,
+            final String view,
+            final Predicate<GraphVertex> include,
+            final boolean dimUnreachable,
+            final boolean withRefusals) {
         final var graph = ctx.getGraph();
         if (graph == null || skipDump(graph, ctx)) {
             return;
@@ -66,7 +77,12 @@ public final class GraphDumpWriter {
         final var mapperType = ctx.getMapperType();
         final var fqn = mapperType.getQualifiedName().toString();
         final var infixes = infixes(orderedScopes(graph, include));
-        infixes.forEach((scope, infix) -> writeScope(graph, include, dimmed, scope, infix, fqn, view, mapperType, ctx));
+        infixes.forEach((scope, infix) -> writeScope(
+                renderScope(graph, include, dimmed, scope, withRefusals),
+                fqn + "." + infix + "." + view + ".dot",
+                view,
+                mapperType,
+                ctx));
     }
 
     // Like GenerateStage, this stage writes through the Filer, which forbids reopening a path. The pipeline
@@ -81,18 +97,22 @@ public final class GraphDumpWriter {
         return vertex -> !plan.reachable(vertex);
     }
 
-    void writeScope(
+    /** The scope's slice, rendered to DOT — refusals drawn as negative space when {@code withRefusals} is set. */
+    String renderScope(
             final MapperGraph graph,
             final Predicate<GraphVertex> include,
             final Predicate<GraphVertex> dimmed,
             final Scope scope,
-            final String infix,
-            final String fqn,
+            final boolean withRefusals) {
+        return dotRenderer.render(slice(graph, scope, include), scope.encode(), dimmed, withRefusals);
+    }
+
+    void writeScope(
+            final String dot,
+            final String fileName,
             final String view,
             final TypeElement mapperType,
             final MapperContext ctx) {
-        final var dot = dotRenderer.render(slice(graph, scope, include), scope.encode(), dimmed);
-        final var fileName = fqn + "." + infix + "." + view + ".dot";
         try {
             final var resource = filer.createResource(StandardLocation.SOURCE_OUTPUT, "", fileName, mapperType);
             try (var os = resource.openOutputStream();

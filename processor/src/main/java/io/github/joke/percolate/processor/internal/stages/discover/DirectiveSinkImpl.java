@@ -1,5 +1,6 @@
 package io.github.joke.percolate.processor.internal.stages.discover;
 
+import io.github.joke.percolate.processor.Diagnostic;
 import io.github.joke.percolate.processor.model.Bind;
 import io.github.joke.percolate.processor.model.ScopeInputOverride;
 import io.github.joke.percolate.spi.Constraint;
@@ -26,6 +27,7 @@ final class DirectiveSinkImpl implements DirectiveSink {
     private final Map<String, List<DirectiveInput>> inputsByTarget = new LinkedHashMap<>();
     private final List<ScopeInputOverride> scopeInputOverrides = new ArrayList<>();
     private final Map<String, List<Constraint>> constraintsByTarget = new LinkedHashMap<>();
+    private final List<Diagnostic> rejections = new ArrayList<>();
 
     @Override
     public void bind(final List<String> targetPath, final List<String> sourcePath, final Subject subject) {
@@ -51,6 +53,11 @@ final class DirectiveSinkImpl implements DirectiveSink {
                 .add(constraint);
     }
 
+    @Override
+    public void reject(final Subject subject, final String message) {
+        rejections.add(Diagnostic.error(subject, message).asPermanent());
+    }
+
     List<Bind> getBinds() {
         return List.copyOf(binds);
     }
@@ -65,5 +72,10 @@ final class DirectiveSinkImpl implements DirectiveSink {
 
     Map<String, List<Constraint>> getConstraintsByTarget() {
         return Map.copyOf(constraintsByTarget);
+    }
+
+    /** What the readers rejected outright, already permanent — reported whether or not anything demands the path. */
+    List<Diagnostic> getRejections() {
+        return List.copyOf(rejections);
     }
 }

@@ -39,7 +39,7 @@ class DumpPlanStageSpec extends Specification {
         stage.run(ctx)
 
         then:
-        0 * writer.dump(*_)
+        0 * writer.dumpWithRefusals(*_)
     }
 
     def 'the chosen producer and its target value are in-plan; an unproduced value is not'() {
@@ -58,7 +58,7 @@ class DumpPlanStageSpec extends Specification {
         stage.run(ctx)
 
         then:
-        1 * writer.dump(ctx, 'plan') { it.test(root) && it.test(op) && !it.test(orphan) && !it.test(param) }
+        1 * writer.dumpWithRefusals(ctx, 'plan', { it.test(root) && it.test(op) && !it.test(orphan) && !it.test(param) }, false)
         0 * _
     }
 }

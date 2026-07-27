@@ -65,7 +65,9 @@ already stalled on exactly this, having grown a feature-specific `List<Rejection
 
 **C — directive semantics move to the SPI.**
 
-- New service-loaded `DirectiveReader` role with a `DirectiveSink`. `@Mapper` stays core (it decides *what to
+- New service-loaded `DirectiveReader` role with a `DirectiveSink` whose `reject(subject, message)` reports a
+  malformed declaration verbatim, unconditionally — a shape rule is wrong whether or not anything demands the
+  path it names, so it cannot ride the candidate-refusal rail. `@Mapper` stays core (it decides *what to
   generate*); `@Map`, `@MapEnum` and `@Ambient` become inert vocabulary whose meaning ships beside the
   built-in strategies. Three readers replace the discovery chain's annotation logic.
 - `DirectiveSink.constrain(...)` lets whoever owns a member's meaning contribute a **demand-scoped
@@ -112,8 +114,9 @@ enforces `@Map`'s own shape) leaves the processor module entirely.
   unsatisfied miss.
 - `demand-constraints`: contributed demand-scoped admissibility constraints, their AND-composition, and the
   unification of the engine's existing landing refusals onto that one primitive.
-- `directive-reading`: the `DirectiveReader`/`DirectiveSink` SPI role, generic written-member annotation
-  reading including repeatable-container unwrapping, and the open `Directive` bag it populates.
+- `directive-reading`: the `DirectiveReader`/`DirectiveSink` SPI role, its unconditional `reject` channel beside
+  the conditional `constrain` one, generic written-member annotation reading including repeatable-container
+  unwrapping, and the open `Directive` bag it populates.
 
 ### Modified Capabilities
 

@@ -83,6 +83,30 @@ strategy offers can never produce a diagnostic.
 - **WHEN** the validation stages are inspected
 - **THEN** none queries the callable-method index to reconstruct what a strategy would have considered
 
+### Requirement: Duplicate ambient keys SHALL be rejected
+
+Two scope inputs of one method published under the same name SHALL be reported as an error naming that name and
+the method, positioned at each occurrence after the first. This is the **engine's own** rule about its own scope
+inputs, not a rule about `@Ambient`: a name is how a `BY_NAME` port selects, so two inputs sharing one make that
+selection ambiguous, and the message SHALL name no annotation. It SHALL hold whether the collision arises from
+an explicit `value()` colliding with another parameter's own simple name, from two explicit `value()`s that are
+equal, or from any other `DirectiveReader` publishing a colliding name.
+
+#### Scenario: Two explicit keys collide
+
+- **WHEN** a mapper declares `Diff map(@Ambient("ctx") Person a, @Ambient("ctx") Order b)`
+- **THEN** a duplicate-scope-input error naming `ctx` is reported, positioned at the second parameter
+
+#### Scenario: An explicit key collides with another parameter's name
+
+- **WHEN** a mapper declares `Diff map(@Ambient Person order, @Ambient("order") Order o)`
+- **THEN** a duplicate-scope-input error naming `order` is reported
+
+#### Scenario: The message names no annotation
+
+- **WHEN** the reported message is inspected
+- **THEN** it speaks of a duplicate scope input, so the same check serves any reader that publishes a name
+
 ### Requirement: An @Ambient parameter remains an ordinary @Map source
 
 An annotated parameter SHALL remain an ordinary source root: a binding may descend a source path from it, and a

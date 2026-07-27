@@ -54,14 +54,14 @@ Producing a value and reading an annotation are two different jobs, so they are 
 | Translates the annotations it owns — built-in or third-party — into calls on `DirectiveSink`:
   `bind` (a target is produced, optionally from a source path), `input` (an author-declared configuration
   value, keyed by a name the engine never interprets), `scopeInput` (a mapper-method parameter becomes a
-  named scope input), and `constrain` (a demand-scoped admissibility rule). Percolate's own `@Map`, `@MapEnum`
-  and `@Ambient` readers ship in `strategies-builtin` and use exactly this surface — nothing built-in is
-  special-cased.
+  named scope input), `constrain` (a demand-scoped admissibility rule) and `reject` (what the author wrote is
+  malformed on your annotation's own terms). Percolate's own `@Map`, `@MapEnum` and `@Ambient` readers ship in
+  `strategies-builtin` and use exactly this surface — nothing built-in is special-cased.
 |===
 
 Reach for `ExpansionStrategy` to teach percolate how to *produce* a value (a new conversion, a new container,
 a new accessor). Reach for `DirectiveReader` to teach percolate a *new annotation* — your own mapping
-vocabulary, read once per mapper method and turned into the same `bind`/`input`/`scopeInput`/`constrain`
+vocabulary, read once per mapper method and turned into the same `bind`/`input`/`scopeInput`/`constrain`/`reject`
 facts the built-in readers produce. The two compose: a reader publishes an `input` under a key of your
 choosing, and a strategy of yours reads that key back off the `Directive` — see below.
 
@@ -72,6 +72,14 @@ instead of `Offer.of(spec)`. `Stream.empty()` still means "not mine" and produce
 for the narrower case — "this demand is mine, and here is exactly why I cannot serve it". The `subject` is an
 opaque positioning handle: a strategy never builds one, it only forwards a `Subject` it received from a
 `DirectiveInput`, so the eventual diagnostic points at the token the author actually wrote.
+
+=== `reject` for a malformed declaration, `constrain` for an inadmissible candidate
+
+A `constrain` refuses *candidates*, so it is only ever heard when some strategy offers one — use it to veto
+*how* a demand may be served. When the declaration itself is wrong ("these two members are mutually
+exclusive"), call `reject(subject, message)` instead: it is reported verbatim as a permanent error whether or
+not anything ever demands the path, which is exactly the case a malformed declaration tends to produce. The
+built-in `@Map` reader enforces its own shape rules this way.
 
 == A third-party strategy, exactly like a built-in
 

@@ -146,6 +146,7 @@ class NullnessCrossingSpec extends Specification {
         integerElement.qualifiedName >> nameOf('java.lang.Integer')
         integerElement.simpleName >> nameOf('Integer')
         ctx.isDeclared(integerType) >> true
+        ctx.simpleName(integerType) >> 'Integer'
 
         when:
         def offers = new NullnessCrossing().expand(Demands.crossing(integerType, 'n', 'abc'), ctx).toList()

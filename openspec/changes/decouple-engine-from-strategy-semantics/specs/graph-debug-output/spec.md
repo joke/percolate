@@ -60,3 +60,45 @@ nullness by inspecting a type's annotations, and SHALL NOT match an annotation b
 #### Scenario: A type in a null-marked scope renders as non-null
 - **WHEN** a `Value` carries a type with no explicit annotation inside a `@NullMarked` scope, recorded `NON_NULL`
 - **THEN** it renders as non-null, agreeing with the resolver rather than with an annotation-name match
+
+### Requirement: Shared dump IO via GraphDumpWriter
+
+The processor SHALL define a single collaborator `GraphDumpWriter` in package `io.github.joke.percolate.processor.internal.stages.dump` that owns the entire dump IO mechanism: the `ProcessorOptions.isDebugGraphs()` gate, the empty-graph skip, the errored-mapper skip, the per-scope partition, the `DotRenderer` pass, the `Filer.createResource(StandardLocation.SOURCE_OUTPUT, …)` write per scope, and the `IOException`→warning handling. `GraphDumpWriter` SHALL be `@Inject`-constructed and SHALL depend on `Filer`, `ProcessorOptions`, and the `DotRenderer` — **not** on any diagnostics collaborator, there being none: a write failure is recorded as a warning `Diagnostic` on the per-mapper `MapperContext` it is handed.
+
+Each dump stage (`DumpFullGraphStage`, `DumpTransformsStage`, `DumpPlanStage`) SHALL delegate to `GraphDumpWriter`,
+supplying a vertex-inclusion `Predicate<GraphVertex>` and its `<view>` infix: `full` includes every
+vertex (`vertex -> true`) and additionally requests unreachable-dimming; `transforms` includes the
+reachable vertices (`plan::reachable`); `plan` includes the in-plan vertices (chosen-producer membership).
+`full` and `plan` SHALL additionally request refusal rendering; `transforms` SHALL NOT, so that view is
+unchanged by this capability's refusal requirement.
+All dump stages SHALL run **after** the expansion stage (there is no pre-expansion seed dump). A
+`Filer`/`IOException` failure SHALL be recorded as a warning `Diagnostic`, SHALL NOT be an error, and SHALL
+NOT abort the compile.
+
+When partitioning a view's edges by scope, an edge SHALL be assigned to the scope of its `from` node, so that no edge is dropped even though, by construction, edges do not span scopes.
+
+#### Scenario: Option off writes no file for any view
+- **WHEN** a dump stage runs with `ProcessorOptions.isDebugGraphs() == false`
+- **THEN** no resource is created via `Filer`
+
+#### Scenario: Empty graph writes no file even when option on
+- **WHEN** a dump stage runs with the option on and the mapper's graph has no vertices
+- **THEN** no resource is created via `Filer`
+
+#### Scenario: One write per scope when option on
+- **WHEN** a dump stage runs with the option on over a graph spanning several scopes
+- **THEN** exactly one resource is created per scope
+
+#### Scenario: Filer failure is a warning, not an error
+- **WHEN** a dump stage runs with the option on and `Filer.createResource(...)` (or the subsequent write) throws `IOException`
+- **THEN** a warning `Diagnostic` is recorded on the mapper's context
+- **AND** no error is recorded
+- **AND** the stage returns normally so the compile is not aborted
+
+#### Scenario: Edge is partitioned to its from-node scope
+- **WHEN** a view's edges are partitioned by scope for file output
+- **THEN** each edge is rendered in the file of its `from` node's scope
+
+#### Scenario: An errored mapper writes no file
+- **WHEN** a dump stage runs for a mapper whose context already carries an error
+- **THEN** no resource is created via `Filer`, so a refusal that failed the compile is explained by the diagnostic rather than by a dump

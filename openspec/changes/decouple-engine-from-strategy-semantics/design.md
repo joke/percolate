@@ -242,11 +242,21 @@ flowchart TD
   SINK --> B2["input(key, value, subject)"]
   SINK --> B3["scopeInput(param, name, visibility)"]
   SINK --> B4["constrain(targetPath, constraint)"]
+  SINK --> B5["reject(subject, message)"]
   B1 --> ENG["engine: path-keyed config,<br/>forward descent, named scope inputs"]
   B2 --> ENG
   B3 --> ENG
   B4 --> ENG
+  B5 --> DIAG["reported verbatim, permanent"]
 ```
+
+> **`reject` vs. `constrain`, settled during apply.** The shape rules were first expressed as an always-refusing
+> `constrain` at the malformed target path. That does not work: a constraint refuses *candidates*, so it is only
+> ever heard when some strategy offers one — and a malformed declaration is precisely the case where nothing
+> does. Compile-testing the three `@Map` rules showed the author getting an unrelated self-call refusal at the
+> root instead of the rule they broke. A declaration's own well-formedness is unconditional, so it needs an
+> unconditional channel; the core still learns no annotation vocabulary, because it reports the reader's own
+> message verbatim.
 
 > **Architectural shift.** Discovery stops interpreting annotations and becomes a loop that runs readers. The
 > `processor` module will import no user-facing annotation except `@Mapper`.

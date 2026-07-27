@@ -28,6 +28,6 @@ public final class DumpPlanStage implements Stage {
             inPlan.add(value);
             inPlan.add(operation);
         }));
-        writer.dump(ctx, "plan", inPlan::contains);
+        writer.dumpWithRefusals(ctx, "plan", inPlan::contains, false);
     }
 }

@@ -29,6 +29,20 @@ semantics.
 - **WHEN** the processor's validation stages are inspected
 - **THEN** none tests whether a source can be absent in order to judge a default
 
+
+### Requirement: @Map defaultValue member declares an absent-source fallback
+
+`@Map` SHALL expose an optional `String defaultValue()` member with an empty-string default. Presence SHALL be decided by whether the member was **written**, never by comparing against that default: a written `defaultValue` declares a fallback used **only when the source value is absent**. The binding's source path is unchanged; the default never replaces a present source value. An empty-string default (`defaultValue = ""`) SHALL be a legitimate present value, distinct from absent.
+
+#### Scenario: A present default declares a fallback for an existing source
+- **WHEN** an abstract method is annotated with `@Map(target = "name", source = "in.name", defaultValue = "unknown")`
+- **THEN** the binding retains its source path `in.name`
+- **AND** carries a `defaultValue` input whose value is `"unknown"`
+
+#### Scenario: Empty-string default is present, not absent
+- **WHEN** a directive declares `@Map(target = "note", source = "in.note", defaultValue = "")`
+- **THEN** the binding carries a `defaultValue` input whose value is the empty string
+- **AND** it is NOT treated as absent, because the member was written
 ## ADDED Requirements
 
 ### Requirement: An uncoercible default is refused by the crossing strategy

@@ -18,8 +18,6 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Stream;
-import javax.lang.model.element.TypeElement;
-import javax.lang.model.type.DeclaredType;
 import javax.lang.model.type.TypeMirror;
 import lombok.NoArgsConstructor;
 
@@ -73,8 +71,8 @@ public final class NullnessCrossing implements ExpansionStrategy {
         final var input = defaultInput.orElseThrow();
         final var coerced = LiteralCoercion.coerce(raw.get(), target);
         if (coerced.isEmpty()) {
-            return Stream.of(
-                    Offer.refusal(input.getSubject(), "cannot coerce '" + raw.get() + "' to " + typeName(target)));
+            return Stream.of(Offer.refusal(
+                    input.getSubject(), "cannot coerce '" + raw.get() + "' to " + ctx.simpleName(target)));
         }
         return Stream.concat(
                         requireNonNullGuard(target, demand.bindingName(), guardsNullness, ctx),
@@ -89,16 +87,6 @@ public final class NullnessCrossing implements ExpansionStrategy {
             return Stream.empty();
         }
         return requireNonNullGuard(target, bindingName, true, ctx).map(Offer::of);
-    }
-
-    static String typeName(final TypeMirror type) {
-        if (!(type instanceof DeclaredType)) {
-            return type.toString();
-        }
-        final var element = ((DeclaredType) type).asElement();
-        return element instanceof TypeElement
-                ? ((TypeElement) element).getSimpleName().toString()
-                : type.toString();
     }
 
     /** The {@code [requireNonNull]} crossing, when the target is both {@code NON_NULL} and declared. */

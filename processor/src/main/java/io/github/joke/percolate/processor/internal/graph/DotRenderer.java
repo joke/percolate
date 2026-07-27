@@ -19,7 +19,12 @@ import org.jspecify.annotations.Nullable;
  * their typed production {@code label}, {@link Value}s are ellipses labelled with location plus a readable type
  * (simple names + a JSpecify {@code ?}/{@code !} nullness mark per level), and {@link Dep} edges carry their port
  * id as a label. Vertices the caller marks {@code dimmed} (unreachable, by extraction cost) are greyed and dashed
- * rather than dropped, so a pruned over-emission stays distinguishable from the surviving plan. DOT is debug-only
+ * rather than dropped, so a pruned over-emission stays distinguishable from the surviving plan.
+ *
+ * <p>When {@code withRefusals} is set, each {@link Value}'s recorded refusals are drawn beside it as negative
+ * space: one note-shaped node per refusal, in the order they were recorded, carrying the refusal's message as
+ * opaque text. A refusal is never an {@link Operation} — it has no weight and no port edges — so a candidate that
+ * was considered and rejected is visible without being mistaken for one that survived. DOT is debug-only
  * output (gated behind {@code -Apercolate.debugGraphs}), so this class writes the small statement/quoting subset
  * of the format itself rather than pulling in a DOT-export library for it.
  */
@@ -35,10 +40,20 @@ public final class DotRenderer {
     private static final String ELEMENT_FILL = "#FFE0B3";
     private static final String FALLBACK_FILL = "white";
     private static final String DIM_FILL = "#DDDDDD";
+    private static final String REFUSAL_FILL = "#FFD6D6";
 
     /** Renders {@code scopeGraph} captioned with {@code caption}; {@code dimmed} vertices render greyed and dashed. */
     public String render(
             final Graph<GraphVertex, Dep> scopeGraph, final String caption, final Predicate<GraphVertex> dimmed) {
+        return render(scopeGraph, caption, dimmed, false);
+    }
+
+    /** As {@link #render(Graph, String, Predicate)}, additionally drawing each {@link Value}'s recorded refusals. */
+    public String render(
+            final Graph<GraphVertex, Dep> scopeGraph,
+            final String caption,
+            final Predicate<GraphVertex> dimmed,
+            final boolean withRefusals) {
         final var dot = new StringBuilder("digraph G {\n");
         final var labelLine = "  label=" + quote(caption) + ";\n";
         dot.append(labelLine);
@@ -51,8 +66,44 @@ public final class DotRenderer {
                     + quote(scopeGraph.getEdgeTarget(dep).id());
             appendStatement(dot, head, edgeAttributes(dep));
         });
+        if (withRefusals) {
+            scopeGraph.vertexSet().forEach(vertex -> appendRefusals(dot, vertex));
+        }
         dot.append('}');
         return dot.toString();
+    }
+
+    /**
+     * Draws {@code vertex}'s refusals, if it is a {@link Value} carrying any, in the order they were recorded. The
+     * renderer treats each message as opaque text and never classifies a refusal by where it came from.
+     */
+    @VisibleForTesting
+    static void appendRefusals(final StringBuilder dot, final GraphVertex vertex) {
+        if (!(vertex instanceof Value)) {
+            return;
+        }
+        final var value = (Value) vertex;
+        final var refusals = value.getInadmissible();
+        for (var index = 0; index < refusals.size(); index++) {
+            appendRefusal(dot, value, refusals.get(index), index);
+        }
+    }
+
+    @VisibleForTesting
+    static void appendRefusal(final StringBuilder dot, final Value value, final Refusal refusal, final int index) {
+        final var id = quote(value.id() + "#refused-" + index);
+        appendStatement(dot, id, refusalAttributes(refusal));
+        appendStatement(dot, id + " -> " + quote(value.id()), Map.of(STYLE, "dashed"));
+    }
+
+    @VisibleForTesting
+    static Map<String, String> refusalAttributes(final Refusal refusal) {
+        final var attrs = new LinkedHashMap<String, String>();
+        attrs.put(LABEL, refusal.getMessage());
+        attrs.put("shape", "note");
+        attrs.put(STYLE, "filled,dashed");
+        attrs.put(FILL, REFUSAL_FILL);
+        return attrs;
     }
 
     @VisibleForTesting

@@ -1,4 +1,4 @@
-package io.github.joke.percolate.spi.builtins;
+package io.github.joke.percolate.spi.builtins.accessor;
 
 import io.github.joke.percolate.spi.ResolveCtx;
 import java.util.Optional;

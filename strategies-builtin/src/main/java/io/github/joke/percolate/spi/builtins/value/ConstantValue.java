@@ -15,8 +15,6 @@ import io.github.joke.percolate.spi.Weights;
 import java.util.List;
 import java.util.Set;
 import java.util.stream.Stream;
-import javax.lang.model.element.TypeElement;
-import javax.lang.model.type.DeclaredType;
 import javax.lang.model.type.TypeMirror;
 import lombok.NoArgsConstructor;
 
@@ -41,31 +39,21 @@ public final class ConstantValue implements ExpansionStrategy {
         final var target = demand.targetType();
         return demand.directive()
                 .flatMap(directive -> directive.input(CONSTANT_KEY))
-                .flatMap(input -> input.getValue().map(raw -> offerFor(input, raw, target)))
+                .flatMap(input -> input.getValue().map(raw -> offerFor(input, raw, target, ctx)))
                 .map(Stream::of)
                 .orElseGet(Stream::empty);
     }
 
-    static Offer offerFor(final DirectiveInput input, final String raw, final TypeMirror target) {
+    static Offer offerFor(final DirectiveInput input, final String raw, final TypeMirror target, final ResolveCtx ctx) {
         return LiteralCoercion.coerce(raw, target)
                 .<Offer>map(literal -> Offer.of(constantSpec(target, literal, input)))
-                .orElseGet(
-                        () -> Offer.refusal(input.getSubject(), "cannot coerce '" + raw + "' to " + typeName(target)));
+                .orElseGet(() ->
+                        Offer.refusal(input.getSubject(), "cannot coerce '" + raw + "' to " + ctx.simpleName(target)));
     }
 
     static OperationSpec constantSpec(final TypeMirror target, final CodeBlock literal, final DirectiveInput input) {
         final OperationCodegen codegen = inputs -> literal;
         return OperationSpec.of(literal.toString(), codegen, Weights.STEP, List.of(), target, Nullability.NON_NULL)
                 .withConsumed(Set.of(input));
-    }
-
-    static String typeName(final TypeMirror type) {
-        if (!(type instanceof DeclaredType)) {
-            return type.toString();
-        }
-        final var element = ((DeclaredType) type).asElement();
-        return element instanceof TypeElement
-                ? ((TypeElement) element).getSimpleName().toString()
-                : type.toString();
     }
 }

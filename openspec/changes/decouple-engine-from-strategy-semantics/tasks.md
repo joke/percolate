@@ -60,6 +60,7 @@ through `tail`.
 - [x] 4.6 Thread the walked binding's `Directive` through `SourcePathDescender` into `DescendView`
 - [x] 4.7 Migrate the 21 direct overriders in `strategies-builtin`, `reactor` and `reactor-blocking`
 - [x] 4.8 Make `ConstantValue` refuse on coercion failure, carrying the `constant` input's subject
+- [x] 4.14 Format the two coercion refusals through `ResolveCtx.simpleName` instead of the hand-rolled `typeName` helpers 4.8/4.9 added — those cast a `TypeMirror` to `DeclaredType` inside a strategy, which `expansion-strategy-spi`'s opaque-token rule forbids and whose closed exception list never covered; the seam method is behaviourally identical (declared → simple name, else `toString()`), so no message changes
 - [x] 4.9 Make `NullnessCrossing` refuse on an uncoercible `defaultValue`, carrying that input's subject
 - [x] 4.10 Render refusals in `RealisationDiagnosticsStage` at the deepest miss in place of the generic message, deduplicating only byte-identical text
 - [x] 4.11 Delete `ValidateConstantDefaultLegalityStage` — coercion is now a refusal, the dead default rides the rail
@@ -87,6 +88,7 @@ through `tail`.
 - [x] 6.5 Make `MethodCallBridge` read the annotation itself and delete `ResolveCtx.ambientKey`
 - [x] 6.6 Migrate every `Port` construction site across the SPI, built-ins, reactor modules and test fixtures
 - [x] 6.7 Delete `ValidateAmbientBindingsStage`
+- [x] 6.10 Re-home its duplicate-key check, missed when the stage was deleted: two scope inputs of one method under one name are an error in `ValidateSourceParametersStage`, stated in scope-input vocabulary and naming no annotation, positioned at each occurrence after the first (un-pends `AmbientDiagnosticsNegativeSpec`'s `@PendingFeature`)
 - [x] 6.8 Update the port, ambient and engine specs
 - [x] 6.9 Run `./gradlew check --no-configuration-cache` and fix every violation
 
@@ -105,7 +107,7 @@ through `tail`.
 
 ## 8. Directive reading moves to the SPI (group C1)
 
-- [x] 8.1 Add `DirectiveReader` and `DirectiveSink` (`bind`, `input`, `scopeInput`, `constrain`) to `percolate-spi`
+- [x] 8.1 Add `DirectiveReader` and `DirectiveSink` (`bind`, `input`, `scopeInput`, `constrain`, `reject`) to `percolate-spi`
 - [x] 8.2 Provide `List<DirectiveReader>` from `ProcessorModule` via `ServiceLoader` in a deterministic order
 - [x] 8.3 Reduce the discovery stage to invoking the readers and assembling what they declare
 - [x] 8.4 Create `MapDirectiveReader` in `strategies-builtin`, moving the generic member reading out of the processor
@@ -115,7 +117,10 @@ through `tail`.
 - [x] 8.8 Restate duplicate-target detection as a sink-level duplicate binding at one target path, naming no annotation
 - [x] 8.9 Restate the source-root check as the engine's own rule that a source path must root at a scope input
 - [x] 8.10 Derive `declaredChildren` from the bound target paths
-- [x] 8.11 Write reader unit specs against a mocked sink, covering written / written-empty / unwritten members, repeatable unwrapping and each shape rule — superseded: the three built-in readers and `AnnotationEntries` are `@CoverageIgnore` (javax.lang.model-consuming, like the pre-existing `CallableMethodIndexer`), covered by the compile-based feature-e2e layer instead (`MapDirectiveReaderSpec`-shaped mocking of real `AnnotationMirror`s proved impractical; e2e already exercises written/absent/repeatable/shape-rule behavior)
+- [x] 8.15 Restate the `builtin-strategy-unit-tests` reader requirement to match 8.11's decision — it still demanded a mocked-sink unit spec per reader and forbade compiling sources, which the shipped `@CoverageIgnore` + compile-testing approach contradicts outright; the obligation (presence semantics, repeatable unwrapping, every shape rule) is kept and re-homed onto the compile layer
+- [x] 8.11 Write reader unit specs against a mocked sink, covering written / written-empty / unwritten members, repeatable unwrapping and each shape rule — superseded: the three built-in readers and `AnnotationEntries` are `@CoverageIgnore` (javax.lang.model-consuming, like the pre-existing `CallableMethodIndexer`), covered by the compile-based feature-e2e layer instead (`MapDirectiveReaderSpec`-shaped mocking of real `AnnotationMirror`s proved impractical)
+- [x] 8.13 Add `MapShapeNegativeSpec`, the compile-based replacement for the deleted `ValidateMappingShapeStageSpec` — the shape-rule half of 8.11's claimed e2e coverage did not in fact exist: each of the three rules fails the compile with its own message, the reason is reported in place of the generic no-plan line, and a well-shaped mapping still compiles
+- [x] 8.14 Add `DirectiveSink.reject(Subject, String)` — the fifth entry point, reported verbatim and permanently by the discovery stage — and move the three shape rules onto it: an always-refusing `constrain` is heard only when some strategy offers a candidate, which a malformed declaration usually prevents, so the rules were silently swallowed behind the root self-call refusal (found by 8.13)
 - [x] 8.12 Run `./gradlew check --no-configuration-cache` and fix every violation
 
 ## 9. Demand constraints (group C2)
@@ -123,7 +128,7 @@ through `tail`.
 - [x] 9.1 Add the `Constraint` type and wire `DirectiveSink.constrain` through to the demand
 - [x] 9.2 Apply a demand's constraints as an opaque conjunction at landing, recording a refusal per filtered candidate
 - [x] 9.3 Re-express the self-call rule as a constraint and delete `SelfCallGuard`
-- [x] 9.4 Add a scenario proving contradictory constraints leave every reason recorded rather than a bare "no producer" — covered structurally: `MapDirectiveReader`'s three shape rules each attach an always-refusing constraint independently, and `GoalSpec.constraintsFor` returns every attached constraint for conjunction
+- [x] 9.4 Add a scenario proving contradictory constraints leave every reason recorded rather than a bare "no producer" — pinned directly on `ExpandStage.Driver.admissible` (the one place the conjunction happens): two refusing constraints on one demand each record their own `Refusal` and no operation lands
 - [x] 9.5 Run `./gradlew check --no-configuration-cache` and fix every violation
 
 ## 10. Built-in feature packages (group E — pure move, last)
@@ -132,6 +137,8 @@ through `tail`.
 - [x] 10.2 Move each strategy and its reader into its feature package, leaving only shared helpers at the `spi.builtins` root
 - [x] 10.3 Move the matching unit specs to mirror the package structure
 - [x] 10.4 Confirm no class outside a feature package references its members, and that the existing `BUILTINS` ArchUnit pattern still matches
+- [x] 10.6 Move `Members` (and its spec) into `accessor` — it serves only that feature, so the root kept a class the capability's own "shared helpers only" rule excludes; `Labels` and `AnnotationEntries` genuinely span features and stay
+- [x] 10.7 Widen the root-package requirement to "used by more than one feature package, or the cross-feature `@Map` reader": `MapDirectiveReader` reads vocabulary consumed by `value`, `temporal`, `accessor` and `assembly` at once, so it belongs to no single feature and must not be moved into one
 - [x] 10.5 Run `./gradlew check --no-configuration-cache` and fix every violation
 
 ## 11. Architecture rules and pipeline reconciliation
@@ -142,6 +149,13 @@ through `tail`.
 - [x] 11.4 Reconcile `ProcessorModule`'s ordered `Stage` list with the five surviving stages and update its pinned scenario
 - [x] 11.5 Confirm the `*Stage` naming convention and the no-private and size-ceiling rules still hold across every touched package
 - [x] 11.6 Run `./gradlew check --no-configuration-cache` and fix every violation
+
+## 12x. Graph debug output (specified in the delta, never tasked)
+
+- [x] 12x.1 Render each `Value`'s recorded refusals in `DotRenderer` as note-shaped negative space, one node per refusal in recorded order, message carried as opaque text, joined to the `Value` by a dashed unlabelled edge — never an `Operation`, so it carries no weight and no port edges
+- [x] 12x.2 Wire the `full` and `plan` dumps through `GraphDumpWriter.dumpWithRefusals`, leaving `transforms` on the plain `dump` so that view is byte-identical
+- [x] 12x.3 Cover it in `DotRendererSpec` (ordering, note shape, dashed edge, Operation contributes nothing, no-refusal Value contributes nothing, opaque attributes, transforms-unchanged, determinism) and update the three dump specs
+- [x] 12x.4 Run `./gradlew check --no-configuration-cache` and fix every violation
 
 ## 12. Documentation
 
@@ -155,6 +169,7 @@ through `tail`.
 
 - [x] 13.1 Run `openspec validate decouple-engine-from-strategy-semantics` and confirm it reports valid
 - [x] 13.2 Re-read each delta against the implementation and correct any requirement the build proved wrong, rather than bending the code to a stale spec
+- [x] 13.6 Sweep the **main** specs for requirements this change falsifies but no delta touches — a delta only replaces the requirements it names, so an untouched requirement carries its stale text through the sync. Twelve did (`Diagnostics`/`hasErrorsFor` in code-generation, expansion-test-harness, graph-debug-output, processor and realisation-validation; `Map.UNSET` in constant-values and default-values; the deleted stages in processor and expansion-strategy-spi; `MappingDirective`/`MethodMappings` in mapping-discovery; `Weights.SENTINEL_UNREALISED` in graph-model). Each is now MODIFIED or REMOVED in its delta, and the mis-named `Each MappingDirective SHALL preserve mirror and value references` was re-homed under a heading that outlives the deleted type
 - [x] 13.3 Confirm the two design items deferred to discovery are settled: the count of order-dependent e2e assertions, and whether `Subjects.none()` reads well for the member-conflict message
 - [x] 13.4 Run `./gradlew check --no-configuration-cache` one final time and fix every violation — do NOT continue while any remain
 - [x] 13.5 Commit with `/commit-commands:commit`

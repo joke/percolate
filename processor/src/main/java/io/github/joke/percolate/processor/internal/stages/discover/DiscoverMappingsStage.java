@@ -20,6 +20,9 @@ import lombok.RequiredArgsConstructor;
  * declared into the per-method {@link MethodDirectives} (consumed by {@link ValidateNoDuplicateTargetsStage} and
  * {@link io.github.joke.percolate.processor.internal.stages.validate.ValidateSourceParametersStage}) and the
  * per-method-scope {@link GoalSpec} the expansion driver reads.
+ *
+ * <p>What a reader {@code reject}s is reported here, verbatim and unconditionally — a malformed declaration is wrong
+ * whether or not anything ever demands the path it names, so it cannot ride the candidate-refusal rail.
  */
 @RequiredArgsConstructor(onConstructor_ = @Inject)
 public final class DiscoverMappingsStage implements Stage {
@@ -32,8 +35,9 @@ public final class DiscoverMappingsStage implements Stage {
         if (shape == null) {
             return;
         }
-        final var methodDirectives =
-                shape.getAbstractMethods().stream().map(this::readMethod).collect(toUnmodifiableList());
+        final var methodDirectives = shape.getAbstractMethods().stream()
+                .map(method -> readMethod(method, ctx))
+                .collect(toUnmodifiableList());
         ctx.setMethodDirectives(methodDirectives);
         methodDirectives.forEach(directives -> ctx.getGoalSpecs()
                 .put(
@@ -45,9 +49,10 @@ public final class DiscoverMappingsStage implements Stage {
                                 directives.getScopeInputOverrides())));
     }
 
-    MethodDirectives readMethod(final ExecutableElement method) {
+    MethodDirectives readMethod(final ExecutableElement method, final MapperContext ctx) {
         final var sink = new DirectiveSinkImpl();
         readers.forEach(reader -> reader.read(method, sink));
+        sink.getRejections().forEach(ctx::report);
         return new MethodDirectives(
                 method,
                 sink.getBinds(),

@@ -44,3 +44,38 @@ the conflicting requesters so the author can locate them.
 #### Scenario: The message identifies the requesters
 - **WHEN** a dedup-key conflict is emitted
 - **THEN** the message names the operation label of each conflicting requester
+
+## MODIFIED Requirements
+
+### Requirement: Per-mapper failure policy
+
+`GenerateStage.run(ctx)` SHALL skip an entire mapper — emitting no `JavaFile` for that mapper — when either of these conditions holds:
+
+1. `ctx.hasErrors()` returns `true` at the time `GenerateStage` runs.
+2. Any exception is thrown during `BuildMethodBodies` or `AssembleMapperType` for that mapper.
+
+For condition 2, `GenerateStage` SHALL catch the exception, record an error `Diagnostic` **marked permanent** (a code-generation failure cannot resolve in a later round) whose message is `"code generation failed: " + exception.getMessage()`, positioned at `Subjects.none()` so it resolves to the mapper type, and continue with the next mapper.
+
+In neither case SHALL the stage emit a partial implementation, a stub class, or any other artifact bearing the `<Name>Impl` name. The "never ship broken code" principle takes precedence over "produce something the user can iterate on."
+
+Per-mapper isolation SHALL hold: a skipped mapper SHALL NOT cause other mappers in the same processor round to be skipped. `MapperStep` dispatches each `@Mapper`-annotated `TypeElement` to `Pipeline.process(...)` independently, and `GenerateStage` SHALL preserve that isolation — which the per-mapper `MapperContext` now enforces structurally, there being no cross-mapper diagnostic state to leak.
+
+#### Scenario: Validation error skips the entire mapper
+
+- **WHEN** `ctx.hasErrors()` returns `true` on entry to `GenerateStage.run(ctx)`
+- **THEN** `GenerateStage` returns without invoking `Filer.createSourceFile` for the mapper type
+- **AND** no new diagnostic is added (the existing validation diagnostic stands)
+
+#### Scenario: Exception during generation is caught and diagnosed
+
+- **WHEN** `BuildMethodBodies` throws a `RuntimeException` while processing a mapper
+- **THEN** `GenerateStage` catches the exception
+- **AND** records an error `Diagnostic` whose message contains `"code generation failed"` plus the exception's message, resolving to the mapper type
+- **AND** does not invoke `Filer.createSourceFile` for that mapper
+- **AND** does not rethrow
+
+#### Scenario: One failing mapper does not block others
+
+- **WHEN** a processor round contains two `@Mapper` types `A` and `B`, where `A` has validation errors and `B` does not
+- **THEN** `Filer.createSourceFile` is invoked for `BImpl`
+- **AND** is not invoked for `AImpl`

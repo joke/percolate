@@ -3,7 +3,6 @@ package io.github.joke.percolate.spi.builtins
 import com.google.testing.compile.Compilation
 import com.google.testing.compile.JavaFileObjects
 import io.github.joke.percolate.test.PercolateCompiler
-import spock.lang.PendingFeature
 import spock.lang.Specification
 import spock.lang.Tag
 
@@ -14,21 +13,22 @@ import javax.tools.JavaFileObject
  * own {@code REQUIRE}-miss handling (design D5 of change {@code decouple-engine-from-strategy-semantics}) rather
  * than {@code ValidateAmbientBindingsStage}, which this change deletes: an unbound binding name reachable from a
  * mapper method that publishes none, and a same-name type mismatch. Each must fail the compile with a message
- * naming the binding — never silently, and never only via the generic "no plan" diagnostic. The duplicate-key
- * check has no replacement yet — it is re-homed into {@code AmbientDirectiveReader} later in this same change
- * (group C1); see the {@code @PendingFeature} below.
+ * naming the binding — never silently, and never only via the generic "no plan" diagnostic.
+ *
+ * <p>Two {@code @Ambient} parameters resolving to one key is now the engine's own scope-input rule rather than an
+ * annotation rule ({@code ValidateSourceParametersStage}), so the message speaks of a duplicate <em>scope input</em>
+ * and names no annotation — the same check fires for any {@code DirectiveReader} that publishes a colliding name.
  */
 @Tag('integration')
 class AmbientDiagnosticsNegativeSpec extends Specification {
 
-    @PendingFeature(reason = 'duplicate-key detection moves to AmbientDirectiveReader in a later group of this change')
     def 'two @Ambient parameters of one method resolving to the same key fail the compile, naming the key'() {
         when:
         Compilation compilation = PercolateCompiler.compile(PERSON, ORDER, CUSTOMER, RESULT, DUPLICATE_KEY_MAPPER)
 
         then:
         !compilation.errors().empty
-        compilation.errors().any { it.getMessage(null).contains("duplicate @Ambient key 'ctx'") }
+        compilation.errors().any { it.getMessage(null).contains("duplicate scope input 'ctx'") }
     }
 
     def 'an ambient binding name unbound at every reachable mapper method fails the compile, naming it'() {

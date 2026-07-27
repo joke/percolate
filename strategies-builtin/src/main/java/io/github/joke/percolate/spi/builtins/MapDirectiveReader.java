@@ -6,12 +6,10 @@ import io.github.joke.percolate.Map;
 import io.github.joke.percolate.spi.DirectiveInput;
 import io.github.joke.percolate.spi.DirectiveReader;
 import io.github.joke.percolate.spi.DirectiveSink;
-import io.github.joke.percolate.spi.Offer;
 import io.github.joke.percolate.spi.Subject;
 import io.github.joke.percolate.spi.Subjects;
 import java.util.List;
 import java.util.Objects;
-import java.util.Optional;
 import javax.lang.model.element.AnnotationMirror;
 import javax.lang.model.element.AnnotationValue;
 import javax.lang.model.element.ExecutableElement;
@@ -26,10 +24,12 @@ import lombok.RequiredArgsConstructor;
  *
  * <p>{@code @Map}'s own shape rules — <b>source XOR constant</b>, and <b>{@code defaultValue} requires a
  * source</b> — are enforced here, the annotation's own reader, rather than by the core: a violation declines to
- * {@code bind} (so the path is never assembled as a real binding) and instead {@code constrain}s the target path
- * with an always-refusing {@link io.github.joke.percolate.spi.Constraint}, so the contradiction still surfaces as a
- * positioned compile error if anything ever demands that path, without the core ever learning {@code @Map}'s
- * vocabulary.
+ * {@code bind} (so the path is never assembled as a real binding) and {@code reject}s the declaration with a
+ * positioned reason the core reports verbatim, without ever learning {@code @Map}'s vocabulary.
+ *
+ * <p>A rejection, not a {@link io.github.joke.percolate.spi.Constraint}: a constraint is only ever heard when some
+ * strategy offers a candidate to refuse, and a malformed declaration typically leaves nothing to offer — the
+ * violation would then vanish behind a generic "no plan" line, or behind an unrelated refusal at a shallower miss.
  */
 @CoverageIgnore
 @AutoService(DirectiveReader.class)
@@ -53,7 +53,7 @@ public final class MapDirectiveReader implements DirectiveReader {
         final var targetPath = splitDotted(targetValue.getValue().toString());
         final var targetSubject = Subjects.of(method, mirror, targetValue);
 
-        if (declinesShape(method, mirror, written, targetPath, sink)) {
+        if (declinesShape(method, mirror, written, sink)) {
             return;
         }
 
@@ -72,9 +72,8 @@ public final class MapDirectiveReader implements DirectiveReader {
             final ExecutableElement method,
             final AnnotationMirror mirror,
             final java.util.Map<String, AnnotationValue> written,
-            final List<String> targetPath,
             final DirectiveSink sink) {
-        final var shape = new Shape(method, mirror, written, targetPath, sink);
+        final var shape = new Shape(method, mirror, written, sink);
         return shape.declinesBothSourceAndConstant()
                 || shape.declinesNeitherSourceNorConstant()
                 || shape.declinesDefaultValueWithoutSource();
@@ -86,7 +85,6 @@ public final class MapDirectiveReader implements DirectiveReader {
         private final ExecutableElement method;
         private final AnnotationMirror mirror;
         private final java.util.Map<String, AnnotationValue> written;
-        private final List<String> targetPath;
         private final DirectiveSink sink;
 
         boolean declinesBothSourceAndConstant() {
@@ -125,9 +123,9 @@ public final class MapDirectiveReader implements DirectiveReader {
             return written.containsKey(CONSTANT);
         }
 
-        /** Attaches an always-refusing {@link io.github.joke.percolate.spi.Constraint} at {@code targetPath}. */
+        /** Rejects the declaration outright, so the reason is reported whether or not anything demands the path. */
         void refuse(final Subject subject, final String message) {
-            sink.constrain(targetPath, (candidate, boundPorts) -> Optional.of(new Offer.Refusal(subject, message)));
+            sink.reject(subject, message);
         }
     }
 
