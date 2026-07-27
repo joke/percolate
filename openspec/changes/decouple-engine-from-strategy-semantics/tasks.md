@@ -157,4 +157,4 @@ through `tail`.
 - [x] 13.2 Re-read each delta against the implementation and correct any requirement the build proved wrong, rather than bending the code to a stale spec
 - [x] 13.3 Confirm the two design items deferred to discovery are settled: the count of order-dependent e2e assertions, and whether `Subjects.none()` reads well for the member-conflict message
 - [x] 13.4 Run `./gradlew check --no-configuration-cache` one final time and fix every violation — do NOT continue while any remain
-- [ ] 13.5 Commit with `/commit-commands:commit`
+- [x] 13.5 Commit with `/commit-commands:commit`
