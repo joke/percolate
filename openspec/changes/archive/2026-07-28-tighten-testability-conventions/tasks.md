@@ -78,4 +78,4 @@
 - [x] 9.3 Confirm no `SpockConfig.groovy` remains under any module's `src/test/resources` — none, and none tracked in git (the copies under `bin/` are untracked IDE output)
 - [x] 9.4 Review pitest scores per module against 85/95/90 — clean-build scores: processor 96/87/92, spi 96/92/97, strategies-builtin 96/87/92, reactor 99/99/99, reactor-blocking 98/97/97. No drop to investigate: no conversion introduced a stubbed self-call without its own feature method
 - [x] 9.5 Run `./gradlew check --no-configuration-cache` and do NOT continue if there are any violations — green from `clean`, 144 tasks
-- [ ] 9.6 Commit with `/commit-commands:commit`
+- [x] 9.6 Commit with `/commit-commands:commit` — 638ba539
