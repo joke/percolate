@@ -10,13 +10,10 @@ import javax.lang.model.element.Element;
 import javax.lang.model.type.TypeMirror;
 import lombok.RequiredArgsConstructor;
 
-/**
- * The myopic {@link ProduceDemand} the driver hands a producer strategy for one unsatisfied {@code Value} (design
- * D9). It exposes only local decision context — the demanded type and nullness, the in-effect {@code @Map}
- * {@link Directive}, the declared-children goal set, the binding/slot name the demand serves, and the nullness
- * oracle — and no graph or engine handle. It carries no candidate snapshot: the engine sources every input port
- * (design D1).
- */
+// The myopic ProduceDemand the driver hands a producer strategy for one unsatisfied Value (design D9). It
+// exposes only local decision context — the demanded type and nullness, the in-effect @Map Directive, the
+// declared-children goal set, the binding/slot name the demand serves, and the nullness oracle — and no graph
+// or engine handle. It carries no candidate snapshot: the engine sources every input port (design D1).
 @RequiredArgsConstructor
 // each field backs the ProduceDemand accessor of the same name; this is a deliberate myopic data-carrier adapter
 @SuppressWarnings({"PMD.AvoidFieldNameMatchingMethodName", "PMD.DataClass"})

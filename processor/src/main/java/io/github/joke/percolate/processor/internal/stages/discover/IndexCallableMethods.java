@@ -11,12 +11,10 @@ import javax.lang.model.type.TypeMirror;
 import javax.lang.model.util.Types;
 import lombok.RequiredArgsConstructor;
 
-/**
- * The {@link CallableMethods} view over a mapper's callable candidates: {@link #producing} answers with the candidates
- * whose return type is assignable to the demanded output, each invoked on the mapper itself ({@link ThisReceiver}).
- * Assignability is the one type question it asks, routed through {@link Types#isAssignable} — a single seam call a unit
- * spec stubs while the return-type/output {@link TypeMirror}s stay opaque never-stubbed tokens.
- */
+// The CallableMethods view over a mapper's callable candidates: .producing answers with the candidates whose
+// return type is assignable to the demanded output, each invoked on the mapper itself (ThisReceiver).
+// Assignability is the one type question it asks, routed through Types.isAssignable — a single seam call a unit
+// spec stubs while the return-type/output TypeMirrors stay opaque never-stubbed tokens.
 @RequiredArgsConstructor
 final class IndexCallableMethods implements CallableMethods {
 

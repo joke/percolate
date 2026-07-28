@@ -97,7 +97,7 @@ class ProcessorModuleSpec extends Specification {
 
     def 'processorOptions are parsed from the environment options'() {
         when:
-        def result = module.processorOptions()
+        def result = module.processorOptions(new ProcessorOptionsReader())
 
         then:
         1 * env.options >> ['percolate.docTags': 'true']
@@ -137,12 +137,6 @@ class ProcessorModuleSpec extends Specification {
     def 'expandStage assembles an ExpandStage from the injected collaborators'() {
         expect:
         module.expandStage([], [], Mock(Types), Mock(Elements), Mock(NullabilityResolver),
-                defaultOptions()) instanceof ExpandStage
-    }
-
-    def 'assembleExpansionPipeline constructs an ExpandStage'() {
-        expect:
-        ProcessorModule.assembleExpansionPipeline([], [], Mock(Types), Mock(Elements), Mock(NullabilityResolver),
                 defaultOptions()) instanceof ExpandStage
     }
 

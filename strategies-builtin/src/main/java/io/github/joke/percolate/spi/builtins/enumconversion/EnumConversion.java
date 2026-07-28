@@ -31,21 +31,19 @@ import javax.lang.model.element.ElementKind;
 import javax.lang.model.type.TypeMirror;
 import lombok.NoArgsConstructor;
 
-/**
- * Enum-to-enum conversion via a declared conversion method (design of change {@code add-enum-conversion-mapping}):
- * fires whenever the demanded target is an {@code enum}, declaring a bare top-level type-variable port that
- * {@code Grounding} unifies against the in-scope source — the mechanism {@link TemporalFormat} relies on for its
- * roster, generalised to an unbounded source. The concrete source is learned only at render time, through the
- * {@link BodyRenderContext} (design D3): {@link #render} enumerates the grounded source enum's constants,
- * same-name-matches each against the target enum, applies {@code @MapEnum} overrides with precedence, and renders
- * either a classic switch statement or a modern arrow switch expression depending on the effective
- * {@link SwitchStyle} (design D4/D6) — the engine makes none of this decision.
- *
- * <p>Weighted at {@link Weights#EXPENSIVE}, well above a method call ({@link Weights#METHOD}): when a user's own
- * declared conversion method could also satisfy the same demand (reached through {@link MethodCallBridge}), that
- * cheaper, explicit path wins over this inline fallback (design Risk/Trade-off: "competition with a user's
- * hand-written conversion method" — resolved by cost, never by special-casing the engine).
- */
+// Enum-to-enum conversion via a declared conversion method (design of change add-enum-conversion-mapping):
+// fires whenever the demanded target is an enum, declaring a bare top-level type-variable port that Grounding
+// unifies against the in-scope source — the mechanism TemporalFormat relies on for its roster, generalised to
+// an unbounded source. The concrete source is learned only at render time, through the BodyRenderContext
+// (design D3): .render enumerates the grounded source enum's constants, same-name-matches each against the
+// target enum, applies @MapEnum overrides with precedence, and renders either a classic switch statement or a
+// modern arrow switch expression depending on the effective SwitchStyle (design D4/D6) — the engine makes none
+// of this decision.
+//
+// Weighted at Weights.EXPENSIVE, well above a method call (Weights.METHOD): when a user's own declared
+// conversion method could also satisfy the same demand (reached through MethodCallBridge), that cheaper,
+// explicit path wins over this inline fallback (design Risk/Trade-off: "competition with a user's hand-written
+// conversion method" — resolved by cost, never by special-casing the engine).
 @AutoService(ExpansionStrategy.class)
 @NoArgsConstructor
 public final class EnumConversion implements ExpansionStrategy {
@@ -80,12 +78,10 @@ public final class EnumConversion implements ExpansionStrategy {
                 .withConsumed(effectiveOverrides(target, overrides, ctx))));
     }
 
-    /**
-     * The overrides that name a real target constant — the rail (design D3 of change
-     * {@code decouple-engine-from-strategy-semantics}) reports any other {@code @MapEnum} entry as declared but
-     * having had no effect, replacing {@code ValidateEnumOverridesStage}'s target-side check.
-     */
-    static Set<DirectiveInput> effectiveOverrides(
+    // The overrides that name a real target constant — the rail (design D3 of change decouple-engine-from-strategy-
+    // semantics) reports any other @MapEnum entry as declared but having had no effect, replacing
+    // ValidateEnumOverridesStage's target-side check.
+    Set<DirectiveInput> effectiveOverrides(
             final TypeMirror target, final List<DirectiveInput> overrides, final ResolveCtx ctx) {
         if (overrides.isEmpty()) {
             return Set.of();
@@ -97,12 +93,10 @@ public final class EnumConversion implements ExpansionStrategy {
                 .collect(toUnmodifiableSet());
     }
 
-    /**
-     * A {@link PortType.Bound} rejecting a non-enum source or one whose constants are not all covered by a
-     * same-name match or {@code @MapEnum} (design D6 of change {@code decouple-engine-from-strategy-semantics}):
-     * the grounding is vetoed before it ever competes, so {@link #render} never sees either failure.
-     */
-    static PortType.Bound sourceBound(final TypeMirror target, final List<DirectiveInput> overrides) {
+    // A PortType.Bound rejecting a non-enum source or one whose constants are not all covered by a same-name match
+    // or @MapEnum (design D6 of change decouple-engine-from-strategy-semantics): the grounding is vetoed before it
+    // ever competes, so .render never sees either failure.
+    PortType.Bound sourceBound(final TypeMirror target, final List<DirectiveInput> overrides) {
         return (source, ctx) -> {
             if (!ctx.isEnum(source)) {
                 return Optional.of(
@@ -122,9 +116,8 @@ public final class EnumConversion implements ExpansionStrategy {
         };
     }
 
-    /** Renders the whole method body: a switch over the grounded source enum, form chosen by the effective style. */
-    static CodeBlock render(
-            final BodyRenderContext context, final TypeMirror target, final List<DirectiveInput> overrides) {
+    // Renders the whole method body: a switch over the grounded source enum, form chosen by the effective style.
+    CodeBlock render(final BodyRenderContext context, final TypeMirror target, final List<DirectiveInput> overrides) {
         final var resolveCtx = context.resolveCtx();
         final var source = context.portType(VALUE_ROLE);
         final var sourceConstants = enumConstantNames(resolveCtx, source);
@@ -135,17 +128,17 @@ public final class EnumConversion implements ExpansionStrategy {
                 : renderClassic(context.single(), target, sourceConstants, mapping);
     }
 
-    /** {@code AUTO} resolves against the target {@link SourceVersion}: arrow for Java 14+, else classic. */
-    static SwitchStyle resolveStyle(final SwitchStyle configured, final SourceVersion sourceVersion) {
+    // AUTO resolves against the target SourceVersion: arrow for Java 14+, else classic.
+    SwitchStyle resolveStyle(final SwitchStyle configured, final SourceVersion sourceVersion) {
         if (configured != SwitchStyle.AUTO) {
             return configured;
         }
         return sourceVersion.compareTo(JAVA_14) >= 0 ? SwitchStyle.ARROW : SwitchStyle.CLASSIC;
     }
 
-    /** Same-name matches first, then {@code @MapEnum} overrides — which take precedence over a coincidental match. */
+    // Same-name matches first, then @MapEnum overrides — which take precedence over a coincidental match.
     @SuppressWarnings("PMD.UseConcurrentHashMap") // single-threaded render; insertion order matters
-    static Map<String, String> buildMapping(
+    Map<String, String> buildMapping(
             final List<String> sourceConstants,
             final List<String> targetConstants,
             final List<DirectiveInput> overrides) {
@@ -162,8 +155,8 @@ public final class EnumConversion implements ExpansionStrategy {
         return mapping;
     }
 
-    /** A modern switch expression with no {@code default}: javac's own exhaustiveness check rejects a gap. */
-    static CodeBlock renderArrow(
+    // A modern switch expression with no default: javac's own exhaustiveness check rejects a gap.
+    CodeBlock renderArrow(
             final CodeBlock sourceExpr,
             final TypeMirror target,
             final List<String> sourceConstants,
@@ -176,8 +169,8 @@ public final class EnumConversion implements ExpansionStrategy {
         return builder.unindent().add("};\n").build();
     }
 
-    /** A classic switch statement: {@link #sourceBound} guarantees every source constant is already covered. */
-    static CodeBlock renderClassic(
+    // A classic switch statement: .sourceBound guarantees every source constant is already covered.
+    CodeBlock renderClassic(
             final CodeBlock sourceExpr,
             final TypeMirror target,
             final List<String> sourceConstants,
@@ -197,8 +190,8 @@ public final class EnumConversion implements ExpansionStrategy {
         return builder.unindent().add("}\n").build();
     }
 
-    /** {@code type}'s declared enum constants, in declaration order; empty when {@code type} has no backing element. */
-    static List<String> enumConstantNames(final ResolveCtx ctx, final TypeMirror type) {
+    // type's declared enum constants, in declaration order; empty when type has no backing element.
+    List<String> enumConstantNames(final ResolveCtx ctx, final TypeMirror type) {
         return ctx.asTypeElement(type)
                 .map(element -> ctx.membersOf(element)
                         .filter(member -> member.getKind() == ElementKind.ENUM_CONSTANT)

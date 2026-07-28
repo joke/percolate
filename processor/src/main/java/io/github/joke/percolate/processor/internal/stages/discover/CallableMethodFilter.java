@@ -9,15 +9,12 @@ import java.util.List;
 import javax.lang.model.util.Types;
 import lombok.RequiredArgsConstructor;
 
-/**
- * The pure decision half of callable-method discovery: from plain {@link CandidateDescriptor}s it keeps the
- * non-{@code Object} methods and hands them to an {@link IndexCallableMethods} view. Arity — including any
- * {@code @Ambient}-parameter adjustment — is entirely a strategy concern (design D7 of change
- * {@code decouple-engine-from-strategy-semantics}: the processor reads no user-facing annotation); {@code
- * MethodCallBridge} filters its own non-ambient parameter count on the candidates this index offers. It interrogates
- * no {@code javax.lang.model} value beyond {@link CandidateDescriptor}'s own plain fields, so it unit-tests on plain
- * descriptors.
- */
+// The pure decision half of callable-method discovery: from plain CandidateDescriptors it keeps the non-Object
+// methods and hands them to an IndexCallableMethods view. Arity — including any @Ambient-parameter adjustment —
+// is entirely a strategy concern (design D7 of change decouple-engine-from-strategy-semantics: the processor
+// reads no user-facing annotation); MethodCallBridge filters its own non-ambient parameter count on the
+// candidates this index offers. It interrogates no javax.lang.model value beyond CandidateDescriptor's own
+// plain fields, so it unit-tests on plain descriptors.
 @RequiredArgsConstructor(onConstructor_ = @Inject)
 final class CallableMethodFilter {
 

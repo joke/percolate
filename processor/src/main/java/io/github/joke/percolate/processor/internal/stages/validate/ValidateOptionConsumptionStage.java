@@ -6,8 +6,6 @@ import io.github.joke.percolate.processor.internal.graph.ExtractedPlan;
 import io.github.joke.percolate.processor.internal.graph.MapperGraph;
 import io.github.joke.percolate.processor.internal.graph.MethodScope;
 import io.github.joke.percolate.processor.internal.graph.Operation;
-import io.github.joke.percolate.processor.internal.graph.Scope;
-import io.github.joke.percolate.processor.internal.graph.TargetLocation;
 import io.github.joke.percolate.processor.internal.graph.Value;
 import io.github.joke.percolate.processor.internal.stages.Stage;
 import io.github.joke.percolate.processor.model.MethodDirectives;
@@ -23,22 +21,20 @@ import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
 import org.jspecify.annotations.Nullable;
 
-/**
- * The consumption-tracked directive-option rail's diagnostic half (design D3/D7 of change
- * {@code decouple-engine-from-strategy-semantics}): after expansion, for every explicitly <strong>bound</strong>
- * target path (one a reader called {@code bind} at), computes {@code declared − consumed} where {@code consumed} is
- * the union of {@link Operation#getConsumed()} stamped over the <strong>winning</strong> plan reachable from that
- * path's target {@link Value}. Every leftover input is reported as a permanent compile error at its own
- * {@link DirectiveInput#getSubject()} — the input was declared but had no effect on the generated code. A strategy
- * that read no input stamps nothing, so an input consumed by a non-winning candidate still diagnoses (design
- * decision: reflects what the generated code actually does, not what was merely attempted). An input-only path with
- * no {@code bind} (e.g. a {@code @MapEnum} table, attached only at the empty root) is deliberately out of scope: when
- * the sole strategy for that demand is refused outright (design D6's bound), nothing ever consumes anything and this
- * rail would otherwise report a spurious "no effect" ahead of — and, per {@code RealisationDiagnosticsStage}'s
- * once-erred guard, in place of — the strategy's own, more specific refusal message. This is a read-only pass over
- * the plan already extracted for {@link io.github.joke.percolate.processor.internal.stages.generate.GenerateStage};
- * it mutates neither the graph nor the plan (no engine-core change), and names no annotation.
- */
+// The consumption-tracked directive-option rail's diagnostic half (design D3/D7 of change decouple-engine-from-
+// strategy-semantics): after expansion, for every explicitly bound target path (one a reader called bind at),
+// computes declared − consumed where consumed is the union of Operation.getConsumed() stamped over the winning
+// plan reachable from that path's target Value. Every leftover input is reported as a permanent compile error
+// at its own DirectiveInput.getSubject() — the input was declared but had no effect on the generated code. A
+// strategy that read no input stamps nothing, so an input consumed by a non-winning candidate still diagnoses
+// (design decision: reflects what the generated code actually does, not what was merely attempted). An input-
+// only path with no bind (e.g. a @MapEnum table, attached only at the empty root) is deliberately out of scope:
+// when the sole strategy for that demand is refused outright (design D6's bound), nothing ever consumes
+// anything and this rail would otherwise report a spurious "no effect" ahead of — and, per
+// RealisationDiagnosticsStage's once-erred guard, in place of — the strategy's own, more specific refusal
+// message. This is a read-only pass over the plan already extracted for
+// io.github.joke.percolate.processor.internal.stages.generate.GenerateStage; it mutates neither the graph nor
+// the plan (no engine-core change), and names no annotation.
 @RequiredArgsConstructor(onConstructor_ = @Inject)
 public final class ValidateOptionConsumptionStage implements Stage {
 
@@ -88,8 +84,8 @@ public final class ValidateOptionConsumptionStage implements Stage {
                         .asPermanent()));
     }
 
-    /** The consumed-input union over every {@link Operation} the winning plan reaches from {@code target}. */
-    static Set<DirectiveInput> consumedInputs(final MapperGraph graph, final ExtractedPlan plan, final Value target) {
+    // The consumed-input union over every Operation the winning plan reaches from target.
+    Set<DirectiveInput> consumedInputs(final MapperGraph graph, final ExtractedPlan plan, final Value target) {
         final Set<Operation> ops = new HashSet<>();
         collectWinningOps(graph, plan, target, ops, newSeenSet());
         final Set<DirectiveInput> inputs = new HashSet<>();
@@ -97,7 +93,7 @@ public final class ValidateOptionConsumptionStage implements Stage {
         return inputs;
     }
 
-    static void collectWinningOps(
+    void collectWinningOps(
             final MapperGraph graph,
             final ExtractedPlan plan,
             final Value value,
@@ -115,19 +111,17 @@ public final class ValidateOptionConsumptionStage implements Stage {
     }
 
     @SuppressWarnings("IdentityHashMapUsage")
-    static Set<Value> newSeenSet() {
+    Set<Value> newSeenSet() {
         return Collections.newSetFromMap(new IdentityHashMap<>());
     }
 
-    /**
-     * The target Value at the end of {@code target}'s dotted path, walked from the method's assembly root. The
-     * base case is the graph-recorded {@link MapperGraph#returnRootIn(Scope)} — never a location-only lookup —
-     * because the engine may over-emit a same-located conversion intermediate at the empty root {@link
-     * TargetLocation} (e.g. a {@code String} intermediate en route to a format-configured target), and a
-     * location-only match could resolve to that intermediate instead of the declared return type.
-     */
+    // The target Value at the end of target's dotted path, walked from the method's assembly root. The base case is
+    // the graph-recorded MapperGraph.returnRootIn(Scope) — never a location-only lookup — because the engine may
+    // over-emit a same-located conversion intermediate at the empty root TargetLocation (e.g. a String intermediate
+    // en route to a format-configured target), and a location-only match could resolve to that intermediate instead
+    // of the declared return type.
     @Nullable
-    static Value targetValue(final MapperGraph graph, final MethodScope scope, final String target) {
+    Value targetValue(final MapperGraph graph, final MethodScope scope, final String target) {
         var current = graph.returnRootIn(scope);
         for (final var segment : splitPath(target)) {
             final var declared = current;
@@ -145,7 +139,7 @@ public final class ValidateOptionConsumptionStage implements Stage {
         return current;
     }
 
-    static List<String> splitPath(final String path) {
+    List<String> splitPath(final String path) {
         if (path.isEmpty()) {
             return List.of();
         }

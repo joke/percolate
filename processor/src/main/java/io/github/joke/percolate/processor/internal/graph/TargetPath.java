@@ -14,7 +14,7 @@ public class TargetPath {
         return new TargetPath(List.of(segment));
     }
 
-    /** The last segment, or the empty string when the path is empty. */
+    // The last segment, or the empty string when the path is empty.
     public String lastSegment() {
         return segments.isEmpty() ? "" : segments.get(segments.size() - 1);
     }

@@ -7,12 +7,9 @@ import jakarta.inject.Inject;
 import javax.lang.model.element.TypeElement;
 import lombok.RequiredArgsConstructor;
 
-/**
- * Reduces a mapper {@code TypeElement} to a {@link MapperShape} of its abstract, non-{@code Object} methods — the
- * methods the mapper must implement. The genuinely compiler-backed member enumeration lives in the thin
- * {@link AbstractMethodReader}; the pure keep/drop decision lives in {@link AbstractMethodFilter}. This stage is thin
- * glue between them.
- */
+// Reduces a mapper TypeElement to a MapperShape of its abstract, non-Object methods — the methods the mapper
+// must implement. The genuinely compiler-backed member enumeration lives in the thin AbstractMethodReader; the
+// pure keep/drop decision lives in AbstractMethodFilter. This stage is thin glue between them.
 @RequiredArgsConstructor(onConstructor_ = @Inject)
 public final class DiscoverAbstractMethodsStage implements Stage {
 

@@ -6,12 +6,10 @@ import java.util.Objects;
 import javax.lang.model.element.TypeElement;
 import org.jetbrains.annotations.VisibleForTesting;
 
-/**
- * Shared base for the JDK containers whose element-sequence intermediate is {@code java.util.stream.Stream}. It names
- * {@code Stream} once for the built-in collection family (List/Set/array/Optional) so each need not repeat it; a
- * reactive container would instead declare its own intermediate ({@code Flux}/{@code Mono}) on the same hook, with no
- * engine change.
- */
+// Shared base for the JDK containers whose element-sequence intermediate is java.util.stream.Stream. It names
+// Stream once for the built-in collection family (List/Set/array/Optional) so each need not repeat it; a
+// reactive container would instead declare its own intermediate (Flux/Mono) on the same hook, with no engine
+// change.
 abstract class StreamContainer extends Container {
 
     @Override

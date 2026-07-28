@@ -9,19 +9,16 @@ import java.util.Optional;
 import java.util.Set;
 import lombok.Getter;
 
-/**
- * A single production (constructor call, accessor, conversion, container operation, constant): the AND-kind
- * vertex of the bipartite graph — it is usable only when every port of its ordered {@link Port} signature is
- * fed. The operation owns the consumer contract (the former edge-carried {@code Slot}), its codegen, its
- * weight, and a {@code partial} flag (true when the production may throw on a structurally-valid input — e.g.
- * {@code Optional.orElseThrow}, {@code requireNonNull} — which the plan-extraction totality rule deprioritises).
- * Its {@code label} is the strategy-supplied, fully-typed production description (e.g. {@code int→long}) — never
- * the codegen handle's runtime class. A container element mapping additionally owns a {@link ChildScope} whose
- * param/return roots are the only coupling between the child plan and this operation.
- *
- * <p>Equality is instance identity; the graph-assigned {@code seq} keeps {@link #id()} deterministic for
- * ordering and rendering.
- */
+// A single production (constructor call, accessor, conversion, container operation, constant): the AND-kind
+// vertex of the bipartite graph — it is usable only when every port of its ordered Port signature is fed. The
+// operation owns the consumer contract (the former edge-carried Slot), its codegen, its weight, and a partial
+// flag (true when the production may throw on a structurally-valid input — e.g. Optional.orElseThrow,
+// requireNonNull — which the plan-extraction totality rule deprioritises). Its label is the strategy-supplied,
+// fully-typed production description (e.g. int→long) — never the codegen handle's runtime class. A container
+// element mapping additionally owns a ChildScope whose param/return roots are the only coupling between the
+// child plan and this operation.
+//
+// Equality is instance identity; the graph-assigned seq keeps .id() deterministic for ordering and rendering.
 @Getter
 public final class Operation implements GraphVertex {
 

@@ -14,20 +14,18 @@ import org.jetbrains.annotations.VisibleForTesting;
 import org.jgrapht.Graph;
 import org.jspecify.annotations.Nullable;
 
-/**
- * Renders a scope slice of the bipartite graph to DOT (Petri-style): {@link Operation}s are boxes labelled with
- * their typed production {@code label}, {@link Value}s are ellipses labelled with location plus a readable type
- * (simple names + a JSpecify {@code ?}/{@code !} nullness mark per level), and {@link Dep} edges carry their port
- * id as a label. Vertices the caller marks {@code dimmed} (unreachable, by extraction cost) are greyed and dashed
- * rather than dropped, so a pruned over-emission stays distinguishable from the surviving plan.
- *
- * <p>When {@code withRefusals} is set, each {@link Value}'s recorded refusals are drawn beside it as negative
- * space: one note-shaped node per refusal, in the order they were recorded, carrying the refusal's message as
- * opaque text. A refusal is never an {@link Operation} — it has no weight and no port edges — so a candidate that
- * was considered and rejected is visible without being mistaken for one that survived. DOT is debug-only
- * output (gated behind {@code -Apercolate.debugGraphs}), so this class writes the small statement/quoting subset
- * of the format itself rather than pulling in a DOT-export library for it.
- */
+// Renders a scope slice of the bipartite graph to DOT (Petri-style): Operations are boxes labelled with their
+// typed production label, Values are ellipses labelled with location plus a readable type (simple names + a
+// JSpecify ?/! nullness mark per level), and Dep edges carry their port id as a label. Vertices the caller
+// marks dimmed (unreachable, by extraction cost) are greyed and dashed rather than dropped, so a pruned over-
+// emission stays distinguishable from the surviving plan.
+//
+// When withRefusals is set, each Value's recorded refusals are drawn beside it as negative space: one note-
+// shaped node per refusal, in the order they were recorded, carrying the refusal's message as opaque text. A
+// refusal is never an Operation — it has no weight and no port edges — so a candidate that was considered and
+// rejected is visible without being mistaken for one that survived. DOT is debug-only output (gated behind
+// -Apercolate.debugGraphs), so this class writes the small statement/quoting subset of the format itself rather
+// than pulling in a DOT-export library for it.
 @NoArgsConstructor(onConstructor_ = @Inject)
 public final class DotRenderer {
 
@@ -42,13 +40,13 @@ public final class DotRenderer {
     private static final String DIM_FILL = "#DDDDDD";
     private static final String REFUSAL_FILL = "#FFD6D6";
 
-    /** Renders {@code scopeGraph} captioned with {@code caption}; {@code dimmed} vertices render greyed and dashed. */
+    // Renders scopeGraph captioned with caption; dimmed vertices render greyed and dashed.
     public String render(
             final Graph<GraphVertex, Dep> scopeGraph, final String caption, final Predicate<GraphVertex> dimmed) {
         return render(scopeGraph, caption, dimmed, false);
     }
 
-    /** As {@link #render(Graph, String, Predicate)}, additionally drawing each {@link Value}'s recorded refusals. */
+    // As #render(Graph, String, Predicate), additionally drawing each Value's recorded refusals.
     public String render(
             final Graph<GraphVertex, Dep> scopeGraph,
             final String caption,
@@ -73,12 +71,10 @@ public final class DotRenderer {
         return dot.toString();
     }
 
-    /**
-     * Draws {@code vertex}'s refusals, if it is a {@link Value} carrying any, in the order they were recorded. The
-     * renderer treats each message as opaque text and never classifies a refusal by where it came from.
-     */
+    // Draws vertex's refusals, if it is a Value carrying any, in the order they were recorded. The renderer treats
+    // each message as opaque text and never classifies a refusal by where it came from.
     @VisibleForTesting
-    static void appendRefusals(final StringBuilder dot, final GraphVertex vertex) {
+    void appendRefusals(final StringBuilder dot, final GraphVertex vertex) {
         if (!(vertex instanceof Value)) {
             return;
         }
@@ -90,14 +86,14 @@ public final class DotRenderer {
     }
 
     @VisibleForTesting
-    static void appendRefusal(final StringBuilder dot, final Value value, final Refusal refusal, final int index) {
+    void appendRefusal(final StringBuilder dot, final Value value, final Refusal refusal, final int index) {
         final var id = quote(value.id() + "#refused-" + index);
         appendStatement(dot, id, refusalAttributes(refusal));
         appendStatement(dot, id + " -> " + quote(value.id()), Map.of(STYLE, "dashed"));
     }
 
     @VisibleForTesting
-    static Map<String, String> refusalAttributes(final Refusal refusal) {
+    Map<String, String> refusalAttributes(final Refusal refusal) {
         final var attrs = new LinkedHashMap<String, String>();
         attrs.put(LABEL, refusal.getMessage());
         attrs.put("shape", "note");
@@ -107,7 +103,7 @@ public final class DotRenderer {
     }
 
     @VisibleForTesting
-    static void appendStatement(final StringBuilder dot, final String head, final Map<String, String> attrs) {
+    void appendStatement(final StringBuilder dot, final String head, final Map<String, String> attrs) {
         final var bracket = attrs.isEmpty()
                 ? ""
                 : " ["
@@ -120,7 +116,7 @@ public final class DotRenderer {
     }
 
     @VisibleForTesting
-    static Map<String, String> vertexAttributes(final GraphVertex vertex, final boolean dimmed) {
+    Map<String, String> vertexAttributes(final GraphVertex vertex, final boolean dimmed) {
         final var attrs = new LinkedHashMap<String, String>();
         if (vertex instanceof Operation) {
             final var operation = (Operation) vertex;
@@ -143,29 +139,27 @@ public final class DotRenderer {
     }
 
     @VisibleForTesting
-    static Map<String, String> edgeAttributes(final Dep dep) {
+    Map<String, String> edgeAttributes(final Dep dep) {
         final var attrs = new LinkedHashMap<String, String>();
         dep.getPortId().ifPresent(portId -> attrs.put(LABEL, portId));
         return attrs;
     }
 
     @VisibleForTesting
-    static String valueLabel(final Value value) {
+    String valueLabel(final Value value) {
         final var typeSegment = value.getType()
                 .map(type -> formatType(type, value.getNullness().orElse(null)))
                 .orElse(UNKNOWN_TYPE);
         return value.getLoc().segment() + "\\n" + typeSegment;
     }
 
-    /**
-     * The type rendered with simple names and a JSpecify {@code ?}/{@code !} mark at the top (reference) level,
-     * read from the {@code Value}'s own resolved nullness — the only nullness this renderer knows (design
-     * {@code nullability}, change {@code decouple-engine-from-strategy-semantics}): nested type arguments carry
-     * no mark, since the graph records no resolved nullness for them and this renderer re-derives none of its
-     * own. Non-declared kinds (primitives, arrays, wildcards) fall back to their text form, unmarked.
-     */
+    // The type rendered with simple names and a JSpecify ?/! mark at the top (reference) level, read from the
+    // Value's own resolved nullness — the only nullness this renderer knows (design nullability, change decouple-
+    // engine-from-strategy-semantics): nested type arguments carry no mark, since the graph records no resolved
+    // nullness for them and this renderer re-derives none of its own. Non-declared kinds (primitives, arrays,
+    // wildcards) fall back to their text form, unmarked.
     @VisibleForTesting
-    static String formatType(final TypeMirror type, final @Nullable Nullability topNullness) {
+    String formatType(final TypeMirror type, final @Nullable Nullability topNullness) {
         if (type.getKind() != TypeKind.DECLARED) {
             return body(type);
         }
@@ -173,7 +167,7 @@ public final class DotRenderer {
     }
 
     @VisibleForTesting
-    static String body(final TypeMirror type) {
+    String body(final TypeMirror type) {
         if (type.getKind() != TypeKind.DECLARED) {
             return type.toString();
         }
@@ -183,12 +177,12 @@ public final class DotRenderer {
         if (args.isEmpty()) {
             return name;
         }
-        final var inner = args.stream().map(DotRenderer::body).collect(Collectors.joining(", "));
+        final var inner = args.stream().map(this::body).collect(Collectors.joining(", "));
         return name + '<' + inner + '>';
     }
 
     @VisibleForTesting
-    static String topMark(final @Nullable Nullability nullness) {
+    String topMark(final @Nullable Nullability nullness) {
         if (nullness == Nullability.NULLABLE) {
             return "?";
         }
@@ -196,7 +190,7 @@ public final class DotRenderer {
     }
 
     @VisibleForTesting
-    static String fillColor(final Value value) {
+    String fillColor(final Value value) {
         final var loc = value.getLoc();
         if (loc instanceof SourceLocation) {
             return SOURCE_FILL;
@@ -211,7 +205,7 @@ public final class DotRenderer {
     }
 
     @VisibleForTesting
-    static String quote(final String value) {
+    String quote(final String value) {
         final var escaped = value.replace("\\", "\\\\").replace("\"", "\\\"");
         return '"' + escaped + '"';
     }

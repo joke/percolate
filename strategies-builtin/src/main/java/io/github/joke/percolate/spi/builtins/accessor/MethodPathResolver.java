@@ -14,13 +14,11 @@ import javax.lang.model.element.TypeElement;
 import lombok.NoArgsConstructor;
 import org.jetbrains.annotations.VisibleForTesting;
 
-/**
- * Resolves one source-path segment to a no-arg accessor method whose name equals the segment (a fluent accessor, e.g.
- * {@code value()}) on the parent type, on the {@link Accessor} archetype base: candidate-free, the base pins the parent
- * and the segment and wires the one-port accessor {@link io.github.joke.percolate.spi.OperationSpec}; this strategy
- * supplies only the method match and its {@code parent.value()} rendering. The produced value's nullness is the
- * method's, resolved through the demand oracle.
- */
+// Resolves one source-path segment to a no-arg accessor method whose name equals the segment (a fluent
+// accessor, e.g. value()) on the parent type, on the Accessor archetype base: candidate-free, the base pins the
+// parent and the segment and wires the one-port accessor io.github.joke.percolate.spi.OperationSpec; this
+// strategy supplies only the method match and its parent.value() rendering. The produced value's nullness is
+// the method's, resolved through the demand oracle.
 @AutoService(ExpansionStrategy.class)
 @NoArgsConstructor
 public final class MethodPathResolver extends Accessor {
@@ -34,7 +32,7 @@ public final class MethodPathResolver extends Accessor {
                 .map(method -> step(method, segment));
     }
 
-    static Step step(final ExecutableElement method, final String segment) {
+    Step step(final ExecutableElement method, final String segment) {
         final OperationCodegen codegen = inputs -> CodeBlock.of("$L$Z.$N()", inputs.single(), segment);
         return new Step(method.getReturnType(), method, segment + "()", Weights.STEP_METHOD, codegen);
     }

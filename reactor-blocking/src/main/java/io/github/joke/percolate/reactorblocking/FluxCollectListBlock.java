@@ -14,12 +14,9 @@ import java.util.List;
 import java.util.stream.Stream;
 import lombok.NoArgsConstructor;
 
-/**
- * Upward async-to-sync crossing {@code Flux<T> → List<T>} via {@code flux.collectList().block()}: the buffering
- * blocking reduction, keyed on a target {@code List<T>} and sourcing a {@code Flux<T>} through a <b>reuse-only</b>
- * port. Weighted strictly above any non-blocking alternative; shipped only in the opt-in {@code reactor-blocking}
- * module.
- */
+// Upward async-to-sync crossing Flux<T> → List<T> via flux.collectList().block(): the buffering blocking
+// reduction, keyed on a target List<T> and sourcing a Flux<T> through a reuse-only port. Weighted strictly
+// above any non-blocking alternative; shipped only in the opt-in reactor-blocking module.
 @AutoService(ExpansionStrategy.class)
 @NoArgsConstructor
 public final class FluxCollectListBlock implements ExpansionStrategy {

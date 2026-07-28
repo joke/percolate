@@ -17,14 +17,12 @@ import lombok.NoArgsConstructor;
 import org.jetbrains.annotations.VisibleForTesting;
 import org.jspecify.annotations.Nullable;
 
-/**
- * Widening primitive conversion (JLS 5.1.2), authored target-to-source on the {@link Conversion} archetype base: a
- * primitive target consumes each strictly narrower primitive that widens to it, each a single unary conversion with an
- * explicit cast. The lattice (consumes-direction) is held as data. {@code boolean} appears nowhere (no widening);
- * {@code char} is a source only. The three precision-losing IEEE legs ({@code int → float}, {@code long → float},
- * {@code long → double}) are included, matching javac's implicit-assignment behaviour. The engine composes cross-domain
- * chains (e.g. {@code Integer → long} as unbox-then-widen) through deduped intermediate Values.
- */
+// Widening primitive conversion (JLS 5.1.2), authored target-to-source on the Conversion archetype base: a
+// primitive target consumes each strictly narrower primitive that widens to it, each a single unary conversion
+// with an explicit cast. The lattice (consumes-direction) is held as data. boolean appears nowhere (no
+// widening); char is a source only. The three precision-losing IEEE legs (int → float, long → float, long →
+// double) are included, matching javac's implicit-assignment behaviour. The engine composes cross-domain chains
+// (e.g. Integer → long as unbox-then-widen) through deduped intermediate Values.
 @AutoService(ExpansionStrategy.class)
 @NoArgsConstructor
 public final class WidenPrimitive extends Conversion {
@@ -47,7 +45,7 @@ public final class WidenPrimitive extends Conversion {
         return narrower.stream().map(from -> wideningStep(from, target, ctx));
     }
 
-    static Step wideningStep(final TypeKind from, final TypeMirror target, final ResolveCtx ctx) {
+    Step wideningStep(final TypeKind from, final TypeMirror target, final ResolveCtx ctx) {
         final TypeMirror inputType = ctx.primitiveType(from);
         final OperationCodegen codegen = inputs -> CodeBlock.of("($T) $L", target, inputs.single());
         return new Step(inputType, Labels.conversion(inputType, target), Weights.STEP, codegen);

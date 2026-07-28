@@ -14,13 +14,12 @@ import java.util.List;
 import java.util.stream.Stream;
 import lombok.NoArgsConstructor;
 
-/**
- * Same-type identity assignment as a zero-cost unary {@link OperationSpec} (design D1), target-driven: for any demand
- * it offers an identity that produces the target from a same-typed, same-nullness source — the value flows through
- * unchanged. Its single port is <b>reuse-only</b> ({@link Port#byTypeOrDecline}): the driver binds an in-scope source of the
- * demanded type/nullness, or the operation does not apply — it never mints one. (You do not manufacture a value just
- * to copy it to itself; a same-type produced value already feeds the target directly.) It reads no candidate.
- */
+// Same-type identity assignment as a zero-cost unary OperationSpec (design D1), target-driven: for any demand
+// it offers an identity that produces the target from a same-typed, same-nullness source — the value flows
+// through unchanged. Its single port is reuse-only (Port.byTypeOrDecline): the driver binds an in-scope source
+// of the demanded type/nullness, or the operation does not apply — it never mints one. (You do not manufacture
+// a value just to copy it to itself; a same-type produced value already feeds the target directly.) It reads no
+// candidate.
 @AutoService(ExpansionStrategy.class)
 @NoArgsConstructor
 public final class DirectAssign implements ExpansionStrategy {

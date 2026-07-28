@@ -10,7 +10,7 @@ import java.util.IdentityHashMap;
 import java.util.Set;
 import lombok.RequiredArgsConstructor;
 
-/** Dumps the chosen-plan view (in-plan vertices only), one {@code .plan.dot} file per scope. */
+// Dumps the chosen-plan view (in-plan vertices only), one .plan.dot file per scope.
 @RequiredArgsConstructor(onConstructor_ = @Inject)
 public final class DumpPlanStage implements Stage {
 

@@ -31,12 +31,9 @@ import lombok.RequiredArgsConstructor;
 import org.jgrapht.Graph;
 import org.jgrapht.graph.DirectedMultigraph;
 
-/**
- * Owns the debug-graph IO shared by the {@code Dump*} stages: the {@code debugGraphs} gate, the empty-graph skip,
- * the per-scope partition, the {@link DotRenderer} pass, and the {@link Filer} write. Each stage supplies a
- * vertex-inclusion predicate and a {@code <view>} infix; one file is written per scope as
- * {@code <MapperFQN>.<method>[-n].<view>.dot}.
- */
+// Owns the debug-graph IO shared by the Dump* stages: the debugGraphs gate, the empty-graph skip, the per-scope
+// partition, the DotRenderer pass, and the Filer write. Each stage supplies a vertex-inclusion predicate and a
+// <view> infix; one file is written per scope as <MapperFQN>.<method>[-n].<view>.dot.
 @RequiredArgsConstructor(onConstructor_ = @Inject)
 public final class GraphDumpWriter {
 
@@ -48,13 +45,10 @@ public final class GraphDumpWriter {
         dump(ctx, view, include, false, false);
     }
 
-    /**
-     * As {@link #dump(MapperContext, String, Predicate)}, additionally drawing each {@code Value}'s recorded
-     * refusals as negative space — why a candidate that never became an operation is absent. When
-     * {@code dimUnreachable} is set the rendered vertices that are unreachable (infinite extraction cost) are
-     * greyed/dashed rather than dropped — the full dump's view of the surviving plan against the pruned
-     * over-emission.
-     */
+    // As #dump(MapperContext, String, Predicate), additionally drawing each Value's recorded refusals as negative
+    // space — why a candidate that never became an operation is absent. When dimUnreachable is set the rendered
+    // vertices that are unreachable (infinite extraction cost) are greyed/dashed rather than dropped — the full
+    // dump's view of the surviving plan against the pruned over-emission.
     public void dumpWithRefusals(
             final MapperContext ctx,
             final String view,
@@ -92,12 +86,12 @@ public final class GraphDumpWriter {
         return !processorOptions.isDebugGraphs() || graph.vertexCount() == 0 || ctx.hasErrors();
     }
 
-    static Predicate<GraphVertex> dimmedByCost(final MapperGraph graph) {
+    Predicate<GraphVertex> dimmedByCost(final MapperGraph graph) {
         final var plan = ExtractedPlan.extract(graph);
         return vertex -> !plan.reachable(vertex);
     }
 
-    /** The scope's slice, rendered to DOT — refusals drawn as negative space when {@code withRefusals} is set. */
+    // The scope's slice, rendered to DOT — refusals drawn as negative space when withRefusals is set.
     String renderScope(
             final MapperGraph graph,
             final Predicate<GraphVertex> include,
@@ -126,8 +120,7 @@ public final class GraphDumpWriter {
         }
     }
 
-    static Graph<GraphVertex, Dep> slice(
-            final MapperGraph graph, final Scope scope, final Predicate<GraphVertex> include) {
+    Graph<GraphVertex, Dep> slice(final MapperGraph graph, final Scope scope, final Predicate<GraphVertex> include) {
         final var slice = new DirectedMultigraph<GraphVertex, Dep>(Dep.class);
         graph.vertices()
                 .filter(vertex -> vertex.getScope().equals(scope) && include.test(vertex))
@@ -142,7 +135,7 @@ public final class GraphDumpWriter {
         return slice;
     }
 
-    static List<Scope> orderedScopes(final MapperGraph graph, final Predicate<GraphVertex> include) {
+    List<Scope> orderedScopes(final MapperGraph graph, final Predicate<GraphVertex> include) {
         return graph.vertices()
                 .filter(include)
                 .map(GraphVertex::getScope)
@@ -151,15 +144,14 @@ public final class GraphDumpWriter {
                 .collect(toUnmodifiableList());
     }
 
-    static Map<Scope, String> infixes(final List<Scope> scopes) {
-        final var byBase =
-                scopes.stream().collect(groupingBy(GraphDumpWriter::baseInfix, LinkedHashMap::new, toList()));
+    Map<Scope, String> infixes(final List<Scope> scopes) {
+        final var byBase = scopes.stream().collect(groupingBy(this::baseInfix, LinkedHashMap::new, toList()));
         final var result = new LinkedHashMap<Scope, String>();
         byBase.forEach((base, group) -> result.putAll(infixesWithinGroup(base, group)));
         return result;
     }
 
-    static Map<Scope, String> infixesWithinGroup(final String base, final List<Scope> group) {
+    Map<Scope, String> infixesWithinGroup(final String base, final List<Scope> group) {
         final var disambiguate = group.size() > 1;
         final var result = new LinkedHashMap<Scope, String>();
         for (var index = 0; index < group.size(); index++) {
@@ -168,7 +160,7 @@ public final class GraphDumpWriter {
         return result;
     }
 
-    static String baseInfix(final Scope scope) {
+    String baseInfix(final Scope scope) {
         if (scope instanceof MethodScope) {
             return ((MethodScope) scope).getMethod().getSimpleName().toString();
         }
@@ -178,7 +170,7 @@ public final class GraphDumpWriter {
         return enclosingMethodInfix(scope) + "-elem";
     }
 
-    static String enclosingMethodInfix(final Scope scope) {
+    String enclosingMethodInfix(final Scope scope) {
         var current = scope;
         while (!(current instanceof MethodScope)) {
             final var parent = current.parent();

@@ -16,18 +16,14 @@ import java.util.stream.Stream;
 import javax.lang.model.type.TypeMirror;
 import lombok.NoArgsConstructor;
 
-/**
- * Upward async-to-sync crossing {@code Mono<T> → Optional<T>} via {@code mono.blockOptional()}: the presence-preserving
- * blocking bridge, keyed on a target {@code Optional<T>} and sourcing a {@code Mono<T>} through a <b>reuse-only</b>
- * port. Weighted strictly above any non-blocking alternative; shipped only in the opt-in {@code reactor-blocking}
- * module.
- *
- * <p>It is also the matching <b>{@link SourceProjection}</b> ({@code Mono<X> → Optional<X>}): a <b>total</b> grounding
- * view (projected from {@code blockOptional}, never the partial {@code block}/{@code single().block}) so an
- * {@code Optional<A>} presence-map port grounds its element type {@code A} against an in-scope reactive {@code Mono<X>}
- * source. The view only widens the grounding-match set; the concrete {@code Optional<X>} is still produced by the
- * weighted reuse-only {@code blockOptional} above.
- */
+// Upward async-to-sync crossing Mono<T> → Optional<T> via mono.blockOptional(): the presence-preserving
+// blocking bridge, keyed on a target Optional<T> and sourcing a Mono<T> through a reuse-only port. Weighted
+// strictly above any non-blocking alternative; shipped only in the opt-in reactor-blocking module.
+//
+// It is also the matching SourceProjection (Mono<X> → Optional<X>): a total grounding view (projected from
+// blockOptional, never the partial block/single().block) so an Optional<A> presence-map port grounds its
+// element type A against an in-scope reactive Mono<X> source. The view only widens the grounding-match set; the
+// concrete Optional<X> is still produced by the weighted reuse-only blockOptional above.
 @AutoService({ExpansionStrategy.class, SourceProjection.class})
 @NoArgsConstructor
 public final class MonoBlockOptional implements ExpansionStrategy, SourceProjection {

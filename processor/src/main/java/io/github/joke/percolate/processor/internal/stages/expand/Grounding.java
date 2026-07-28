@@ -9,15 +9,13 @@ import java.util.stream.Stream;
 import javax.lang.model.type.TypeMirror;
 import lombok.RequiredArgsConstructor;
 
-/**
- * Grounding-by-match (design D2/D5, change {@code target-driven-engine} §§ 2.2–2.4), decomposed (change
- * {@code decompose-engine-stages}) into an orchestrator over three collaborators: an {@link OperationSpec} with no
- * type-variable port passes through unchanged; a spec carrying a template port has its match set <b>widened</b>
- * ({@link SourceWidener}), every consistent binding <b>enumerated</b> ({@link BindingEnumerator}, matching each port
- * via the injected {@link Unifier}), and one fully-concrete spec <b>instantiated</b> per binding
- * ({@link SpecInstantiator}). When several sources match, every match is instantiated (over-emit); the engine applies
- * no preference and lets cost extraction prune the unreachable ones.
- */
+// Grounding-by-match (design D2/D5, change target-driven-engine §§ 2.2–2.4), decomposed (change decompose-
+// engine-stages) into an orchestrator over three collaborators: an OperationSpec with no type-variable port
+// passes through unchanged; a spec carrying a template port has its match set widened (SourceWidener), every
+// consistent binding enumerated (BindingEnumerator, matching each port via the injected Unifier), and one
+// fully-concrete spec instantiated per binding (SpecInstantiator). When several sources match, every match is
+// instantiated (over-emit); the engine applies no preference and lets cost extraction prune the unreachable
+// ones.
 @RequiredArgsConstructor
 final class Grounding {
 
@@ -25,12 +23,10 @@ final class Grounding {
     private final BindingEnumerator enumerator;
     private final SpecInstantiator instantiator;
 
-    /**
-     * Grounds {@code spec} against the {@code sources} in scope: a spec with no type-variable port is returned as-is;
-     * otherwise one concrete spec is emitted per consistent match (none when nothing unifies — no bridge invented).
-     * Every bound refusal encountered along the way (design D6 of change
-     * {@code decouple-engine-from-strategy-semantics}) is recorded to {@code refusals}.
-     */
+    // Grounds spec against the sources in scope: a spec with no type-variable port is returned as-is; otherwise one
+    // concrete spec is emitted per consistent match (none when nothing unifies — no bridge invented). Every bound
+    // refusal encountered along the way (design D6 of change decouple-engine-from-strategy-semantics) is recorded
+    // to refusals.
     Stream<OperationSpec> ground(final OperationSpec spec, final List<TypeMirror> sources, final List<Offer> refusals) {
         final var templatePorts = spec.getPorts().stream()
                 .filter(port -> port.getTemplate() != null)

@@ -12,12 +12,10 @@ import javax.lang.model.type.TypeMirror;
 import lombok.NoArgsConstructor;
 import org.jetbrains.annotations.VisibleForTesting;
 
-/**
- * The array sequence container. Opens via {@code Arrays.stream}; closes via {@code toArray()}. Arrays have no
- * synchronous single-element wrap, so {@link #wrap()} stays empty (inherited default) — kind stays a sequence because
- * {@link #collect()} is supplied. An array has no declared erasure ({@link #kindErasure} is empty); its kind is formed
- * by {@link #containerOf} as a reflective array type.
- */
+// The array sequence container. Opens via Arrays.stream; closes via toArray(). Arrays have no synchronous
+// single-element wrap, so .wrap() stays empty (inherited default) — kind stays a sequence because .collect() is
+// supplied. An array has no declared erasure (.kindErasure is empty); its kind is formed by .containerOf as a
+// reflective array type.
 @AutoService({ExpansionStrategy.class, SourceProjection.class})
 @NoArgsConstructor
 public final class ArrayContainer extends StreamContainer {

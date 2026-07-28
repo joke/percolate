@@ -69,11 +69,12 @@ public final class ProcessorModule {
     }
 
     @Provides
-    ProcessorOptions processorOptions() {
-        return ProcessorOptions.from(processingEnvironment.getOptions());
+    ProcessorOptions processorOptions(final ProcessorOptionsReader reader) {
+        return reader.from(processingEnvironment.getOptions());
     }
 
-    /** The target {@link SourceVersion}, read once from the environment — the {@code enum-conversion} strategy's codegen resolves {@code switch.style}'s {@code AUTO} against it; the engine itself reads no version. */
+    // The target SourceVersion, read once from the environment — the enum-conversion strategy's codegen resolves
+    // switch.style's AUTO against it; the engine itself reads no version.
     @Provides
     SourceVersion sourceVersion() {
         return processingEnvironment.getSourceVersion();
@@ -98,16 +99,6 @@ public final class ProcessorModule {
         return resolver;
     }
 
-    public static ExpandStage assembleExpansionPipeline(
-            final List<ExpansionStrategy> strategies,
-            final List<SourceProjection> projections,
-            final Types types,
-            final Elements elements,
-            final NullabilityResolver nullabilityResolver,
-            final ProcessorOptions options) {
-        return new ExpandStage(strategies, projections, types, elements, nullabilityResolver, options);
-    }
-
     @Provides
     ExpandStage expandStage(
             final List<ExpansionStrategy> strategies,
@@ -116,7 +107,7 @@ public final class ProcessorModule {
             final Elements elements,
             final NullabilityResolver nullabilityResolver,
             final ProcessorOptions options) {
-        return assembleExpansionPipeline(strategies, projections, types, elements, nullabilityResolver, options);
+        return new ExpandStage(strategies, projections, types, elements, nullabilityResolver, options);
     }
 
     @Provides
@@ -158,10 +149,8 @@ public final class ProcessorModule {
                 .collect(toUnmodifiableList());
     }
 
-    /**
-     * The single {@link ExpansionStrategy} list, loaded once and tried as one round each pass (no kind-ordering).
-     * Ordered by {@link ExpansionStrategy#priority()} then FQN for deterministic, stable expansion.
-     */
+    // The single ExpansionStrategy list, loaded once and tried as one round each pass (no kind-ordering). Ordered
+    // by ExpansionStrategy.priority() then FQN for deterministic, stable expansion.
     @Singleton
     @Provides
     static List<ExpansionStrategy> expansionStrategies() {
@@ -174,11 +163,8 @@ public final class ProcessorModule {
                 .collect(toUnmodifiableList());
     }
 
-    /**
-     * The {@link DirectiveReader} list (design D7 of change {@code decouple-engine-from-strategy-semantics}), loaded
-     * once via {@link ServiceLoader} exactly as {@link ExpansionStrategy} is; ordered by FQN for deterministic
-     * discovery.
-     */
+    // The DirectiveReader list (design D7 of change decouple-engine-from-strategy-semantics), loaded once via
+    // ServiceLoader exactly as ExpansionStrategy is; ordered by FQN for deterministic discovery.
     @Singleton
     @Provides
     static List<DirectiveReader> directiveReaders() {
@@ -190,10 +176,8 @@ public final class ProcessorModule {
                 .collect(toUnmodifiableList());
     }
 
-    /**
-     * The {@link SourceProjection} list (design D8), loaded once. Source-facing projectors the driver consults to
-     * widen grounding-by-match's match set; ordered by FQN for deterministic expansion.
-     */
+    // The SourceProjection list (design D8), loaded once. Source-facing projectors the driver consults to widen
+    // grounding-by-match's match set; ordered by FQN for deterministic expansion.
     @Singleton
     @Provides
     static List<SourceProjection> sourceProjections() {

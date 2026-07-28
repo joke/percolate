@@ -35,6 +35,7 @@ import javax.lang.model.type.TypeMirror
 class EnumConversionSpec extends Specification {
 
     ResolveCtx ctx = Mock()
+    EnumConversion enumConversion = new EnumConversion()
     TypeMirror targetType = Mock()
 
     // ---- expand ---------------------------------------------------------------------------------------------
@@ -43,14 +44,14 @@ class EnumConversionSpec extends Specification {
         ctx.isEnum(targetType) >> false
 
         expect:
-        new EnumConversion().expand(Demands.forTarget(targetType), ctx).toList().empty
+        enumConversion.expand(Demands.forTarget(targetType), ctx).toList().empty
     }
 
     def 'expand declares one type-variable port at Weights.EXPENSIVE, so a declared method always wins'() {
         ctx.isEnum(targetType) >> true
 
         when:
-        def specs = new EnumConversion().expand(Demands.forTarget(targetType), ctx)*.spec
+        def specs = enumConversion.expand(Demands.forTarget(targetType), ctx)*.spec
 
         then:
         specs.size() == 1
@@ -85,7 +86,7 @@ class EnumConversionSpec extends Specification {
         def demand = Demands.withEnumOverrides(targetType, [enumOverride('NEW', 'CREATED')])
 
         when:
-        def spec = new EnumConversion().expand(demand, ctx).toList().first().spec
+        def spec = enumConversion.expand(demand, ctx).toList().first().spec
 
         then: 'NEW has no same-name match in the target — only the override covers it, so no coverage exception'
         ((BodyCodegen) spec.codegen).render(context) != null
@@ -101,56 +102,56 @@ class EnumConversionSpec extends Specification {
         def invalid = enumOverride('OLD', 'ARCHIVED')
 
         expect:
-        EnumConversion.effectiveOverrides(targetType, [valid, invalid], ctx) == [valid] as Set
+        enumConversion.effectiveOverrides(targetType, [valid, invalid], ctx) == [valid] as Set
     }
 
     // ---- resolveStyle -----------------------------------------------------------------------------------------
 
     def 'resolveStyle AUTO resolves to ARROW on Java 14 and newer'() {
         expect:
-        EnumConversion.resolveStyle(SwitchStyle.AUTO, SourceVersion.valueOf('RELEASE_14')) == SwitchStyle.ARROW
-        EnumConversion.resolveStyle(SwitchStyle.AUTO, SourceVersion.valueOf('RELEASE_17')) == SwitchStyle.ARROW
+        enumConversion.resolveStyle(SwitchStyle.AUTO, SourceVersion.valueOf('RELEASE_14')) == SwitchStyle.ARROW
+        enumConversion.resolveStyle(SwitchStyle.AUTO, SourceVersion.valueOf('RELEASE_17')) == SwitchStyle.ARROW
     }
 
     def 'resolveStyle AUTO resolves to CLASSIC below Java 14'() {
         expect:
-        EnumConversion.resolveStyle(SwitchStyle.AUTO, SourceVersion.RELEASE_11) == SwitchStyle.CLASSIC
+        enumConversion.resolveStyle(SwitchStyle.AUTO, SourceVersion.RELEASE_11) == SwitchStyle.CLASSIC
     }
 
     def 'resolveStyle honours an explicit CLASSIC or ARROW regardless of the target version'() {
         expect:
-        EnumConversion.resolveStyle(SwitchStyle.CLASSIC, SourceVersion.valueOf('RELEASE_17')) == SwitchStyle.CLASSIC
-        EnumConversion.resolveStyle(SwitchStyle.ARROW, SourceVersion.RELEASE_11) == SwitchStyle.ARROW
+        enumConversion.resolveStyle(SwitchStyle.CLASSIC, SourceVersion.valueOf('RELEASE_17')) == SwitchStyle.CLASSIC
+        enumConversion.resolveStyle(SwitchStyle.ARROW, SourceVersion.RELEASE_11) == SwitchStyle.ARROW
     }
 
     // ---- buildMapping (task 6.2: name-match, then @MapEnum precedence) --------------------------------------------
 
     def 'buildMapping same-name-matches every source constant with an identically-named target constant'() {
         expect:
-        EnumConversion.buildMapping(['CREATED', 'FULFILLED'], ['CREATED', 'FULFILLED', 'ARCHIVED'], []) ==
+        enumConversion.buildMapping(['CREATED', 'FULFILLED'], ['CREATED', 'FULFILLED', 'ARCHIVED'], []) ==
                 [CREATED: 'CREATED', FULFILLED: 'FULFILLED']
     }
 
     def 'buildMapping leaves an unmatched, un-overridden source constant uncovered'() {
         expect:
-        EnumConversion.buildMapping(['NEW'], ['CREATED'], []) == [:]
+        enumConversion.buildMapping(['NEW'], ['CREATED'], []) == [:]
     }
 
     def 'buildMapping applies a @MapEnum override with precedence over a coincidental same-name match'() {
         expect:
-        EnumConversion.buildMapping(['NEW'], ['NEW', 'CREATED'], [enumOverride('NEW', 'CREATED')]) == [NEW: 'CREATED']
+        enumConversion.buildMapping(['NEW'], ['NEW', 'CREATED'], [enumOverride('NEW', 'CREATED')]) == [NEW: 'CREATED']
     }
 
     def 'buildMapping applies a @MapEnum override for a source with no same-name match at all'() {
         expect:
-        EnumConversion.buildMapping(['NEW'], ['CREATED'], [enumOverride('NEW', 'CREATED')]) == [NEW: 'CREATED']
+        enumConversion.buildMapping(['NEW'], ['CREATED'], [enumOverride('NEW', 'CREATED')]) == [NEW: 'CREATED']
     }
 
     // ---- renderClassic: coverage is guaranteed by sourceBound before render ever runs ------------------------------
 
     def 'renderClassic renders every constant when every source constant is covered'() {
         expect:
-        EnumConversion.renderClassic(CodeBlock.of('v'), targetType, ['NEW', 'COMPLETED'],
+        enumConversion.renderClassic(CodeBlock.of('v'), targetType, ['NEW', 'COMPLETED'],
                 [NEW: 'CREATED', COMPLETED: 'FULFILLED']) != null
     }
 
@@ -158,7 +159,7 @@ class EnumConversionSpec extends Specification {
 
     def 'renderArrow never throws, even for an uncovered constant — coverage is deferred to javac'() {
         expect:
-        EnumConversion.renderArrow(CodeBlock.of('v'), targetType, ['NEW', 'CANCELLED'], [NEW: 'CREATED']) != null
+        enumConversion.renderArrow(CodeBlock.of('v'), targetType, ['NEW', 'CANCELLED'], [NEW: 'CREATED']) != null
     }
 
     // ---- render: dispatches by the effective style, and the classic/arrow coverage split holds end-to-end ----------
@@ -180,7 +181,7 @@ class EnumConversionSpec extends Specification {
         context.single() >> CodeBlock.of('v')
 
         expect:
-        EnumConversion.render(context, targetType, []) != null
+        enumConversion.render(context, targetType, []) != null
     }
 
     // ---- sourceBound: vetoes a non-enum source or an uncovered one before render ever runs (design D6) -------------
@@ -190,7 +191,7 @@ class EnumConversionSpec extends Specification {
         ctx.isEnum(sourceType) >> false
 
         when:
-        def refusal = EnumConversion.sourceBound(targetType, []).check(sourceType, ctx)
+        def refusal = enumConversion.sourceBound(targetType, []).check(sourceType, ctx)
 
         then:
         0 * ctx.asTypeElement(_)
@@ -210,7 +211,7 @@ class EnumConversionSpec extends Specification {
         ctx.membersOf(targetElement) >> [constant('NEW')].stream()
 
         when:
-        def refusal = EnumConversion.sourceBound(targetType, []).check(sourceType, ctx)
+        def refusal = enumConversion.sourceBound(targetType, []).check(sourceType, ctx)
 
         then:
         refusal.present
@@ -228,7 +229,7 @@ class EnumConversionSpec extends Specification {
         ctx.membersOf(targetElement) >> [constant('NEW')].stream()
 
         expect:
-        EnumConversion.sourceBound(targetType, []).check(sourceType, ctx).empty
+        enumConversion.sourceBound(targetType, []).check(sourceType, ctx).empty
     }
 
     // ---- enumConstantNames -------------------------------------------------------------------------------------
@@ -239,14 +240,14 @@ class EnumConversionSpec extends Specification {
         ctx.membersOf(element) >> [constant('NEW'), constant('COMPLETED'), nonConstantMember()].stream()
 
         expect:
-        EnumConversion.enumConstantNames(ctx, targetType) == ['NEW', 'COMPLETED']
+        enumConversion.enumConstantNames(ctx, targetType) == ['NEW', 'COMPLETED']
     }
 
     def 'enumConstantNames is empty for a type with no backing element'() {
         ctx.asTypeElement(targetType) >> Optional.empty()
 
         expect:
-        EnumConversion.enumConstantNames(ctx, targetType).empty
+        enumConversion.enumConstantNames(ctx, targetType).empty
     }
 
     private static DirectiveInput enumOverride(final String source, final String target) {

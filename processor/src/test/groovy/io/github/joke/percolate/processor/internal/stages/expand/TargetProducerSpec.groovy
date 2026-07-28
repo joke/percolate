@@ -7,6 +7,7 @@ import io.github.joke.percolate.processor.internal.graph.TargetPath
 import io.github.joke.percolate.processor.internal.graph.Value
 import io.github.joke.percolate.processor.model.Bind
 import io.github.joke.percolate.processor.model.GoalSpec
+import io.github.joke.percolate.processor.model.GoalSpecFactory
 import io.github.joke.percolate.processor.nullability.NullabilityResolver
 import io.github.joke.percolate.spi.Codegen
 import io.github.joke.percolate.spi.ExpansionStrategy
@@ -46,7 +47,7 @@ class TargetProducerSpec extends Specification {
         def loc = new TargetLocation(TargetPath.of('address'))
         Value value = Mock()
         def producer = new TargetProducer([strategy], [(scope): GoalSpec.empty()], sourceCandidates, grounding,
-                resolveCtx, resolver)
+                resolveCtx, resolver, new SpecDeduplicator())
         def spec0 = OperationSpec.of('a', codegen, 1, [], valueType, Nullability.NON_NULL)
         def spec1 = OperationSpec.of('b', codegen, 1, [], valueType, Nullability.NON_NULL)
         def sourceTypes = [Mock(TypeMirror)]
@@ -76,7 +77,7 @@ class TargetProducerSpec extends Specification {
         Value value = Mock()
         Subject subject = Mock()
         def producer = new TargetProducer([strategy], [(scope): GoalSpec.empty()], sourceCandidates, grounding,
-                resolveCtx, resolver)
+                resolveCtx, resolver, new SpecDeduplicator())
         def spec0 = OperationSpec.of('a', codegen, 1, [], valueType, Nullability.NON_NULL)
 
         when:
@@ -101,9 +102,9 @@ class TargetProducerSpec extends Specification {
         Scope scope = Mock()
         def loc = new TargetLocation(TargetPath.of('address'))
         Value value = Mock()
-        def goalSpecs = [(scope): GoalSpec.from(
+        def goalSpecs = [(scope): new GoalSpecFactory().from(
                 [bind('address', 'home.street'), bind('address.city', null)], [:], [:], [])]
-        def producer = new TargetProducer([strategy], goalSpecs, sourceCandidates, grounding, resolveCtx, resolver)
+        def producer = new TargetProducer([strategy], goalSpecs, sourceCandidates, grounding, resolveCtx, resolver, new SpecDeduplicator())
 
         when:
         producer.produce(value)
@@ -124,7 +125,7 @@ class TargetProducerSpec extends Specification {
         def loc = new TargetLocation(TargetPath.of(''))
         Value value = Mock()
         def producer = new TargetProducer([strategy], [(scope): GoalSpec.empty()], sourceCandidates, grounding,
-                resolveCtx, resolver)
+                resolveCtx, resolver, new SpecDeduplicator())
         def port = new Port('x', valueType, Nullability.NON_NULL)
         def spec = OperationSpec.of('dup', codegen, 1, [port], valueType, Nullability.NON_NULL)
         def sameSignature = OperationSpec.of('dup', codegen, 9, [port], valueType, Nullability.NON_NULL)
@@ -155,8 +156,8 @@ class TargetProducerSpec extends Specification {
         value.scope >> scope
         value.loc >> loc
         def producer = new TargetProducer([strategy],
-                [(scope): GoalSpec.from([bind('address', 'home.street')], [:], [:], [])],
-                sourceCandidates, grounding, resolveCtx, resolver)
+                [(scope): new GoalSpecFactory().from([bind('address', 'home.street')], [:], [:], [])],
+                sourceCandidates, grounding, resolveCtx, resolver, new SpecDeduplicator())
 
         expect:
         producer.pinnedSourcePath(value) == ['home', 'street']
@@ -169,8 +170,8 @@ class TargetProducerSpec extends Specification {
         value.scope >> scope
         value.loc >> loc
         def producer = new TargetProducer([strategy],
-                [(scope): GoalSpec.from([new Bind(['address'], [], Subjects.none())], [:], [:], [])],
-                sourceCandidates, grounding, resolveCtx, resolver)
+                [(scope): new GoalSpecFactory().from([new Bind(['address'], [], Subjects.none())], [:], [:], [])],
+                sourceCandidates, grounding, resolveCtx, resolver, new SpecDeduplicator())
 
         expect:
         producer.pinnedSourcePath(value).empty
@@ -183,7 +184,7 @@ class TargetProducerSpec extends Specification {
         value.scope >> scope
         value.loc >> loc
         def producer = new TargetProducer([strategy], [(scope): GoalSpec.empty()], sourceCandidates, grounding,
-                resolveCtx, resolver)
+                resolveCtx, resolver, new SpecDeduplicator())
 
         expect:
         producer.pinnedSourcePath(value).empty
@@ -194,7 +195,7 @@ class TargetProducerSpec extends Specification {
     def 'run queries every strategy for one demand and collects every offer'() {
         ExpansionStrategy strategy0 = Mock()
         ExpansionStrategy strategy1 = Mock()
-        def producer = new TargetProducer([strategy0, strategy1], [:], sourceCandidates, grounding, resolveCtx, resolver)
+        def producer = new TargetProducer([strategy0, strategy1], [:], sourceCandidates, grounding, resolveCtx, resolver, new SpecDeduplicator())
         DemandView demand = Mock()
         def spec0 = OperationSpec.of('a', codegen, 1, [], valueType, Nullability.NON_NULL)
         Subject subject = Mock()
@@ -221,7 +222,7 @@ class TargetProducerSpec extends Specification {
         def offers = [Offer.of(spec0), Offer.refusal(subject, 'nope'), Offer.of(spec1)]
 
         when:
-        def result = TargetProducer.productionsOf(offers, value)
+        def result = producer().productionsOf(offers, value)
 
         then:
         1 * value.addInadmissible(new Refusal(subject, 'nope'))
@@ -236,7 +237,7 @@ class TargetProducerSpec extends Specification {
         def spec0 = OperationSpec.of('a', codegen, 1, [], valueType, Nullability.NON_NULL)
 
         when:
-        def result = TargetProducer.productionsOf([Offer.of(spec0)], value)
+        def result = producer().productionsOf([Offer.of(spec0)], value)
 
         then:
         0 * _
@@ -245,24 +246,8 @@ class TargetProducerSpec extends Specification {
         result == [spec0]
     }
 
-    // ---- dedup / signature: static structural utilities -------------------------------------------------------------
-
-    def 'dedup drops duplicate structural signatures, preserving first-seen order'() {
-        def port = new Port('x', valueType, Nullability.NON_NULL)
-        def specA = OperationSpec.of('op', codegen, 1, [port], valueType, Nullability.NON_NULL)
-        def specDup = OperationSpec.of('op', codegen, 2, [port], valueType, Nullability.NON_NULL)
-        def specB = OperationSpec.of('other', codegen, 1, [port], valueType, Nullability.NON_NULL)
-
-        expect:
-        TargetProducer.dedup([specA, specDup, specB]) == [specA, specB]
-    }
-
-    def 'signature combines label, output type, and port shapes'() {
-        def port = new Port('x', valueType, Nullability.NON_NULL)
-        def spec = OperationSpec.of('op', codegen, 1, [port], valueType, Nullability.NON_NULL)
-
-        expect:
-        TargetProducer.signature(spec) == "op|${valueType}|x:${valueType}:${Nullability.NON_NULL}".toString()
+    private TargetProducer producer() {
+        new TargetProducer([strategy], [:], sourceCandidates, grounding, resolveCtx, resolver, new SpecDeduplicator())
     }
 
     // ---- helpers ----------------------------------------------------------------------------------------------

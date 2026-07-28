@@ -25,15 +25,13 @@ import javax.lang.model.element.TypeElement;
 import javax.lang.model.type.TypeMirror;
 import lombok.NoArgsConstructor;
 
-/**
- * Assembles the demanded type by calling one of its constructors: a multi-port {@link OperationSpec} whose ports
- * are the constructor parameters, named after them. It is gated by the demand's declared-children goal spec — a
- * constructor is a candidate only when its parameter-name set equals {@link ProduceDemand#declaredChildren()} — so a
- * zero-parameter constructor is never chosen over the user's declared mapping, and assembly never recurses
- * unboundedly. Each port's nullness is resolved through the demand's nullness oracle. It is a plain
- * {@link ExpansionStrategy} in the one unified loader list; "assembly" is an emission-time gating concern, not a
- * separate result type or a driver routing branch.
- */
+// Assembles the demanded type by calling one of its constructors: a multi-port OperationSpec whose ports are
+// the constructor parameters, named after them. It is gated by the demand's declared-children goal spec — a
+// constructor is a candidate only when its parameter-name set equals ProduceDemand.declaredChildren() — so a
+// zero-parameter constructor is never chosen over the user's declared mapping, and assembly never recurses
+// unboundedly. Each port's nullness is resolved through the demand's nullness oracle. It is a plain
+// ExpansionStrategy in the one unified loader list; "assembly" is an emission-time gating concern, not a
+// separate result type or a driver routing branch.
 @AutoService(ExpansionStrategy.class)
 @NoArgsConstructor
 public final class ConstructorCall implements ExpansionStrategy {
@@ -60,7 +58,7 @@ public final class ConstructorCall implements ExpansionStrategy {
                 .map(Offer::of);
     }
 
-    static Set<String> parameterNames(final ExecutableElement ctor) {
+    Set<String> parameterNames(final ExecutableElement ctor) {
         return ctor.getParameters().stream()
                 .map(param -> param.getSimpleName().toString())
                 .collect(toUnmodifiableSet());
@@ -85,7 +83,7 @@ public final class ConstructorCall implements ExpansionStrategy {
                 Nullability.NON_NULL);
     }
 
-    static String constructorLabel(final TypeElement typeElement, final List<Port> ports) {
+    String constructorLabel(final TypeElement typeElement, final List<Port> ports) {
         final var params =
                 ports.stream().map(port -> Labels.simple(port.getType())).collect(joining(", "));
         return "new " + typeElement.getSimpleName() + "(" + params + ")";

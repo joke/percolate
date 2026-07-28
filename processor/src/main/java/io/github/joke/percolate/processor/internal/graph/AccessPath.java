@@ -12,15 +12,15 @@ public class AccessPath {
         return new AccessPath(List.of(segment));
     }
 
-    /** The dot-separated segments of {@code path}, or none for a {@code null}/empty path. */
-    public static List<String> splitDotted(final @Nullable String path) {
+    // The dot-separated segments of path, or none for a null/empty path.
+    public List<String> splitDotted(final @Nullable String path) {
         if (path == null || path.isEmpty()) {
             return List.of();
         }
         return List.of(path.split("\\.", -1));
     }
 
-    /** The last segment, or the empty string when the path is empty. */
+    // The last segment, or the empty string when the path is empty.
     public String lastSegment() {
         return segments.isEmpty() ? "" : segments.get(segments.size() - 1);
     }

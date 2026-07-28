@@ -11,13 +11,11 @@ import javax.lang.model.element.TypeElement;
 import javax.lang.model.util.Elements;
 import lombok.RequiredArgsConstructor;
 
-/**
- * The thin {@code javax.lang.model} leaf of callable-method discovery: it enumerates a mapper type's members
- * ({@link Elements#getAllMembers}), keeps the executable ones, and projects each into a plain
- * {@link CandidateDescriptor}, resolving the {@code declared-on-Object} flag against the enclosing type's qualified
- * name here so the {@link CallableMethodFilter} needs no {@code javax} comparison. Covered end-to-end by the
- * compile-based feature-e2e layer, not by a unit-test javac substrate.
- */
+// The thin javax.lang.model leaf of callable-method discovery: it enumerates a mapper type's members
+// (Elements.getAllMembers), keeps the executable ones, and projects each into a plain CandidateDescriptor,
+// resolving the declared-on-Object flag against the enclosing type's qualified name here so the
+// CallableMethodFilter needs no javax comparison. Covered end-to-end by the compile-based feature-e2e layer,
+// not by a unit-test javac substrate.
 @CoverageIgnore
 @RequiredArgsConstructor(onConstructor_ = @Inject)
 final class CallableMethodIndexer {

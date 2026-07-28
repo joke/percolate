@@ -4,11 +4,9 @@ import io.github.joke.percolate.spi.Nullability;
 import javax.lang.model.type.TypeMirror;
 import lombok.Value;
 
-/**
- * The child-scope declaration of a scope-owning {@link AddOperation} (container element mapping): the element
- * types and nullness of the child plan's param-root (element in) and return-root (element out) Values, minted
- * inside the freshly created {@link ChildScope} when the Operation lands.
- */
+// The child-scope declaration of a scope-owning AddOperation (container element mapping): the element types and
+// nullness of the child plan's param-root (element in) and return-root (element out) Values, minted inside the
+// freshly created ChildScope when the Operation lands.
 @Value
 public class ChildScopeDecl {
     TypeMirror elementIn;

@@ -14,11 +14,9 @@ final class Pipeline {
     private final List<Stage> stages;
     private final DiagnosticEmitter diagnosticEmitter;
 
-    /**
-     * Runs every stage for {@code element}. A stage throwing mid-pipeline would otherwise lose whatever diagnostics
-     * were already collected on {@code ctx} (design D14) — the {@code finally} flushes them in that case only,
-     * leaving the normal, non-throwing path's emit-or-defer decision to {@code MapperStep}.
-     */
+    // Runs every stage for element. A stage throwing mid-pipeline would otherwise lose whatever diagnostics were
+    // already collected on ctx (design D14) — the finally flushes them in that case only, leaving the normal, non-
+    // throwing path's emit-or-defer decision to MapperStep.
     MapperContext process(final TypeElement element) {
         final var ctx = new MapperContext(element);
         var completed = false;

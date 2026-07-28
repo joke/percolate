@@ -22,6 +22,7 @@ import javax.lang.model.type.TypeMirror
 class InstantLocalDateTimeBridgeSpec extends Specification {
 
     ResolveCtx ctx = Mock()
+    InstantLocalDateTimeBridge instantLocalDateTimeBridge = new InstantLocalDateTimeBridge()
 
     TypeMirror instantType = Mock()
     TypeMirror localDateTimeType = Mock()
@@ -45,7 +46,7 @@ class InstantLocalDateTimeBridgeSpec extends Specification {
         ctx.isType(localDateTimeType, 'java.time.LocalDateTime') >> true
 
         when:
-        def specs = new InstantLocalDateTimeBridge()
+        def specs = instantLocalDateTimeBridge
                 .expand(Demands.withZone(localDateTimeType, 'Europe/Berlin'), ctx)
                 *.spec
 
@@ -65,7 +66,7 @@ class InstantLocalDateTimeBridgeSpec extends Specification {
         ctx.configuredTimeZone() >> Optional.of('UTC')
 
         when:
-        def specs = new InstantLocalDateTimeBridge().expand(Demands.forTarget(localDateTimeType), ctx)*.spec
+        def specs = instantLocalDateTimeBridge.expand(Demands.forTarget(localDateTimeType), ctx)*.spec
 
         then:
         specs.size() == 1
@@ -79,7 +80,7 @@ class InstantLocalDateTimeBridgeSpec extends Specification {
         ctx.configuredTimeZone() >> Optional.empty()
 
         when:
-        def specs = new InstantLocalDateTimeBridge().expand(Demands.forTarget(localDateTimeType), ctx)*.spec
+        def specs = instantLocalDateTimeBridge.expand(Demands.forTarget(localDateTimeType), ctx)*.spec
 
         then:
         specs.size() == 1
@@ -95,7 +96,7 @@ class InstantLocalDateTimeBridgeSpec extends Specification {
         ctx.configuredTimeZone() >> Optional.empty()
 
         when:
-        def specs = new InstantLocalDateTimeBridge().expand(Demands.forTarget(instantType), ctx)*.spec
+        def specs = instantLocalDateTimeBridge.expand(Demands.forTarget(instantType), ctx)*.spec
 
         then:
         specs.size() == 1
@@ -110,7 +111,7 @@ class InstantLocalDateTimeBridgeSpec extends Specification {
         TypeMirror stringType = Mock()
 
         expect:
-        new InstantLocalDateTimeBridge().expand(Demands.forTarget(stringType), ctx).toList().empty
+        instantLocalDateTimeBridge.expand(Demands.forTarget(stringType), ctx).toList().empty
     }
 
     def 'toLocalDateTimeSpec returns empty when Instant is not resolvable'() {
@@ -119,7 +120,7 @@ class InstantLocalDateTimeBridgeSpec extends Specification {
         freshCtx.typeElementNamed('java.time.LocalDateTime') >> localDateTimeElement
 
         expect:
-        InstantLocalDateTimeBridge.toLocalDateTimeSpec(Demands.forTarget(localDateTimeType), localDateTimeType, freshCtx).empty
+        instantLocalDateTimeBridge.toLocalDateTimeSpec(Demands.forTarget(localDateTimeType), localDateTimeType, freshCtx).empty
     }
 
     def 'toLocalDateTimeSpec returns empty when LocalDateTime is not resolvable'() {
@@ -128,7 +129,7 @@ class InstantLocalDateTimeBridgeSpec extends Specification {
         freshCtx.typeElementNamed('java.time.Instant') >> instantElement
 
         expect:
-        InstantLocalDateTimeBridge.toLocalDateTimeSpec(Demands.forTarget(localDateTimeType), localDateTimeType, freshCtx).empty
+        instantLocalDateTimeBridge.toLocalDateTimeSpec(Demands.forTarget(localDateTimeType), localDateTimeType, freshCtx).empty
     }
 
     def 'toInstantSpec returns empty when Instant is not resolvable'() {
@@ -137,7 +138,7 @@ class InstantLocalDateTimeBridgeSpec extends Specification {
         freshCtx.typeElementNamed('java.time.LocalDateTime') >> localDateTimeElement
 
         expect:
-        InstantLocalDateTimeBridge.toInstantSpec(Demands.forTarget(instantType), instantType, freshCtx).empty
+        instantLocalDateTimeBridge.toInstantSpec(Demands.forTarget(instantType), instantType, freshCtx).empty
     }
 
     def 'toInstantSpec returns empty when LocalDateTime is not resolvable'() {
@@ -146,18 +147,18 @@ class InstantLocalDateTimeBridgeSpec extends Specification {
         freshCtx.typeElementNamed('java.time.Instant') >> instantElement
 
         expect:
-        InstantLocalDateTimeBridge.toInstantSpec(Demands.forTarget(instantType), instantType, freshCtx).empty
+        instantLocalDateTimeBridge.toInstantSpec(Demands.forTarget(instantType), instantType, freshCtx).empty
     }
 
     def 'consumed is the zone input when a directive zone is present, else empty'() {
         expect:
-        InstantLocalDateTimeBridge.consumed(Optional.of(zoneInput('UTC'))) == [zoneInput('UTC')] as Set
-        InstantLocalDateTimeBridge.consumed(Optional.empty()) == [] as Set
+        instantLocalDateTimeBridge.consumed(Optional.of(zoneInput('UTC'))) == [zoneInput('UTC')] as Set
+        instantLocalDateTimeBridge.consumed(Optional.empty()) == [] as Set
     }
 
     def 'resolveZone prefers a present directive zone, frozen as ZoneId.of'() {
         expect:
-        InstantLocalDateTimeBridge.resolveZone(Optional.of(zoneInput('Europe/Berlin')), ctx).toString() ==
+        instantLocalDateTimeBridge.resolveZone(Optional.of(zoneInput('Europe/Berlin')), ctx).toString() ==
                 'java.time.ZoneId.of("Europe/Berlin")'
     }
 
@@ -165,14 +166,14 @@ class InstantLocalDateTimeBridgeSpec extends Specification {
         ctx.configuredTimeZone() >> Optional.of('UTC')
 
         expect:
-        InstantLocalDateTimeBridge.resolveZone(Optional.empty(), ctx).toString() == 'java.time.ZoneId.of("UTC")'
+        instantLocalDateTimeBridge.resolveZone(Optional.empty(), ctx).toString() == 'java.time.ZoneId.of("UTC")'
     }
 
     def 'resolveZone defers to generated systemDefault() when neither directive nor configured zone is present'() {
         ctx.configuredTimeZone() >> Optional.empty()
 
         expect:
-        InstantLocalDateTimeBridge.resolveZone(Optional.empty(), ctx).toString() == 'java.time.ZoneId.systemDefault()'
+        instantLocalDateTimeBridge.resolveZone(Optional.empty(), ctx).toString() == 'java.time.ZoneId.systemDefault()'
     }
 
     private static DirectiveInput zoneInput(final String value) {

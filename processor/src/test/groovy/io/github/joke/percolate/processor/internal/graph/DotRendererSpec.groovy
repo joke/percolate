@@ -85,7 +85,7 @@ class DotRendererSpec extends Specification {
         def dot = new StringBuilder()
 
         when:
-        DotRenderer.appendStatement(dot, 'a -> b', [label: 'x', shape: 'box'])
+        renderer.appendStatement(dot, 'a -> b', [label: 'x', shape: 'box'])
 
         then:
         dot.toString() == '  a -> b [label="x", shape="box"];\n'
@@ -95,7 +95,7 @@ class DotRendererSpec extends Specification {
         def dot = new StringBuilder()
 
         when:
-        DotRenderer.appendStatement(dot, 'a -> b', [:])
+        renderer.appendStatement(dot, 'a -> b', [:])
 
         then:
         dot.toString() == '  a -> b;\n'
@@ -103,55 +103,55 @@ class DotRendererSpec extends Specification {
 
     def 'edgeAttributes: a labelled port carries a label attribute'() {
         expect:
-        DotRenderer.edgeAttributes(Dep.port('street')) == [label: 'street']
+        renderer.edgeAttributes(Dep.port('street')) == [label: 'street']
     }
 
     def 'edgeAttributes: an output edge with no port id carries no attributes'() {
         expect:
-        DotRenderer.edgeAttributes(Dep.output()) == [:]
+        renderer.edgeAttributes(Dep.output()) == [:]
     }
 
     def 'quote: escapes an embedded quote after doubling a literal backslash'() {
         expect:
-        DotRenderer.quote('a\\b"c') == '"a\\\\b\\"c"'
+        renderer.quote('a\\b"c') == '"a\\\\b\\"c"'
     }
 
     def 'valueLabel: combines the location segment with the formatted type'() {
         def value = new Value(new SourceLocation(AccessPath.of('addr')), scope, Optional.of(STRING), Optional.of(Nullability.NON_NULL))
 
         expect:
-        DotRenderer.valueLabel(value) == new SourceLocation(AccessPath.of('addr')).segment() + '\\nString!'
+        renderer.valueLabel(value) == new SourceLocation(AccessPath.of('addr')).segment() + '\\nString!'
     }
 
     def 'valueLabel: an untyped value falls back to the unknown-type marker'() {
         def value = new Value(new SourceLocation(AccessPath.of('addr')), scope, Optional.empty(), Optional.empty())
 
         expect:
-        DotRenderer.valueLabel(value) == new SourceLocation(AccessPath.of('addr')).segment() + '\\n?'
+        renderer.valueLabel(value) == new SourceLocation(AccessPath.of('addr')).segment() + '\\n?'
     }
 
     def 'formatType: a non-declared kind (e.g. a primitive) renders unmarked regardless of nullness'() {
         def primitive = Stub(TypeMirror) { getKind() >> TypeKind.INT; toString() >> 'int' }
 
         expect:
-        DotRenderer.formatType(primitive, Nullability.NON_NULL) == 'int'
+        renderer.formatType(primitive, Nullability.NON_NULL) == 'int'
     }
 
     def 'formatType: a declared type carries its top-level nullness mark'() {
         expect:
-        DotRenderer.formatType(STRING, Nullability.NULLABLE) == 'String?'
+        renderer.formatType(STRING, Nullability.NULLABLE) == 'String?'
     }
 
     def 'formatType: unset (null) nullness carries no mark at all'() {
         expect:
-        DotRenderer.formatType(STRING, null) == 'String'
+        renderer.formatType(STRING, null) == 'String'
     }
 
     def 'body: a non-declared type falls back to its raw toString'() {
         def raw = Stub(TypeMirror) { getKind() >> TypeKind.INT; toString() >> 'int' }
 
         expect:
-        DotRenderer.body(raw) == 'int'
+        renderer.body(raw) == 'int'
     }
 
     def 'body: a declared type with type arguments renders simple-name generics, with no nested nullness mark'() {
@@ -164,22 +164,22 @@ class DotRendererSpec extends Specification {
         }
 
         expect:
-        DotRenderer.body(list) == 'Map<String, Integer>'
+        renderer.body(list) == 'Map<String, Integer>'
     }
 
     def 'topMark: NULLABLE renders ?, NON_NULL renders !, unset renders nothing'() {
         expect:
-        DotRenderer.topMark(Nullability.NULLABLE) == '?'
-        DotRenderer.topMark(Nullability.NON_NULL) == '!'
-        DotRenderer.topMark(null) == ''
+        renderer.topMark(Nullability.NULLABLE) == '?'
+        renderer.topMark(Nullability.NON_NULL) == '!'
+        renderer.topMark(null) == ''
     }
 
     def 'fillColor: each location kind renders its own fill, with a fallback for anything else'() {
         expect:
-        DotRenderer.fillColor(valueAt(new SourceLocation(AccessPath.of('s')))) == '#CFE8FF'
-        DotRenderer.fillColor(valueAt(new TargetLocation(TargetPath.of('t')))) == '#D7F0D0'
-        DotRenderer.fillColor(valueAt(new ElementLocation())) == '#FFE0B3'
-        DotRenderer.fillColor(valueAt(new ConstantLocation('k'))) == 'white'
+        renderer.fillColor(valueAt(new SourceLocation(AccessPath.of('s')))) == '#CFE8FF'
+        renderer.fillColor(valueAt(new TargetLocation(TargetPath.of('t')))) == '#D7F0D0'
+        renderer.fillColor(valueAt(new ElementLocation())) == '#FFE0B3'
+        renderer.fillColor(valueAt(new ConstantLocation('k'))) == 'white'
     }
 
     def 'vertexAttributes: an Operation is a filled grey box labelled with its weight'() {
@@ -187,7 +187,7 @@ class DotRendererSpec extends Specification {
                 [port('street', STRING)], target('addr', STRING), Optional.empty(), [] as Set, []))
 
         expect:
-        DotRenderer.vertexAttributes(operation, false) == [
+        renderer.vertexAttributes(operation, false) == [
                 label    : 'new Address (3)',
                 shape    : 'box',
                 style    : 'filled',
@@ -201,10 +201,10 @@ class DotRendererSpec extends Specification {
         def value = valueAt(new SourceLocation(AccessPath.of('s')))
 
         expect:
-        DotRenderer.vertexAttributes(operation, true).style == 'filled,dashed'
-        DotRenderer.vertexAttributes(operation, true).fillcolor == '#DDDDDD'
-        DotRenderer.vertexAttributes(value, true).style == 'filled,dashed'
-        DotRenderer.vertexAttributes(value, true).fillcolor == '#DDDDDD'
+        renderer.vertexAttributes(operation, true).style == 'filled,dashed'
+        renderer.vertexAttributes(operation, true).fillcolor == '#DDDDDD'
+        renderer.vertexAttributes(value, true).style == 'filled,dashed'
+        renderer.vertexAttributes(value, true).fillcolor == '#DDDDDD'
     }
 
     def 'refusals render as note-shaped negative space beside their Value, in recorded order'() {
@@ -214,7 +214,7 @@ class DotRendererSpec extends Specification {
         def dot = new StringBuilder()
 
         when:
-        DotRenderer.appendRefusals(dot, value)
+        renderer.appendRefusals(dot, value)
 
         then:
         dot.toString().indexOf('first reason') < dot.toString().indexOf('second reason')
@@ -231,10 +231,10 @@ class DotRendererSpec extends Specification {
         def dot = new StringBuilder()
 
         when:
-        DotRenderer.appendRefusals(dot, value)
+        renderer.appendRefusals(dot, value)
 
         then:
-        dot.toString().contains(DotRenderer.quote(value.id() + '#refused-0') + ' -> ' + DotRenderer.quote(value.id()))
+        dot.toString().contains(renderer.quote(value.id() + '#refused-0') + ' -> ' + renderer.quote(value.id()))
 
         expect:
         dot.toString().contains('style="dashed"')
@@ -246,7 +246,7 @@ class DotRendererSpec extends Specification {
         def dot = new StringBuilder()
 
         when:
-        DotRenderer.appendRefusals(dot, operation)
+        renderer.appendRefusals(dot, operation)
 
         then:
         dot.toString().empty
@@ -256,7 +256,7 @@ class DotRendererSpec extends Specification {
         def dot = new StringBuilder()
 
         when:
-        DotRenderer.appendRefusals(dot, valueAt(new SourceLocation(AccessPath.of('s'))))
+        renderer.appendRefusals(dot, valueAt(new SourceLocation(AccessPath.of('s'))))
 
         then:
         dot.toString().empty
@@ -264,7 +264,7 @@ class DotRendererSpec extends Specification {
 
     def 'refusalAttributes: the message is carried verbatim as opaque text'() {
         expect:
-        DotRenderer.refusalAttributes(new Refusal(Subjects.none(), 'why not')) == [
+        renderer.refusalAttributes(new Refusal(Subjects.none(), 'why not')) == [
                 label    : 'why not',
                 shape    : 'note',
                 style    : 'filled,dashed',

@@ -8,16 +8,13 @@ import java.util.Optional;
 import java.util.Set;
 import lombok.Value;
 
-/**
- * Adds one {@link Operation} atomically: the Operation vertex, its output {@link Dep} edge into the produced
- * {@link io.github.joke.percolate.processor.internal.graph.Value} (named by {@link #output}), and exactly one port edge
- * per {@link PortBinding} — each feeding Value resolved through the {@link AddValue} get-or-create rule. A
- * present {@link #childScope} declaration makes the landed Operation scope-owning, minting the child scope's
- * param/return-root Values with it. {@link #consumed} carries the {@link DirectiveInput}s the emitting
- * strategy stamped as read (see {@link io.github.joke.percolate.spi.OperationSpec#getConsumed()}).
- * {@link #memberRequests} carries the class-level member requests the emitting strategy declared (see
- * {@link io.github.joke.percolate.spi.OperationSpec#getMemberRequests()}).
- */
+// Adds one Operation atomically: the Operation vertex, its output Dep edge into the produced
+// io.github.joke.percolate.processor.internal.graph.Value (named by .output), and exactly one port edge per
+// PortBinding — each feeding Value resolved through the AddValue get-or-create rule. A present .childScope
+// declaration makes the landed Operation scope-owning, minting the child scope's param/return-root Values with
+// it. .consumed carries the DirectiveInputs the emitting strategy stamped as read (see
+// io.github.joke.percolate.spi.OperationSpec.getConsumed()). .memberRequests carries the class-level member
+// requests the emitting strategy declared (see io.github.joke.percolate.spi.OperationSpec.getMemberRequests()).
 @Value
 public class AddOperation implements GraphDelta {
     String label;

@@ -21,14 +21,12 @@ import java.util.stream.Stream;
 import javax.lang.model.type.TypeMirror;
 import lombok.NoArgsConstructor;
 
-/**
- * {@code @Map(format = "…")} for {@code String ⇄ java.util.Date}/{@code java.sql.Timestamp} (design D6 of change
- * {@code add-temporal-type-mapping}): unlike {@link TemporalFormat}, this uses a <b>fresh, per-call</b>
- * {@code new java.text.SimpleDateFormat(pattern)} — it is <b>not</b> thread-safe, so it declares no member request
- * (never shared, never hoisted). {@code SimpleDateFormat#parse} declares the checked {@code ParseException}; since
- * a production is a single expression (no statement-level codegen), parsing is wrapped in an immediately-invoked
- * cast lambda that rethrows it unchecked — the standard idiom for a checked call in expression position.
- */
+// @Map(format = "…") for String ⇄ java.util.Date/java.sql.Timestamp (design D6 of change add-temporal-type-
+// mapping): unlike TemporalFormat, this uses a fresh, per-call new java.text.SimpleDateFormat(pattern) — it is
+// not thread-safe, so it declares no member request (never shared, never hoisted). SimpleDateFormat.parse
+// declares the checked ParseException; since a production is a single expression (no statement-level codegen),
+// parsing is wrapped in an immediately-invoked cast lambda that rethrows it unchecked — the standard idiom for
+// a checked call in expression position.
 @AutoService(ExpansionStrategy.class)
 @NoArgsConstructor
 public final class LegacyTemporalFormat implements ExpansionStrategy {
@@ -64,8 +62,8 @@ public final class LegacyTemporalFormat implements ExpansionStrategy {
                 .orElseGet(Stream::empty);
     }
 
-    /** {@code new SimpleDateFormat(pattern).format($L)} — a fresh formatter per call, never shared. */
-    static Optional<OperationSpec> formatStep(
+    // new SimpleDateFormat(pattern).format($L) — a fresh formatter per call, never shared.
+    Optional<OperationSpec> formatStep(
             final String sourceFqn,
             final TypeMirror target,
             final String pattern,
@@ -89,8 +87,8 @@ public final class LegacyTemporalFormat implements ExpansionStrategy {
                 .withConsumed(Set.of(formatInput)));
     }
 
-    /** {@code String -> Date/Timestamp} via a fresh {@code SimpleDateFormat}, its checked {@code ParseException} rethrown. */
-    static Optional<OperationSpec> parseStep(
+    // String -> Date/Timestamp via a fresh SimpleDateFormat, its checked ParseException rethrown.
+    Optional<OperationSpec> parseStep(
             final TypeMirror target, final String pattern, final DirectiveInput formatInput, final ResolveCtx ctx) {
         final var isTimestamp = legacyTargetKind(target, ctx);
         if (isTimestamp.isEmpty()) {
@@ -113,8 +111,8 @@ public final class LegacyTemporalFormat implements ExpansionStrategy {
                 .withConsumed(Set.of(formatInput)));
     }
 
-    /** Empty when {@code target} is neither legacy type; else {@code true} for {@code Timestamp}, {@code false} for {@code Date}. */
-    static Optional<Boolean> legacyTargetKind(final TypeMirror target, final ResolveCtx ctx) {
+    // Empty when target is neither legacy type; else true for Timestamp, false for Date.
+    Optional<Boolean> legacyTargetKind(final TypeMirror target, final ResolveCtx ctx) {
         if (ctx.isType(target, "java.util.Date")) {
             return Optional.of(false);
         }
@@ -124,15 +122,15 @@ public final class LegacyTemporalFormat implements ExpansionStrategy {
         return Optional.empty();
     }
 
-    static OperationCodegen dateParseCodegen(final String pattern) {
+    OperationCodegen dateParseCodegen(final String pattern) {
         return inputs -> parseAsDate(pattern, inputs.single());
     }
 
-    static OperationCodegen timestampParseCodegen(final String pattern) {
+    OperationCodegen timestampParseCodegen(final String pattern) {
         return inputs -> CodeBlock.of("new $T($L.getTime())", TIMESTAMP, parseAsDate(pattern, inputs.single()));
     }
 
-    static CodeBlock parseAsDate(final String pattern, final CodeBlock source) {
+    CodeBlock parseAsDate(final String pattern, final CodeBlock source) {
         return CodeBlock.of(
                 "(($T<$T>) () -> { try { return new $T($S).parse($L); } catch ($T e) { throw new $T(e); } }).get()",
                 SUPPLIER,

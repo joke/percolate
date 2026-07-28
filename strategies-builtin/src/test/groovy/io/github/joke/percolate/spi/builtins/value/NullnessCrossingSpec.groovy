@@ -31,13 +31,14 @@ import javax.lang.model.type.TypeMirror
 class NullnessCrossingSpec extends Specification {
 
     ResolveCtx ctx = Mock()
+    NullnessCrossing crossing = new NullnessCrossing()
 
     def 'emits a partial requireNonNull for a non-null reference-scalar demand'() {
         DeclaredType stringType = Mock()
         ctx.isDeclared(stringType) >> true
 
         when:
-        def specs = new NullnessCrossing().expand(Demands.crossing(stringType, 'name'), ctx)*.spec
+        def specs = crossing.expand(Demands.crossing(stringType, 'name'), ctx)*.spec
 
         then:
         specs.size() == 1
@@ -62,7 +63,7 @@ class NullnessCrossingSpec extends Specification {
         DeclaredType stringType = Mock()
 
         expect:
-        new NullnessCrossing()
+        crossing
                 .expand(Demands.forTarget(stringType, Nullability.NULLABLE), ctx)
                 .toList()
                 .empty
@@ -82,7 +83,7 @@ class NullnessCrossingSpec extends Specification {
         ctx.declaredType(optionalElement, stringType) >> optionalOfString
 
         when:
-        def specs = new NullnessCrossing().expand(Demands.crossing(stringType, 'name', 'unknown'), ctx)*.spec
+        def specs = crossing.expand(Demands.crossing(stringType, 'name', 'unknown'), ctx)*.spec
 
         then: 'a total coalesce over a NULLABLE scalar port'
         def scalar = specs.find { !it.partial && it.ports[0].type.is(stringType) }
@@ -119,7 +120,7 @@ class NullnessCrossingSpec extends Specification {
         ctx.declaredType(optionalElement, integerType) >> Mock(TypeMirror)
 
         when:
-        def specs = new NullnessCrossing().expand(Demands.crossing(integerType, 'n', '0'), ctx)*.spec
+        def specs = crossing.expand(Demands.crossing(integerType, 'n', '0'), ctx)*.spec
 
         then:
         def scalar = specs.find { !it.partial && it.ports[0].type.is(integerType) }
@@ -135,7 +136,7 @@ class NullnessCrossingSpec extends Specification {
         ctx.isReferenceType(intType) >> false
 
         expect:
-        new NullnessCrossing().expand(Demands.crossing(intType, 'n', '0'), ctx).toList().empty
+        crossing.expand(Demands.crossing(intType, 'n', '0'), ctx).toList().empty
     }
 
     def 'an uncoercible default refuses the whole demand, dropping the partial guard'() {
@@ -149,7 +150,7 @@ class NullnessCrossingSpec extends Specification {
         ctx.simpleName(integerType) >> 'Integer'
 
         when:
-        def offers = new NullnessCrossing().expand(Demands.crossing(integerType, 'n', 'abc'), ctx).toList()
+        def offers = crossing.expand(Demands.crossing(integerType, 'n', 'abc'), ctx).toList()
 
         then: 'a single refusal is emitted — no partial requireNonNull guard survives (design D1)'
         offers.size() == 1
@@ -159,11 +160,55 @@ class NullnessCrossingSpec extends Specification {
         refusal.message == "cannot coerce 'abc' to Integer"
     }
 
+    def 'guardOnly stays silent when the target is not NON_NULL'() {
+        DeclaredType stringType = Mock()
+
+        expect:
+        crossing.guardOnly(stringType, 'name', false, ctx).toList().empty
+    }
+
+    def 'guardOnly offers the bare requireNonNull guard when the target is NON_NULL'() {
+        DeclaredType stringType = Mock()
+        ctx.isDeclared(stringType) >> true
+
+        expect:
+        def offers = crossing.guardOnly(stringType, 'name', true, ctx).toList()
+        offers.size() == 1
+        offers[0].spec.partial
+        offers[0].spec.label == 'requireNonNull'
+    }
+
+    def 'coalesce over-emits both the scalar and the Optional form'() {
+        DeclaredType stringType = Mock()
+        TypeElement optionalElement = Mock()
+        TypeMirror optionalOfString = Mock()
+        ctx.isDeclared(stringType) >> true
+        ctx.isReferenceType(stringType) >> true
+        ctx.typeElementNamed('java.util.Optional') >> optionalElement
+        ctx.declaredType(optionalElement, stringType) >> optionalOfString
+
+        expect:
+        def specs = crossing.coalesce(stringType, CodeBlock.of('$S', 'fallback'), defaultInput(), ctx).toList()
+        specs.size() == 2
+        specs*.label == ['coalesce', 'coalesce']
+        specs[0].ports[0].type.is(stringType)
+        specs[1].ports[0].type.is(optionalOfString)
+    }
+
+    def 'coalesce emits nothing for a target that is neither declared nor a reference'() {
+        TypeMirror intType = Mock()
+        ctx.isDeclared(intType) >> false
+        ctx.isReferenceType(intType) >> false
+
+        expect:
+        crossing.coalesce(intType, CodeBlock.of('$L', 0), defaultInput(), ctx).toList().empty
+    }
+
     def 'requireNonNullGuard is empty when the target is not NON_NULL-guarded'() {
         DeclaredType stringType = Mock()
 
         expect:
-        NullnessCrossing.requireNonNullGuard(stringType, 'name', false, ctx).toList().empty
+        crossing.requireNonNullGuard(stringType, 'name', false, ctx).toList().empty
     }
 
     def 'requireNonNullGuard is empty when the target is not declared even if guarded'() {
@@ -171,7 +216,7 @@ class NullnessCrossingSpec extends Specification {
         ctx.isDeclared(primitiveType) >> false
 
         expect:
-        NullnessCrossing.requireNonNullGuard(primitiveType, 'name', true, ctx).toList().empty
+        crossing.requireNonNullGuard(primitiveType, 'name', true, ctx).toList().empty
     }
 
     def 'requireNonNullGuard emits one requireNonNull spec when guarded and declared'() {
@@ -179,14 +224,14 @@ class NullnessCrossingSpec extends Specification {
         ctx.isDeclared(stringType) >> true
 
         expect:
-        NullnessCrossing.requireNonNullGuard(stringType, 'name', true, ctx).toList().size() == 1
+        crossing.requireNonNullGuard(stringType, 'name', true, ctx).toList().size() == 1
     }
 
     def 'requireNonNull builds a partial NOOP spec whose message names the slot'() {
         DeclaredType stringType = Mock()
 
         expect:
-        def spec = NullnessCrossing.requireNonNull(stringType, 'name')
+        def spec = crossing.requireNonNull(stringType, 'name')
         spec.partial
         spec.weight == Weights.NOOP
         spec.outputType.is(stringType)
@@ -199,7 +244,7 @@ class NullnessCrossingSpec extends Specification {
         OperationCodegen codegen = { inputs -> CodeBlock.of('x') }
 
         expect:
-        def spec = NullnessCrossing.coalesceSpec(stringType, Nullability.NULLABLE, stringType, codegen,
+        def spec = crossing.coalesceSpec(stringType, Nullability.NULLABLE, stringType, codegen,
                 DirectiveInput.scalar('defaultValue', 'fallback', Subjects.none()))
         !spec.partial
         spec.label == 'coalesce'
@@ -214,7 +259,7 @@ class NullnessCrossingSpec extends Specification {
         ctx.isReferenceType(primitiveType) >> false
 
         expect:
-        NullnessCrossing.optionalOf(primitiveType, ctx).empty
+        crossing.optionalOf(primitiveType, ctx).empty
     }
 
     def 'optionalOf is empty when Optional itself is not resolvable'() {
@@ -223,7 +268,7 @@ class NullnessCrossingSpec extends Specification {
         ctx.typeElementNamed('java.util.Optional') >> null
 
         expect:
-        NullnessCrossing.optionalOf(stringType, ctx).empty
+        crossing.optionalOf(stringType, ctx).empty
     }
 
     def 'optionalOf wraps a reference element in Optional when resolvable'() {
@@ -235,7 +280,11 @@ class NullnessCrossingSpec extends Specification {
         ctx.declaredType(optionalElement, stringType) >> optionalOfString
 
         expect:
-        NullnessCrossing.optionalOf(stringType, ctx).get().is(optionalOfString)
+        crossing.optionalOf(stringType, ctx).get().is(optionalOfString)
+    }
+
+    private static DirectiveInput defaultInput() {
+        DirectiveInput.scalar('defaultValue', 'fallback', Subjects.none())
     }
 
     private static Name nameOf(final String value) {

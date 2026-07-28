@@ -6,18 +6,16 @@ import java.util.Optional;
 import java.util.stream.Stream;
 import org.jspecify.annotations.Nullable;
 
-/**
- * The element scope owned by a scope-owning {@link Operation} (a container element mapping): the per-element
- * transform is a child plan with the same shape as a method body — an element input (declared, materialised lazily
- * like any scope input) in, an element return-root {@link Value} out. The owning Operation is the only coupling
- * between this scope and its parent; no {@link Dep} edge ever crosses the boundary.
- *
- * <p>When the owning Operation lands, {@code MapperGraph} mints the return-root {@link Value} eagerly (it is the
- * child plan's demand, folded into the owning Operation's cost) and records the element {@link InputDecl}. The
- * element's {@code LEAF} {@link Value} is materialised lazily only if the child plan sources from it — an element
- * mapped to a constant never mints one — while its binding (the lambda variable) is still emitted from the
- * declaration. Both are set exactly once.
- */
+// The element scope owned by a scope-owning Operation (a container element mapping): the per-element transform
+// is a child plan with the same shape as a method body — an element input (declared, materialised lazily like
+// any scope input) in, an element return-root Value out. The owning Operation is the only coupling between this
+// scope and its parent; no Dep edge ever crosses the boundary.
+//
+// When the owning Operation lands, MapperGraph mints the return-root Value eagerly (it is the child plan's
+// demand, folded into the owning Operation's cost) and records the element InputDecl. The element's LEAF Value
+// is materialised lazily only if the child plan sources from it — an element mapped to a constant never mints
+// one — while its binding (the lambda variable) is still emitted from the declaration. Both are set exactly
+// once.
 public final class ChildScope implements Scope {
 
     private final Operation owner;
@@ -34,12 +32,12 @@ public final class ChildScope implements Scope {
         return owner;
     }
 
-    /** The element return-root: the child plan's demand, required SAT for the owning Operation to be SAT. */
+    // The element return-root: the child plan's demand, required SAT for the owning Operation to be SAT.
     public Value getReturnRoot() {
         return requireNonNull(returnRoot, "child scope roots are minted when the owning Operation lands");
     }
 
-    /** The element input declaration: base-case SAT within this scope, materialised lazily like a method parameter. */
+    // The element input declaration: base-case SAT within this scope, materialised lazily like a method parameter.
     public InputDecl getElementInput() {
         return requireNonNull(elementInput, "child scope roots are minted when the owning Operation lands");
     }
@@ -52,7 +50,7 @@ public final class ChildScope implements Scope {
         this.elementInput = newElementInput;
     }
 
-    /** The single element input declaration — already resolved, set when the owning Operation lands. */
+    // The single element input declaration — already resolved, set when the owning Operation lands.
     @Override
     public Stream<InputDecl> inputDecls() {
         return Stream.of(getElementInput());

@@ -21,6 +21,7 @@ import javax.lang.model.type.TypeMirror
 class TemporalFormatSpec extends Specification {
 
     ResolveCtx ctx = Mock()
+    TemporalFormat temporalFormat = new TemporalFormat()
 
     TypeMirror stringType = Mock()
     TypeMirror localDateType = Mock()
@@ -45,7 +46,7 @@ class TemporalFormatSpec extends Specification {
         ctx.isType(localDateType, 'java.time.LocalDate') >> true
 
         when:
-        def specs = new TemporalFormat().expand(Demands.withFormat(localDateType, 'yyyy-MM-dd'), ctx)*.spec
+        def specs = temporalFormat.expand(Demands.withFormat(localDateType, 'yyyy-MM-dd'), ctx)*.spec
 
         then:
         specs.size() == 1
@@ -69,7 +70,7 @@ class TemporalFormatSpec extends Specification {
         ctx.isType(stringType, 'java.lang.String') >> true
 
         when:
-        def specs = new TemporalFormat().expand(Demands.withFormat(stringType, 'yyyy-MM-dd'), ctx)*.spec
+        def specs = temporalFormat.expand(Demands.withFormat(stringType, 'yyyy-MM-dd'), ctx)*.spec
 
         then:
         specs.size() == 4
@@ -89,8 +90,8 @@ class TemporalFormatSpec extends Specification {
         ctx.isType(localDateType, 'java.time.LocalDate') >> true
 
         when:
-        def first = new TemporalFormat().expand(Demands.withFormat(localDateType, 'yyyy-MM-dd'), ctx)*.spec
-        def second = new TemporalFormat().expand(Demands.withFormat(localDateType, 'yyyy-MM-dd'), ctx)*.spec
+        def first = temporalFormat.expand(Demands.withFormat(localDateType, 'yyyy-MM-dd'), ctx)*.spec
+        def second = temporalFormat.expand(Demands.withFormat(localDateType, 'yyyy-MM-dd'), ctx)*.spec
 
         then:
         first[0].memberRequests[0].dedupKey == second[0].memberRequests[0].dedupKey
@@ -100,8 +101,8 @@ class TemporalFormatSpec extends Specification {
         ctx.isType(localDateType, 'java.time.LocalDate') >> true
 
         when:
-        def first = new TemporalFormat().expand(Demands.withFormat(localDateType, 'yyyy-MM-dd'), ctx)*.spec
-        def second = new TemporalFormat().expand(Demands.withFormat(localDateType, 'dd.MM.yyyy'), ctx)*.spec
+        def first = temporalFormat.expand(Demands.withFormat(localDateType, 'yyyy-MM-dd'), ctx)*.spec
+        def second = temporalFormat.expand(Demands.withFormat(localDateType, 'dd.MM.yyyy'), ctx)*.spec
 
         then:
         first[0].memberRequests[0].dedupKey != second[0].memberRequests[0].dedupKey
@@ -109,19 +110,19 @@ class TemporalFormatSpec extends Specification {
 
     def 'a demand with no format directive is not matched'() {
         expect:
-        new TemporalFormat().expand(Demands.forTarget(localDateType), ctx).toList().empty
+        temporalFormat.expand(Demands.forTarget(localDateType), ctx).toList().empty
     }
 
     def '@Map(format) on a non-temporal, non-String target is not matched (nothing to consume it)'() {
         TypeMirror intType = Mock()
 
         expect:
-        new TemporalFormat().expand(Demands.withFormat(intType, 'yyyy-MM-dd'), ctx).toList().empty
+        temporalFormat.expand(Demands.withFormat(intType, 'yyyy-MM-dd'), ctx).toList().empty
     }
 
     def 'formatterRequest builds a DateTimeFormatter member request keyed by the pattern'() {
         expect:
-        def request = TemporalFormat.formatterRequest('yyyy-MM-dd')
+        def request = temporalFormat.formatterRequest('yyyy-MM-dd')
         request.fieldType.toString() == 'java.time.format.DateTimeFormatter'
         request.initializer.toString() == 'java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd")'
         request.dedupKey == 'temporal-format:yyyy-MM-dd'
@@ -131,14 +132,14 @@ class TemporalFormatSpec extends Specification {
         ResolveCtx freshCtx = Mock()
 
         expect:
-        TemporalFormat.formatStep('java.time.LocalDate', stringType, TemporalFormat.formatterRequest('p'), formatInput(), freshCtx).empty
+        temporalFormat.formatStep('java.time.LocalDate', stringType, temporalFormat.formatterRequest('p'), formatInput(), freshCtx).empty
     }
 
     def 'parseStep returns empty when the target is not a roster type'() {
         TypeMirror intType = Mock()
 
         expect:
-        TemporalFormat.parseStep(intType, TemporalFormat.formatterRequest('p'), formatInput(), ctx).empty
+        temporalFormat.parseStep(intType, temporalFormat.formatterRequest('p'), formatInput(), ctx).empty
     }
 
     def 'parseStep returns empty when String itself is not resolvable'() {
@@ -149,7 +150,7 @@ class TemporalFormatSpec extends Specification {
         freshCtx.isType(localDateType, 'java.time.LocalDate') >> true
 
         expect:
-        TemporalFormat.parseStep(localDateType, TemporalFormat.formatterRequest('p'), formatInput(), freshCtx).empty
+        temporalFormat.parseStep(localDateType, temporalFormat.formatterRequest('p'), formatInput(), freshCtx).empty
     }
 
     private static DirectiveInput formatInput() {

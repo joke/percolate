@@ -25,6 +25,7 @@ import javax.lang.model.type.TypeMirror
 class ConstantValueSpec extends Specification {
 
     ResolveCtx ctx = Mock()
+    ConstantValue constantValue = new ConstantValue()
     TypeMirror longType = Mock()
     TypeMirror intType = Mock()
 
@@ -32,7 +33,7 @@ class ConstantValueSpec extends Specification {
         longType.kind >> TypeKind.LONG
 
         when:
-        def offers = new ConstantValue().expand(Demands.withConstant(longType, '42'), ctx).toList()
+        def offers = constantValue.expand(Demands.withConstant(longType, '42'), ctx).toList()
 
         then:
         offers.size() == 1
@@ -49,7 +50,7 @@ class ConstantValueSpec extends Specification {
         intType.kind >> TypeKind.INT
 
         when:
-        def offers = new ConstantValue().expand(Demands.withConstant(intType, '7'), ctx).toList()
+        def offers = constantValue.expand(Demands.withConstant(intType, '7'), ctx).toList()
 
         then:
         offers.size() == 1
@@ -61,7 +62,7 @@ class ConstantValueSpec extends Specification {
         intType.kind >> TypeKind.INT
 
         when:
-        def offers = new ConstantValue().expand(Demands.withConstant(intType, '7'), ctx).toList()
+        def offers = constantValue.expand(Demands.withConstant(intType, '7'), ctx).toList()
 
         then:
         offers[0].spec.label == '7'
@@ -72,7 +73,7 @@ class ConstantValueSpec extends Specification {
         def literal = io.github.joke.percolate.lib.javapoet.CodeBlock.of('42L')
 
         expect:
-        def spec = ConstantValue.constantSpec(longType, literal, DirectiveInput.scalar('constant', '42', Subjects.none()))
+        def spec = constantValue.constantSpec(longType, literal, DirectiveInput.scalar('constant', '42', Subjects.none()))
         spec.label == '42L'
         spec.ports.empty
         spec.outputType.is(longType)
@@ -81,9 +82,28 @@ class ConstantValueSpec extends Specification {
         spec.codegen.render(null).toString() == '42L'
     }
 
+    def 'offerFor carries a coercible literal into a constant spec'() {
+        intType.kind >> TypeKind.INT
+
+        expect:
+        def offer = constantValue.offerFor(DirectiveInput.scalar('constant', '7', Subjects.none()), '7', intType, ctx)
+        offer.spec.label == '7'
+    }
+
+    def 'offerFor refuses an uncoercible literal, naming it and the target'() {
+        intType.kind >> TypeKind.INT
+        ctx.simpleName(intType) >> 'int'
+
+        expect:
+        def offer = constantValue.offerFor(
+                DirectiveInput.scalar('constant', 'abc', Subjects.none()), 'abc', intType, ctx)
+        offer instanceof Offer.Refusal
+        offer.message == "cannot coerce 'abc' to int"
+    }
+
     def 'emits nothing (silence, not refusal) without a constant declared'() {
         expect:
-        new ConstantValue().expand(Demands.forTarget(longType), ctx).toList().empty
+        constantValue.expand(Demands.forTarget(longType), ctx).toList().empty
     }
 
     def 'refuses an uncoercible constant, naming the offending literal and target'() {
@@ -92,7 +112,7 @@ class ConstantValueSpec extends Specification {
         ctx.simpleName(intType) >> 'int'
 
         when:
-        def offers = new ConstantValue().expand(Demands.withConstant(intType, 'abc'), ctx).toList()
+        def offers = constantValue.expand(Demands.withConstant(intType, 'abc'), ctx).toList()
 
         then:
         offers.size() == 1

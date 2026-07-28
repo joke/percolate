@@ -26,6 +26,7 @@ import java.util.stream.Stream
 class ConstructorCallSpec extends Specification {
 
     ResolveCtx ctx = Mock()
+    ConstructorCall constructorCall = new ConstructorCall()
     TypeMirror targetType = Mock()
     TypeElement typeElement = Mock()
 
@@ -33,7 +34,7 @@ class ConstructorCallSpec extends Specification {
         ctx.asTypeElement(targetType) >> Optional.empty()
 
         expect:
-        new ConstructorCall().expand(Demands.forTarget(targetType), ctx).toList().empty
+        constructorCall.expand(Demands.forTarget(targetType), ctx).toList().empty
     }
 
     def 'emits a multi-port assembly operation over the constructor parameters, in declaration order, when the goal spec matches'() {
@@ -54,7 +55,7 @@ class ConstructorCallSpec extends Specification {
 
         when:
         def declared = ['number', 'street'] as Set
-        def specs = new ConstructorCall().expand(Demands.assembling(targetType, declared), ctx)*.spec
+        def specs = constructorCall.expand(Demands.assembling(targetType, declared), ctx)*.spec
 
         then:
         specs.size() == 1
@@ -84,7 +85,7 @@ class ConstructorCallSpec extends Specification {
         streetParam.simpleName >> nameOf('street')
 
         expect:
-        new ConstructorCall().expand(Demands.assembling(targetType, ['nonexistent'] as Set), ctx).toList().empty
+        constructorCall.expand(Demands.assembling(targetType, ['nonexistent'] as Set), ctx).toList().empty
     }
 
     def 'rejects a private constructor'() {
@@ -95,14 +96,14 @@ class ConstructorCallSpec extends Specification {
         ctx.isPrivate(ctor) >> true
 
         expect:
-        new ConstructorCall().expand(Demands.assembling(targetType, ['x'] as Set), ctx).toList().empty
+        constructorCall.expand(Demands.assembling(targetType, ['x'] as Set), ctx).toList().empty
     }
 
     def 'a leaf demand (no declared children) is never assembled, even for a declared target'() {
         ctx.asTypeElement(targetType) >> Optional.of(typeElement)
 
         expect:
-        new ConstructorCall().expand(Demands.forTarget(targetType), ctx).toList().empty
+        constructorCall.expand(Demands.forTarget(targetType), ctx).toList().empty
     }
 
     def 'rejects a non-constructor member'() {
@@ -112,7 +113,7 @@ class ConstructorCallSpec extends Specification {
         ctx.isConstructor(method) >> false
 
         expect:
-        new ConstructorCall().expand(Demands.assembling(targetType, ['x'] as Set), ctx).toList().empty
+        constructorCall.expand(Demands.assembling(targetType, ['x'] as Set), ctx).toList().empty
     }
 
     def 'parameterNames collects each constructor parameter simple name into an unordered set'() {
@@ -124,7 +125,7 @@ class ConstructorCallSpec extends Specification {
         streetParam.simpleName >> nameOf('street')
 
         expect:
-        ConstructorCall.parameterNames(ctor) == ['number', 'street'] as Set
+        constructorCall.parameterNames(ctor) == ['number', 'street'] as Set
     }
 
     def 'parameterNames is empty for a zero-arg constructor'() {
@@ -132,7 +133,7 @@ class ConstructorCallSpec extends Specification {
         ctor.parameters >> []
 
         expect:
-        ConstructorCall.parameterNames(ctor).empty
+        constructorCall.parameterNames(ctor).empty
     }
 
     def 'constructorLabel composes new TypeName(portType, portType, ...) from the simple names'() {
@@ -142,7 +143,7 @@ class ConstructorCallSpec extends Specification {
         typeElement.simpleName >> nameOf('Address')
 
         expect:
-        ConstructorCall.constructorLabel(typeElement, [port]) == 'new Address(int)'
+        constructorCall.constructorLabel(typeElement, [port]) == 'new Address(int)'
     }
 
     private static Name nameOf(final String value) {

@@ -23,6 +23,8 @@ import javax.lang.model.type.TypeMirror
 @Tag('unit')
 class BodyRenderContextImplSpec extends Specification {
 
+    BodyRenderContextFactory bodyRenderContextFactory = new BodyRenderContextFactory()
+
     MapperGraph graph = Mock()
     MemberPlan memberPlan = Mock()
     ResolveCtx resolveCtx = Mock()
@@ -39,7 +41,7 @@ class BodyRenderContextImplSpec extends Specification {
         TypeMirror type1 = Mock()
 
         when:
-        def context = BodyRenderContextImpl.buildFor(graph, operation,
+        def context = bodyRenderContextFactory.buildFor(graph, operation,
                 { Value v -> v.is(source0) ? CodeBlock.of('x') : CodeBlock.of('y') }, memberPlan, resolveCtx,
                 switchStyle, sourceVersion)
 
@@ -66,7 +68,7 @@ class BodyRenderContextImplSpec extends Specification {
         def memberRequest = new MemberRequest(null, CodeBlock.of('null'), 'fmt-yyyy-MM-dd')
 
         when:
-        def context = BodyRenderContextImpl.buildFor(graph, operation, { Value v -> CodeBlock.of('x') }, memberPlan,
+        def context = bodyRenderContextFactory.buildFor(graph, operation, { Value v -> CodeBlock.of('x') }, memberPlan,
                 resolveCtx, switchStyle, sourceVersion)
 
         then:
@@ -84,7 +86,7 @@ class BodyRenderContextImplSpec extends Specification {
         def port = new Port('a', Mock(TypeMirror), Nullability.NON_NULL)
 
         when:
-        BodyRenderContextImpl.buildFor(graph, operation, { Value v -> CodeBlock.of('x') }, memberPlan, resolveCtx,
+        bodyRenderContextFactory.buildFor(graph, operation, { Value v -> CodeBlock.of('x') }, memberPlan, resolveCtx,
                 switchStyle, sourceVersion)
 
         then:
@@ -103,7 +105,7 @@ class BodyRenderContextImplSpec extends Specification {
         Value source = Mock()
 
         when:
-        BodyRenderContextImpl.buildFor(graph, operation, { Value v -> CodeBlock.of('x') }, memberPlan, resolveCtx,
+        bodyRenderContextFactory.buildFor(graph, operation, { Value v -> CodeBlock.of('x') }, memberPlan, resolveCtx,
                 switchStyle, sourceVersion)
 
         then:
@@ -121,7 +123,7 @@ class BodyRenderContextImplSpec extends Specification {
         Operation operation = Mock()
 
         when:
-        def context = BodyRenderContextImpl.buildFor(graph, operation, { Value v -> CodeBlock.of('x') }, memberPlan,
+        def context = bodyRenderContextFactory.buildFor(graph, operation, { Value v -> CodeBlock.of('x') }, memberPlan,
                 resolveCtx, switchStyle, sourceVersion)
 
         then:
@@ -141,7 +143,7 @@ class BodyRenderContextImplSpec extends Specification {
         Operation operation = Mock()
 
         when:
-        def context = BodyRenderContextImpl.buildFor(graph, operation, { Value v -> CodeBlock.of('x') }, memberPlan,
+        def context = bodyRenderContextFactory.buildFor(graph, operation, { Value v -> CodeBlock.of('x') }, memberPlan,
                 resolveCtx, switchStyle, sourceVersion)
 
         then:
@@ -162,7 +164,7 @@ class BodyRenderContextImplSpec extends Specification {
         def port = new Port('value', Mock(TypeMirror), Nullability.NON_NULL)
 
         when:
-        def context = BodyRenderContextImpl.buildFor(graph, operation, { Value v -> CodeBlock.of('x') }, memberPlan,
+        def context = bodyRenderContextFactory.buildFor(graph, operation, { Value v -> CodeBlock.of('x') }, memberPlan,
                 resolveCtx, switchStyle, sourceVersion)
 
         then:

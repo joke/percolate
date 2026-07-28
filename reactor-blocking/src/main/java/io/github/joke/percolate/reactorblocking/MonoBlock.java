@@ -14,15 +14,13 @@ import java.util.List;
 import java.util.stream.Stream;
 import lombok.NoArgsConstructor;
 
-/**
- * Upward async-to-sync crossing {@code Mono<T> → T} via {@code mono.block()}: a target-driven conversion keyed on a
- * plain scalar {@code T}, sourcing a {@code Mono<T>} through a <b>reuse-only</b> port (the {@code unwrap} pattern) so it
- * never mints a fresh {@code Mono} just to block it. The edge is weighted strictly above any non-blocking alternative,
- * so a lazy reactive path always wins when one exists; blocking is chosen only when nothing else produces {@code T}.
- * It is <b>partial</b> ({@code block()} returns {@code null} on an empty {@code Mono}), so the empty-safe
- * {@code blockOptional} (total) is preferred whenever an {@code Optional<T>} is what's demanded — totality dominates.
- * Shipped only in the opt-in {@code reactor-blocking} module — the engine never auto-invents it.
- */
+// Upward async-to-sync crossing Mono<T> → T via mono.block(): a target-driven conversion keyed on a plain
+// scalar T, sourcing a Mono<T> through a reuse-only port (the unwrap pattern) so it never mints a fresh Mono
+// just to block it. The edge is weighted strictly above any non-blocking alternative, so a lazy reactive path
+// always wins when one exists; blocking is chosen only when nothing else produces T. It is partial (block()
+// returns null on an empty Mono), so the empty-safe blockOptional (total) is preferred whenever an Optional<T>
+// is what's demanded — totality dominates. Shipped only in the opt-in reactor-blocking module — the engine
+// never auto-invents it.
 @AutoService(ExpansionStrategy.class)
 @NoArgsConstructor
 public final class MonoBlock implements ExpansionStrategy {

@@ -15,13 +15,11 @@ import javax.lang.model.type.TypeKind;
 import lombok.NoArgsConstructor;
 import org.jetbrains.annotations.VisibleForTesting;
 
-/**
- * Resolves one source-path segment to a JavaBeans getter ({@code getX()} / boolean {@code isX()}) on the parent type,
- * on the {@link Accessor} archetype base: candidate-free, the base pins the parent and the segment and wires the
- * one-port accessor {@link io.github.joke.percolate.spi.OperationSpec}; this strategy supplies only the getter match
- * and its {@code parent.getX()} rendering. The produced value's nullness is the getter's, resolved through the demand
- * oracle by the base.
- */
+// Resolves one source-path segment to a JavaBeans getter (getX() / boolean isX()) on the parent type, on the
+// Accessor archetype base: candidate-free, the base pins the parent and the segment and wires the one-port
+// accessor io.github.joke.percolate.spi.OperationSpec; this strategy supplies only the getter match and its
+// parent.getX() rendering. The produced value's nullness is the getter's, resolved through the demand oracle by
+// the base.
 @AutoService(ExpansionStrategy.class)
 @NoArgsConstructor
 public final class GetterPathResolver extends Accessor {
@@ -35,10 +33,10 @@ public final class GetterPathResolver extends Accessor {
                 .flatMap(member ->
                         matchGetter(member, getterName, ctx).or(() -> matchBooleanIs(member, isName, ctx)).stream())
                 .findFirst()
-                .map(GetterPathResolver::step);
+                .map(this::step);
     }
 
-    static Step step(final ExecutableElement method) {
+    Step step(final ExecutableElement method) {
         final var methodName = method.getSimpleName().toString();
         final OperationCodegen codegen = inputs -> CodeBlock.of("$L$Z.$N()", inputs.single(), methodName);
         return new Step(method.getReturnType(), method, methodName + "()", Weights.STEP_GETTER, codegen);
@@ -57,7 +55,7 @@ public final class GetterPathResolver extends Accessor {
         return ctx.kind(returnType) == TypeKind.BOOLEAN || "java.lang.Boolean".equals(ctx.qualifiedName(returnType));
     }
 
-    static String capitalize(final String segment) {
+    String capitalize(final String segment) {
         if (segment.isEmpty()) {
             return segment;
         }

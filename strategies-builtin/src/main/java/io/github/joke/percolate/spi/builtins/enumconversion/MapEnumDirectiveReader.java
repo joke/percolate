@@ -16,12 +16,10 @@ import javax.lang.model.element.AnnotationValue;
 import javax.lang.model.element.ExecutableElement;
 import lombok.NoArgsConstructor;
 
-/**
- * Reads a method's {@code @MapEnum}/{@code @MapEnumList} declarations into one repeated, structured {@code "enum"}
- * input per entry, attached at the empty root target path — {@code @MapEnum} is method-level, in effect only for a
- * conversion method's own return demand (design D4/D7 of change {@code decouple-engine-from-strategy-semantics}).
- * Unlike {@code @Map}, both members are mandatory (no default), so there is no presence decision.
- */
+// Reads a method's @MapEnum/@MapEnumList declarations into one repeated, structured "enum" input per entry,
+// attached at the empty root target path — @MapEnum is method-level, in effect only for a conversion method's
+// own return demand (design D4/D7 of change decouple-engine-from-strategy-semantics). Unlike @Map, both members
+// are mandatory (no default), so there is no presence decision.
 @CoverageIgnore
 @AutoService(DirectiveReader.class)
 @NoArgsConstructor

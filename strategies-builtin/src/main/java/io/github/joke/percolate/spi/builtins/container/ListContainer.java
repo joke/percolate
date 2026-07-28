@@ -11,7 +11,7 @@ import javax.lang.model.type.TypeMirror;
 import lombok.NoArgsConstructor;
 import org.jetbrains.annotations.VisibleForTesting;
 
-/** The {@code java.util.List} sequence container: candidacy + stream codegen in one class. */
+// The java.util.List sequence container: candidacy + stream codegen in one class.
 @AutoService({ExpansionStrategy.class, SourceProjection.class})
 @NoArgsConstructor
 public final class ListContainer extends CollectionContainer {

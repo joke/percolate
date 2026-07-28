@@ -21,12 +21,10 @@ import javax.lang.model.type.TypeKind;
 import javax.lang.model.util.Elements;
 import lombok.RequiredArgsConstructor;
 
-/**
- * Assembles and writes the generated mapper implementation via JavaPoet and the {@link Filer}. The thin
- * {@code javax.lang.model}/{@code Filer} leaf of code generation: covered end-to-end by the compile-based
- * feature-e2e layer, not by a unit-test javac substrate — its decision logic lives in {@link MapperTypeDecisions},
- * which is unit-tested directly.
- */
+// Assembles and writes the generated mapper implementation via JavaPoet and the Filer. The thin
+// javax.lang.model/Filer leaf of code generation: covered end-to-end by the compile-based feature-e2e layer,
+// not by a unit-test javac substrate — its decision logic lives in MapperTypeDecisions, which is unit-tested
+// directly.
 @CoverageIgnore
 @RequiredArgsConstructor(onConstructor_ = @Inject)
 public final class AssembleMapperType {
@@ -61,13 +59,13 @@ public final class AssembleMapperType {
         JavaFile.builder(packageName, typeBuilder.build()).build().writeTo(filer);
     }
 
-    static AnnotationSpec generatedAnnotation() {
+    AnnotationSpec generatedAnnotation() {
         return AnnotationSpec.builder(Generated.class)
                 .addMember("value", "$S", GENERATED_VALUE)
                 .build();
     }
 
-    static MethodSpec emptyPublicConstructor() {
+    MethodSpec emptyPublicConstructor() {
         return MethodSpec.constructorBuilder().addModifiers(Modifier.PUBLIC).build();
     }
 
@@ -95,7 +93,7 @@ public final class AssembleMapperType {
                 .build();
     }
 
-    static TypeName returnTypeName(final ExecutableElement method) {
+    TypeName returnTypeName(final ExecutableElement method) {
         final var returnType = method.getReturnType();
         return returnType.getKind() == TypeKind.VOID ? TypeName.VOID : TypeName.get(returnType);
     }

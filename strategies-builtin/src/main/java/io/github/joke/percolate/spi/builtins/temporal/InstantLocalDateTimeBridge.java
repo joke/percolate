@@ -21,18 +21,15 @@ import java.util.stream.Stream;
 import javax.lang.model.type.TypeMirror;
 import lombok.NoArgsConstructor;
 
-/**
- * The single zone-consuming hop between the two temporal hubs (design D1/D3/D4 of change
- * {@code add-temporal-type-mapping}): {@code Instant ⇄ LocalDateTime}. Unlike every spoke conversion, this strategy
- * implements {@link ExpansionStrategy} directly because it reads the demand's {@link Directive} for the resolved
- * zone and stamps {@code "zone"} consumed on the {@link OperationSpec} it emits — the consumption-tracked option
- * rail's contract (a strategy stamps only the keys it actually read). Zone resolution follows a fixed precedence
- * (D4): a present {@code @Map(zone = …)} wins, frozen as {@code ZoneId.of("…")}; else a present
- * {@code -Apercolate.time.zone=…} processor option, also frozen; else the generated code reads
- * {@code ZoneId.systemDefault()} at the <em>consumer's</em> runtime. The processor never reads its own build-JVM
- * zone. A zone declared on a binding whose winning plan never crosses this bridge (an absolute-only or local-only
- * path) is therefore never stamped, and the directive-options rail reports it as having no effect.
- */
+// The single zone-consuming hop between the two temporal hubs (design D1/D3/D4 of change add-temporal-type-
+// mapping): Instant ⇄ LocalDateTime. Unlike every spoke conversion, this strategy implements ExpansionStrategy
+// directly because it reads the demand's Directive for the resolved zone and stamps "zone" consumed on the
+// OperationSpec it emits — the consumption-tracked option rail's contract (a strategy stamps only the keys it
+// actually read). Zone resolution follows a fixed precedence (D4): a present @Map(zone = …) wins, frozen as
+// ZoneId.of("…"); else a present -Apercolate.time.zone=… processor option, also frozen; else the generated code
+// reads ZoneId.systemDefault() at the consumer's runtime. The processor never reads its own build-JVM zone. A
+// zone declared on a binding whose winning plan never crosses this bridge (an absolute-only or local-only path)
+// is therefore never stamped, and the directive-options rail reports it as having no effect.
 @AutoService(ExpansionStrategy.class)
 @NoArgsConstructor
 public final class InstantLocalDateTimeBridge implements ExpansionStrategy {
@@ -55,8 +52,8 @@ public final class InstantLocalDateTimeBridge implements ExpansionStrategy {
         return Stream.empty();
     }
 
-    /** {@code Instant -> LocalDateTime} via {@code instant.atZone(zone).toLocalDateTime()}. */
-    static Optional<OperationSpec> toLocalDateTimeSpec(
+    // Instant -> LocalDateTime via instant.atZone(zone).toLocalDateTime().
+    Optional<OperationSpec> toLocalDateTimeSpec(
             final ProduceDemand demand, final TypeMirror target, final ResolveCtx ctx) {
         final var instantElement = ctx.typeElementNamed(INSTANT);
         final var localDateTimeElement = ctx.typeElementNamed(LOCAL_DATE_TIME);
@@ -80,9 +77,8 @@ public final class InstantLocalDateTimeBridge implements ExpansionStrategy {
                 .withConsumed(consumed(zoneInput)));
     }
 
-    /** {@code LocalDateTime -> Instant} via {@code localDateTime.atZone(zone).toInstant()}. */
-    static Optional<OperationSpec> toInstantSpec(
-            final ProduceDemand demand, final TypeMirror target, final ResolveCtx ctx) {
+    // LocalDateTime -> Instant via localDateTime.atZone(zone).toInstant().
+    Optional<OperationSpec> toInstantSpec(final ProduceDemand demand, final TypeMirror target, final ResolveCtx ctx) {
         final var instantElement = ctx.typeElementNamed(INSTANT);
         final var localDateTimeElement = ctx.typeElementNamed(LOCAL_DATE_TIME);
         if (instantElement == null || localDateTimeElement == null) {
@@ -104,12 +100,12 @@ public final class InstantLocalDateTimeBridge implements ExpansionStrategy {
                 .withConsumed(consumed(zoneInput)));
     }
 
-    static Set<DirectiveInput> consumed(final Optional<DirectiveInput> zoneInput) {
+    Set<DirectiveInput> consumed(final Optional<DirectiveInput> zoneInput) {
         return zoneInput.map(Set::of).orElseGet(Set::of);
     }
 
-    /** Zone precedence (D4): directive → processor option → generated {@code ZoneId.systemDefault()}. */
-    static CodeBlock resolveZone(final Optional<DirectiveInput> zoneInput, final ResolveCtx ctx) {
+    // Zone precedence (D4): directive → processor option → generated ZoneId.systemDefault().
+    CodeBlock resolveZone(final Optional<DirectiveInput> zoneInput, final ResolveCtx ctx) {
         final var directiveZone = zoneInput.flatMap(DirectiveInput::getValue);
         if (directiveZone.isPresent()) {
             return CodeBlock.of("$T.of($S)", ZONE_ID, directiveZone.get());

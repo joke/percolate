@@ -17,7 +17,6 @@ import io.github.joke.percolate.processor.model.GoalSpec;
 import io.github.joke.percolate.processor.model.MapperShape;
 import io.github.joke.percolate.processor.nullability.NullabilityResolver;
 import io.github.joke.percolate.spi.BoundPort;
-import io.github.joke.percolate.spi.Constraint;
 import io.github.joke.percolate.spi.ExpansionStrategy;
 import io.github.joke.percolate.spi.OperationSpec;
 import io.github.joke.percolate.spi.ResolveCtx;
@@ -32,28 +31,26 @@ import javax.lang.model.util.Types;
 import lombok.RequiredArgsConstructor;
 import org.jspecify.annotations.Nullable;
 
-/**
- * The expansion driver (design D6/D9), a single uniform demand work-list over the bipartite graph: a demanded
- * target {@code Value} asks "what produces this?", the full strategy set answers with {@link OperationSpec}s, and the
- * driver lands each as an atomic {@code AddOperation} whose ports become new demands. There is no per-supply-mode
- * branch (no assembly/bridge split) and the driver builds no {@code Operation} itself — every plan Operation,
- * including nullness crossings and source accessors, originates from a strategy. Misfires are prevented structurally
- * at emission time (assembly gates on the declared-bindings goal spec; conversions on a candidate type match), not by
- * a routing branch.
- *
- * <p>A landed Operation's ports are bound and re-demanded uniformly: a port named after a declared child becomes a
- * deeper child-target demand; any other port reuses an in-scope source Value of the port's type and (assignment-
- * compatible) nullness — preferring the directive-pinned source so a same-typed sibling can never shadow it — or, when
- * none exists, a fresh intermediate at the output location that is itself re-demanded (a multi-hop conversion) and
- * left unreachable if nothing produces it. A directive's source path is materialised by <b>forward, target-bound
- * descent</b> when its FREE target is resolved ({@code pinnedSource}): the scope-input root {@code LEAF} is created,
- * then each further segment's accessor (a {@code descend} strategy match) is landed against the type of the Value
- * landed for the previous segment, advancing to the leaf — over-emitting every matching accessor per segment, with
- * no typing pre-walk, no second strategy-invocation site, and no backward parent re-demand.
- *
- * <p>After the work-list drains the graph is fully over-emitted; satisfaction is not computed here — a vertex is
- * reachable iff its extraction cost is finite ({@code ExtractedPlan}), so there is no separate SAT pass.
- */
+// The expansion driver (design D6/D9), a single uniform demand work-list over the bipartite graph: a demanded
+// target Value asks "what produces this?", the full strategy set answers with OperationSpecs, and the driver
+// lands each as an atomic AddOperation whose ports become new demands. There is no per-supply-mode branch (no
+// assembly/bridge split) and the driver builds no Operation itself — every plan Operation, including nullness
+// crossings and source accessors, originates from a strategy. Misfires are prevented structurally at emission
+// time (assembly gates on the declared-bindings goal spec; conversions on a candidate type match), not by a
+// routing branch.
+//
+// A landed Operation's ports are bound and re-demanded uniformly: a port named after a declared child becomes a
+// deeper child-target demand; any other port reuses an in-scope source Value of the port's type and
+// (assignment- compatible) nullness — preferring the directive-pinned source so a same-typed sibling can never
+// shadow it — or, when none exists, a fresh intermediate at the output location that is itself re-demanded (a
+// multi-hop conversion) and left unreachable if nothing produces it. A directive's source path is materialised
+// by forward, target-bound descent when its FREE target is resolved (pinnedSource): the scope-input root LEAF
+// is created, then each further segment's accessor (a descend strategy match) is landed against the type of the
+// Value landed for the previous segment, advancing to the leaf — over-emitting every matching accessor per
+// segment, with no typing pre-walk, no second strategy-invocation site, and no backward parent re-demand.
+//
+// After the work-list drains the graph is fully over-emitted; satisfaction is not computed here — a vertex is
+// reachable iff its extraction cost is finite (ExtractedPlan), so there is no separate SAT pass.
 @RequiredArgsConstructor
 public final class ExpandStage implements Stage {
 
@@ -77,15 +74,12 @@ public final class ExpandStage implements Stage {
         new Driver(strategies, projections, resolver, graph, ctx.getGoalSpecs(), resolveCtx).seedAndExpand(shape);
     }
 
-    /**
-     * One expansion run over a single graph (design D5, decomposed by change {@code decompose-engine-stages} into
-     * single-method collaborators): an orchestrator composing {@link TargetProducer} (what a FREE demand admits),
-     * {@link SourcePathDescender} (a directive's pinned source), {@link PortBinder}/{@link PortSourceResolver} (port
-     * sourcing), {@link SelfCallGuard}, and {@link OperationLander} (landing), driven to fixpoint by
-     * {@link ExpansionLoop}. Package-visible and {@code static} so the unit suite drives it directly with constructed
-     * strategies and an injected {@link ResolveCtx}, asserting on the resulting {@link MapperGraph}. Production code
-     * reaches it only through {@link #run(MapperContext)}.
-     */
+    // One expansion run over a single graph (design D5, decomposed by change decompose-engine-stages into single-
+    // method collaborators): an orchestrator composing TargetProducer (what a FREE demand admits),
+    // SourcePathDescender (a directive's pinned source), PortBinder/PortSourceResolver (port sourcing),
+    // SelfCallGuard, and OperationLander (landing), driven to fixpoint by ExpansionLoop. Package-visible and static
+    // so the unit suite drives it directly with constructed strategies and an injected ResolveCtx, asserting on the
+    // resulting MapperGraph. Production code reaches it only through .run(MapperContext).
     static final class Driver {
 
         private final MapperGraph graph;
@@ -106,29 +100,28 @@ public final class ExpandStage implements Stage {
             this.graph = graph;
             this.resolveCtx = resolveCtx;
             final var applier = new Applier();
+            final var deduplicator = new SpecDeduplicator();
             final var sourceCandidates = new SourceCandidates(graph, applier, resolveCtx);
             final var unifier = new Unifier(resolveCtx);
             final var grounding = new Grounding(
                     new SourceWidener(resolveCtx, projections),
                     new BindingEnumerator(unifier),
                     new SpecInstantiator(resolveCtx));
-            this.targetProducer =
-                    new TargetProducer(strategies, goalSpecs, sourceCandidates, grounding, resolveCtx, resolver);
+            this.targetProducer = new TargetProducer(
+                    strategies, goalSpecs, sourceCandidates, grounding, resolveCtx, resolver, deduplicator);
             this.operationLander = new OperationLander(graph, applier);
             final var portSourceResolver = new PortSourceResolver(sourceCandidates, operationLander);
             this.portBinder = new PortBinder(portSourceResolver);
-            this.sourcePathDescender =
-                    new SourcePathDescender(strategies, resolveCtx, resolver, graph, applier, operationLander);
+            this.sourcePathDescender = new SourcePathDescender(
+                    strategies, resolveCtx, resolver, graph, applier, operationLander, deduplicator);
             final var seeder = new Seeder(graph, applier, resolver, goalSpecs);
             this.expansionLoop = new ExpansionLoop(seeder, this::expandValue);
         }
 
-        /**
-         * Test-only seam (package-visible): assembles a Driver from already-constructed collaborators, so the unit
-         * suite can mock {@link TargetProducer}/{@link SourcePathDescender}/{@link PortBinder}/{@link OperationLander}
-         * and exercise {@link #land}/{@link #expandValue} in isolation, per engine-test-quality's orchestrator
-         * scenario. {@code resolveCtx} backs only the built-in self-call {@link Constraint}.
-         */
+        // Test-only seam (package-visible): assembles a Driver from already-constructed collaborators, so the unit
+        // suite can mock TargetProducer/SourcePathDescender/PortBinder/OperationLander and exercise .land/.expandValue
+        // in isolation, per engine-test-quality's orchestrator scenario. resolveCtx backs only the built-in self-call
+        // Constraint.
         Driver(
                 final MapperGraph graph,
                 final TargetProducer targetProducer,
@@ -146,18 +139,16 @@ public final class ExpandStage implements Stage {
             this.expansionLoop = expansionLoop;
         }
 
-        /** Self-seeds one return-root demand per abstract method into the empty graph, then drains the work-list. */
+        // Self-seeds one return-root demand per abstract method into the empty graph, then drains the work-list.
         void seedAndExpand(final MapperShape shape) {
             expansionLoop.seedAndExpand(shape);
         }
 
-        /**
-         * One step of expansion (the {@link ExpansionLoop.Expander} this driver installs): a FREE target demand asks
-         * {@link TargetProducer} what it admits and {@link SourcePathDescender} for its directive-pinned source, then
-         * lands each admitted spec, enqueueing every follow-up demand a landed operation's ports and child scope
-         * raise. {@code ACCESS} (source-path Values produced by forward descent), {@code LEAF} (parameter/element
-         * roots), and {@code CONSTANT} are base cases: nothing to expand.
-         */
+        // One step of expansion (the ExpansionLoop.Expander this driver installs): a FREE target demand asks
+        // TargetProducer what it admits and SourcePathDescender for its directive-pinned source, then lands each
+        // admitted spec, enqueueing every follow-up demand a landed operation's ports and child scope raise. ACCESS
+        // (source-path Values produced by forward descent), LEAF (parameter/element roots), and CONSTANT are base
+        // cases: nothing to expand.
         void expandValue(final Value value, final Consumer<Value> enqueue) {
             if (value.getLoc().role() != Location.Role.FREE) {
                 return;
@@ -172,12 +163,10 @@ public final class ExpandStage implements Stage {
             }
         }
 
-        /**
-         * Turns {@code spec} into a landed {@link Operation} bound by {@code pinnedSource}-ranked sources, or empty
-         * when a port can't be sourced ({@link PortBinder}) or an admissibility {@link Constraint} refuses (design
-         * D8 of change {@code decouple-engine-from-strategy-semantics}) — a pure function of its inputs, raising no
-         * follow-up demand itself (the caller enqueues).
-         */
+        // Turns spec into a landed Operation bound by pinnedSource-ranked sources, or empty when a port can't be
+        // sourced (PortBinder) or an admissibility Constraint refuses (design D8 of change decouple-engine-from-
+        // strategy-semantics) — a pure function of its inputs, raising no follow-up demand itself (the caller
+        // enqueues).
         Optional<Operation> land(final Value output, final OperationSpec spec, final @Nullable Value pinnedSource) {
             final var parentPath = ((TargetLocation) output.getLoc()).getPath().toString();
             return portBinder
@@ -186,11 +175,9 @@ public final class ExpandStage implements Stage {
                     .map(ports -> operationLander.landOperation(spec, ports, operationLander.outputOf(output)));
         }
 
-        /**
-         * Applies every constraint bearing on {@code output}'s demand — the engine's own self-call rule plus
-         * whatever a reader attached — as a conjunction, recording each refusal on {@code output}'s inadmissible
-         * list (design D2). There is exactly one admissibility mechanism: this method, not a second bespoke guard.
-         */
+        // Applies every constraint bearing on output's demand — the engine's own self-call rule plus whatever a reader
+        // attached — as a conjunction, recording each refusal on output's inadmissible list (design D2). There is
+        // exactly one admissibility mechanism: this method, not a second bespoke guard.
         boolean admissible(final Value output, final OperationSpec spec, final List<PortBinding> ports) {
             final var boundPorts = ports.stream()
                     .map(binding -> new BoundPort(binding.getPort(), binding.getSource()))

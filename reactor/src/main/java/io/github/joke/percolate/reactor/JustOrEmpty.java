@@ -16,11 +16,9 @@ import java.util.stream.Stream;
 import lombok.NoArgsConstructor;
 import reactor.core.publisher.Mono;
 
-/**
- * Downward interop bridge {@code Optional<T> → Mono<T>} via {@code Mono.justOrEmpty} (design D5): a target-driven
- * conversion keyed on the concrete demanded {@code Mono<T>}, sourcing a concrete {@code Optional<T>} port. Entering the
- * reactive world from a synchronous {@code Optional} never blocks.
- */
+// Downward interop bridge Optional<T> → Mono<T> via Mono.justOrEmpty (design D5): a target-driven conversion
+// keyed on the concrete demanded Mono<T>, sourcing a concrete Optional<T> port. Entering the reactive world
+// from a synchronous Optional never blocks.
 @AutoService(ExpansionStrategy.class)
 @NoArgsConstructor
 public final class JustOrEmpty implements ExpansionStrategy {

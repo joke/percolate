@@ -16,13 +16,10 @@ import java.util.stream.Stream;
 import lombok.NoArgsConstructor;
 import reactor.core.publisher.Flux;
 
-/**
- * Downward interop bridge {@code Stream<T> → Flux<T>} via {@code Flux.fromStream} (design D5): a target-driven
- * conversion keyed on the concrete demanded {@code Flux<T>}, sourcing a concrete {@code Stream<T>} port. The JDK
- * collection containers feed that {@code Stream<T>} through the shared {@code java.util.stream.Stream} intermediate
- * (e.g. a {@code List<DTO>} → {@code Stream<DAO>}), so any JDK collection bridges into the reactive world without
- * blocking.
- */
+// Downward interop bridge Stream<T> → Flux<T> via Flux.fromStream (design D5): a target-driven conversion keyed
+// on the concrete demanded Flux<T>, sourcing a concrete Stream<T> port. The JDK collection containers feed that
+// Stream<T> through the shared java.util.stream.Stream intermediate (e.g. a List<DTO> → Stream<DAO>), so any
+// JDK collection bridges into the reactive world without blocking.
 @AutoService(ExpansionStrategy.class)
 @NoArgsConstructor
 public final class FluxFromStream implements ExpansionStrategy {

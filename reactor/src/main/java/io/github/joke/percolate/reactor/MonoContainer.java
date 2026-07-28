@@ -15,19 +15,15 @@ import lombok.NoArgsConstructor;
 import org.jetbrains.annotations.VisibleForTesting;
 import reactor.core.publisher.Mono;
 
-/**
- * The {@code reactor.core.publisher.Mono} presence container over the shared reactive intermediate {@code Flux} (design
- * D1). Like {@code OptionalContainer} it supplies no {@code collect}; that absence is what makes its kind a presence
- * wrapper. {@link #iterate()} opens a {@code Mono<X>} into a {@code Flux<X>} ({@code Mono.flux()}) — the shared
- * intermediate — which is how a {@code Mono} source feeds the generic {@link FluxMap} (its {@link #project} projects the
- * same {@code Mono<X> → Flux<X>}). {@link #mapPresence()} maps the wrapped value ({@code mono.map}) as a same-kind
- * functor lift; {@link #wrap()} lifts a non-null scalar via {@code Mono.just}.
- *
- * <p>It supplies <b>no</b> {@code unwrap}: collapsing a {@code Mono} to a scalar is {@code block()} — an async-to-sync
- * crossing that blocks a thread. That edge lives only in the opt-in {@code reactor-blocking} module, never here (design
- * D3, the boundary-direction rule), so the engine reports "no producer" for {@code Mono<T> → T} unless blocking is
- * explicitly enabled.
- */
+// The reactor.core.publisher.Mono presence container over the shared reactive intermediate Flux (design D1).
+// Like OptionalContainer it supplies no collect; that absence is what makes its kind a presence wrapper.
+// .iterate() opens a Mono<X> into a Flux<X> (Mono.flux()) — the shared intermediate — which is how a Mono
+// source feeds the generic FluxMap (its .project projects the same Mono<X> → Flux<X>). .mapPresence() maps the
+// wrapped value (mono.map) as a same-kind functor lift; .wrap() lifts a non-null scalar via Mono.just.
+//
+// It supplies no unwrap: collapsing a Mono to a scalar is block() — an async-to-sync crossing that blocks a
+// thread. That edge lives only in the opt-in reactor-blocking module, never here (design D3, the boundary-
+// direction rule), so the engine reports "no producer" for Mono<T> → T unless blocking is explicitly enabled.
 @AutoService({ExpansionStrategy.class, SourceProjection.class})
 @NoArgsConstructor
 public final class MonoContainer extends Container {

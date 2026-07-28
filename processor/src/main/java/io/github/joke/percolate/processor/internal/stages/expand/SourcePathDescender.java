@@ -20,14 +20,11 @@ import java.util.Optional;
 import lombok.RequiredArgsConstructor;
 import org.jspecify.annotations.Nullable;
 
-/**
- * Materialises a directive's source-path leaf by forward, target-bound descent (design D1/D2 of change
- * {@code forward-target-bound-accessor-descent}, decomposed out of {@code ExpandStage.Driver} by
- * {@code decompose-engine-stages}): the scope-input root {@code LEAF} is created, then each further segment's
- * accessor is landed against the type of the {@code Value} landed for the previous segment, advancing to the leaf —
- * over-emitting every matching accessor per segment (cost prunes later), with no typing pre-walk and no
- * {@code findFirst}.
- */
+// Materialises a directive's source-path leaf by forward, target-bound descent (design D1/D2 of change forward-
+// target-bound-accessor-descent, decomposed out of ExpandStage.Driver by decompose-engine-stages): the scope-
+// input root LEAF is created, then each further segment's accessor is landed against the type of the Value
+// landed for the previous segment, advancing to the leaf — over-emitting every matching accessor per segment
+// (cost prunes later), with no typing pre-walk and no findFirst.
 @RequiredArgsConstructor
 final class SourcePathDescender {
 
@@ -37,13 +34,12 @@ final class SourcePathDescender {
     private final MapperGraph graph;
     private final Applier applier;
     private final OperationLander operationLander;
+    private final SpecDeduplicator deduplicator;
 
-    /**
-     * The leaf source {@code Value} for a directive's source {@code segments}, or {@code null} when the path is
-     * empty or a segment resolves no accessor. Idempotent through the dedup index, so re-deriving the same source
-     * path re-lands nothing new. {@code directive} is the walked binding's own configuration (design D9) — not a
-     * per-segment one — threaded into every segment's {@link DescendView}.
-     */
+    // The leaf source Value for a directive's source segments, or null when the path is empty or a segment resolves
+    // no accessor. Idempotent through the dedup index, so re-deriving the same source path re-lands nothing new.
+    // directive is the walked binding's own configuration (design D9) — not a per-segment one — threaded into every
+    // segment's DescendView.
     @Nullable
     Value pinnedSource(final Scope scope, final List<String> segments, final Optional<Directive> directive) {
         if (segments.isEmpty()) {
@@ -56,7 +52,7 @@ final class SourcePathDescender {
         return parent;
     }
 
-    /** The scope-input root {@code LEAF} for the path's first {@code segment}, or {@code null} when no input declares it. */
+    // The scope-input root LEAF for the path's first segment, or null when no input declares it.
     @Nullable
     Value materialiseRoot(final Scope scope, final String segment) {
         return scope.inputDecls()
@@ -67,11 +63,8 @@ final class SourcePathDescender {
                 .orElse(null);
     }
 
-    /**
-     * Lands every accessor that reads {@code path}'s last segment off {@code parent}, returning the produced source
-     * {@code Value} at {@code path} — the deduped child shared by equal-typed accessors. {@code null} when no
-     * accessor resolves the segment.
-     */
+    // Lands every accessor that reads path's last segment off parent, returning the produced source Value at path —
+    // the deduped child shared by equal-typed accessors. null when no accessor resolves the segment.
     @Nullable
     Value descendSegment(
             final Scope scope, final Value parent, final List<String> path, final Optional<Directive> directive) {
@@ -79,7 +72,7 @@ final class SourcePathDescender {
                 new DescendView(parent.type(), parent.nullness(), path.get(path.size() - 1), directive, resolver);
         final var childLoc = new SourceLocation(new AccessPath(List.copyOf(path)));
         Value child = null;
-        for (final var spec : TargetProducer.dedup(descend(demand, resolveCtx))) {
+        for (final var spec : deduplicator.dedup(descend(demand, resolveCtx))) {
             final var ports = List.of(new PortBinding(spec.getPorts().get(0), operationLander.reuse(parent)));
             final var output = new AddValue(scope, childLoc, spec.getOutputType(), spec.getOutputNullness());
             final var operation = operationLander.landOperation(spec, ports, output);
@@ -90,11 +83,9 @@ final class SourcePathDescender {
         return child;
     }
 
-    /**
-     * Every production an accessor offers for {@code demand}. No accessor in the repo refuses today (design D9): a
-     * decline is always silence, so a descend refusal — were one ever authored — is dropped here rather than
-     * anchored, for want of a materialised demanded {@code Value} to record it against.
-     */
+    // Every production an accessor offers for demand. No accessor in the repo refuses today (design D9): a decline
+    // is always silence, so a descend refusal — were one ever authored — is dropped here rather than anchored, for
+    // want of a materialised demanded Value to record it against.
     List<OperationSpec> descend(final DescendView demand, final ResolveCtx ctx) {
         return strategies.stream()
                 .flatMap(strategy -> strategy.descend(demand, ctx))

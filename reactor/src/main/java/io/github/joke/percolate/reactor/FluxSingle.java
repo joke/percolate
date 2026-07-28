@@ -15,12 +15,10 @@ import java.util.List;
 import java.util.stream.Stream;
 import lombok.NoArgsConstructor;
 
-/**
- * Same-paradigm reduction {@code Flux<T> → Mono<T>} via {@code flux.single()} (design D4): the <b>canonical</b>
- * single-element reduction. A developer reducing a stream to one value means exactly one element; {@code next}/
- * {@code last}/positional selections are distinct intents and are NOT auto-generated (write a manual converter). The
- * result stays reactive (a {@code Mono}); it never blocks.
- */
+// Same-paradigm reduction Flux<T> → Mono<T> via flux.single() (design D4): the canonical single-element
+// reduction. A developer reducing a stream to one value means exactly one element; next/ last/positional
+// selections are distinct intents and are NOT auto-generated (write a manual converter). The result stays
+// reactive (a Mono); it never blocks.
 @AutoService(ExpansionStrategy.class)
 @NoArgsConstructor
 public final class FluxSingle implements ExpansionStrategy {

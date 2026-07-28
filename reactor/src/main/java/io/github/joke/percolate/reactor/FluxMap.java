@@ -17,21 +17,17 @@ import java.util.List;
 import java.util.stream.Stream;
 import lombok.NoArgsConstructor;
 
-/**
- * The generic, kind-free element transform over a {@code Flux<T>} — the reactive twin of {@code StreamMap}, keyed to
- * {@code reactor.core.publisher.Flux} instead of {@code java.util.stream.Stream} (design D3/D5). Given a demand for
- * {@code Flux<B>} it offers two scope-owning operations whose input port is the type-variable {@code Flux<A>} and whose
- * child scope is the per-element plan:
- *
- * <ul>
- *   <li><b>map</b> ({@code Flux<A> → Flux<B>}, child {@code A → B}) — {@code flux.map(a -> …)};</li>
- *   <li><b>flatMap</b> ({@code Flux<A> → Flux<B>}, child {@code A → Flux<B>}) — {@code flux.flatMap(a -> …)}.</li>
- * </ul>
- *
- * <p>It reads no candidate: {@code A} is grounded by the engine by matching the {@code Flux<A>} port against an in-scope
- * source — directly when a {@code Flux<X>} source exists, or via {@code MonoContainer}'s {@code SourceProjection} when
- * only a {@code Mono<X>} source exists. The engine cannot tell {@code flux.map} from {@code stream.map}.
- */
+// The generic, kind-free element transform over a Flux<T> — the reactive twin of StreamMap, keyed to
+// reactor.core.publisher.Flux instead of java.util.stream.Stream (design D3/D5). Given a demand for Flux<B> it
+// offers two scope-owning operations whose input port is the type-variable Flux<A> and whose child scope is the
+// per-element plan:
+//
+//   map     (Flux<A> → Flux<B>, child A → B)       — flux.map(a -> …)
+//   flatMap (Flux<A> → Flux<B>, child A → Flux<B>) — flux.flatMap(a -> …)
+//
+// It reads no candidate: A is grounded by the engine by matching the
+// Flux<A> port against an in-scope source — directly when a Flux<X> source exists, or via MonoContainer's
+// SourceProjection when only a Mono<X> source exists. The engine cannot tell flux.map from stream.map.
 @AutoService(ExpansionStrategy.class)
 @NoArgsConstructor
 public final class FluxMap implements ExpansionStrategy {

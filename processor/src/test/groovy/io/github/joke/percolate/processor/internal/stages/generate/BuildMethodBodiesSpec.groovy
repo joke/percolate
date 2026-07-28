@@ -115,7 +115,8 @@ class BuildMethodBodiesSpec extends Specification {
                 .docTags(false)
                 .timeZone(Optional.empty())
                 .switchStyle(SwitchStyle.AUTO)
-                .build(), SourceVersion.RELEASE_11)
+                .build(), SourceVersion.RELEASE_11, new HoistPlanFactory(),
+                new MemberPlanFactory(new HoistPlanFactory()), new BodyRenderContextFactory())
     }
 }
 
@@ -259,7 +260,8 @@ class WalkSpec extends Specification {
     // ---- emitLocal: one hoisted declaration statement, isolated via Spy from renderInline/typeToken ----------------
 
     def 'emitLocal emits a final local when the style requires final'() {
-        def walk = Spy(BuildMethodBodies.Walk, constructorArgs: [graph, plan, hoist, memberPlan, new LocalStyle(true, false), typeNameRenderer, resolveCtx, switchStyle, sourceVersion])
+        def walk = Spy(BuildMethodBodies.Walk, constructorArgs: [graph, plan, hoist, memberPlan, new LocalStyle(true, false), typeNameRenderer, resolveCtx, switchStyle, sourceVersion,
+                new BodyRenderContextFactory()])
         Value value = Mock()
         def builder = CodeBlock.builder()
 
@@ -278,7 +280,8 @@ class WalkSpec extends Specification {
     }
 
     def 'emitLocal emits a non-final local when the style does not require final'() {
-        def walk = Spy(BuildMethodBodies.Walk, constructorArgs: [graph, plan, hoist, memberPlan, new LocalStyle(false, false), typeNameRenderer, resolveCtx, switchStyle, sourceVersion])
+        def walk = Spy(BuildMethodBodies.Walk, constructorArgs: [graph, plan, hoist, memberPlan, new LocalStyle(false, false), typeNameRenderer, resolveCtx, switchStyle, sourceVersion,
+                new BodyRenderContextFactory()])
         Value value = Mock()
         def builder = CodeBlock.builder()
 
@@ -666,11 +669,11 @@ class WalkSpec extends Specification {
 
     private BuildMethodBodies.Walk walk(final LocalStyle localStyle = style) {
         new BuildMethodBodies.Walk(graph, plan, hoist, memberPlan, localStyle, typeNameRenderer, resolveCtx, switchStyle,
-                sourceVersion)
+                sourceVersion, new BodyRenderContextFactory())
     }
 
     private BuildMethodBodies.Walk spyWalk() {
         Spy(BuildMethodBodies.Walk, constructorArgs: [graph, plan, hoist, memberPlan, style, typeNameRenderer, resolveCtx,
-                switchStyle, sourceVersion])
+                switchStyle, sourceVersion, new BodyRenderContextFactory()])
     }
 }

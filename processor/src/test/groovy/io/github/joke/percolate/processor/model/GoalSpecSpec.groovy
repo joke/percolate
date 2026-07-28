@@ -8,9 +8,11 @@ import spock.lang.Tag
 @Tag('unit')
 class GoalSpecSpec extends Specification {
 
+    GoalSpecFactory goalSpecFactory = new GoalSpecFactory()
+
     def 'nested target paths group declared children by level'() {
         given:
-        final var spec = GoalSpec.from([bind('address.street', 'p.street'), bind('address.zip', 'p.zip')], [:], [:], [])
+        final var spec = goalSpecFactory.from([bind('address.street', 'p.street'), bind('address.zip', 'p.zip')], [:], [:], [])
 
         expect:
         spec.declaredChildren('') == ['address'] as Set
@@ -19,7 +21,7 @@ class GoalSpecSpec extends Specification {
 
     def 'a leaf binding is reachable by its exact target path; a structural level has none'() {
         given:
-        final var spec = GoalSpec.from([bind('address.street', 'p.street')], [:], [:], [])
+        final var spec = goalSpecFactory.from([bind('address.street', 'p.street')], [:], [:], [])
 
         expect:
         spec.bindingFor('address.street').present
@@ -30,7 +32,7 @@ class GoalSpecSpec extends Specification {
     def 'a constant-only binding (no source path) still participates as a declared binding'() {
         given:
         final var inputs = [DirectiveInput.scalar('constant', '42', Subjects.none())]
-        final var spec = GoalSpec.from([new Bind(['number'], [], Subjects.none())], ['number': inputs], [:], [])
+        final var spec = goalSpecFactory.from([new Bind(['number'], [], Subjects.none())], ['number': inputs], [:], [])
 
         expect:
         spec.declaredChildren('') == ['number'] as Set
@@ -46,7 +48,7 @@ class GoalSpecSpec extends Specification {
     def 'a path with only attached inputs (no bind) is still assembled, e.g. a method-level @MapEnum table'() {
         given:
         final var inputs = [DirectiveInput.structured('enum', [source: 'NEW', target: 'CREATED'], Subjects.none())]
-        final var spec = GoalSpec.from([], ['': inputs], [:], [])
+        final var spec = goalSpecFactory.from([], ['': inputs], [:], [])
 
         expect:
         spec.bindingFor('').present
@@ -57,7 +59,7 @@ class GoalSpecSpec extends Specification {
     def 'constraints are reachable by their exact target path'() {
         given:
         final var constraint = { candidate, boundPorts -> Optional.empty() }
-        final var spec = GoalSpec.from([], [:], ['address': [constraint]], [])
+        final var spec = goalSpecFactory.from([], [:], ['address': [constraint]], [])
 
         expect:
         spec.constraintsFor('address') == [constraint]
@@ -67,7 +69,7 @@ class GoalSpecSpec extends Specification {
     def 'scope-input overrides travel with the goal spec, in declaration order'() {
         given:
         final var overrides = [Mock(ScopeInputOverride), Mock(ScopeInputOverride)]
-        final var spec = GoalSpec.from([], [:], [:], overrides)
+        final var spec = goalSpecFactory.from([], [:], [:], overrides)
 
         expect:
         spec.scopeInputOverrides == overrides

@@ -392,7 +392,7 @@ class ContainerSpec extends Specification {
 
     def 'intermediateElement reads the first type argument of the intermediate'() {
         expect:
-        ctx.isSameType(Container.intermediateElement(streamOfString, ctx), STRING)
+        ctx.isSameType(new TestSeq().intermediateElement(streamOfString, ctx), STRING)
     }
 
     def 'intermediateOf forms the intermediate erasure over a reference element'() {
@@ -413,7 +413,7 @@ class ContainerSpec extends Specification {
         IncomingValues inputs = Mock()
 
         when:
-        def result = Container.unary(snippet).render(inputs)
+        def result = new TestSeq().unary(snippet).render(inputs)
 
         then:
         1 * inputs.single() >> operand

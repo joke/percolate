@@ -22,16 +22,13 @@ import javax.lang.model.element.VariableElement;
 import javax.lang.model.type.TypeMirror;
 import lombok.NoArgsConstructor;
 
-/**
- * Produces the demanded type by calling a callable method that returns it: an {@link OperationSpec} carrying one
- * port per declared parameter, in declaration order — the single non-ambient parameter's port sourced as today,
- * and each {@code @Ambient} parameter's port a {@code BY_NAME}/{@code REQUIRE} port carrying its binding name
- * (design {@code ambient-parameters} of change {@code decouple-engine-from-strategy-semantics}: the strategy
- * reads {@code @Ambient} itself — it is SPI-side — rather than asking the type-query seam). The strategy stays
- * myopic: it stamps the selector, on-miss rule and binding name only, never resolving the scope's named inputs
- * or touching the graph. The operation renders {@code receiver.method(arg0, arg1, …)}, each argument rendered
- * positionally by port name.
- */
+// Produces the demanded type by calling a callable method that returns it: an OperationSpec carrying one port
+// per declared parameter, in declaration order — the single non-ambient parameter's port sourced as today, and
+// each @Ambient parameter's port a BY_NAME/REQUIRE port carrying its binding name (design ambient-parameters of
+// change decouple-engine-from-strategy-semantics: the strategy reads @Ambient itself — it is SPI-side — rather
+// than asking the type-query seam). The strategy stays myopic: it stamps the selector, on-miss rule and binding
+// name only, never resolving the scope's named inputs or touching the graph. The operation renders
+// receiver.method(arg0, arg1, …), each argument rendered positionally by port name.
 @AutoService(ExpansionStrategy.class)
 @NoArgsConstructor
 public final class MethodCallBridge implements ExpansionStrategy {
@@ -69,8 +66,8 @@ public final class MethodCallBridge implements ExpansionStrategy {
                 .count();
     }
 
-    /** The binding key {@code @Ambient} publishes for {@code param}: its own name, or the annotation's override. */
-    static Optional<String> ambientKey(final VariableElement param) {
+    // The binding key @Ambient publishes for param: its own name, or the annotation's override.
+    Optional<String> ambientKey(final VariableElement param) {
         final var ambient = param.getAnnotation(Ambient.class);
         if (ambient == null) {
             return Optional.empty();

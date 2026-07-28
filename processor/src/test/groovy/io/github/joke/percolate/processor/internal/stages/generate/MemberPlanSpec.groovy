@@ -35,6 +35,8 @@ class MemberPlanSpec extends Specification {
     static final OperationCodegen OP = { inputs -> CodeBlock.of('x') } as OperationCodegen
     static final ClassName FORMATTER = ClassName.get('java.time.format', 'DateTimeFormatter')
 
+    MemberPlanFactory memberPlanFactory = new MemberPlanFactory(new HoistPlanFactory())
+
     @Shared TypeMirror STRING = Mock()
 
     def method = Mock(ExecutableElement) {
@@ -57,7 +59,7 @@ class MemberPlanSpec extends Specification {
         def plan = ExtractedPlan.extract(graph)
 
         expect:
-        MemberPlan.forMapper(graph, plan, ctx).fields().size() == 1
+        memberPlanFactory.forMapper(graph, plan, ctx).fields().size() == 1
     }
 
     def 'distinct dedup keys resolve to distinct field names'() {
@@ -71,7 +73,7 @@ class MemberPlanSpec extends Specification {
         graph.markReturnRoot(root)
         assemble(root, [a, b])
         def plan = ExtractedPlan.extract(graph)
-        def memberPlan = MemberPlan.forMapper(graph, plan, ctx)
+        def memberPlan = memberPlanFactory.forMapper(graph, plan, ctx)
 
         expect:
         memberPlan.reference('fmt-yyyy-MM-dd').toString() != memberPlan.reference('fmt-dd.MM.yyyy').toString()
@@ -84,7 +86,7 @@ class MemberPlanSpec extends Specification {
         def plan = ExtractedPlan.extract(graph)
 
         expect:
-        MemberPlan.forMapper(graph, plan, ctx).fields().empty
+        memberPlanFactory.forMapper(graph, plan, ctx).fields().empty
     }
 
     def 'each distinct member is emitted once as a field, initialized with the requested initializer'() {
@@ -97,7 +99,7 @@ class MemberPlanSpec extends Specification {
         def plan = ExtractedPlan.extract(graph)
 
         when:
-        def fields = MemberPlan.forMapper(graph, plan, ctx).fields()
+        def fields = memberPlanFactory.forMapper(graph, plan, ctx).fields()
 
         then:
         fields.size() == 1
@@ -112,7 +114,7 @@ class MemberPlanSpec extends Specification {
         def plan = ExtractedPlan.extract(graph)
 
         when:
-        MemberPlan.forMapper(graph, plan, ctx).reference('unknown')
+        memberPlanFactory.forMapper(graph, plan, ctx).reference('unknown')
 
         then:
         def error = thrown(IllegalStateException)
@@ -123,12 +125,12 @@ class MemberPlanSpec extends Specification {
 
     def 'memberBase names the field after a ClassName\'s lower-camel simple name'() {
         expect:
-        MemberPlan.memberBase(FORMATTER) == 'dateTimeFormatter'
+        memberPlanFactory.memberBase(FORMATTER) == 'dateTimeFormatter'
     }
 
     def 'memberBase falls back to "member" for a non-ClassName field type (e.g. a primitive)'() {
         expect:
-        MemberPlan.memberBase(io.github.joke.percolate.lib.javapoet.TypeName.INT) == 'member'
+        memberPlanFactory.memberBase(io.github.joke.percolate.lib.javapoet.TypeName.INT) == 'member'
     }
 
     def 'requests agreeing on fieldType and initializer for one dedup key are not a conflict, even as distinct instances'() {
@@ -144,7 +146,7 @@ class MemberPlanSpec extends Specification {
         def plan = ExtractedPlan.extract(graph)
 
         when:
-        def memberPlan = MemberPlan.forMapper(graph, plan, ctx)
+        def memberPlan = memberPlanFactory.forMapper(graph, plan, ctx)
 
         then:
         ctx.diagnostics.empty
@@ -166,7 +168,7 @@ class MemberPlanSpec extends Specification {
         def plan = ExtractedPlan.extract(graph)
 
         when:
-        MemberPlan.forMapper(graph, plan, ctx)
+        memberPlanFactory.forMapper(graph, plan, ctx)
 
         then:
         ctx.diagnostics.size() == 1
@@ -193,7 +195,7 @@ class MemberPlanSpec extends Specification {
         def plan = ExtractedPlan.extract(graph)
 
         when:
-        MemberPlan.forMapper(graph, plan, ctx)
+        memberPlanFactory.forMapper(graph, plan, ctx)
 
         then:
         ctx.diagnostics.size() == 1
@@ -215,7 +217,7 @@ class MemberPlanSpec extends Specification {
         def plan = ExtractedPlan.extract(graph)
 
         when:
-        def memberPlan = MemberPlan.forMapper(graph, plan, ctx)
+        def memberPlan = memberPlanFactory.forMapper(graph, plan, ctx)
 
         then:
         ctx.diagnostics.empty

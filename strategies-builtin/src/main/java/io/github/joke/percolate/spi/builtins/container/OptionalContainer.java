@@ -13,12 +13,10 @@ import javax.lang.model.type.TypeMirror;
 import lombok.NoArgsConstructor;
 import org.jetbrains.annotations.VisibleForTesting;
 
-/**
- * The {@code java.util.Optional} presence container. It supplies no {@code collect} — that absence is what makes its
- * kind a presence wrapper. {@link #iterate()} yields a 0-or-1 element stream ({@code Optional.stream()}), which is how
- * a flat-map drops empties; {@link #mapPresence()} maps the wrapped value ({@code opt.map}) as a functor lift;
- * {@link #wrap()} lifts a scalar via {@code ofNullable}; {@link #unwrap()} collapses under the target's nullability.
- */
+// The java.util.Optional presence container. It supplies no collect — that absence is what makes its kind a
+// presence wrapper. .iterate() yields a 0-or-1 element stream (Optional.stream()), which is how a flat-map
+// drops empties; .mapPresence() maps the wrapped value (opt.map) as a functor lift; .wrap() lifts a scalar via
+// ofNullable; .unwrap() collapses under the target's nullability.
 @AutoService({ExpansionStrategy.class, SourceProjection.class})
 @NoArgsConstructor
 public final class OptionalContainer extends StreamContainer {

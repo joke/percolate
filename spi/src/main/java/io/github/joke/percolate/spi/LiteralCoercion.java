@@ -9,6 +9,7 @@ import javax.lang.model.element.TypeElement;
 import javax.lang.model.type.DeclaredType;
 import javax.lang.model.type.TypeKind;
 import javax.lang.model.type.TypeMirror;
+import lombok.experimental.UtilityClass;
 import org.jspecify.annotations.Nullable;
 
 /**
@@ -22,7 +23,8 @@ import org.jspecify.annotations.Nullable;
  * {@code "true"}/{@code "false"}; numeric coercions reject out-of-range values rather than truncating and render with
  * the correct literal suffix (e.g. {@code long → 42L}); and the raw string is never whitespace-trimmed.
  */
-public final class LiteralCoercion {
+@UtilityClass
+public class LiteralCoercion {
 
     private static final int SINGLE_CHAR_LENGTH = 1;
     private static final int FIRST_PRINTABLE = 0x20;
@@ -63,8 +65,6 @@ public final class LiteralCoercion {
             '\t', "\\t",
             '\b', "\\b",
             '\f', "\\f");
-
-    private LiteralCoercion() {}
 
     /**
      * The coerced literal expression for {@code raw} at {@code targetType}, or empty when {@code raw} cannot be

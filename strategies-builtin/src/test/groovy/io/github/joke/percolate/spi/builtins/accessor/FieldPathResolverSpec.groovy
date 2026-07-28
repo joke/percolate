@@ -23,6 +23,7 @@ import java.util.stream.Stream
 class FieldPathResolverSpec extends Specification {
 
     ResolveCtx ctx = Mock()
+    FieldPathResolver fieldPathResolver = new FieldPathResolver()
     TypeMirror parentType = Mock()
     TypeElement parent = Mock()
 
@@ -36,7 +37,7 @@ class FieldPathResolverSpec extends Specification {
         field.asType() >> fieldType
 
         when:
-        def specs = new FieldPathResolver().descend(Demands.descend(parentType, 'value'), ctx)*.spec
+        def specs = fieldPathResolver.descend(Demands.descend(parentType, 'value'), ctx)*.spec
 
         then:
         specs.size() == 1
@@ -60,7 +61,7 @@ class FieldPathResolverSpec extends Specification {
         field.asType() >> Mock(TypeMirror)
 
         when:
-        def specs = new FieldPathResolver()
+        def specs = fieldPathResolver
                 .descend(Demands.descend(parentType, 'value', Nullability.NULLABLE), ctx)*.spec
 
         then:
@@ -77,7 +78,7 @@ class FieldPathResolverSpec extends Specification {
         ctx.isPrivate(field) >> true
 
         expect:
-        new FieldPathResolver().descend(Demands.descend(parentType, 'secret'), ctx).toList().empty
+        fieldPathResolver.descend(Demands.descend(parentType, 'secret'), ctx).toList().empty
     }
 
     def 'rejects static fields'() {
@@ -89,7 +90,7 @@ class FieldPathResolverSpec extends Specification {
         ctx.isStatic(field) >> true
 
         expect:
-        new FieldPathResolver().descend(Demands.descend(parentType, 'DEFAULT'), ctx).toList().empty
+        fieldPathResolver.descend(Demands.descend(parentType, 'DEFAULT'), ctx).toList().empty
     }
 
     def 'isVisibleField is true only for a non-private, non-static field'() {
@@ -99,7 +100,7 @@ class FieldPathResolverSpec extends Specification {
         ctx.isStatic(field) >> false
 
         expect:
-        new FieldPathResolver().isVisibleField(field, ctx)
+        fieldPathResolver.isVisibleField(field, ctx)
     }
 
     def 'isVisibleField is false when the member is not a field at all'() {
@@ -107,7 +108,7 @@ class FieldPathResolverSpec extends Specification {
         ctx.isField(field) >> false
 
         expect:
-        !new FieldPathResolver().isVisibleField(field, ctx)
+        !fieldPathResolver.isVisibleField(field, ctx)
     }
 
     def 'matchField rejects a visible field whose name does not match the segment'() {
@@ -118,7 +119,7 @@ class FieldPathResolverSpec extends Specification {
         field.simpleName >> nameOf('other')
 
         expect:
-        new FieldPathResolver().matchField(field, 'value', ctx).empty
+        fieldPathResolver.matchField(field, 'value', ctx).empty
     }
 
     def 'matchField matches a visible field whose name matches the segment exactly'() {
@@ -129,7 +130,7 @@ class FieldPathResolverSpec extends Specification {
         field.simpleName >> nameOf('value')
 
         expect:
-        new FieldPathResolver().matchField(field, 'value', ctx).get().is(field)
+        fieldPathResolver.matchField(field, 'value', ctx).get().is(field)
     }
 
     def 'step renders a plain field access and carries the STEP_FIELD weight'() {
@@ -138,7 +139,7 @@ class FieldPathResolverSpec extends Specification {
         field.asType() >> fieldType
 
         expect:
-        def step = FieldPathResolver.step(field, 'value')
+        def step = fieldPathResolver.step(field, 'value')
         step.outputType.is(fieldType)
         step.member.is(field)
         step.label == '.value'

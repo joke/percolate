@@ -1,15 +1,14 @@
 package io.github.joke.percolate.processor;
 
 import io.github.joke.percolate.spi.SwitchStyle;
-import java.util.Arrays;
-import java.util.Locale;
-import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
-import java.util.stream.Collectors;
 import lombok.Builder;
 import lombok.Value;
 
+// Deliberately a data class since change tighten-testability-conventions moved every parsing decision to
+// ProcessorOptionsReader (design D2) — the behaviour PMD looks for here is exactly what was extracted.
+@SuppressWarnings("PMD.DataClass")
 @Value
 public class ProcessorOptions {
 
@@ -58,45 +57,5 @@ public class ProcessorOptions {
         this.docTags = docTags;
         this.timeZone = timeZone;
         this.switchStyle = switchStyle;
-    }
-
-    static ProcessorOptions from(final Map<String, String> options) {
-        final var nullableRaw = options.get(NULLABLE_ANNOTATIONS);
-        final Set<String> nullable;
-        if (nullableRaw == null || nullableRaw.isEmpty()) {
-            nullable = Set.of();
-        } else {
-            nullable = Arrays.stream(nullableRaw.split(","))
-                    .filter(s -> !s.isEmpty())
-                    .collect(Collectors.toUnmodifiableSet());
-        }
-        return ProcessorOptions.builder()
-                .debugGraphs(flag(options, DEBUG_GRAPHS))
-                .customNullableAnnotations(nullable)
-                .localsFinal(flag(options, LOCALS_FINAL))
-                .localsVar(flag(options, LOCALS_VAR))
-                .parametersFinal(flag(options, PARAMETERS_FINAL))
-                .methodsFinal(flag(options, METHODS_FINAL))
-                .classesFinal(flag(options, CLASSES_FINAL))
-                .docTags(flag(options, DOC_TAGS))
-                .timeZone(Optional.ofNullable(options.get(TIME_ZONE)))
-                .switchStyle(parseSwitchStyle(options))
-                .build();
-    }
-
-    static boolean flag(final Map<String, String> options, final String key) {
-        return "true".equalsIgnoreCase(options.getOrDefault(key, "false"));
-    }
-
-    static SwitchStyle parseSwitchStyle(final Map<String, String> options) {
-        final var raw = options.get(SWITCH_STYLE);
-        if (raw == null) {
-            return SwitchStyle.AUTO;
-        }
-        try {
-            return SwitchStyle.valueOf(raw.toUpperCase(Locale.ROOT));
-        } catch (final IllegalArgumentException e) {
-            return SwitchStyle.AUTO;
-        }
     }
 }

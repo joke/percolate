@@ -25,6 +25,7 @@ import java.util.stream.Stream
 class GetterPathResolverSpec extends Specification {
 
     ResolveCtx ctx = Mock()
+    GetterPathResolver getterPathResolver = new GetterPathResolver()
     TypeMirror parentType = Mock()
     TypeElement parent = Mock()
 
@@ -39,7 +40,7 @@ class GetterPathResolverSpec extends Specification {
         getter.returnType >> returnType
 
         when:
-        def specs = new GetterPathResolver().descend(Demands.descend(parentType, 'name'), ctx)*.spec
+        def specs = getterPathResolver.descend(Demands.descend(parentType, 'name'), ctx)*.spec
 
         then:
         specs.size() == 1
@@ -63,7 +64,7 @@ class GetterPathResolverSpec extends Specification {
         getter.returnType >> Mock(TypeMirror)
 
         when:
-        def specs = new GetterPathResolver()
+        def specs = getterPathResolver
                 .descend(Demands.descend(parentType, 'name', Nullability.NULLABLE), ctx)*.spec
 
         then:
@@ -83,7 +84,7 @@ class GetterPathResolverSpec extends Specification {
         ctx.kind(returnType) >> TypeKind.BOOLEAN
 
         when:
-        def specs = new GetterPathResolver().descend(Demands.descend(parentType, 'flag'), ctx)*.spec
+        def specs = getterPathResolver.descend(Demands.descend(parentType, 'flag'), ctx)*.spec
 
         then:
         specs.size() == 1
@@ -100,7 +101,7 @@ class GetterPathResolverSpec extends Specification {
         getter.simpleName >> nameOf('getName')
 
         expect:
-        new GetterPathResolver().descend(Demands.descend(parentType, 'name'), ctx).toList().empty
+        getterPathResolver.descend(Demands.descend(parentType, 'name'), ctx).toList().empty
     }
 
     def 'ignores methods declared on java.lang.Object'() {
@@ -114,21 +115,21 @@ class GetterPathResolverSpec extends Specification {
         objectElement.qualifiedName >> nameOf('java.lang.Object')
 
         expect:
-        new GetterPathResolver().descend(Demands.descend(parentType, 'name'), ctx).toList().empty
+        getterPathResolver.descend(Demands.descend(parentType, 'name'), ctx).toList().empty
     }
 
     def 'returns empty for non-declared parent types'() {
         ctx.asTypeElement(parentType) >> Optional.empty()
 
         expect:
-        new GetterPathResolver().descend(Demands.descend(parentType, 'length'), ctx).toList().empty
+        getterPathResolver.descend(Demands.descend(parentType, 'length'), ctx).toList().empty
     }
 
     def 'capitalize upper-cases the first character and leaves the rest, empty stays empty'() {
         expect:
-        GetterPathResolver.capitalize('name') == 'Name'
-        GetterPathResolver.capitalize('Name') == 'Name'
-        GetterPathResolver.capitalize('') == ''
+        getterPathResolver.capitalize('name') == 'Name'
+        getterPathResolver.capitalize('Name') == 'Name'
+        getterPathResolver.capitalize('') == ''
     }
 
     def 'matchGetter delegates to a zero-arg method named exactly getterName'() {
@@ -141,7 +142,7 @@ class GetterPathResolverSpec extends Specification {
         enclosing.qualifiedName >> nameOf('io.example.Person')
 
         expect:
-        new GetterPathResolver().matchGetter(member, 'getName', ctx).get().is(member)
+        getterPathResolver.matchGetter(member, 'getName', ctx).get().is(member)
     }
 
     def 'matchBooleanIs rejects a no-arg isX method whose return type is not boolean'() {
@@ -158,7 +159,7 @@ class GetterPathResolverSpec extends Specification {
         ctx.qualifiedName(returnType) >> 'int'
 
         expect:
-        new GetterPathResolver().matchBooleanIs(member, 'isName', ctx).empty
+        getterPathResolver.matchBooleanIs(member, 'isName', ctx).empty
     }
 
     def 'matchBooleanIs matches a no-arg isX method returning primitive boolean'() {
@@ -174,7 +175,7 @@ class GetterPathResolverSpec extends Specification {
         ctx.kind(returnType) >> TypeKind.BOOLEAN
 
         expect:
-        new GetterPathResolver().matchBooleanIs(member, 'isFlag', ctx).get().is(member)
+        getterPathResolver.matchBooleanIs(member, 'isFlag', ctx).get().is(member)
     }
 
     def 'isBooleanReturn is true for the java.lang.Boolean wrapper return type'() {
@@ -185,7 +186,7 @@ class GetterPathResolverSpec extends Specification {
         ctx.qualifiedName(returnType) >> 'java.lang.Boolean'
 
         expect:
-        new GetterPathResolver().isBooleanReturn(method, ctx)
+        getterPathResolver.isBooleanReturn(method, ctx)
     }
 
     def 'isBooleanReturn is false for a non-boolean declared return type'() {
@@ -196,7 +197,7 @@ class GetterPathResolverSpec extends Specification {
         ctx.qualifiedName(returnType) >> 'java.lang.String'
 
         expect:
-        !new GetterPathResolver().isBooleanReturn(method, ctx)
+        !getterPathResolver.isBooleanReturn(method, ctx)
     }
 
     def 'step renders a zero-arg method call named after the method, weighted STEP_GETTER'() {
@@ -206,7 +207,7 @@ class GetterPathResolverSpec extends Specification {
         method.simpleName >> nameOf('getName')
 
         expect:
-        def step = GetterPathResolver.step(method)
+        def step = getterPathResolver.step(method)
         step.outputType.is(returnType)
         step.member.is(method)
         step.label == 'getName()'

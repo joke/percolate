@@ -23,7 +23,7 @@ public class Members {
                 && ((TypeElement) enclosing).getQualifiedName().contentEquals(OBJECT_FQN);
     }
 
-    /** {@code member} viewed as a declared (non-{@code Object}), zero-parameter method, else empty. */
+    // member viewed as a declared (non-Object), zero-parameter method, else empty.
     static Optional<ExecutableElement> asNoArgMethod(final Element member, final ResolveCtx ctx) {
         if (!ctx.isMethod(member)) {
             return Optional.empty();
@@ -32,7 +32,7 @@ public class Members {
         return isInObjectClass(method) || !method.getParameters().isEmpty() ? Optional.empty() : Optional.of(method);
     }
 
-    /** A zero-parameter, non-{@code Object} method named exactly {@code name}, else empty. */
+    // A zero-parameter, non-Object method named exactly name, else empty.
     public static Optional<ExecutableElement> noArgMethodNamed(
             final Element member, final String name, final ResolveCtx ctx) {
         return asNoArgMethod(member, ctx)

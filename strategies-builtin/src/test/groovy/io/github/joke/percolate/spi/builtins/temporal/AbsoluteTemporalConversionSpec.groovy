@@ -20,6 +20,7 @@ import javax.lang.model.type.TypeMirror
 class AbsoluteTemporalConversionSpec extends Specification {
 
     ResolveCtx ctx = Mock()
+    AbsoluteTemporalConversion absoluteTemporalConversion = new AbsoluteTemporalConversion()
 
     TypeMirror instantType = Mock()
     TypeMirror dateType = Mock()
@@ -43,7 +44,7 @@ class AbsoluteTemporalConversionSpec extends Specification {
         ctx.isType(instantType, 'java.time.Instant') >> true
 
         when:
-        def specs = new AbsoluteTemporalConversion().expand(Demands.forTarget(instantType), ctx)*.spec
+        def specs = absoluteTemporalConversion.expand(Demands.forTarget(instantType), ctx)*.spec
 
         then:
         specs.size() == 4
@@ -59,7 +60,7 @@ class AbsoluteTemporalConversionSpec extends Specification {
         ctx.isType(dateType, 'java.util.Date') >> true
 
         when:
-        def specs = new AbsoluteTemporalConversion().expand(Demands.forTarget(dateType), ctx)*.spec
+        def specs = absoluteTemporalConversion.expand(Demands.forTarget(dateType), ctx)*.spec
 
         then: 'the codegen renders Target.from($L) — not stringified here since $T needs a real compiler type'
         specs.size() == 1
@@ -74,7 +75,7 @@ class AbsoluteTemporalConversionSpec extends Specification {
         ctx.isType(timestampType, 'java.sql.Timestamp') >> true
 
         when:
-        def specs = new AbsoluteTemporalConversion().expand(Demands.forTarget(timestampType), ctx)*.spec
+        def specs = absoluteTemporalConversion.expand(Demands.forTarget(timestampType), ctx)*.spec
 
         then:
         specs.size() == 1
@@ -86,7 +87,7 @@ class AbsoluteTemporalConversionSpec extends Specification {
         ctx.isType(offsetDateTimeType, 'java.time.OffsetDateTime') >> true
 
         when:
-        def specs = new AbsoluteTemporalConversion().expand(Demands.forTarget(offsetDateTimeType), ctx)*.spec
+        def specs = absoluteTemporalConversion.expand(Demands.forTarget(offsetDateTimeType), ctx)*.spec
 
         then:
         specs.size() == 1
@@ -104,7 +105,7 @@ class AbsoluteTemporalConversionSpec extends Specification {
         ctx.isType(zonedDateTimeType, 'java.time.ZonedDateTime') >> true
 
         when:
-        def specs = new AbsoluteTemporalConversion().expand(Demands.forTarget(zonedDateTimeType), ctx)*.spec
+        def specs = absoluteTemporalConversion.expand(Demands.forTarget(zonedDateTimeType), ctx)*.spec
 
         then:
         specs.size() == 1
@@ -119,14 +120,14 @@ class AbsoluteTemporalConversionSpec extends Specification {
         TypeMirror localTimeType = Mock()
 
         expect:
-        new AbsoluteTemporalConversion().expand(Demands.forTarget(localTimeType), ctx).toList().empty
+        absoluteTemporalConversion.expand(Demands.forTarget(localTimeType), ctx).toList().empty
     }
 
     def 'toInstantByMethod returns empty when the spoke type is not resolvable'() {
         ResolveCtx freshCtx = Mock()
 
         expect:
-        AbsoluteTemporalConversion.toInstantByMethod('java.util.Date', freshCtx).empty
+        absoluteTemporalConversion.toInstantByMethod('java.util.Date', freshCtx).empty
     }
 
     def 'toInstantByMethod returns empty when Instant itself is not resolvable'() {
@@ -135,7 +136,7 @@ class AbsoluteTemporalConversionSpec extends Specification {
         freshCtx.typeElementNamed('java.util.Date') >> dateElement
 
         expect:
-        AbsoluteTemporalConversion.toInstantByMethod('java.util.Date', freshCtx).empty
+        absoluteTemporalConversion.toInstantByMethod('java.util.Date', freshCtx).empty
     }
 
     def 'toInstantSteps skips a spoke that fails to resolve, keeping the rest'() {
@@ -146,7 +147,7 @@ class AbsoluteTemporalConversionSpec extends Specification {
         element(freshCtx, 'java.time.ZonedDateTime', zonedDateTimeType)
 
         expect:
-        AbsoluteTemporalConversion.toInstantSteps(freshCtx).toList().size() == 3
+        absoluteTemporalConversion.toInstantSteps(freshCtx).toList().size() == 3
     }
 
     def 'isMethodSpoke is true only for Date/Timestamp'() {
@@ -155,8 +156,8 @@ class AbsoluteTemporalConversionSpec extends Specification {
         ctx.isType(offsetDateTimeType, 'java.sql.Timestamp') >> false
 
         expect:
-        AbsoluteTemporalConversion.isMethodSpoke(dateType, ctx)
-        !AbsoluteTemporalConversion.isMethodSpoke(offsetDateTimeType, ctx)
+        absoluteTemporalConversion.isMethodSpoke(dateType, ctx)
+        !absoluteTemporalConversion.isMethodSpoke(offsetDateTimeType, ctx)
     }
 
     def 'fixedOffsetMethodName maps OffsetDateTime to atOffset, ZonedDateTime to atZone, else empty'() {
@@ -167,30 +168,30 @@ class AbsoluteTemporalConversionSpec extends Specification {
         ctx.isType(dateType, 'java.time.ZonedDateTime') >> false
 
         expect:
-        AbsoluteTemporalConversion.fixedOffsetMethodName(offsetDateTimeType, ctx) == Optional.of('atOffset')
-        AbsoluteTemporalConversion.fixedOffsetMethodName(zonedDateTimeType, ctx) == Optional.of('atZone')
-        AbsoluteTemporalConversion.fixedOffsetMethodName(dateType, ctx).empty
+        absoluteTemporalConversion.fixedOffsetMethodName(offsetDateTimeType, ctx) == Optional.of('atOffset')
+        absoluteTemporalConversion.fixedOffsetMethodName(zonedDateTimeType, ctx) == Optional.of('atZone')
+        absoluteTemporalConversion.fixedOffsetMethodName(dateType, ctx).empty
     }
 
     def 'fromInstantByFactory returns empty when Instant is not resolvable'() {
         ResolveCtx freshCtx = Mock()
 
         expect:
-        AbsoluteTemporalConversion.fromInstantByFactory(dateType, freshCtx).empty
+        absoluteTemporalConversion.fromInstantByFactory(dateType, freshCtx).empty
     }
 
     def 'fromInstantAtFixedOffset returns empty when Instant is not resolvable'() {
         ResolveCtx freshCtx = Mock()
 
         expect:
-        AbsoluteTemporalConversion.fromInstantAtFixedOffset(offsetDateTimeType, freshCtx, 'atOffset').empty
+        absoluteTemporalConversion.fromInstantAtFixedOffset(offsetDateTimeType, freshCtx, 'atOffset').empty
     }
 
     def 'fromInstantStep dispatches a method-spoke target to the factory form, sourced from Instant'() {
         ctx.isType(dateType, 'java.util.Date') >> true
 
         expect:
-        AbsoluteTemporalConversion.fromInstantStep(dateType, ctx).get().inputType.is(instantType)
+        absoluteTemporalConversion.fromInstantStep(dateType, ctx).get().inputType.is(instantType)
     }
 
     def 'fromInstantStep dispatches a non-spoke, non-fixed-offset target to empty'() {
@@ -201,14 +202,14 @@ class AbsoluteTemporalConversionSpec extends Specification {
         ctx.isType(stringType, 'java.time.ZonedDateTime') >> false
 
         expect:
-        AbsoluteTemporalConversion.fromInstantStep(stringType, ctx).empty
+        absoluteTemporalConversion.fromInstantStep(stringType, ctx).empty
     }
 
     def 'conversions dispatches an Instant target to the four toInstantSteps'() {
         ctx.isType(instantType, 'java.time.Instant') >> true
 
         expect:
-        new AbsoluteTemporalConversion().conversions(instantType, ctx).toList().size() == 4
+        absoluteTemporalConversion.conversions(instantType, ctx).toList().size() == 4
     }
 
     def 'conversions dispatches a non-Instant target through fromInstantStep'() {
@@ -216,7 +217,7 @@ class AbsoluteTemporalConversionSpec extends Specification {
         ctx.isType(dateType, 'java.util.Date') >> true
 
         expect:
-        new AbsoluteTemporalConversion().conversions(dateType, ctx).toList().size() == 1
+        absoluteTemporalConversion.conversions(dateType, ctx).toList().size() == 1
     }
 
     private void element(final String fqn, final TypeMirror type) {

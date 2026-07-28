@@ -14,14 +14,12 @@ import java.util.List;
 import java.util.stream.Stream;
 import lombok.NoArgsConstructor;
 
-/**
- * Upward async-to-sync crossing {@code Flux<T> → T} via {@code flux.single().block()}: the canonical single-element
- * blocking reduction, keyed on a plain scalar {@code T} and sourcing a {@code Flux<T>} through a <b>reuse-only</b>
- * port. It is <b>partial</b> ({@code single()} fails unless the {@code Flux} has exactly one element), so the
- * element-preserving {@code collectList().block} / {@code toStream} (total) are preferred whenever a {@code List} or
- * {@code Stream} is demanded — totality dominates, so a multi-element target is never silently reduced to one.
- * Weighted strictly above any non-blocking alternative; shipped only in the opt-in {@code reactor-blocking} module.
- */
+// Upward async-to-sync crossing Flux<T> → T via flux.single().block(): the canonical single-element blocking
+// reduction, keyed on a plain scalar T and sourcing a Flux<T> through a reuse-only port. It is partial
+// (single() fails unless the Flux has exactly one element), so the element-preserving collectList().block /
+// toStream (total) are preferred whenever a List or Stream is demanded — totality dominates, so a multi-element
+// target is never silently reduced to one. Weighted strictly above any non-blocking alternative; shipped only
+// in the opt-in reactor-blocking module.
 @AutoService(ExpansionStrategy.class)
 @NoArgsConstructor
 public final class FluxSingleBlock implements ExpansionStrategy {

@@ -24,14 +24,12 @@ import javax.lang.model.element.VariableElement;
 import javax.lang.model.type.TypeKind;
 import lombok.RequiredArgsConstructor;
 
-/**
- * The engine's own rules about its own scope inputs (design D7 of change
- * {@code decouple-engine-from-strategy-semantics}): a bound source path must root at a scope input of the method —
- * a path it cannot begin, not a property of {@code @Map}'s shape — and two scope inputs of one method may not share
- * a name, because a name is how a {@code BY_NAME} port selects and a shared one makes that selection ambiguous. A
- * scope input's name is the parameter's own simple name unless a reader published an override via
- * {@code scopeInput} (e.g. {@code @Ambient}'s rename), so both rules hold for any reader and name no annotation.
- */
+// The engine's own rules about its own scope inputs (design D7 of change decouple-engine-from-strategy-
+// semantics): a bound source path must root at a scope input of the method — a path it cannot begin, not a
+// property of @Map's shape — and two scope inputs of one method may not share a name, because a name is how a
+// BY_NAME port selects and a shared one makes that selection ambiguous. A scope input's name is the parameter's
+// own simple name unless a reader published an override via scopeInput (e.g. @Ambient's rename), so both rules
+// hold for any reader and name no annotation.
 @RequiredArgsConstructor(onConstructor_ = @Inject)
 public final class ValidateSourceParametersStage implements Stage {
 
@@ -52,13 +50,13 @@ public final class ValidateSourceParametersStage implements Stage {
         directives.getBinds().forEach(bind -> checkBind(bind, names, methodSig, ctx));
     }
 
-    /** The reader-published override per parameter, if any; a parameter named twice keeps the first override. */
+    // The reader-published override per parameter, if any; a parameter named twice keeps the first override.
     Map<VariableElement, ScopeInputOverride> overridesByParameter(final MethodDirectives directives) {
         return directives.getScopeInputOverrides().stream()
                 .collect(toMap(ScopeInputOverride::getParameter, override -> override, (first, second) -> first));
     }
 
-    /** The method's scope-input names: a parameter's own simple name, or a reader's published override. */
+    // The method's scope-input names: a parameter's own simple name, or a reader's published override.
     Set<String> scopeInputNames(
             final MethodDirectives directives, final Map<VariableElement, ScopeInputOverride> overrideByParam) {
         return directives.getMethod().getParameters().stream()
@@ -66,11 +64,9 @@ public final class ValidateSourceParametersStage implements Stage {
                 .collect(toUnmodifiableSet());
     }
 
-    /**
-     * Two scope inputs of one method published under one name: every occurrence after the first is an error,
-     * positioned at its own parameter. Ordinary parameters cannot collide in Java, so a collision always involves at
-     * least one reader-published override.
-     */
+    // Two scope inputs of one method published under one name: every occurrence after the first is an error,
+    // positioned at its own parameter. Ordinary parameters cannot collide in Java, so a collision always involves
+    // at least one reader-published override.
     void checkDistinctScopeInputs(
             final MethodDirectives directives,
             final Map<VariableElement, ScopeInputOverride> overrideByParam,
@@ -114,7 +110,7 @@ public final class ValidateSourceParametersStage implements Stage {
                 .asPermanent());
     }
 
-    static String formatMethodSig(final ExecutableElement method) {
+    String formatMethodSig(final ExecutableElement method) {
         final var name = method.getSimpleName().toString();
         final var paramTypes = method.getParameters().stream()
                 .map(p -> simpleTypeName(p.asType()))
@@ -122,7 +118,7 @@ public final class ValidateSourceParametersStage implements Stage {
         return name + "(" + paramTypes + ")";
     }
 
-    static String simpleTypeName(final javax.lang.model.type.TypeMirror mirror) {
+    String simpleTypeName(final javax.lang.model.type.TypeMirror mirror) {
         if (mirror == null) {
             return "?";
         }
@@ -132,7 +128,7 @@ public final class ValidateSourceParametersStage implements Stage {
         return declaredSimpleName(mirror).orElseGet(mirror::toString);
     }
 
-    static Optional<String> declaredSimpleName(final javax.lang.model.type.TypeMirror mirror) {
+    Optional<String> declaredSimpleName(final javax.lang.model.type.TypeMirror mirror) {
         if (!(mirror instanceof javax.lang.model.type.DeclaredType)) {
             return Optional.empty();
         }

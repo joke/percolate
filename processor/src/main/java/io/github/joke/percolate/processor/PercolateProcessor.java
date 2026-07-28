@@ -47,12 +47,10 @@ public final class PercolateProcessor extends BasicAnnotationProcessor {
         return List.of(Objects.requireNonNull(component).mapperStep());
     }
 
-    /**
-     * On the final round, flush the recorded {@code no plan} diagnostics for any mapper still deferred.
-     * {@code BasicAnnotationProcessor} does not invoke a {@code Step} at {@code processingOver}, so a
-     * genuinely un-realisable mapper (no later round ever completed its types) is diagnosed here. This
-     * is the only round-state the processor touches; the pipeline stages stay round-agnostic.
-     */
+    // On the final round, flush the recorded no plan diagnostics for any mapper still deferred.
+    // BasicAnnotationProcessor does not invoke a Step at processingOver, so a genuinely un-realisable mapper (no
+    // later round ever completed its types) is diagnosed here. This is the only round-state the processor touches;
+    // the pipeline stages stay round-agnostic.
     @Override
     @VisibleForTesting
     protected void postRound(final RoundEnvironment roundEnv) {

@@ -19,6 +19,7 @@ import javax.lang.model.type.TypeMirror
 class WidenPrimitiveSpec extends Specification {
 
     ResolveCtx ctx = Mock()
+    WidenPrimitive widenPrimitive = new WidenPrimitive()
 
     def 'widens a numeric target from each strictly-narrower primitive, one unary operation each'() {
         TypeMirror longType = Mock()
@@ -37,7 +38,7 @@ class WidenPrimitiveSpec extends Specification {
         intType.kind >> TypeKind.INT
 
         when:
-        def specs = new WidenPrimitive().expand(Demands.forTarget(longType), ctx)*.spec
+        def specs = widenPrimitive.expand(Demands.forTarget(longType), ctx)*.spec
 
         then:
         specs.size() == 4
@@ -67,7 +68,7 @@ class WidenPrimitiveSpec extends Specification {
         intType.toString() >> 'int'
 
         when:
-        def specs = new WidenPrimitive().expand(Demands.forTarget(longType), ctx)*.spec
+        def specs = widenPrimitive.expand(Demands.forTarget(longType), ctx)*.spec
 
         then:
         (specs*.label as Set) == ['byte→long', 'short→long', 'char→long', 'int→long'] as Set
@@ -91,7 +92,7 @@ class WidenPrimitiveSpec extends Specification {
         longType.kind >> TypeKind.LONG
 
         when:
-        def specs = new WidenPrimitive().expand(Demands.forTarget(doubleType), ctx)*.spec
+        def specs = widenPrimitive.expand(Demands.forTarget(doubleType), ctx)*.spec
 
         then:
         specs.any { it.ports[0].type.kind == TypeKind.LONG }
@@ -111,7 +112,7 @@ class WidenPrimitiveSpec extends Specification {
         charType.kind >> TypeKind.CHAR
 
         when:
-        def specs = new WidenPrimitive().expand(Demands.forTarget(intType), ctx)*.spec
+        def specs = widenPrimitive.expand(Demands.forTarget(intType), ctx)*.spec
 
         then:
         specs.every { it.ports[0].type.kind != TypeKind.LONG }
@@ -124,7 +125,7 @@ class WidenPrimitiveSpec extends Specification {
         ctx.kind(booleanType) >> TypeKind.BOOLEAN
 
         expect:
-        new WidenPrimitive().expand(Demands.forTarget(booleanType), ctx).toList().empty
+        widenPrimitive.expand(Demands.forTarget(booleanType), ctx).toList().empty
     }
 
     def 'returns empty for a wrapper/reference target'() {
@@ -132,7 +133,7 @@ class WidenPrimitiveSpec extends Specification {
         ctx.kind(integerType) >> TypeKind.DECLARED
 
         expect:
-        new WidenPrimitive().expand(Demands.forTarget(integerType), ctx).toList().empty
+        widenPrimitive.expand(Demands.forTarget(integerType), ctx).toList().empty
     }
 
     def 'wideningStep carries the from-primitive as its input, weighted STEP, labeled with the glyph arrow'() {
@@ -143,7 +144,7 @@ class WidenPrimitiveSpec extends Specification {
         ctx.primitiveType(TypeKind.INT) >> intType
 
         expect:
-        def step = WidenPrimitive.wideningStep(TypeKind.INT, longType, ctx)
+        def step = widenPrimitive.wideningStep(TypeKind.INT, longType, ctx)
         step.inputType.is(intType)
         step.weight == Weights.STEP
         step.label == 'int→long'
@@ -156,7 +157,7 @@ class WidenPrimitiveSpec extends Specification {
         ctx.primitiveType(TypeKind.BYTE) >> byteType
 
         expect:
-        new WidenPrimitive().conversions(shortType, ctx).toList().size() == 1
+        widenPrimitive.conversions(shortType, ctx).toList().size() == 1
     }
 
     def 'conversions dispatches a target with no widening lattice entry to an empty stream'() {
@@ -164,6 +165,6 @@ class WidenPrimitiveSpec extends Specification {
         ctx.kind(byteType) >> TypeKind.BYTE
 
         expect:
-        new WidenPrimitive().conversions(byteType, ctx).toList().empty
+        widenPrimitive.conversions(byteType, ctx).toList().empty
     }
 }

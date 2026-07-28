@@ -22,17 +22,14 @@ import java.util.stream.Stream;
 import javax.lang.model.type.TypeMirror;
 import lombok.NoArgsConstructor;
 
-/**
- * {@code @Map(format = "…")} for {@code String ⇄ java.time} types (design D6 of change
- * {@code add-temporal-type-mapping}): parses a {@code String} source into, and renders a {@code String} from,
- * {@code LocalDate}, {@code LocalDateTime}, {@code OffsetDateTime}, or {@code ZonedDateTime}, via a
- * {@link java.time.format.DateTimeFormatter} — immutable and thread-safe, so it is requested as a single shared
- * {@code private static final} class member (deduplicated by pattern) rather than rebuilt per call. Implements
- * {@link ExpansionStrategy} directly (like {@link InstantLocalDateTimeBridge}) because it reads the directive and
- * stamps {@code "format"} consumed. Formatting is target-blind in one direction (any roster {@code java.time} type
- * in scope may format to {@code String}, over-emitted so the engine picks whichever is reachable) and
- * source-blind in the other ({@code String} always parses to the demanded {@code java.time} target).
- */
+// @Map(format = "…") for String ⇄ java.time types (design D6 of change add-temporal-type-mapping): parses a
+// String source into, and renders a String from, LocalDate, LocalDateTime, OffsetDateTime, or ZonedDateTime,
+// via a java.time.format.DateTimeFormatter — immutable and thread-safe, so it is requested as a single shared
+// private static final class member (deduplicated by pattern) rather than rebuilt per call. Implements
+// ExpansionStrategy directly (like InstantLocalDateTimeBridge) because it reads the directive and stamps
+// "format" consumed. Formatting is target-blind in one direction (any roster java.time type in scope may format
+// to String, over-emitted so the engine picks whichever is reachable) and source-blind in the other (String
+// always parses to the demanded java.time target).
 @AutoService(ExpansionStrategy.class)
 @NoArgsConstructor
 public final class TemporalFormat implements ExpansionStrategy {
@@ -67,15 +64,15 @@ public final class TemporalFormat implements ExpansionStrategy {
                 .orElseGet(Stream::empty);
     }
 
-    static MemberRequest formatterRequest(final String pattern) {
+    MemberRequest formatterRequest(final String pattern) {
         return new MemberRequest(
                 DATE_TIME_FORMATTER,
                 CodeBlock.of("$T.ofPattern($S)", DATE_TIME_FORMATTER, pattern),
                 DEDUP_PREFIX + pattern);
     }
 
-    /** {@code sourceFqn.format(formatter)} — one over-emitted candidate per roster {@code java.time} source type. */
-    static Optional<OperationSpec> formatStep(
+    // sourceFqn.format(formatter) — one over-emitted candidate per roster java.time source type.
+    Optional<OperationSpec> formatStep(
             final String sourceFqn,
             final TypeMirror target,
             final MemberRequest memberRequest,
@@ -100,8 +97,8 @@ public final class TemporalFormat implements ExpansionStrategy {
                 .withMemberRequests(List.of(memberRequest)));
     }
 
-    /** {@code Target.parse(str, formatter)} — the demanded {@code java.time} target, parsed from a {@code String}. */
-    static Optional<OperationSpec> parseStep(
+    // Target.parse(str, formatter) — the demanded java.time target, parsed from a String.
+    Optional<OperationSpec> parseStep(
             final TypeMirror target,
             final MemberRequest memberRequest,
             final DirectiveInput formatInput,

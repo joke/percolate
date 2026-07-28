@@ -255,6 +255,31 @@ class MethodCallBridgeSpec extends Specification {
         rendered.toString().contains('mapPrice(ord, tf)')
     }
 
+    def 'ambientKey is empty for a parameter carrying no @Ambient'() {
+        VariableElement param = Mock()
+        param.getAnnotation(Ambient) >> null
+
+        expect:
+        new MethodCallBridge().ambientKey(param).empty
+    }
+
+    def 'ambientKey falls back to the parameter name when @Ambient declares no value'() {
+        VariableElement param = Mock()
+        param.getAnnotation(Ambient) >> ambient()
+        param.simpleName >> nameOf('order')
+
+        expect:
+        new MethodCallBridge().ambientKey(param).get() == 'order'
+    }
+
+    def 'ambientKey prefers the @Ambient value over the parameter name'() {
+        VariableElement param = Mock()
+        param.getAnnotation(Ambient) >> ambient('tenant')
+
+        expect:
+        new MethodCallBridge().ambientKey(param).get() == 'tenant'
+    }
+
     private static IncomingValues byNameInput(final Map<String, CodeBlock> values) {
         [byName: { String slotName -> values[slotName] }] as IncomingValues
     }

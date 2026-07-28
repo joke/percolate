@@ -5,20 +5,18 @@ import static java.util.stream.Collectors.joining;
 import javax.lang.model.type.DeclaredType;
 import javax.lang.model.type.TypeKind;
 import javax.lang.model.type.TypeMirror;
+import lombok.experimental.UtilityClass;
 
-/**
- * Composes the human-readable, fully-typed {@code label} a built-in strategy attaches to its {@link
- * io.github.joke.percolate.spi.OperationSpec} (the operation's debug-graph identity). Type names are reduced to
- * their simple form recursively (generic arguments included); a conversion reads as {@code from→to} with the glyph
- * arrow. Best-effort for a debug label — never the basis of a behavioural decision.
- */
-public final class Labels {
+// Composes the human-readable, fully-typed label a built-in strategy attaches to its
+// io.github.joke.percolate.spi.OperationSpec (the operation's debug-graph identity). Type names are reduced to
+// their simple form recursively (generic arguments included); a conversion reads as from→to with the glyph
+// arrow. Best-effort for a debug label — never the basis of a behavioural decision.
+@UtilityClass
+public class Labels {
 
     public static final String ARROW = "→";
 
-    private Labels() {}
-
-    /** The simple name of {@code type}, recursing into generic arguments (e.g. {@code Optional<Set<Address>>}). */
+    // The simple name of type, recursing into generic arguments (e.g. Optional<Set<Address>>).
     public static String simple(final TypeMirror type) {
         if (type.getKind() != TypeKind.DECLARED) {
             return type.toString();
@@ -32,7 +30,7 @@ public final class Labels {
         return name + '<' + args.stream().map(Labels::simple).collect(joining(", ")) + '>';
     }
 
-    /** A conversion label {@code from→to} (e.g. {@code int→long}, {@code int→Integer}). */
+    // A conversion label from→to (e.g. int→long, int→Integer).
     public static String conversion(final TypeMirror from, final TypeMirror to) {
         return simple(from) + ARROW + simple(to);
     }

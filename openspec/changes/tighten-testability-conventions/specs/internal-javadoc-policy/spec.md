@@ -28,21 +28,29 @@ Removing javadoc from an internal module SHALL be a demotion, not a blanket dele
 - **WHEN** a javadoc block adds nothing beyond the member's name, parameters, and return type
 - **THEN** it is removed and not replaced with a `//` comment
 
+#### Scenario: Demotion dominates in practice
+- **WHEN** the conversion is applied across a codebase already subject to the no-private-methods and unused-protected rules
+- **THEN** nearly every block demotes rather than deletes, because a method that exists as its own intercepted seam has a reason for existing that the signature does not carry
+
 #### Scenario: Trivial comments are not introduced elsewhere
 - **WHEN** a self-explanatory method is reviewed
 - **THEN** it carries no explanatory comment in either form
 
 ### Requirement: The javadoc confinement is enforced by the build
 
-The build SHALL fail when a javadoc comment appears in a module where this policy forbids it, rather than relying on review. Enforcement SHALL use PMD's `CommentRequired` rule with its per-element `Unwanted` settings, applied through a ruleset distinct from the one governing `annotations` and `spi`, so the two policies are selected per module rather than negotiated within one file.
+The build SHALL fail when a javadoc comment appears in a module where this policy forbids it, rather than relying on review. Enforcement SHALL scan the module's own main Java sources for a javadoc block, since the policy is about source text and no available static-analysis rule can express it: PMD's `CommentRequired` has no setting for a package-private method, which is where nearly every helper lives once the no-private-methods rule applies, and PMD 7 no longer exposes comments to a custom XPath rule. Each module SHALL declare whether it is public API, and the default SHALL be internal, so a newly added module is confined without anyone having to remember. Vendored source paths already excluded from the other analysers SHALL be excluded from the scan on the same terms.
 
 #### Scenario: A reintroduced javadoc block fails the build
 - **WHEN** a javadoc comment is added to a type or member in `processor`, `strategies-builtin`, `reactor`, `reactor-blocking`, or `percolate`
-- **THEN** `check` fails with a PMD violation
+- **THEN** `check` fails, naming the offending file
 
-#### Scenario: The externally consumed modules use the permissive ruleset
-- **WHEN** PMD runs against `annotations` or `spi`
-- **THEN** the `Unwanted` comment settings do not apply and javadoc passes
+#### Scenario: The externally consumed modules opt out
+- **WHEN** the scan runs against `annotations` or `spi`
+- **THEN** their public-API declaration exempts them and their javadoc passes
+
+#### Scenario: A new module is confined without being named
+- **WHEN** a module is added and declares nothing about its nature
+- **THEN** it is treated as internal, because a policy that requires remembering to opt in is a policy that erodes
 
 ### Requirement: Publishing obligations are unaffected by the confinement
 

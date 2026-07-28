@@ -9,18 +9,16 @@ import javax.lang.model.type.TypeMirror;
 import lombok.AccessLevel;
 import lombok.Getter;
 
-/**
- * A typed variable at a {@link Location}: the OR-kind vertex of the bipartite graph — it is producible by any
- * one of its inbound producer {@link Operation}s. Identity is dedup-by-key: {@code MapperGraph.valueFor} get-or-
- * creates one instance per {@code (scope, location, type, nullness)}, so type-identical demands share a Value
- * and type- or nullness-divergent demands stay distinct (nullness is part of identity — under JSpecify,
- * {@code String!} and {@code String?} are different types).
- *
- * <p>Type and nullness are write-once (unknown → determined → frozen), set together at the single mutation
- * site. A Value carries no group labels, no directive, no codegen, and no weight — only, additionally, the
- * {@link Refusal}s recorded against it (design D2 of change {@code decouple-engine-from-strategy-semantics}):
- * what a strategy or the engine itself declined to produce here, and why.
- */
+// A typed variable at a Location: the OR-kind vertex of the bipartite graph — it is producible by any one of
+// its inbound producer Operations. Identity is dedup-by-key: MapperGraph.valueFor get-or- creates one instance
+// per (scope, location, type, nullness), so type-identical demands share a Value and type- or nullness-
+// divergent demands stay distinct (nullness is part of identity — under JSpecify, String! and String? are
+// different types).
+//
+// Type and nullness are write-once (unknown → determined → frozen), set together at the single mutation site. A
+// Value carries no group labels, no directive, no codegen, and no weight — only, additionally, the Refusals
+// recorded against it (design D2 of change decouple-engine-from-strategy-semantics): what a strategy or the
+// engine itself declined to produce here, and why.
 @Getter
 @SuppressWarnings(
         "PMD.AvoidFieldNameMatchingMethodName") // type/nullness back the unwrapped type()/nullness() accessors
@@ -47,22 +45,22 @@ public final class Value implements GraphVertex {
         this.nullness = nullness;
     }
 
-    /** Records a refusal against this demand: what could not produce it here, and why. */
+    // Records a refusal against this demand: what could not produce it here, and why.
     public void addInadmissible(final Refusal refusal) {
         inadmissible.add(refusal);
     }
 
-    /** The refusals recorded against this demand, in recording order. */
+    // The refusals recorded against this demand, in recording order.
     public List<Refusal> getInadmissible() {
         return Collections.unmodifiableList(inadmissible);
     }
 
-    /** This Value's type, or a failure if it has not yet been typed. */
+    // This Value's type, or a failure if it has not yet been typed.
     public TypeMirror type() {
         return type.orElseThrow(() -> new IllegalStateException("untyped Value: " + id()));
     }
 
-    /** This Value's nullness, or a failure if it has not yet been typed. */
+    // This Value's nullness, or a failure if it has not yet been typed.
     public Nullability nullness() {
         return nullness.orElseThrow(() -> new IllegalStateException("unnulled Value: " + id()));
     }

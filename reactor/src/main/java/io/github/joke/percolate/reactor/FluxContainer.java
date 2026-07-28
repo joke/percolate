@@ -14,13 +14,11 @@ import lombok.NoArgsConstructor;
 import org.jetbrains.annotations.VisibleForTesting;
 import reactor.core.publisher.Flux;
 
-/**
- * The {@code reactor.core.publisher.Flux} sequence container over the single shared reactive intermediate — which is
- * {@code Flux} itself (design D1). Because the kind <b>is</b> the intermediate, {@link #iterate()} and {@link #collect()}
- * would be identities ({@code Flux<X> ← Flux<X>}), so both are omitted (spike finding, design D2): a {@code Flux<X>}
- * source unifies a generic {@code Flux<A>} map port directly, and the per-element transform is supplied by the external
- * {@link FluxMap}. Only {@link #wrap()} ({@code Flux.just}) lifts a single scalar into a one-element {@code Flux}.
- */
+// The reactor.core.publisher.Flux sequence container over the single shared reactive intermediate — which is
+// Flux itself (design D1). Because the kind is the intermediate, .iterate() and .collect() would be identities
+// (Flux<X> ← Flux<X>), so both are omitted (spike finding, design D2): a Flux<X> source unifies a generic
+// Flux<A> map port directly, and the per-element transform is supplied by the external FluxMap. Only .wrap()
+// (Flux.just) lifts a single scalar into a one-element Flux.
 @AutoService({ExpansionStrategy.class, SourceProjection.class})
 @NoArgsConstructor
 public final class FluxContainer extends Container {

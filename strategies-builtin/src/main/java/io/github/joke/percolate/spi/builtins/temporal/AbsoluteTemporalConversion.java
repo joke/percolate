@@ -16,17 +16,14 @@ import javax.lang.model.type.TypeMirror;
 import lombok.NoArgsConstructor;
 import org.jetbrains.annotations.VisibleForTesting;
 
-/**
- * The absolute (instant-based) temporal family's single-hop spoke conversions to and from the {@code Instant} hub
- * (design D1 of change {@code add-temporal-type-mapping}): {@code java.util.Date}, {@code java.sql.Timestamp},
- * {@code OffsetDateTime}, and {@code ZonedDateTime}. Every hop is target-driven and directive-blind — none reads a
- * zone — because a spoke↔hub hop within one family never needs one (D1): {@code OffsetDateTime}/{@code
- * ZonedDateTime} fix their zone/offset at the literal {@code UTC} in either direction, which never truncates the
- * instant (the point in time is identical; only its zone-free textual representation changes) and never depends on
- * the build machine's zone. The engine composes any cross-spoke pair (e.g. {@code OffsetDateTime → Date}) through
- * {@code Instant} for free; a cross-family pair additionally crosses the zone bridge
- * ({@link InstantLocalDateTimeBridge}).
- */
+// The absolute (instant-based) temporal family's single-hop spoke conversions to and from the Instant hub
+// (design D1 of change add-temporal-type-mapping): java.util.Date, java.sql.Timestamp, OffsetDateTime, and
+// ZonedDateTime. Every hop is target-driven and directive-blind — none reads a zone — because a spoke↔hub hop
+// within one family never needs one (D1): OffsetDateTime/ZonedDateTime fix their zone/offset at the literal UTC
+// in either direction, which never truncates the instant (the point in time is identical; only its zone-free
+// textual representation changes) and never depends on the build machine's zone. The engine composes any cross-
+// spoke pair (e.g. OffsetDateTime → Date) through Instant for free; a cross-family pair additionally crosses
+// the zone bridge (InstantLocalDateTimeBridge).
 @AutoService(ExpansionStrategy.class)
 @NoArgsConstructor
 public final class AbsoluteTemporalConversion extends Conversion {
@@ -50,7 +47,7 @@ public final class AbsoluteTemporalConversion extends Conversion {
         return fromInstantStep(target, ctx).stream();
     }
 
-    static Stream<Step> toInstantSteps(final ResolveCtx ctx) {
+    Stream<Step> toInstantSteps(final ResolveCtx ctx) {
         return Stream.concat(
                 METHOD_SPOKES.stream().map(fqn -> toInstantByMethod(fqn, ctx)).flatMap(Optional::stream),
                 FIXED_OFFSET_SPOKES.stream()
@@ -58,8 +55,8 @@ public final class AbsoluteTemporalConversion extends Conversion {
                         .flatMap(Optional::stream));
     }
 
-    /** {@code spokeFqn}'s no-arg {@code toInstant()} accessor: {@code $L.toInstant()}, input type {@code spokeFqn}. */
-    static Optional<Step> toInstantByMethod(final String spokeFqn, final ResolveCtx ctx) {
+    // spokeFqn's no-arg toInstant() accessor: $L.toInstant(), input type spokeFqn.
+    Optional<Step> toInstantByMethod(final String spokeFqn, final ResolveCtx ctx) {
         final var spokeElement = ctx.typeElementNamed(spokeFqn);
         final var instantElement = ctx.typeElementNamed(INSTANT);
         if (spokeElement == null || instantElement == null) {
@@ -71,19 +68,19 @@ public final class AbsoluteTemporalConversion extends Conversion {
         return Optional.of(new Step(spokeType, Labels.conversion(spokeType, instantType), Weights.STEP, codegen));
     }
 
-    static Optional<Step> fromInstantStep(final TypeMirror target, final ResolveCtx ctx) {
+    Optional<Step> fromInstantStep(final TypeMirror target, final ResolveCtx ctx) {
         if (isMethodSpoke(target, ctx)) {
             return fromInstantByFactory(target, ctx);
         }
         return fixedOffsetMethodName(target, ctx).flatMap(method -> fromInstantAtFixedOffset(target, ctx, method));
     }
 
-    static boolean isMethodSpoke(final TypeMirror target, final ResolveCtx ctx) {
+    boolean isMethodSpoke(final TypeMirror target, final ResolveCtx ctx) {
         return METHOD_SPOKES.stream().anyMatch(fqn -> ctx.isType(target, fqn));
     }
 
-    /** The {@code Instant} accessor method name for a fixed-offset spoke target, or empty when {@code target} is neither. */
-    static Optional<String> fixedOffsetMethodName(final TypeMirror target, final ResolveCtx ctx) {
+    // The Instant accessor method name for a fixed-offset spoke target, or empty when target is neither.
+    Optional<String> fixedOffsetMethodName(final TypeMirror target, final ResolveCtx ctx) {
         if (ctx.isType(target, OFFSET_DATE_TIME)) {
             return Optional.of("atOffset");
         }
@@ -93,8 +90,8 @@ public final class AbsoluteTemporalConversion extends Conversion {
         return Optional.empty();
     }
 
-    /** {@code target}'s static {@code from(Instant)} factory: {@code Target.from($L)}. */
-    static Optional<Step> fromInstantByFactory(final TypeMirror target, final ResolveCtx ctx) {
+    // target's static from(Instant) factory: Target.from($L).
+    Optional<Step> fromInstantByFactory(final TypeMirror target, final ResolveCtx ctx) {
         final var instantElement = ctx.typeElementNamed(INSTANT);
         if (instantElement == null) {
             return Optional.empty();
@@ -104,8 +101,8 @@ public final class AbsoluteTemporalConversion extends Conversion {
         return Optional.of(new Step(instantType, Labels.conversion(instantType, target), Weights.STEP, codegen));
     }
 
-    /** {@code Instant#atOffset}/{@code #atZone} fixed at the literal {@code ZoneOffset.UTC} — zone-free, no truncation. */
-    static Optional<Step> fromInstantAtFixedOffset(final TypeMirror target, final ResolveCtx ctx, final String method) {
+    // Instant.atOffset/.atZone fixed at the literal ZoneOffset.UTC — zone-free, no truncation.
+    Optional<Step> fromInstantAtFixedOffset(final TypeMirror target, final ResolveCtx ctx, final String method) {
         final var instantElement = ctx.typeElementNamed(INSTANT);
         if (instantElement == null) {
             return Optional.empty();

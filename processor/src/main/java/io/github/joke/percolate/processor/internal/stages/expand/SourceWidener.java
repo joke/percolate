@@ -7,20 +7,18 @@ import java.util.List;
 import javax.lang.model.type.TypeMirror;
 import lombok.RequiredArgsConstructor;
 
-/**
- * Widens a source list by each registered {@link SourceProjection}'s one-step view of it (design D8 of change
- * {@code target-driven-engine}, decomposed out of {@code Grounding} by {@code decompose-engine-stages}): the
- * grounding match set is the in-scope sources plus every projector's derived view of them, so e.g. a
- * {@code Stream<A>} port grounds against the {@code Stream<X>} a {@code List<X>} source projects to. The engine
- * consumes a projection's result structurally and names no container kind.
- */
+// Widens a source list by each registered SourceProjection's one-step view of it (design D8 of change target-
+// driven-engine, decomposed out of Grounding by decompose-engine-stages): the grounding match set is the in-
+// scope sources plus every projector's derived view of them, so e.g. a Stream<A> port grounds against the
+// Stream<X> a List<X> source projects to. The engine consumes a projection's result structurally and names no
+// container kind.
 @RequiredArgsConstructor
 final class SourceWidener {
 
     private final ResolveCtx ctx;
     private final List<SourceProjection> projections;
 
-    /** The in-scope {@code sources} plus each projector's one-step view of them. */
+    // The in-scope sources plus each projector's one-step view of them.
     List<TypeMirror> widen(final List<TypeMirror> sources) {
         if (projections.isEmpty()) {
             return sources;

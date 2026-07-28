@@ -14,12 +14,10 @@ import java.util.List;
 import java.util.Map;
 import javax.lang.model.element.VariableElement;
 
-/**
- * The one {@link DirectiveSink} implementation, collecting one mapper method's reader calls as plain data (design D7
- * of change {@code decouple-engine-from-strategy-semantics}): every {@code DirectiveReader} on the processor path
- * runs against the same instance, so declarations from different readers merge naturally — a duplicate target from
- * two different readers is exactly as visible as one from a single reader's own repeated annotation.
- */
+// The one DirectiveSink implementation, collecting one mapper method's reader calls as plain data (design D7 of
+// change decouple-engine-from-strategy-semantics): every DirectiveReader on the processor path runs against the
+// same instance, so declarations from different readers merge naturally — a duplicate target from two different
+// readers is exactly as visible as one from a single reader's own repeated annotation.
 @SuppressWarnings("PMD.UseConcurrentHashMap") // single-threaded annotation processing; no concurrent access
 final class DirectiveSinkImpl implements DirectiveSink {
 
@@ -74,7 +72,7 @@ final class DirectiveSinkImpl implements DirectiveSink {
         return Map.copyOf(constraintsByTarget);
     }
 
-    /** What the readers rejected outright, already permanent — reported whether or not anything demands the path. */
+    // What the readers rejected outright, already permanent — reported whether or not anything demands the path.
     List<Diagnostic> getRejections() {
         return List.copyOf(rejections);
     }

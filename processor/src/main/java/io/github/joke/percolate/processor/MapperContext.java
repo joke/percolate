@@ -29,28 +29,29 @@ public final class MapperContext {
     private @Nullable MapperGraph graph;
     private @Nullable CallableMethods callableMethods;
 
-    /** The per-mapper {@link ResolveCtx} the expansion driver built, reused by {@code generate} for {@code BodyCodegen} rendering. */
+    // The per-mapper ResolveCtx the expansion driver built, reused by generate for BodyCodegen rendering.
     private @Nullable ResolveCtx resolveCtx;
 
-    /** Per-method declared-bindings goal specs, keyed by the method's {@link Scope} (design D9). */
+    // Per-method declared-bindings goal specs, keyed by the method's Scope (design D9).
     @SuppressWarnings("PMD.UseConcurrentHashMap") // single-threaded per-mapper context
     private final Map<Scope, GoalSpec> goalSpecs = new HashMap<>();
 
-    /** Diagnostics collected for this mapper's round, in report order (design D14) — flushed by {@code MapperStep}, never eagerly. */
+    // Diagnostics collected for this mapper's round, in report order (design D14) — flushed by MapperStep, never
+    // eagerly.
     @Getter(AccessLevel.NONE)
     private final List<Diagnostic> diagnostics = new ArrayList<>();
 
-    /** Records {@code diagnostic}, collected rather than emitted. */
+    // Records diagnostic, collected rather than emitted.
     public void report(final Diagnostic diagnostic) {
         diagnostics.add(diagnostic);
     }
 
-    /** Every diagnostic recorded so far this round, in report order. */
+    // Every diagnostic recorded so far this round, in report order.
     public List<Diagnostic> getDiagnostics() {
         return List.copyOf(diagnostics);
     }
 
-    /** Whether any recorded diagnostic is an error (a warning never counts). */
+    // Whether any recorded diagnostic is an error (a warning never counts).
     public boolean hasErrors() {
         return diagnostics.stream().anyMatch(diagnostic -> diagnostic.getSeverity() == Diagnostic.Severity.ERROR);
     }

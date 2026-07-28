@@ -1,10 +1,8 @@
 package com.example.smoke;
 
-/**
- * Runs the generated {@code PersonMapperImpl} and checks the result. Referencing the generated type and running
- * it on a runtime classpath that carries no percolate artifact is the black-box assertion: the published path
- * produced a working, zero-footprint mapper.
- */
+// Runs the generated PersonMapperImpl and checks the result. Referencing the generated type and running it on a
+// runtime classpath that carries no percolate artifact is the black-box assertion: the published path produced
+// a working, zero-footprint mapper.
 public final class SmokeMain {
 
     private SmokeMain() {}

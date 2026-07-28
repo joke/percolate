@@ -22,6 +22,7 @@ import javax.lang.model.type.TypeMirror
 class PrimitiveWrapperConversionSpec extends Specification {
 
     ResolveCtx ctx = Mock()
+    PrimitiveWrapperConversion primitiveWrapperConversion = new PrimitiveWrapperConversion()
 
     def 'boxes a wrapper target by consuming its primitive, one unary operation'() {
         TypeMirror integerType = Mock()
@@ -33,7 +34,7 @@ class PrimitiveWrapperConversionSpec extends Specification {
         ctx.unboxed(integerType) >> intType
 
         when:
-        def specs = new PrimitiveWrapperConversion().expand(Demands.forTarget(integerType), ctx)*.spec
+        def specs = primitiveWrapperConversion.expand(Demands.forTarget(integerType), ctx)*.spec
 
         then:
         specs.size() == 1
@@ -56,7 +57,7 @@ class PrimitiveWrapperConversionSpec extends Specification {
         ctx.kind(intType) >> TypeKind.INT
 
         when:
-        def specs = new PrimitiveWrapperConversion().expand(Demands.forTarget(intType), ctx)*.spec
+        def specs = primitiveWrapperConversion.expand(Demands.forTarget(intType), ctx)*.spec
 
         then:
         specs.size() == 1
@@ -75,7 +76,7 @@ class PrimitiveWrapperConversionSpec extends Specification {
         stringElement.qualifiedName >> nameOf('java.lang.String')
 
         expect:
-        new PrimitiveWrapperConversion().expand(Demands.forTarget(stringType), ctx).toList().empty
+        primitiveWrapperConversion.expand(Demands.forTarget(stringType), ctx).toList().empty
     }
 
     def 'box renders a $T.valueOf(...) call and carries the given primitive as its input'() {
@@ -83,7 +84,7 @@ class PrimitiveWrapperConversionSpec extends Specification {
         TypeMirror primitive = Mock()
 
         expect:
-        def step = PrimitiveWrapperConversion.box(wrapperTarget, primitive)
+        def step = primitiveWrapperConversion.box(wrapperTarget, primitive)
         step.inputType.is(primitive)
         step.weight == Weights.STEP
     }
@@ -95,7 +96,7 @@ class PrimitiveWrapperConversionSpec extends Specification {
         ctx.kind(primitiveTarget) >> TypeKind.LONG
 
         expect:
-        def step = PrimitiveWrapperConversion.unbox(primitiveTarget, ctx)
+        def step = primitiveWrapperConversion.unbox(primitiveTarget, ctx)
         step.inputType.is(wrapper)
         step.weight == Weights.STEP
         io.github.joke.percolate.lib.javapoet.CodeBlock.of('$L\n', step.codegen.render(singleInput(io.github.joke.percolate.lib.javapoet.CodeBlock.of('$N', 'w'))))
@@ -107,7 +108,7 @@ class PrimitiveWrapperConversionSpec extends Specification {
         ctx.asTypeElement(target) >> Optional.empty()
 
         expect:
-        PrimitiveWrapperConversion.unboxedOrNull(target, ctx) == null
+        primitiveWrapperConversion.unboxedOrNull(target, ctx) == null
     }
 
     def 'unboxedOrNull returns null for a declared, non-wrapper type'() {
@@ -117,7 +118,7 @@ class PrimitiveWrapperConversionSpec extends Specification {
         element.qualifiedName >> nameOf('java.lang.String')
 
         expect:
-        PrimitiveWrapperConversion.unboxedOrNull(target, ctx) == null
+        primitiveWrapperConversion.unboxedOrNull(target, ctx) == null
     }
 
     def 'unboxedOrNull returns the unboxed primitive for a wrapper type'() {
@@ -129,7 +130,7 @@ class PrimitiveWrapperConversionSpec extends Specification {
         ctx.unboxed(target) >> primitive
 
         expect:
-        PrimitiveWrapperConversion.unboxedOrNull(target, ctx).is(primitive)
+        primitiveWrapperConversion.unboxedOrNull(target, ctx).is(primitive)
     }
 
     def 'conversions dispatches a primitive target to a single unbox step'() {
@@ -140,7 +141,7 @@ class PrimitiveWrapperConversionSpec extends Specification {
         ctx.kind(intType) >> TypeKind.INT
 
         expect:
-        def steps = new PrimitiveWrapperConversion().conversions(intType, ctx).toList()
+        def steps = primitiveWrapperConversion.conversions(intType, ctx).toList()
         steps.size() == 1
         steps[0].inputType.is(integerType)
     }
@@ -153,7 +154,7 @@ class PrimitiveWrapperConversionSpec extends Specification {
         stringElement.qualifiedName >> nameOf('java.lang.String')
 
         expect:
-        new PrimitiveWrapperConversion().conversions(stringType, ctx).toList().empty
+        primitiveWrapperConversion.conversions(stringType, ctx).toList().empty
     }
 
     private static Name nameOf(final String value) {

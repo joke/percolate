@@ -37,6 +37,7 @@ class GraphDumpWriterSpec extends Specification {
     Filer filer = Mock()
     ProcessorOptions options = Mock()
     DotRenderer dotRenderer = Mock()
+    GraphDumpWriter dumpWriter = new GraphDumpWriter(filer, options, dotRenderer)
 
     TypeMirror STRING = Mock()
     MapperGraph graph = new MapperGraph()
@@ -191,7 +192,7 @@ class GraphDumpWriterSpec extends Specification {
                 new AddValue(inScope, new TargetLocation(TargetPath.of('')), STRING, Nullability.NON_NULL),
                 Optional.empty(), [] as Set, []))
         def output = g.outputOf(op).get()
-        def sliced = GraphDumpWriter.slice(g, inScope) { it != excluded }
+        def sliced = dumpWriter.slice(g, inScope) { it != excluded }
 
         expect:
         sliced.vertexSet() == [kept, op, output] as Set
@@ -210,14 +211,14 @@ class GraphDumpWriterSpec extends Specification {
         def excluded = g.valueFor(a, new SourceLocation(AccessPath.of('excl')), STRING, Nullability.NON_NULL)
 
         expect:
-        GraphDumpWriter.orderedScopes(g) { it != excluded } == [a, b]
+        dumpWriter.orderedScopes(g) { it != excluded } == [a, b]
     }
 
     def 'infixes: a lone method scope keeps its plain method name'() {
         MethodScope m = new MethodScope(method('foo'))
 
         expect:
-        GraphDumpWriter.infixes([m]) == [(m): 'foo']
+        dumpWriter.infixes([m]) == [(m): 'foo']
     }
 
     def 'infixes: two method scopes sharing a name are disambiguated with -0/-1'() {
@@ -225,21 +226,21 @@ class GraphDumpWriterSpec extends Specification {
         MethodScope b = new MethodScope(method('foo'))
 
         expect:
-        GraphDumpWriter.infixes([a, b]) == [(a): 'foo-0', (b): 'foo-1']
+        dumpWriter.infixes([a, b]) == [(a): 'foo-0', (b): 'foo-1']
     }
 
     def 'infixesWithinGroup: a single-member group is not disambiguated'() {
         MethodScope m = new MethodScope(method('bar'))
 
         expect:
-        GraphDumpWriter.infixesWithinGroup('bar', [m]) == [(m): 'bar']
+        dumpWriter.infixesWithinGroup('bar', [m]) == [(m): 'bar']
     }
 
     def 'baseInfix: a method scope is named after its method'() {
         MethodScope m = new MethodScope(method('baz'))
 
         expect:
-        GraphDumpWriter.baseInfix(m) == 'baz'
+        dumpWriter.baseInfix(m) == 'baz'
     }
 
     def 'baseInfix: a non-method scope is named after its enclosing method, suffixed -elem'() {
@@ -247,19 +248,19 @@ class GraphDumpWriterSpec extends Specification {
         Scope child = childOf(enclosing)
 
         expect:
-        GraphDumpWriter.baseInfix(child) == 'outer-elem'
+        dumpWriter.baseInfix(child) == 'outer-elem'
     }
 
     def 'enclosingMethodInfix: a method scope resolves to its own method name'() {
         MethodScope m = new MethodScope(method('direct'))
 
         expect:
-        GraphDumpWriter.enclosingMethodInfix(m) == 'direct'
+        dumpWriter.enclosingMethodInfix(m) == 'direct'
     }
 
     def 'enclosingMethodInfix: a scope with no method ancestor falls back to "scope"'() {
         expect:
-        GraphDumpWriter.enclosingMethodInfix(new HarnessScope('rootless')) == 'scope'
+        dumpWriter.enclosingMethodInfix(new HarnessScope('rootless')) == 'scope'
     }
 
     def 'enclosingMethodInfix: walks up through intermediate scopes to the enclosing method'() {
@@ -267,7 +268,7 @@ class GraphDumpWriterSpec extends Specification {
         Scope grandchild = childOf(childOf(enclosing))
 
         expect:
-        GraphDumpWriter.enclosingMethodInfix(grandchild) == 'walked'
+        dumpWriter.enclosingMethodInfix(grandchild) == 'walked'
     }
 
     /** A one-operation, one-source graph whose target {@code root} is reachable, returning it. */

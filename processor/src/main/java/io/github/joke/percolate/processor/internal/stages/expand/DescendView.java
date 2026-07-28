@@ -9,13 +9,11 @@ import javax.lang.model.element.Element;
 import javax.lang.model.type.TypeMirror;
 import lombok.RequiredArgsConstructor;
 
-/**
- * The myopic {@link DescendDemand} the driver hands an accessor strategy for one source-path segment (design D2/D9):
- * the concrete parent type and nullness read off the {@code Value} the previous segment landed, the single segment to
- * resolve, the walked binding's in-effect {@code @Map} {@link Directive} (not a per-segment one), and the nullness
- * oracle — no graph or engine handle, no candidate snapshot. The produced output type is the strategy's answer, so the
- * parent is never punned as a {@code targetType}.
- */
+// The myopic DescendDemand the driver hands an accessor strategy for one source-path segment (design D2/D9):
+// the concrete parent type and nullness read off the Value the previous segment landed, the single segment to
+// resolve, the walked binding's in-effect @Map Directive (not a per-segment one), and the nullness oracle — no
+// graph or engine handle, no candidate snapshot. The produced output type is the strategy's answer, so the
+// parent is never punned as a targetType.
 @RequiredArgsConstructor
 // each field backs the DescendDemand accessor of the same name; a deliberate myopic data-carrier adapter
 @SuppressWarnings({"PMD.AvoidFieldNameMatchingMethodName", "PMD.DataClass"})

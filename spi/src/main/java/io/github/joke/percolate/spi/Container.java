@@ -227,7 +227,7 @@ public abstract class Container implements ExpansionStrategy, SourceProjection {
     }
 
     @VisibleForTesting
-    protected static TypeMirror intermediateElement(final TypeMirror intermediate, final ResolveCtx ctx) {
+    protected TypeMirror intermediateElement(final TypeMirror intermediate, final ResolveCtx ctx) {
         return ctx.typeArgument(intermediate, 0);
     }
 
@@ -240,7 +240,7 @@ public abstract class Container implements ExpansionStrategy, SourceProjection {
     }
 
     @VisibleForTesting
-    protected static OperationCodegen unary(final UnarySnippet snippet) {
+    protected OperationCodegen unary(final UnarySnippet snippet) {
         return inputs -> snippet.render(inputs.single());
     }
 }

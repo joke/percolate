@@ -21,6 +21,7 @@ import javax.lang.model.type.TypeMirror
 class LegacyTemporalFormatSpec extends Specification {
 
     ResolveCtx ctx = Mock()
+    LegacyTemporalFormat legacyTemporalFormat = new LegacyTemporalFormat()
 
     TypeMirror stringType = Mock()
     TypeMirror dateType = Mock()
@@ -40,7 +41,7 @@ class LegacyTemporalFormatSpec extends Specification {
         ctx.isType(dateType, 'java.lang.String') >> true
 
         when:
-        def specs = new LegacyTemporalFormat().expand(Demands.withFormat(dateType, 'yyyy-MM-dd'), ctx)*.spec
+        def specs = legacyTemporalFormat.expand(Demands.withFormat(dateType, 'yyyy-MM-dd'), ctx)*.spec
 
         then:
         specs.size() == 2
@@ -59,7 +60,7 @@ class LegacyTemporalFormatSpec extends Specification {
         ctx.isType(dateType, 'java.util.Date') >> true
 
         when:
-        def specs = new LegacyTemporalFormat().expand(Demands.withFormat(dateType, 'yyyy-MM-dd'), ctx)*.spec
+        def specs = legacyTemporalFormat.expand(Demands.withFormat(dateType, 'yyyy-MM-dd'), ctx)*.spec
 
         then:
         specs.size() == 1
@@ -81,7 +82,7 @@ class LegacyTemporalFormatSpec extends Specification {
         ctx.isType(timestampType, 'java.sql.Timestamp') >> true
 
         when:
-        def specs = new LegacyTemporalFormat().expand(Demands.withFormat(timestampType, 'yyyy-MM-dd'), ctx)*.spec
+        def specs = legacyTemporalFormat.expand(Demands.withFormat(timestampType, 'yyyy-MM-dd'), ctx)*.spec
 
         then:
         specs.size() == 1
@@ -93,21 +94,21 @@ class LegacyTemporalFormatSpec extends Specification {
 
     def 'a demand with no format directive is not matched'() {
         expect:
-        new LegacyTemporalFormat().expand(Demands.forTarget(dateType), ctx).toList().empty
+        legacyTemporalFormat.expand(Demands.forTarget(dateType), ctx).toList().empty
     }
 
     def '@Map(format) on a non-legacy-temporal, non-String target is not matched (nothing to consume it)'() {
         TypeMirror intType = Mock()
 
         expect:
-        new LegacyTemporalFormat().expand(Demands.withFormat(intType, 'yyyy-MM-dd'), ctx).toList().empty
+        legacyTemporalFormat.expand(Demands.withFormat(intType, 'yyyy-MM-dd'), ctx).toList().empty
     }
 
     def 'formatStep returns empty when the legacy source type is not resolvable'() {
         ResolveCtx freshCtx = Mock()
 
         expect:
-        LegacyTemporalFormat.formatStep('java.util.Date', stringType, 'p', formatInput(), freshCtx).empty
+        legacyTemporalFormat.formatStep('java.util.Date', stringType, 'p', formatInput(), freshCtx).empty
     }
 
     def 'legacyTargetKind is false for Date, true for Timestamp, empty otherwise'() {
@@ -119,9 +120,9 @@ class LegacyTemporalFormatSpec extends Specification {
         ctx.isType(otherType, 'java.sql.Timestamp') >> false
 
         expect:
-        LegacyTemporalFormat.legacyTargetKind(dateType, ctx) == Optional.of(false)
-        LegacyTemporalFormat.legacyTargetKind(timestampType, ctx) == Optional.of(true)
-        LegacyTemporalFormat.legacyTargetKind(otherType, ctx).empty
+        legacyTemporalFormat.legacyTargetKind(dateType, ctx) == Optional.of(false)
+        legacyTemporalFormat.legacyTargetKind(timestampType, ctx) == Optional.of(true)
+        legacyTemporalFormat.legacyTargetKind(otherType, ctx).empty
     }
 
     def 'parseStep returns empty when the target is neither Date nor Timestamp'() {
@@ -130,7 +131,7 @@ class LegacyTemporalFormatSpec extends Specification {
         ctx.isType(otherType, 'java.sql.Timestamp') >> false
 
         expect:
-        LegacyTemporalFormat.parseStep(otherType, 'p', formatInput(), ctx).empty
+        legacyTemporalFormat.parseStep(otherType, 'p', formatInput(), ctx).empty
     }
 
     def 'parseStep returns empty when String itself is not resolvable'() {
@@ -138,12 +139,12 @@ class LegacyTemporalFormatSpec extends Specification {
         freshCtx.isType(dateType, 'java.util.Date') >> true
 
         expect:
-        LegacyTemporalFormat.parseStep(dateType, 'p', formatInput(), freshCtx).empty
+        legacyTemporalFormat.parseStep(dateType, 'p', formatInput(), freshCtx).empty
     }
 
     def 'dateParseCodegen renders a fresh SimpleDateFormat parse, wrapping the checked exception'() {
         expect:
-        def rendered = LegacyTemporalFormat.dateParseCodegen('yyyy-MM-dd').render(singleInput(CodeBlock.of('s'))).toString()
+        def rendered = legacyTemporalFormat.dateParseCodegen('yyyy-MM-dd').render(singleInput(CodeBlock.of('s'))).toString()
         rendered.contains('SimpleDateFormat("yyyy-MM-dd")')
         rendered.contains('.parse(s)')
         rendered.contains('ParseException')
@@ -152,10 +153,19 @@ class LegacyTemporalFormatSpec extends Specification {
 
     def 'timestampParseCodegen wraps a parsed Date in a new Timestamp'() {
         expect:
-        def rendered = LegacyTemporalFormat.timestampParseCodegen('yyyy-MM-dd').render(singleInput(CodeBlock.of('s'))).toString()
+        def rendered = legacyTemporalFormat.timestampParseCodegen('yyyy-MM-dd').render(singleInput(CodeBlock.of('s'))).toString()
         rendered.contains('new java.sql.Timestamp(')
         rendered.contains('SimpleDateFormat("yyyy-MM-dd")')
         rendered.contains('.getTime())')
+    }
+
+    def 'parseAsDate builds the checked-exception-wrapping supplier both parse codegens share'() {
+        expect:
+        def rendered = legacyTemporalFormat.parseAsDate('dd.MM.yyyy', CodeBlock.of('raw')).toString()
+        rendered.contains('SimpleDateFormat("dd.MM.yyyy")')
+        rendered.contains('.parse(raw)')
+        rendered.contains('catch (java.text.ParseException e)')
+        rendered.contains('throw new java.lang.RuntimeException(e)')
     }
 
     private static DirectiveInput formatInput() {

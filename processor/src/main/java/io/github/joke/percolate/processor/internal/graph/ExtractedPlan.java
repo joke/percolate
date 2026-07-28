@@ -5,19 +5,16 @@ import java.util.IdentityHashMap;
 import java.util.Map;
 import java.util.Optional;
 
-/**
- * The read-only extracted plan (design D1/D8): a single {@code chosenProducer} per in-plan {@link Value}, selected
- * by one bottom-up minimum-cost-hyperpath fold over the bipartite graph. {@link Cost} is the lexicographic vector
- * {@code (partials, weight)}: {@code cost(Value)} is the {@code min} ({@code ⊕}) over its producers, and
- * {@code cost(Operation)} is its own {@code Cost} combined ({@code ⊗}, {@link Cost#plus}) with the sum over its
- * port Values and the child return-root. Totality therefore dominates weight by construction, and a partial
- * producer is chosen only when no total one is reachable; ties break on the graph-assigned {@code seq} (creation
- * order), compared numerically — never on {@link Operation#id()}, whose {@code seq} substring compares
- * lexicographically and silently inverts across a digit-count boundary (e.g. {@code "op9"} > {@code "op10"}) — for
- * compilation-stable selection. The one fold subsumes satisfaction — a vertex is reachable iff its cost is finite
- * (there is no separate SAT pass). Losing producers remain in the underlying graph, unselected; this view never
- * mutates it.
- */
+// The read-only extracted plan (design D1/D8): a single chosenProducer per in-plan Value, selected by one
+// bottom-up minimum-cost-hyperpath fold over the bipartite graph. Cost is the lexicographic vector (partials,
+// weight): cost(Value) is the min (⊕) over its producers, and cost(Operation) is its own Cost combined (⊗,
+// Cost.plus) with the sum over its port Values and the child return-root. Totality therefore dominates weight
+// by construction, and a partial producer is chosen only when no total one is reachable; ties break on the
+// graph-assigned seq (creation order), compared numerically — never on Operation.id(), whose seq substring
+// compares lexicographically and silently inverts across a digit-count boundary (e.g. "op9" > "op10") — for
+// compilation-stable selection. The one fold subsumes satisfaction — a vertex is reachable iff its cost is
+// finite (there is no separate SAT pass). Losing producers remain in the underlying graph, unselected; this
+// view never mutates it.
 // IdentityHashMap is the point: every memo here is keyed by vertex instance identity, not value equality.
 @SuppressWarnings({"PMD.UseConcurrentHashMap", "IdentityHashMapUsage"})
 public final class ExtractedPlan {
@@ -34,29 +31,27 @@ public final class ExtractedPlan {
         this.graph = graph;
     }
 
-    /**
-     * Extracts the plan, rooted at every reachable <b>seeded</b> method return root (the graph's recorded roots,
-     * not every Value at the empty-path location). Child element plans flow from there through {@link #walk}'s
-     * child-scope recursion, so a same-location conversion way-point (a {@code Stream<E>} minted while producing a
-     * {@code List<E>} root) participates only as a producer's port, never as an independent root.
-     */
+    // Extracts the plan, rooted at every reachable seeded method return root (the graph's recorded roots, not every
+    // Value at the empty-path location). Child element plans flow from there through .walk's child-scope recursion,
+    // so a same-location conversion way-point (a Stream<E> minted while producing a List<E> root) participates only
+    // as a producer's port, never as an independent root.
     public static ExtractedPlan extract(final MapperGraph graph) {
         final var plan = new ExtractedPlan(graph);
         graph.returnRoots().filter(plan::reachable).forEach(plan::walk);
         return plan;
     }
 
-    /** The chosen producer of {@code value} in the plan, or empty when it is a leaf (a supply root). */
+    // The chosen producer of value in the plan, or empty when it is a leaf (a supply root).
     public Optional<Operation> chosenProducer(final Value value) {
         return Optional.ofNullable(chosen.get(value));
     }
 
-    /** Whether {@code vertex} is producible: its extraction {@link Cost} is finite. Replaces the stored SAT bit. */
+    // Whether vertex is producible: its extraction Cost is finite. Replaces the stored SAT bit.
     public boolean reachable(final GraphVertex vertex) {
         return costOf(vertex).isReachable();
     }
 
-    /** The extraction {@link Cost} of {@code value} (finite ⇒ reachable). */
+    // The extraction Cost of value (finite ⇒ reachable).
     public Cost cost(final Value value) {
         final var memo = valueCost.get(value);
         if (memo != null) {
@@ -86,11 +81,9 @@ public final class ExtractedPlan {
         producer.get().getChildScope().ifPresent(child -> walk(child.getReturnRoot()));
     }
 
-    /**
-     * The chosen producer of {@code value}: the reachable producer of least {@link Cost} (totality dominating
-     * weight by the vector order), with {@link Operation#getSeq()} the deterministic, numeric tie-break. Empty when
-     * the value has no reachable producer (so an all-unreachable Value falls back to its base case in {@link #cost}).
-     */
+    // The chosen producer of value: the reachable producer of least Cost (totality dominating weight by the vector
+    // order), with Operation.getSeq() the deterministic, numeric tie-break. Empty when the value has no reachable
+    // producer (so an all-unreachable Value falls back to its base case in .cost).
     Optional<Operation> cheapestProducer(final Value value) {
         return graph.producersOf(value)
                 .filter(operation -> cost(operation).isReachable())
@@ -114,11 +107,9 @@ public final class ExtractedPlan {
         return cost;
     }
 
-    /**
-     * A producerless Value is a base case (cost {@link Cost#ZERO}) only when it is a {@code LEAF} — a parameter
-     * root or a container element root. Every other producerless Value is unreachable ({@link Cost#INFINITE}),
-     * including a multi-segment {@code ACCESS} source demand whose accessor never matched.
-     */
+    // A producerless Value is a base case (cost Cost.ZERO) only when it is a LEAF — a parameter root or a container
+    // element root. Every other producerless Value is unreachable (Cost.INFINITE), including a multi-segment ACCESS
+    // source demand whose accessor never matched.
     boolean isBaseCase(final Value value) {
         return value.getLoc().role() == Location.Role.LEAF;
     }

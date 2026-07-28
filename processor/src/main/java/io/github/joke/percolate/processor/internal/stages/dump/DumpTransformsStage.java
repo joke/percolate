@@ -6,7 +6,7 @@ import io.github.joke.percolate.processor.internal.stages.Stage;
 import jakarta.inject.Inject;
 import lombok.RequiredArgsConstructor;
 
-/** Dumps the transforms view (reachable vertices only), one {@code .transforms.dot} file per scope. */
+// Dumps the transforms view (reachable vertices only), one .transforms.dot file per scope.
 @RequiredArgsConstructor(onConstructor_ = @Inject)
 public final class DumpTransformsStage implements Stage {
 

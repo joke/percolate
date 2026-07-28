@@ -57,7 +57,7 @@ public final class JspecifyNullabilityResolver implements NullabilityResolver {
         return hasAny(construct, annotations.getMarkedFqns()) ? Nullability.NON_NULL : null;
     }
 
-    static boolean hasAny(final AnnotatedConstruct construct, final Set<String> fqns) {
+    boolean hasAny(final AnnotatedConstruct construct, final Set<String> fqns) {
         for (final AnnotationMirror mirror : construct.getAnnotationMirrors()) {
             final String fqn = annotationFqn(mirror);
             if (fqn != null && fqns.contains(fqn)) {
@@ -67,7 +67,8 @@ public final class JspecifyNullabilityResolver implements NullabilityResolver {
         return false;
     }
 
-    static @Nullable String annotationFqn(final AnnotationMirror mirror) {
+    @Nullable
+    String annotationFqn(final AnnotationMirror mirror) {
         final DeclaredType annotationType = mirror.getAnnotationType();
         final Element annotationElement = annotationType.asElement();
         if (annotationElement instanceof TypeElement) {

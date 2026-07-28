@@ -15,20 +15,16 @@ import io.github.joke.percolate.spi.Offer;
 import io.github.joke.percolate.spi.OperationSpec;
 import io.github.joke.percolate.spi.ResolveCtx;
 import java.util.ArrayList;
-import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
-import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
 
-/**
- * Enumerates the grounded {@link OperationSpec}s a FREE target demand admits (design D6/D9 of change
- * {@code target-driven-engine}, decomposed out of {@code ExpandStage.Driver.expandFree} by
- * {@code decompose-engine-stages}): builds the myopic {@link DemandView} from the value's in-effect {@code @Map}
- * directive, asks the full strategy set, grounds every type-variable port against the in-scope source types, and
- * deduplicates by structural signature — the work-list only ever sees concrete, deduplicated specs.
- */
+// Enumerates the grounded OperationSpecs a FREE target demand admits (design D6/D9 of change target-driven-
+// engine, decomposed out of ExpandStage.Driver.expandFree by decompose-engine-stages): builds the myopic
+// DemandView from the value's in-effect @Map directive, asks the full strategy set, grounds every type-variable
+// port against the in-scope source types, and deduplicates by structural signature — the work-list only ever
+// sees concrete, deduplicated specs.
 @RequiredArgsConstructor
 final class TargetProducer {
 
@@ -38,8 +34,9 @@ final class TargetProducer {
     private final Grounding grounding;
     private final ResolveCtx resolveCtx;
     private final NullabilityResolver resolver;
+    private final SpecDeduplicator deduplicator;
 
-    /** Every concrete, deduplicated spec the strategy set + grounding admit for the FREE demand {@code value}. */
+    // Every concrete, deduplicated spec the strategy set + grounding admit for the FREE demand value.
     List<OperationSpec> produce(final Value value) {
         final var scope = value.getScope();
         final var path = ((TargetLocation) value.getLoc()).getPath().toString();
@@ -59,11 +56,11 @@ final class TargetProducer {
                 .flatMap(spec -> grounding.ground(spec, sourceTypes, refusals))
                 .collect(toUnmodifiableList());
         recordRefusals(refusals, value);
-        return dedup(grounded);
+        return deduplicator.dedup(grounded);
     }
 
-    /** Records every bound refusal {@code Grounding} collected on {@code value}'s inadmissible list. */
-    static void recordRefusals(final List<Offer> refusals, final Value value) {
+    // Records every bound refusal Grounding collected on value's inadmissible list.
+    void recordRefusals(final List<Offer> refusals, final Value value) {
         for (final var refusal : refusals) {
             if (refusal instanceof Offer.Refusal) {
                 final var offerRefusal = (Offer.Refusal) refusal;
@@ -72,7 +69,7 @@ final class TargetProducer {
         }
     }
 
-    /** The walked binding's own {@link Directive} for {@code value}'s target path (design D9) — never per-segment. */
+    // The walked binding's own Directive for value's target path (design D9) — never per-segment.
     Optional<Directive> pinnedDirective(final Value value) {
         final var scope = value.getScope();
         final var path = ((TargetLocation) value.getLoc()).getPath().toString();
@@ -80,19 +77,16 @@ final class TargetProducer {
         return goalSpec.bindingFor(path);
     }
 
-    /** The demand-scoped constraints a reader attached to {@code value}'s target path (design D8). */
+    // The demand-scoped constraints a reader attached to value's target path (design D8).
     List<Constraint> constraintsFor(final Value value) {
         final var scope = value.getScope();
         final var path = ((TargetLocation) value.getLoc()).getPath().toString();
         return goalSpecs.getOrDefault(scope, GoalSpec.empty()).constraintsFor(path);
     }
 
-    /**
-     * Splits {@code offers} into their productions, recording every refusal on {@code value}'s inadmissible list
-     * (design D2 of change {@code decouple-engine-from-strategy-semantics}) — a refusal never becomes an
-     * {@code Operation} vertex.
-     */
-    static List<OperationSpec> productionsOf(final List<Offer> offers, final Value value) {
+    // Splits offers into their productions, recording every refusal on value's inadmissible list (design D2 of
+    // change decouple-engine-from-strategy-semantics) — a refusal never becomes an Operation vertex.
+    List<OperationSpec> productionsOf(final List<Offer> offers, final Value value) {
         final var productions = new ArrayList<OperationSpec>();
         for (final var offer : offers) {
             if (offer instanceof Offer.Production) {
@@ -105,7 +99,7 @@ final class TargetProducer {
         return productions;
     }
 
-    /** The directive-pinned source path of the FREE demand {@code value}'s binding, or none. */
+    // The directive-pinned source path of the FREE demand value's binding, or none.
     List<String> pinnedSourcePath(final Value value) {
         final var scope = value.getScope();
         final var path = ((TargetLocation) value.getLoc()).getPath().toString();
@@ -113,30 +107,10 @@ final class TargetProducer {
         return goalSpec.bindingFor(path).map(Directive::sourcePath).orElse(List.of());
     }
 
-    /** Every offer the strategy set makes for {@code demand}. */
+    // Every offer the strategy set makes for demand.
     List<Offer> run(final DemandView demand, final ResolveCtx ctx) {
         return strategies.stream()
                 .flatMap(strategy -> strategy.expand(demand, ctx))
                 .collect(toUnmodifiableList());
-    }
-
-    /** {@code specs} with duplicate structural signatures dropped, preserving first-seen order. */
-    static List<OperationSpec> dedup(final List<OperationSpec> specs) {
-        final var seen = new LinkedHashSet<String>();
-        final var unique = new ArrayList<OperationSpec>();
-        for (final var spec : specs) {
-            if (seen.add(signature(spec))) {
-                unique.add(spec);
-            }
-        }
-        return unique;
-    }
-
-    /** The structural signature (label, output type, port shapes) two specs share iff they are duplicates. */
-    static String signature(final OperationSpec spec) {
-        final var ports = spec.getPorts().stream()
-                .map(port -> port.getName() + ':' + port.getType() + ':' + port.getNullness())
-                .collect(Collectors.joining(","));
-        return spec.getLabel() + '|' + spec.getOutputType() + '|' + ports;
     }
 }

@@ -78,8 +78,18 @@ class ModuleBoundariesSpec extends Specification {
         // whole `lib` prefix is excluded from every rule below (e.g. auto-common's own visitor
         // classes legitimately extend javax.lang.model.util types).
         ImportOption notShadedLib = { location -> !location.contains('/io/github/joke/percolate/lib/') }
+        // DO_NOT_INCLUDE_TESTS matches a `test` output path only, so test *fixtures* (built to
+        // build/classes/<lang>/testFixtures) slip through and are wrongly judged as production code — this
+        // module's own EncapsulationRules is one. Fixtures are test code and out of scope for every rule here.
+        // A consumer resolves them as the `-test-fixtures` jar variant rather than as that directory, and this
+        // module consumes its own fixtures that way, so both spellings have to be excluded — the directory form
+        // alone silently let EncapsulationRules through until Rule D flagged its static rule builder.
+        ImportOption notTestFixtures = { location ->
+            !location.contains('/testFixtures/') && !location.contains('-test-fixtures.jar')
+        }
         imported = new ClassFileImporter()
                 .withImportOption(ImportOption.Predefined.DO_NOT_INCLUDE_TESTS)
+                .withImportOption(notTestFixtures)
                 .withImportOption(notShadedLib)
                 .importPackages(ROOT)
     }
@@ -289,6 +299,82 @@ class ModuleBoundariesSpec extends Specification {
         notThrown(AssertionError)
     }
 
+    // Rule D (tighten-testability-conventions): the companion to Rules A and C. A static method is dispatched by
+    // INVOKESTATIC and so cannot be intercepted by an ordinary test double — the same testability hole Rule A
+    // closes for private methods. It was additionally being used to hide a self-call from a Spy's strict `0 * _`,
+    // which is what this rule exists to stop; that case is served by declaring the interaction instead.
+    // Exemptions, all narrow: public statics on the published `spi` surface (third-party strategy authors already
+    // call them, so converting is an API break), Dagger @Provides, a `main` entry point, the compiler-generated
+    // enum `values`/`valueOf` pair (generated but NOT flagged synthetic in bytecode, unlike lambdas), and
+    // Lombok/Dagger generated members — the same "generated code isn't an authored method" principle as Rule A.
+    // Shaded third-party sources under `lib` are already excluded by `imported` in setupSpec.
+    // Plus stateless all-static utility holders (design D3 as corrected): a class with no instances has nothing to
+    // spy and nothing to inject, so `static` there is not a dodge — specs stub it with SpyStatic instead. The
+    // exemption is granted to the SHAPE, matched structurally below, because @UtilityClass is SOURCE-retention and
+    // never reaches the bytecode ArchUnit imports. Two things it does NOT license, neither checkable here: moving a
+    // lone method into a new holder to escape spy-testing, and making a method static on an instantiable class just
+    // because it touches no instance field.
+    def 'no method is static outside a genuine static context'() {
+        given:
+        DescribedPredicate<JavaMethod> notGenerated = DescribedPredicate.describe(
+                'not a generated method') { JavaMethod method ->
+            !isGeneratedOrNestedInGenerated(method.owner) && !method.isAnnotatedWith('lombok.Generated')
+        }
+        // `strategies-builtin` also lives under the spi package root (io.github.joke.percolate.spi.builtins), but
+        // it is an internal module, not the published contract — its public statics convert like any other.
+        DescribedPredicate<JavaMethod> notPublishedSpiApi = DescribedPredicate.describe(
+                'not a public method on the published spi surface') { JavaMethod method ->
+            final String pkg = method.owner.packageName
+            final boolean publishedSpi = (pkg == SPI || pkg.startsWith(SPI + '.')) && !pkg.startsWith(SPI + '.builtins')
+            !(method.modifiers.contains(JavaModifier.PUBLIC) && publishedSpi)
+        }
+        DescribedPredicate<JavaMethod> notFrameworkMandated = DescribedPredicate.describe(
+                'not mandated by a framework or by the JLS') { JavaMethod method ->
+            !method.isAnnotatedWith(ROOT + '.lib.dagger.Provides')
+                    && !(method.owner.enum && method.name in ['values', 'valueOf'])
+                    && method.name != 'main'
+        }
+        // A named constructor — a static whose whole body is one `new` of its own type. There is no instance to hang
+        // it on (Shape 1 does not apply) and no helper to extract (Shape 2 does not apply), and nothing to intercept
+        // either: a test double over `Diagnostic.error(subject, msg)` could only return a Diagnostic, which is what
+        // the constructor already does. Matched by the one part of that which is structural — the return type is the
+        // declaring class itself, or an interface the declaring class directly implements (IncomingValuesImpl.of).
+        // The rule cannot see whether the body is really just a `new`, so this also covers factories that do carry
+        // logic (ExtractedPlan.extract, GoalSpec.from). Those still get decomposed, by design D2 rather than by this
+        // rule: the exemption under-enforces deliberately instead of forcing a false positive on eight value types.
+        DescribedPredicate<JavaMethod> notNamedConstructor = DescribedPredicate.describe(
+                'not a named constructor returning its own declaring type') { JavaMethod method ->
+            final JavaClass returned = method.rawReturnType
+            !(returned == method.owner || method.owner.rawInterfaces.any { it.name == returned.name })
+        }
+        DescribedPredicate<JavaMethod> notUtilityHolder = DescribedPredicate.describe(
+                'not declared in a stateless all-static utility holder') { JavaMethod method ->
+            !isUtilityHolder(method.owner)
+        }
+        ArchCondition<JavaMethod> notStatic = new ArchCondition<JavaMethod>('not be static') {
+            @Override
+            void check(final JavaMethod method, final ConditionEvents events) {
+                final boolean isStatic = method.modifiers.contains(JavaModifier.STATIC)
+                final String message = "${method.fullName} ${isStatic ? 'is' : 'is not'} static"
+                events.add(isStatic
+                        ? SimpleConditionEvent.violated(method, message)
+                        : SimpleConditionEvent.satisfied(method, message))
+            }
+        }
+
+        when:
+        (methods() & NOT_SYNTHETIC_OR_BRIDGE & notGenerated & notPublishedSpiApi & notFrameworkMandated
+                & notUtilityHolder & notNamedConstructor)
+                .should(notStatic)
+                .because('a static method cannot be intercepted by a test double, so it is not individually '
+                        + 'testable — prefer a protected instance method, and never use static to hide a '
+                        + 'self-call from a spied subject')
+                .check(imported)
+
+        then:
+        notThrown(AssertionError)
+    }
+
     // Rule B (decompose-engine-stages design D6): co-enforced with Rule A — on its own, Rule A is satisfied by
     // exposing a monolith's guts as package-private members, so this ceiling forces separable logic into a new
     // small collaborator instead of a bigger exposed one.
@@ -366,6 +452,32 @@ class ModuleBoundariesSpec extends Specification {
     // upstream 'dagger.internal.DaggerGenerated'. It lands on the top-level DaggerXxxComponent class, not on the
     // nested *Impl class whose methods actually trip Rule A (e.g. DaggerProcessorComponent$ProcessorComponentImpl),
     // so the check walks up the enclosing-class chain rather than checking the method's immediate owner only.
+    // The @UtilityClass shape, matched structurally (Rule D): final, every constructor private, no instance field,
+    // and nothing but static methods — so the class can never be instantiated and no test double can exist for it.
+    // Synthetic members are filtered out throughout because Groovy's own generated accessors (e.g. metaClass) would
+    // otherwise disqualify PercolateCompiler, and Lombok's generated private constructor is what makes the class
+    // uninstantiable in the first place. A class declaring no method at all is not a holder — it is a value type
+    // with nothing to exempt — so an empty method set does not vacuously pass.
+    private static boolean isUtilityHolder(final JavaClass clazz) {
+        // getMetaClass/setMetaClass are groovyc's GroovyObject implementation, emitted on every Groovy class and
+        // NOT flagged synthetic (unlike $getStaticMetaClass) — they are generated members, not authored ones, so
+        // they must not be what disqualifies a Groovy holder such as PercolateCompiler from the shape.
+        final Set<JavaMethod> authored = clazz.methods.findAll {
+            !it.modifiers.contains(JavaModifier.SYNTHETIC) && !(it.name in ['getMetaClass', 'setMetaClass'])
+        }
+        final boolean noInstanceState = clazz.fields.every {
+            it.modifiers.contains(JavaModifier.STATIC) || it.modifiers.contains(JavaModifier.SYNTHETIC)
+        }
+        final boolean uninstantiable = !clazz.constructors.empty && clazz.constructors.every {
+            it.modifiers.contains(JavaModifier.PRIVATE) || it.modifiers.contains(JavaModifier.SYNTHETIC)
+        }
+        // An enum matches every structural test above — final, private constructor, constants are static fields —
+        // yet it plainly HAS instances, and its own constants are the receiver a helper should hang off. Excluding
+        // it is what keeps Nullability.either (design D3's one in-scope spi static) in the violation list.
+        clazz.modifiers.contains(JavaModifier.FINAL) && !clazz.enum && noInstanceState && uninstantiable
+                && !authored.empty && authored.every { it.modifiers.contains(JavaModifier.STATIC) }
+    }
+
     private static boolean isGeneratedOrNestedInGenerated(final JavaClass clazz) {
         clazz.isAnnotatedWith(ROOT + '.lib.dagger.internal.DaggerGenerated')
                 || clazz.enclosingClass.map { isGeneratedOrNestedInGenerated(it) }.orElse(false)

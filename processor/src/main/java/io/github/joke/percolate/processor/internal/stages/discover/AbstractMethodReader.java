@@ -13,13 +13,11 @@ import javax.lang.model.util.Elements;
 import javax.lang.model.util.Types;
 import lombok.RequiredArgsConstructor;
 
-/**
- * The thin {@code javax.lang.model} leaf of abstract-method discovery: it enumerates a mapper type's local and
- * inherited methods ({@link MoreElements#getLocalAndInheritedMethods}) and projects each into a plain
- * {@link AbstractMethodDescriptor}, resolving the {@code declared-on-Object} flag against the {@code java.lang.Object}
- * element here so the {@link AbstractMethodFilter} needs no {@code javax} comparison. Covered end-to-end by the
- * compile-based feature-e2e layer, not by a unit-test javac substrate.
- */
+// The thin javax.lang.model leaf of abstract-method discovery: it enumerates a mapper type's local and
+// inherited methods (MoreElements.getLocalAndInheritedMethods) and projects each into a plain
+// AbstractMethodDescriptor, resolving the declared-on-Object flag against the java.lang.Object element here so
+// the AbstractMethodFilter needs no javax comparison. Covered end-to-end by the compile-based feature-e2e
+// layer, not by a unit-test javac substrate.
 @CoverageIgnore
 @RequiredArgsConstructor(onConstructor_ = @Inject)
 final class AbstractMethodReader {

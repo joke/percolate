@@ -14,7 +14,6 @@ import io.github.joke.percolate.processor.internal.graph.MethodScope;
 import io.github.joke.percolate.processor.internal.graph.Operation;
 import io.github.joke.percolate.processor.internal.graph.SourceLocation;
 import io.github.joke.percolate.processor.internal.graph.Value;
-import io.github.joke.percolate.spi.BodyCodegen;
 import io.github.joke.percolate.spi.OperationCodegen;
 import io.github.joke.percolate.spi.ResolveCtx;
 import io.github.joke.percolate.spi.ScopeCodegen;
@@ -32,23 +31,24 @@ import javax.lang.model.SourceVersion;
 import javax.lang.model.element.ExecutableElement;
 import lombok.RequiredArgsConstructor;
 
-/**
- * Composes each abstract method body by walking the {@link ExtractedPlan} from the method's return-root
- * {@link Value} (design D8/codegen). Each <b>scope</b> renders as an ordered list of local-variable declarations
- * followed by a single result expression: a plan Value is hoisted to a local (per {@link HoistPlan} — assembly
- * arguments and shared Values) and referenced by name, while single-port chains and the return-root render inline,
- * so fluent container pipelines stay one threaded chain. A chosen producer is rendered by invoking its codegen
- * with {@link io.github.joke.percolate.spi.IncomingValues} keyed by port name; a leaf (a supply root) renders the
- * parameter or the element lambda variable. A scope-owning Operation (container element mapping) weaves its
- * container codegen around the child scope rendered as a lambda — an expression lambda when the child hoists
- * nothing, a block lambda when it does. Producer identity is structural — no group, label, or shared-codegen
- * inference — and no nullability is read (crossings are ordinary plan Operations).
- */
+// Composes each abstract method body by walking the ExtractedPlan from the method's return-root Value (design
+// D8/codegen). Each scope renders as an ordered list of local-variable declarations followed by a single result
+// expression: a plan Value is hoisted to a local (per HoistPlan — assembly arguments and shared Values) and
+// referenced by name, while single-port chains and the return-root render inline, so fluent container pipelines
+// stay one threaded chain. A chosen producer is rendered by invoking its codegen with
+// io.github.joke.percolate.spi.IncomingValues keyed by port name; a leaf (a supply root) renders the parameter
+// or the element lambda variable. A scope-owning Operation (container element mapping) weaves its container
+// codegen around the child scope rendered as a lambda — an expression lambda when the child hoists nothing, a
+// block lambda when it does. Producer identity is structural — no group, label, or shared-codegen inference —
+// and no nullability is read (crossings are ordinary plan Operations).
 @RequiredArgsConstructor(onConstructor_ = @Inject)
 public final class BuildMethodBodies {
 
     private final ProcessorOptions options;
     private final SourceVersion sourceVersion;
+    private final HoistPlanFactory hoistPlanFactory;
+    private final MemberPlanFactory memberPlanFactory;
+    private final BodyRenderContextFactory bodyRenderContextFactory;
 
     MethodBodies build(final MapperContext ctx) {
         final var shape = ctx.getShape();
@@ -58,7 +58,7 @@ public final class BuildMethodBodies {
             return new MethodBodies(List.of(), List.of());
         }
         final var plan = ExtractedPlan.extract(graph);
-        final var memberPlan = MemberPlan.forMapper(graph, plan, ctx);
+        final var memberPlan = memberPlanFactory.forMapper(graph, plan, ctx);
         final var bodies = shape.getAbstractMethods().stream()
                 .map(method -> renderMethod(graph, plan, memberPlan, method, resolveCtx))
                 .collect(toUnmodifiableList());
@@ -75,7 +75,7 @@ public final class BuildMethodBodies {
         final var reserved = method.getParameters().stream()
                 .map(parameter -> parameter.getSimpleName().toString())
                 .collect(toUnmodifiableList());
-        final var hoist = HoistPlan.forMethod(graph, plan, root, reserved);
+        final var hoist = hoistPlanFactory.forMethod(graph, plan, root, reserved);
         final var style = new LocalStyle(options.isLocalsFinal(), options.isLocalsVar());
         final var body = new Walk(
                         graph,
@@ -86,20 +86,19 @@ public final class BuildMethodBodies {
                         new TypeNameRenderer(),
                         resolveCtx,
                         options.getSwitchStyle(),
-                        sourceVersion)
+                        sourceVersion,
+                        bodyRenderContextFactory)
                 .renderMethodBody(root);
         return new MethodImpl(method, body, Set.of());
     }
 
-    /**
-     * One method-body render (decomposed by change {@code decompose-engine-stages}): holds the graph, the plan, the
-     * hoist decision, the lambda-variable environment, and the injected {@link TypeNameRenderer} — the sole
-     * compiler-backed leaf, so every other method here is pure assembly logic a spec can mock/spy in isolation.
-     * Package-visible so the unit suite drives it directly; production code reaches it only through
-     * {@link #renderMethod}. Its own methods recurse into one another over the plan's structure ({@code renderInline}
-     * ↔ {@code renderOperand}/{@code renderContainerMapping}/{@code renderScopeBody}), so a spec isolating one of
-     * them spies the subject and stubs the recursive call, per the {@code Grounding} precedent (design D5).
-     */
+    // One method-body render (decomposed by change decompose-engine-stages): holds the graph, the plan, the hoist
+    // decision, the lambda-variable environment, and the injected TypeNameRenderer — the sole compiler-backed leaf,
+    // so every other method here is pure assembly logic a spec can mock/spy in isolation. Package-visible so the
+    // unit suite drives it directly; production code reaches it only through .renderMethod. Its own methods recurse
+    // into one another over the plan's structure (renderInline ↔
+    // renderOperand/renderContainerMapping/renderScopeBody), so a spec isolating one of them spies the subject and
+    // stubs the recursive call, per the Grounding precedent (design D5).
     static final class Walk {
 
         private final MapperGraph graph;
@@ -111,10 +110,14 @@ public final class BuildMethodBodies {
         private final ResolveCtx resolveCtx;
         private final SwitchStyle switchStyle;
         private final SourceVersion sourceVersion;
+        private final BodyRenderContextFactory bodyRenderContextFactory;
 
         @SuppressWarnings({"PMD.UseConcurrentHashMap", "IdentityHashMapUsage"})
         private final Map<Value, CodeBlock> lambdaVars = new IdentityHashMap<>();
 
+        // One more than PMD's ceiling, and every one of them is per-render state the Walk reads directly; the
+        // alternative is a parameter-object that exists only to satisfy the count.
+        @SuppressWarnings("PMD.ExcessiveParameterList")
         Walk(
                 final MapperGraph graph,
                 final ExtractedPlan plan,
@@ -124,7 +127,8 @@ public final class BuildMethodBodies {
                 final TypeNameRenderer typeNameRenderer,
                 final ResolveCtx resolveCtx,
                 final SwitchStyle switchStyle,
-                final SourceVersion sourceVersion) {
+                final SourceVersion sourceVersion,
+                final BodyRenderContextFactory bodyRenderContextFactory) {
             this.graph = graph;
             this.plan = plan;
             this.hoist = hoist;
@@ -134,16 +138,15 @@ public final class BuildMethodBodies {
             this.resolveCtx = resolveCtx;
             this.switchStyle = switchStyle;
             this.sourceVersion = sourceVersion;
+            this.bodyRenderContextFactory = bodyRenderContextFactory;
         }
 
-        /**
-         * The method body: when the return-root's chosen producer carries a {@link BodyCodegen}, its complete body
-         * renders verbatim (no enclosing {@code return <expr>;}) — dispatch is solely on which codegen shape the
-         * producer supplied, reading no target Java version and no processor option here. Otherwise the scope's
-         * local declarations, then {@code return <return-root expression>;}.
-         */
+        // The method body: when the return-root's chosen producer carries a BodyCodegen, its complete body renders
+        // verbatim (no enclosing return <expr>;) — dispatch is solely on which codegen shape the producer supplied,
+        // reading no target Java version and no processor option here. Otherwise the scope's local declarations, then
+        // return <return-root expression>;.
         CodeBlock renderMethodBody(final Value root) {
-            final var bodyRendered = BodyRenderContextImpl.renderIfBodyCodegen(
+            final var bodyRendered = bodyRenderContextFactory.renderIfBodyCodegen(
                     graph,
                     plan.chosenProducer(root),
                     this::renderOperand,
@@ -161,10 +164,8 @@ public final class BuildMethodBodies {
             return builder.addStatement("return $L", renderInline(root)).build();
         }
 
-        /**
-         * A child (lambda) scope body: the inline expression when it hoists nothing (an expression lambda stays
-         * terse), otherwise a {@code { <decls>; return <expr>; }} block (a block lambda).
-         */
+        // A child (lambda) scope body: the inline expression when it hoists nothing (an expression lambda stays terse),
+        // otherwise a {@code { <decls>; return <expr>; }} block (a block lambda).
         CodeBlock renderScopeBody(final Value root) {
             final var hoistedHere = hoistedInScope(root);
             if (hoistedHere.isEmpty()) {
@@ -180,24 +181,24 @@ public final class BuildMethodBodies {
                     .build();
         }
 
-        /** Emit one hoisted local: {@code [final] <Type|var> <name> = <expr>;} per the configured {@link LocalStyle}. */
+        // Emit one hoisted local: [final] <Type|var> <name> = <expr>; per the configured LocalStyle.
         void emitLocal(final CodeBlock.Builder builder, final Value value) {
             final var name = hoist.declare(value);
             final var rhs = renderInline(value);
             builder.addStatement("$L$L $N = $L", style.isMakeFinal() ? "final " : "", typeToken(value), name, rhs);
         }
 
-        /** The declaration's type token: {@code var} when configured, otherwise the Value's rendered type. */
+        // The declaration's type token: var when configured, otherwise the Value's rendered type.
         CodeBlock typeToken(final Value value) {
             return style.isUseVar() ? CodeBlock.of("var") : CodeBlock.of("$T", localType(value));
         }
 
-        /** An operand: a variable reference when the Value is hoisted, otherwise its inline expression. */
+        // An operand: a variable reference when the Value is hoisted, otherwise its inline expression.
         CodeBlock renderOperand(final Value value) {
             return hoist.isHoisted(value) ? hoist.reference(value) : renderInline(value);
         }
 
-        /** The inline expression for a Value: its chosen producer's rendering, or the leaf name. */
+        // The inline expression for a Value: its chosen producer's rendering, or the leaf name.
         CodeBlock renderInline(final Value value) {
             final var producer = plan.chosenProducer(value);
             if (producer.isEmpty()) {
@@ -243,7 +244,7 @@ public final class BuildMethodBodies {
             return ((ScopeCodegen) operation.getCodegen()).weave(sourceExpr, var, childBody);
         }
 
-        /** The element param-root Value if the child plan sourced from it (lazily materialised), else empty. */
+        // The element param-root Value if the child plan sourced from it (lazily materialised), else empty.
         Optional<Value> materialisedElementRoot(final ChildScope child) {
             return graph.valuesIn(child)
                     .filter(value -> value.getLoc() instanceof ElementLocation)
@@ -259,7 +260,7 @@ public final class BuildMethodBodies {
                     .orElseThrow(() -> new IllegalStateException("unproducible leaf Value in plan: " + value.id()));
         }
 
-        /** {@code value}'s first source-path segment, rendered as a bare reference, or empty when it has none. */
+        // value's first source-path segment, rendered as a bare reference, or empty when it has none.
         Optional<CodeBlock> sourceSegmentRoot(final Value value) {
             if (!(value.getLoc() instanceof SourceLocation)) {
                 return Optional.empty();
@@ -268,17 +269,15 @@ public final class BuildMethodBodies {
             return segments.isEmpty() ? Optional.empty() : Optional.of(CodeBlock.of("$N", segments.get(0)));
         }
 
-        /** The declared type of a hoisted local, rendered through the injected {@link TypeNameRenderer}. */
+        // The declared type of a hoisted local, rendered through the injected TypeNameRenderer.
         TypeName localType(final Value value) {
             return typeNameRenderer.render(value.getType()
                     .orElseThrow(() -> new IllegalStateException("hoisted Value has no type: " + value.id())));
         }
 
-        /**
-         * The hoisted Values of {@code root}'s scope in dependency (post-order) order, so each local precedes its
-         * first reference. The walk stays within the scope — it descends a producer's port sources but never its
-         * child scope — and excludes {@code root} itself (the return-root renders inline).
-         */
+        // The hoisted Values of root's scope in dependency (post-order) order, so each local precedes its first
+        // reference. The walk stays within the scope — it descends a producer's port sources but never its child scope
+        // — and excludes root itself (the return-root renders inline).
         List<Value> hoistedInScope(final Value root) {
             final List<Value> ordered = new ArrayList<>();
             // Value is identity-equal (equals/hashCode are identity), so a HashSet is effectively an identity set.

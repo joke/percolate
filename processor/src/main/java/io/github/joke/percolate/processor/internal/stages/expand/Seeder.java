@@ -24,17 +24,14 @@ import javax.lang.model.element.ExecutableElement;
 import javax.lang.model.element.VariableElement;
 import lombok.RequiredArgsConstructor;
 
-/**
- * Mints one method's return-root {@code Value} (decomposed out of {@code ExpandStage.Driver.seedReturnRoot} by
- * change {@code decompose-engine-stages}): the only seed of an expansion run, landed through the {@link Applier} and
- * marked as the method's return root — the authority a method may not satisfy by self-call, and the single root
- * extraction/diagnostics/codegen key on. Builds the method's {@link MethodScope} with one resolved
- * {@link InputDecl} per parameter (design D5/D7 of change {@code decouple-engine-from-strategy-semantics}) — the
- * one place a method's parameters are read and resolved, since {@code MethodScope} itself is plain data. A
- * parameter's name/visibility default to its own simple name/{@link Visibility#LOCAL} unless a
- * {@link io.github.joke.percolate.spi.DirectiveReader} published a {@link ScopeInputOverride} for it (e.g.
- * {@code @Ambient}) — the engine reads no annotation itself.
- */
+// Mints one method's return-root Value (decomposed out of ExpandStage.Driver.seedReturnRoot by change
+// decompose-engine-stages): the only seed of an expansion run, landed through the Applier and marked as the
+// method's return root — the authority a method may not satisfy by self-call, and the single root
+// extraction/diagnostics/codegen key on. Builds the method's MethodScope with one resolved InputDecl per
+// parameter (design D5/D7 of change decouple-engine-from-strategy-semantics) — the one place a method's
+// parameters are read and resolved, since MethodScope itself is plain data. A parameter's name/visibility
+// default to its own simple name/Visibility.LOCAL unless a io.github.joke.percolate.spi.DirectiveReader
+// published a ScopeInputOverride for it (e.g. @Ambient) — the engine reads no annotation itself.
 @RequiredArgsConstructor
 final class Seeder {
 
@@ -43,7 +40,7 @@ final class Seeder {
     private final NullabilityResolver resolver;
     private final Map<Scope, GoalSpec> goalSpecs;
 
-    /** Mints and marks the return-root {@code Value} for {@code method}. */
+    // Mints and marks the return-root Value for method.
     Value seed(final ExecutableElement method) {
         final var scope = new MethodScope(method, declarationsFor(method));
         final var returnType = method.getReturnType();
@@ -54,7 +51,7 @@ final class Seeder {
         return root;
     }
 
-    /** One resolved {@link InputDecl} per parameter, named and visibility-marked per any published override. */
+    // One resolved InputDecl per parameter, named and visibility-marked per any published override.
     List<InputDecl> declarationsFor(final ExecutableElement method) {
         final var overrideByParam = scopeInputOverridesFor(method);
         return method.getParameters().stream()

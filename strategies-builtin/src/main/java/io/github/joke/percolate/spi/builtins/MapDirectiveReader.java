@@ -16,21 +16,20 @@ import javax.lang.model.element.ExecutableElement;
 import lombok.NoArgsConstructor;
 import lombok.RequiredArgsConstructor;
 
-/**
- * Reads a method's {@code @Map}/{@code @MapList} declarations into {@link DirectiveSink} calls (design D4/D7 of
- * change {@code decouple-engine-from-strategy-semantics}): {@code target} is always written, while {@code source},
- * {@code constant}, {@code defaultValue}, {@code format} and {@code zone} become an open input only when actually
- * written — {@code AnnotationMirror.getElementValues()} decides presence, so an empty string is present, not absent.
- *
- * <p>{@code @Map}'s own shape rules — <b>source XOR constant</b>, and <b>{@code defaultValue} requires a
- * source</b> — are enforced here, the annotation's own reader, rather than by the core: a violation declines to
- * {@code bind} (so the path is never assembled as a real binding) and {@code reject}s the declaration with a
- * positioned reason the core reports verbatim, without ever learning {@code @Map}'s vocabulary.
- *
- * <p>A rejection, not a {@link io.github.joke.percolate.spi.Constraint}: a constraint is only ever heard when some
- * strategy offers a candidate to refuse, and a malformed declaration typically leaves nothing to offer — the
- * violation would then vanish behind a generic "no plan" line, or behind an unrelated refusal at a shallower miss.
- */
+// Reads a method's @Map/@MapList declarations into DirectiveSink calls (design D4/D7 of change decouple-engine-
+// from-strategy-semantics): target is always written, while source, constant, defaultValue, format and zone
+// become an open input only when actually written — AnnotationMirror.getElementValues() decides presence, so an
+// empty string is present, not absent.
+//
+// @Map's own shape rules — source XOR constant, and defaultValue requires a source — are enforced here, the
+// annotation's own reader, rather than by the core: a violation declines to bind (so the path is never
+// assembled as a real binding) and rejects the declaration with a positioned reason the core reports verbatim,
+// without ever learning @Map's vocabulary.
+//
+// A rejection, not a io.github.joke.percolate.spi.Constraint: a constraint is only ever heard when some
+// strategy offers a candidate to refuse, and a malformed declaration typically leaves nothing to offer — the
+// violation would then vanish behind a generic "no plan" line, or behind an unrelated refusal at a shallower
+// miss.
 @CoverageIgnore
 @AutoService(DirectiveReader.class)
 @NoArgsConstructor
@@ -67,7 +66,7 @@ public final class MapDirectiveReader implements DirectiveReader {
                         sink.input(targetPath, toInput(method, mirror, key, Objects.requireNonNull(written.get(key)))));
     }
 
-    /** Enforces {@code @Map}'s own shape rules, refusing the target path outright when violated. */
+    // Enforces @Map's own shape rules, refusing the target path outright when violated.
     boolean declinesShape(
             final ExecutableElement method,
             final AnnotationMirror mirror,
@@ -79,7 +78,7 @@ public final class MapDirectiveReader implements DirectiveReader {
                 || shape.declinesDefaultValueWithoutSource();
     }
 
-    /** One {@code @Map} entry's shape-rule context, so each rule is a single early-return branch. */
+    // One @Map entry's shape-rule context, so each rule is a single early-return branch.
     @RequiredArgsConstructor
     private static final class Shape {
         private final ExecutableElement method;
@@ -123,13 +122,13 @@ public final class MapDirectiveReader implements DirectiveReader {
             return written.containsKey(CONSTANT);
         }
 
-        /** Rejects the declaration outright, so the reason is reported whether or not anything demands the path. */
+        // Rejects the declaration outright, so the reason is reported whether or not anything demands the path.
         void refuse(final Subject subject, final String message) {
             sink.reject(subject, message);
         }
     }
 
-    static DirectiveInput toInput(
+    DirectiveInput toInput(
             final ExecutableElement method,
             final AnnotationMirror mirror,
             final String key,
@@ -137,7 +136,7 @@ public final class MapDirectiveReader implements DirectiveReader {
         return DirectiveInput.scalar(key, value.getValue().toString(), Subjects.of(method, mirror, value));
     }
 
-    static List<String> splitDotted(final String path) {
+    List<String> splitDotted(final String path) {
         if (path.isEmpty()) {
             return List.of();
         }

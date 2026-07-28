@@ -25,6 +25,7 @@ import java.util.stream.Stream
 class MethodPathResolverSpec extends Specification {
 
     ResolveCtx ctx = Mock()
+    MethodPathResolver methodPathResolver = new MethodPathResolver()
     TypeMirror parentType = Mock()
     TypeElement parent = Mock()
 
@@ -39,7 +40,7 @@ class MethodPathResolverSpec extends Specification {
         method.returnType >> returnType
 
         when:
-        def specs = new MethodPathResolver().descend(Demands.descend(parentType, 'x'), ctx)*.spec
+        def specs = methodPathResolver.descend(Demands.descend(parentType, 'x'), ctx)*.spec
 
         then:
         specs.size() == 1
@@ -64,7 +65,7 @@ class MethodPathResolverSpec extends Specification {
         method.returnType >> returnType
 
         when:
-        def specs = new MethodPathResolver().descend(Demands.descend(parentType, 'street'), ctx)*.spec
+        def specs = methodPathResolver.descend(Demands.descend(parentType, 'street'), ctx)*.spec
 
         then:
         specs.size() == 1
@@ -81,7 +82,7 @@ class MethodPathResolverSpec extends Specification {
         method.simpleName >> nameOf('getName')
 
         expect:
-        new MethodPathResolver().descend(Demands.descend(parentType, 'getName'), ctx).toList().empty
+        methodPathResolver.descend(Demands.descend(parentType, 'getName'), ctx).toList().empty
     }
 
     def 'ignores methods declared on java.lang.Object'() {
@@ -95,14 +96,14 @@ class MethodPathResolverSpec extends Specification {
         objectElement.qualifiedName >> nameOf('java.lang.Object')
 
         expect:
-        new MethodPathResolver().descend(Demands.descend(parentType, 'toString'), ctx).toList().empty
+        methodPathResolver.descend(Demands.descend(parentType, 'toString'), ctx).toList().empty
     }
 
     def 'returns empty for non-declared parent types'() {
         ctx.asTypeElement(parentType) >> Optional.empty()
 
         expect:
-        new MethodPathResolver().descend(Demands.descend(parentType, 'length'), ctx).toList().empty
+        methodPathResolver.descend(Demands.descend(parentType, 'length'), ctx).toList().empty
     }
 
     def 'matchAccessor rejects a method whose name does not match the segment'() {
@@ -115,7 +116,7 @@ class MethodPathResolverSpec extends Specification {
         method.simpleName >> nameOf('other')
 
         expect:
-        new MethodPathResolver().matchAccessor(method, 'street', ctx).empty
+        methodPathResolver.matchAccessor(method, 'street', ctx).empty
     }
 
     def 'matchAccessor matches a no-arg method whose name equals the segment exactly'() {
@@ -128,7 +129,7 @@ class MethodPathResolverSpec extends Specification {
         method.simpleName >> nameOf('street')
 
         expect:
-        new MethodPathResolver().matchAccessor(method, 'street', ctx).get().is(method)
+        methodPathResolver.matchAccessor(method, 'street', ctx).get().is(method)
     }
 
     def 'step renders a zero-arg method call named after the segment and carries the STEP_METHOD weight'() {
@@ -137,7 +138,7 @@ class MethodPathResolverSpec extends Specification {
         method.returnType >> returnType
 
         expect:
-        def step = MethodPathResolver.step(method, 'street')
+        def step = methodPathResolver.step(method, 'street')
         step.outputType.is(returnType)
         step.member.is(method)
         step.label == 'street()'

@@ -42,4 +42,17 @@ class NullabilitySpec extends Specification {
         Nullability.join(Nullability.NON_NULL, Nullability.NON_NULL) == Nullability.NON_NULL
         Nullability.join(Nullability.UNKNOWN, Nullability.UNKNOWN) == Nullability.UNKNOWN
     }
+
+    def 'either is true when the receiver is on either side'() {
+        expect:
+        Nullability.NULLABLE.either(Nullability.NULLABLE, Nullability.NON_NULL)
+        Nullability.NULLABLE.either(Nullability.NON_NULL, Nullability.NULLABLE)
+        Nullability.UNKNOWN.either(Nullability.UNKNOWN, Nullability.UNKNOWN)
+    }
+
+    def 'either is false when the receiver is on neither side'() {
+        expect:
+        !Nullability.NULLABLE.either(Nullability.NON_NULL, Nullability.UNKNOWN)
+        !Nullability.UNKNOWN.either(Nullability.NULLABLE, Nullability.NON_NULL)
+    }
 }

@@ -310,7 +310,7 @@ class SourcePathDescenderSpec extends Specification {
     def 'descend queries every strategy for one accessor demand and unwraps every production'() {
         ExpansionStrategy strategy0 = Mock()
         ExpansionStrategy strategy1 = Mock()
-        def descender = new SourcePathDescender([strategy0, strategy1], resolveCtx, resolver, graph, applier, operationLander)
+        def descender = new SourcePathDescender([strategy0, strategy1], resolveCtx, resolver, graph, applier, operationLander, new SpecDeduplicator())
         DescendView demand = Mock()
         Codegen codegen = Mock()
         TypeMirror type = Mock()
@@ -332,7 +332,7 @@ class SourcePathDescenderSpec extends Specification {
     def 'descend drops a refusal (no accessor refuses today, but a decline stays silence, not a diagnostic)'() {
         ExpansionStrategy strategy0 = Mock()
         ExpansionStrategy strategy1 = Mock()
-        def descender = new SourcePathDescender([strategy0, strategy1], resolveCtx, resolver, graph, applier, operationLander)
+        def descender = new SourcePathDescender([strategy0, strategy1], resolveCtx, resolver, graph, applier, operationLander, new SpecDeduplicator())
         DescendView demand = Mock()
         Codegen codegen = Mock()
         TypeMirror type = Mock()
@@ -354,10 +354,11 @@ class SourcePathDescenderSpec extends Specification {
     // ---- helpers ----------------------------------------------------------------------------------------------
 
     private SourcePathDescender descender() {
-        new SourcePathDescender(strategies, resolveCtx, resolver, graph, applier, operationLander)
+        new SourcePathDescender(strategies, resolveCtx, resolver, graph, applier, operationLander, new SpecDeduplicator())
     }
 
     private SourcePathDescender spyDescender() {
-        Spy(SourcePathDescender, constructorArgs: [strategies, resolveCtx, resolver, graph, applier, operationLander])
+        Spy(SourcePathDescender, constructorArgs:
+                [strategies, resolveCtx, resolver, graph, applier, operationLander, new SpecDeduplicator()])
     }
 }

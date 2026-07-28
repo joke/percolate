@@ -8,14 +8,12 @@ import java.util.Optional;
 import java.util.Set;
 import javax.lang.model.type.TypeMirror;
 
-/**
- * The subtype-distance walk {@link MethodCallBridge} uses to weight a candidate return type: a breadth-first count of
- * superclass hops from {@code from} up to {@code to}. Extracted so the walk is testable in isolation over the mocked
- * {@link ResolveCtx} seam (change {@code cutover-strategies-to-mock-seam}, design D2) rather than only through a real
- * type hierarchy. Kept as a hand-rolled BFS rather than a library graph primitive: the supertype chain is derived
- * on-demand from {@link ResolveCtx#superclassOf}, so building a graph structure first would be more scaffolding than
- * the walk it replaces.
- */
+// The subtype-distance walk MethodCallBridge uses to weight a candidate return type: a breadth-first count of
+// superclass hops from from up to to. Extracted so the walk is testable in isolation over the mocked ResolveCtx
+// seam (change cutover-strategies-to-mock-seam, design D2) rather than only through a real type hierarchy. Kept
+// as a hand-rolled BFS rather than a library graph primitive: the supertype chain is derived on-demand from
+// ResolveCtx.superclassOf, so building a graph structure first would be more scaffolding than the walk it
+// replaces.
 final class SubtypeDistance {
 
     int between(final TypeMirror from, final TypeMirror to, final ResolveCtx ctx) {
@@ -48,10 +46,8 @@ final class SubtypeDistance {
         return 0;
     }
 
-    /**
-     * One BFS step from {@code current}: the distance to {@code target} when its unvisited direct supertype is a
-     * match, else empty — enqueueing that supertype as the next hop when it is not.
-     */
+    // One BFS step from current: the distance to target when its unvisited direct supertype is a match, else empty
+    // — enqueueing that supertype as the next hop when it is not.
     Optional<Integer> advance(
             final Hop current,
             final TypeMirror target,
@@ -69,7 +65,7 @@ final class SubtypeDistance {
         return Optional.empty();
     }
 
-    /** The unvisited direct supertype hop of {@code current}, or empty when there is none left to walk. */
+    // The unvisited direct supertype hop of current, or empty when there is none left to walk.
     Optional<Hop> nextHop(final Hop current, final Set<String> visited, final ResolveCtx ctx) {
         if (!ctx.isDeclared(current.type)) {
             return Optional.empty();

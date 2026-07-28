@@ -11,6 +11,7 @@ import io.github.joke.percolate.processor.internal.graph.TargetPath
 import io.github.joke.percolate.processor.internal.graph.Value
 import io.github.joke.percolate.processor.internal.graph.Visibility
 import io.github.joke.percolate.processor.model.GoalSpec
+import io.github.joke.percolate.processor.model.GoalSpecFactory
 import io.github.joke.percolate.processor.model.ScopeInputOverride
 import io.github.joke.percolate.processor.nullability.NullabilityResolver
 import io.github.joke.percolate.spi.Nullability
@@ -84,7 +85,7 @@ class SeederSpec extends Specification {
         ambient.asType() >> ambientType
         resolver.resolve(ambientType, ambient) >> Nullability.NULLABLE
         def override = new ScopeInputOverride(ambient, 'order', io.github.joke.percolate.spi.Visibility.INHERITED)
-        def goalSpecs = [(new MethodScope(method)): GoalSpec.from([], [:], [:], [override])]
+        def goalSpecs = [(new MethodScope(method)): new GoalSpecFactory().from([], [:], [:], [override])]
         def seeder = new Seeder(graph, applier, resolver, goalSpecs)
 
         expect:

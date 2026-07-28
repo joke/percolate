@@ -3,6 +3,7 @@ package io.github.joke.percolate.processor.internal.stages.discover
 import io.github.joke.percolate.processor.MapperContext
 import io.github.joke.percolate.processor.internal.graph.MethodScope
 import io.github.joke.percolate.processor.model.Bind
+import io.github.joke.percolate.processor.model.GoalSpecFactory
 import io.github.joke.percolate.processor.model.MapperShape
 import io.github.joke.percolate.spi.DirectiveReader
 import io.github.joke.percolate.spi.DirectiveSink
@@ -25,7 +26,7 @@ class DiscoverMappingsStageSpec extends Specification {
 
     DirectiveReader readerA = Mock()
     DirectiveReader readerB = Mock()
-    DiscoverMappingsStage stage = new DiscoverMappingsStage([readerA, readerB])
+    DiscoverMappingsStage stage = new DiscoverMappingsStage([readerA, readerB], new GoalSpecFactory())
 
     def 'readMethod runs every reader against the same sink'() {
         ExecutableElement method = Mock()

@@ -9,28 +9,25 @@ import javax.lang.model.element.ElementKind;
 import javax.lang.model.element.Modifier;
 import lombok.NoArgsConstructor;
 
-/**
- * The pure assembly decisions {@link AssembleMapperType} makes on plain inputs, split out from the
- * {@code TypeName.get(mirror)} render/{@code Filer}-write leaf so they unit-test without a compiler: the finality of a
- * generated {@code public} member (a class or a method) and of a parameter, driven by the {@code percolate.*.final}
- * switches, and whether a mapper's {@link ElementKind} means the impl {@code implements} an interface or
- * {@code extends} a class. It reads no {@code javax.lang.model} structure, only the {@code ElementKind} enum and
- * booleans.
- */
+// The pure assembly decisions AssembleMapperType makes on plain inputs, split out from the TypeName.get(mirror)
+// render/Filer-write leaf so they unit-test without a compiler: the finality of a generated public member (a
+// class or a method) and of a parameter, driven by the percolate.*.final switches, and whether a mapper's
+// ElementKind means the impl implements an interface or extends a class. It reads no javax.lang.model
+// structure, only the ElementKind enum and booleans.
 @NoArgsConstructor(onConstructor_ = @Inject)
 final class MapperTypeDecisions {
 
-    /** {@code public}, plus {@code final} when the matching {@code classes.final}/{@code methods.final} switch is on. */
+    // public, plus final when the matching classes.final/methods.final switch is on.
     Modifier[] publicModifiers(final boolean makeFinal) {
         return makeFinal ? new Modifier[] {PUBLIC, FINAL} : new Modifier[] {PUBLIC};
     }
 
-    /** {@code final} when {@code parameters.final} is on, otherwise no modifier at all. */
+    // final when parameters.final is on, otherwise no modifier at all.
     Modifier[] parameterModifiers(final boolean makeFinal) {
         return makeFinal ? new Modifier[] {FINAL} : new Modifier[] {};
     }
 
-    /** An interface mapper is {@code implements}ed; any other kind (a class) is {@code extends}ed. */
+    // An interface mapper is implementsed; any other kind (a class) is extendsed.
     boolean isInterface(final ElementKind kind) {
         return kind == INTERFACE;
     }

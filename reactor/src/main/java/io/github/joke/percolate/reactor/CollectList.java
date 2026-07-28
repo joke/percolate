@@ -15,12 +15,10 @@ import java.util.List;
 import java.util.stream.Stream;
 import lombok.NoArgsConstructor;
 
-/**
- * Same-paradigm reduction {@code Flux<T> → Mono<List<T>>} via {@code flux.collectList()} (design D4): a target-driven
- * conversion keyed on a concrete {@code Mono<List<T>>}, sourcing a concrete {@code Flux<T>} port. The result stays in
- * the reactive world (a {@code Mono}); it never blocks. The blocking {@code Flux<T> → List<T>} (which adds
- * {@code .block()}) lives only in {@code reactor-blocking}.
- */
+// Same-paradigm reduction Flux<T> → Mono<List<T>> via flux.collectList() (design D4): a target-driven
+// conversion keyed on a concrete Mono<List<T>>, sourcing a concrete Flux<T> port. The result stays in the
+// reactive world (a Mono); it never blocks. The blocking Flux<T> → List<T> (which adds .block()) lives only in
+// reactor-blocking.
 @AutoService(ExpansionStrategy.class)
 @NoArgsConstructor
 public final class CollectList implements ExpansionStrategy {

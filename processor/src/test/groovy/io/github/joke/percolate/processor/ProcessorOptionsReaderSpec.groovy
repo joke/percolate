@@ -7,11 +7,13 @@ import spock.lang.Tag
 import javax.lang.model.SourceVersion
 
 @Tag('unit')
-class ProcessorOptionsSpec extends Specification {
+class ProcessorOptionsReaderSpec extends Specification {
+
+    ProcessorOptionsReader reader = new ProcessorOptionsReader()
 
     def 'absent percolate.nullable.annotations yields empty set'() {
         when:
-        def options = ProcessorOptions.from([:])
+        def options = reader.from([:])
 
         then:
         options.customNullableAnnotations == [] as Set
@@ -19,7 +21,7 @@ class ProcessorOptionsSpec extends Specification {
 
     def 'single FQN parses to singleton set'() {
         when:
-        def options = ProcessorOptions.from([
+        def options = reader.from([
                 'percolate.nullable.annotations': 'com.example.Nullable'
         ])
 
@@ -29,7 +31,7 @@ class ProcessorOptionsSpec extends Specification {
 
     def 'comma-separated FQNs yield each entry'() {
         when:
-        def options = ProcessorOptions.from([
+        def options = reader.from([
                 'percolate.nullable.annotations': 'com.example.Nullable,org.foo.Optional'
         ])
 
@@ -39,7 +41,7 @@ class ProcessorOptionsSpec extends Specification {
 
     def 'empty value yields empty set'() {
         when:
-        def options = ProcessorOptions.from(['percolate.nullable.annotations': ''])
+        def options = reader.from(['percolate.nullable.annotations': ''])
 
         then:
         options.customNullableAnnotations == [] as Set
@@ -47,7 +49,7 @@ class ProcessorOptionsSpec extends Specification {
 
     def 'blank entries between and after commas are dropped'() {
         when:
-        def options = ProcessorOptions.from(['percolate.nullable.annotations': 'a,,b,'])
+        def options = reader.from(['percolate.nullable.annotations': 'a,,b,'])
 
         then:
         options.customNullableAnnotations == ['a', 'b'] as Set
@@ -84,7 +86,7 @@ class ProcessorOptionsSpec extends Specification {
 
     def 'debug.graphs and docTags default to false when absent'() {
         when:
-        def options = ProcessorOptions.from([:])
+        def options = reader.from([:])
 
         then:
         !options.debugGraphs
@@ -93,7 +95,7 @@ class ProcessorOptionsSpec extends Specification {
 
     def 'percolate.debug.graphs and percolate.docTags parse the true flag'() {
         when:
-        def options = ProcessorOptions.from([
+        def options = reader.from([
                 'percolate.debug.graphs': 'true',
                 'percolate.docTags'     : 'true'
         ])
@@ -105,18 +107,18 @@ class ProcessorOptionsSpec extends Specification {
 
     def 'flags parse case-insensitively'() {
         expect:
-        ProcessorOptions.from(['percolate.locals.final': 'TRUE']).localsFinal
-        ProcessorOptions.from(['percolate.docTags': 'True']).docTags
+        reader.from(['percolate.locals.final': 'TRUE']).localsFinal
+        reader.from(['percolate.docTags': 'True']).docTags
     }
 
     def 'an unrecognised flag value is treated as false'() {
         expect:
-        !ProcessorOptions.from(['percolate.debug.graphs': 'yes']).debugGraphs
+        !reader.from(['percolate.debug.graphs': 'yes']).debugGraphs
     }
 
     def 'locals.final and locals.var default to false when absent'() {
         when:
-        def options = ProcessorOptions.from([:])
+        def options = reader.from([:])
 
         then:
         !options.localsFinal
@@ -125,7 +127,7 @@ class ProcessorOptionsSpec extends Specification {
 
     def 'percolate.locals.final and percolate.locals.var parse the true flag'() {
         when:
-        def options = ProcessorOptions.from([
+        def options = reader.from([
                 'percolate.locals.final': 'true',
                 'percolate.locals.var'  : 'true'
         ])
@@ -153,7 +155,7 @@ class ProcessorOptionsSpec extends Specification {
 
     def 'absent percolate.switch.style yields AUTO'() {
         when:
-        def options = ProcessorOptions.from([:])
+        def options = reader.from([:])
 
         then:
         options.switchStyle == SwitchStyle.AUTO
@@ -161,19 +163,19 @@ class ProcessorOptionsSpec extends Specification {
 
     def 'percolate.switch.style parses a recognised value case-insensitively'() {
         expect:
-        ProcessorOptions.from(['percolate.switch.style': 'classic']).switchStyle == SwitchStyle.CLASSIC
-        ProcessorOptions.from(['percolate.switch.style': 'ARROW']).switchStyle == SwitchStyle.ARROW
-        ProcessorOptions.from(['percolate.switch.style': 'Auto']).switchStyle == SwitchStyle.AUTO
+        reader.from(['percolate.switch.style': 'classic']).switchStyle == SwitchStyle.CLASSIC
+        reader.from(['percolate.switch.style': 'ARROW']).switchStyle == SwitchStyle.ARROW
+        reader.from(['percolate.switch.style': 'Auto']).switchStyle == SwitchStyle.AUTO
     }
 
     def 'an unrecognised percolate.switch.style value falls back to AUTO'() {
         expect:
-        ProcessorOptions.from(['percolate.switch.style': 'nonsense']).switchStyle == SwitchStyle.AUTO
+        reader.from(['percolate.switch.style': 'nonsense']).switchStyle == SwitchStyle.AUTO
     }
 
     def 'parameters.final, methods.final and classes.final default to false when absent'() {
         when:
-        def options = ProcessorOptions.from([:])
+        def options = reader.from([:])
 
         then:
         !options.parametersFinal
@@ -183,7 +185,7 @@ class ProcessorOptionsSpec extends Specification {
 
     def 'percolate.parameters.final, percolate.methods.final and percolate.classes.final parse the true flag'() {
         when:
-        def options = ProcessorOptions.from([
+        def options = reader.from([
                 'percolate.parameters.final': 'true',
                 'percolate.methods.final'   : 'true',
                 'percolate.classes.final'   : 'true'
@@ -197,7 +199,7 @@ class ProcessorOptionsSpec extends Specification {
 
     def 'absent percolate.time.zone yields an empty timeZone'() {
         when:
-        def options = ProcessorOptions.from([:])
+        def options = reader.from([:])
 
         then:
         options.timeZone == Optional.empty()
@@ -205,7 +207,7 @@ class ProcessorOptionsSpec extends Specification {
 
     def 'percolate.time.zone carries the configured zone id'() {
         when:
-        def options = ProcessorOptions.from(['percolate.time.zone': 'Europe/Berlin'])
+        def options = reader.from(['percolate.time.zone': 'Europe/Berlin'])
 
         then:
         options.timeZone == Optional.of('Europe/Berlin')
@@ -214,5 +216,45 @@ class ProcessorOptionsSpec extends Specification {
     def 'PercolateProcessor supports the latest source version the compiler offers'() {
         expect:
         new PercolateProcessor().supportedSourceVersion == SourceVersion.latestSupported()
+    }
+
+    def 'nullableAnnotations drops empty segments so a trailing comma is harmless'() {
+        expect:
+        reader.nullableAnnotations(['percolate.nullable.annotations': 'a,,b,']) == ['a', 'b'] as Set
+    }
+
+    def 'nullableAnnotations is empty when the option is absent or blank'() {
+        expect:
+        reader.nullableAnnotations([:]).empty
+        reader.nullableAnnotations(['percolate.nullable.annotations': '']).empty
+    }
+
+    def 'flag is true only for the literal true, case-insensitively'() {
+        expect:
+        reader.flag(['k': raw], 'k') == parsed
+
+        where:
+        raw     | parsed
+        'true'  | true
+        'TRUE'  | true
+        'false' | false
+        'yes'   | false
+        ''      | false
+    }
+
+    def 'flag defaults to false for an absent key'() {
+        expect:
+        !reader.flag([:], 'k')
+    }
+
+    def 'parseSwitchStyle degrades an absent or unrecognised value to AUTO'() {
+        expect:
+        reader.parseSwitchStyle([:]) == SwitchStyle.AUTO
+        reader.parseSwitchStyle(['percolate.switch.style': 'sideways']) == SwitchStyle.AUTO
+    }
+
+    def 'parseSwitchStyle reads a recognised value case-insensitively'() {
+        expect:
+        reader.parseSwitchStyle(['percolate.switch.style': 'classic']) == SwitchStyle.CLASSIC
     }
 }

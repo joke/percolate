@@ -14,12 +14,10 @@ import javax.lang.model.element.VariableElement;
 import lombok.NoArgsConstructor;
 import org.jetbrains.annotations.VisibleForTesting;
 
-/**
- * Resolves one source-path segment to a visible (non-private, non-static) field on the parent type, on the
- * {@link Accessor} archetype base: candidate-free, the base pins the parent and the segment and wires the one-port
- * accessor {@link io.github.joke.percolate.spi.OperationSpec}; this strategy supplies only the field match and its
- * {@code parent.field} rendering. The produced value's nullness is the field's, resolved through the demand oracle.
- */
+// Resolves one source-path segment to a visible (non-private, non-static) field on the parent type, on the
+// Accessor archetype base: candidate-free, the base pins the parent and the segment and wires the one-port
+// accessor io.github.joke.percolate.spi.OperationSpec; this strategy supplies only the field match and its
+// parent.field rendering. The produced value's nullness is the field's, resolved through the demand oracle.
 @AutoService(ExpansionStrategy.class)
 @NoArgsConstructor
 public final class FieldPathResolver extends Accessor {
@@ -33,7 +31,7 @@ public final class FieldPathResolver extends Accessor {
                 .map(field -> step(field, segment));
     }
 
-    static Step step(final VariableElement field, final String segment) {
+    Step step(final VariableElement field, final String segment) {
         final OperationCodegen codegen = inputs -> CodeBlock.of("$L$Z.$N", inputs.single(), segment);
         return new Step(field.asType(), field, "." + segment, Weights.STEP_FIELD, codegen);
     }

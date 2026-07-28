@@ -41,6 +41,8 @@ class HoistPlanSpec extends Specification {
 
     static final OperationCodegen OP = { inputs -> CodeBlock.of('x') } as OperationCodegen
 
+    HoistPlanFactory hoistPlanFactory = new HoistPlanFactory()
+
     @Shared TypeMirror STRING = Mock()
 
     def method = Mock(ExecutableElement) {
@@ -61,7 +63,7 @@ class HoistPlanSpec extends Specification {
         graph.markReturnRoot(root)
         operation(root, [shared, shared])
         def plan = ExtractedPlan.extract(graph)
-        def hoist = HoistPlan.forMethod(graph, plan, root, [])
+        def hoist = hoistPlanFactory.forMethod(graph, plan, root, [])
 
         expect: 'shared feeds an n-ary assemble twice -> hoisted; mid is single-use -> not; the leaf has no producer -> not'
         hoist.isHoisted(shared)
@@ -80,7 +82,7 @@ class HoistPlanSpec extends Specification {
         def root = target('')
         graph.markReturnRoot(root)
         operation(root, [x, y])
-        def hoist = HoistPlan.forMethod(graph, ExtractedPlan.extract(graph), root, [])
+        def hoist = hoistPlanFactory.forMethod(graph, ExtractedPlan.extract(graph), root, [])
 
         expect: 's feeds two separate single-port operations (count > 1) though no n-ary port -> hoisted'
         hoist.isHoisted(s)
@@ -88,7 +90,7 @@ class HoistPlanSpec extends Specification {
 
     def 'declare allocates a slot-named local and reference returns its recorded expression'() {
         def value = target('name')
-        def hoist = HoistPlan.forMethod(graph, ExtractedPlan.extract(graph), target(''), [])
+        def hoist = hoistPlanFactory.forMethod(graph, ExtractedPlan.extract(graph), target(''), [])
         def name = hoist.declare(value)
 
         expect:
@@ -97,7 +99,7 @@ class HoistPlanSpec extends Specification {
     }
 
     def 'referencing a hoisted Value before it is declared fails fast'() {
-        def hoist = HoistPlan.forMethod(graph, ExtractedPlan.extract(graph), target(''), [])
+        def hoist = hoistPlanFactory.forMethod(graph, ExtractedPlan.extract(graph), target(''), [])
 
         when:
         hoist.reference(target('undeclared'))
@@ -111,21 +113,21 @@ class HoistPlanSpec extends Specification {
 
     def 'a Value whose slot name is empty declares under the fallback name'() {
         // the return root at the empty target path has no slot name
-        def hoist = HoistPlan.forMethod(graph, ExtractedPlan.extract(graph), target(''), [])
+        def hoist = hoistPlanFactory.forMethod(graph, ExtractedPlan.extract(graph), target(''), [])
 
         expect:
         hoist.declare(target('')) == 'value'
     }
 
     def 'a lambda parameter is named after a declared element type'() {
-        def hoist = HoistPlan.forMethod(graph, ExtractedPlan.extract(graph), target(''), [])
+        def hoist = hoistPlanFactory.forMethod(graph, ExtractedPlan.extract(graph), target(''), [])
 
         expect:
         hoist.lambdaName(declaredType('String')) == 'string'
     }
 
     def 'a lambda parameter over a non-declared element type falls back to element'() {
-        def hoist = HoistPlan.forMethod(graph, ExtractedPlan.extract(graph), target(''), [])
+        def hoist = hoistPlanFactory.forMethod(graph, ExtractedPlan.extract(graph), target(''), [])
         TypeMirror primitive = Stub(TypeMirror) { getKind() >> TypeKind.INT }
 
         expect:

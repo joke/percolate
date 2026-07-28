@@ -14,11 +14,9 @@ import java.util.List;
 import java.util.Map;
 import lombok.RequiredArgsConstructor;
 
-/**
- * Two bindings at one target path are an error (design D7 of change {@code decouple-engine-from-strategy-semantics})
- * regardless of which {@link io.github.joke.percolate.spi.DirectiveReader} declared them — a property of the sink,
- * not of any annotation.
- */
+// Two bindings at one target path are an error (design D7 of change decouple-engine-from-strategy-semantics)
+// regardless of which io.github.joke.percolate.spi.DirectiveReader declared them — a property of the sink, not
+// of any annotation.
 @RequiredArgsConstructor(onConstructor_ = @Inject)
 public final class ValidateNoDuplicateTargetsStage implements Stage {
 

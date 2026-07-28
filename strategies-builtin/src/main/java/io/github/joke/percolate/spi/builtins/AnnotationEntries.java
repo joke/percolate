@@ -15,21 +15,18 @@ import javax.lang.model.element.TypeElement;
 import lombok.experimental.UtilityClass;
 import org.jspecify.annotations.Nullable;
 
-/**
- * The one thin {@code javax.lang.model} helper shared by every built-in {@link io.github.joke.percolate.spi.DirectiveReader}
- * (design D4/D7 of change {@code decouple-engine-from-strategy-semantics}): finds every mirror of a mapping
- * annotation among a method's own annotations — classified by qualified name (every built-in mapping annotation is a
- * top-level type, so this needs no {@code Elements.getBinaryName} compiler service) — unwrapping its
- * {@code @Repeatable} container generically, and reads only the <b>written</b> members of each match via
- * {@link AnnotationMirror#getElementValues()} (never {@code AnnotationMirrors.getAnnotationValue}, which fills in
- * defaults). It decides nothing about presence beyond that: which members are mandatory, optional, or structured is
- * the caller's concern.
- */
+// The one thin javax.lang.model helper shared by every built-in io.github.joke.percolate.spi.DirectiveReader
+// (design D4/D7 of change decouple-engine-from-strategy-semantics): finds every mirror of a mapping annotation
+// among a method's own annotations — classified by qualified name (every built-in mapping annotation is a top-
+// level type, so this needs no Elements.getBinaryName compiler service) — unwrapping its @Repeatable container
+// generically, and reads only the written members of each match via AnnotationMirror.getElementValues() (never
+// AnnotationMirrors.getAnnotationValue, which fills in defaults). It decides nothing about presence beyond
+// that: which members are mandatory, optional, or structured is the caller's concern.
 @UtilityClass
 @CoverageIgnore
 public class AnnotationEntries {
 
-    /** Every mirror of {@code annotationClass} on {@code method}, its own repeatable container unwrapped. */
+    // Every mirror of annotationClass on method, its own repeatable container unwrapped.
     public static List<AnnotationMirror> entriesOf(
             final Class<? extends Annotation> annotationClass, final ExecutableElement method) {
         final var fqn = annotationClass.getCanonicalName();
@@ -51,7 +48,7 @@ public class AnnotationEntries {
         return Stream.empty();
     }
 
-    /** {@code annotationClass}'s {@code @Repeatable} container FQN, or {@code null} when it declares none. */
+    // annotationClass's @Repeatable container FQN, or null when it declares none.
     static @Nullable String containerFqn(final Class<? extends Annotation> annotationClass) {
         final var repeatable = annotationClass.getAnnotation(Repeatable.class);
         return repeatable == null ? null : repeatable.value().getCanonicalName();
@@ -70,7 +67,7 @@ public class AnnotationEntries {
         return ((TypeElement) element).getQualifiedName().toString();
     }
 
-    /** {@code mirror}'s written members only, keyed by simple name — never a member left at its declared default. */
+    // mirror's written members only, keyed by simple name — never a member left at its declared default.
     @SuppressWarnings("PMD.UseConcurrentHashMap") // single-threaded annotation processing; no concurrent access
     public static Map<String, AnnotationValue> writtenMembers(final AnnotationMirror mirror) {
         final Map<String, AnnotationValue> written = new LinkedHashMap<>();

@@ -18,16 +18,14 @@ import java.util.stream.Stream;
 import javax.lang.model.type.TypeMirror;
 import lombok.NoArgsConstructor;
 
-/**
- * Produces a {@code @Map(constant = "...")} target value: on a demand whose directive declares a present
- * {@code "constant"} input, it coerces the raw literal to the demanded type via {@link LiteralCoercion} and, on
- * success, emits a single zero-port {@link OperationSpec} (legitimately vacuously SAT) whose {@link
- * OperationCodegen} renders the coerced literal, producing a {@code NON_NULL} Value, stamping the {@code
- * "constant"} input consumed. It emits nothing when no {@code constant} is present (not mine); when the constant
- * cannot be coerced it refuses (design D1 of change {@code decouple-engine-from-strategy-semantics}), carrying the
- * {@code "constant"} input's own {@link io.github.joke.percolate.spi.Subject} so the deepest-miss renderer can
- * position the message at the offending literal. It is myopic: it reads only the demand, never the graph.
- */
+// Produces a @Map(constant = "...") target value: on a demand whose directive declares a present "constant"
+// input, it coerces the raw literal to the demanded type via LiteralCoercion and, on success, emits a single
+// zero-port OperationSpec (legitimately vacuously SAT) whose OperationCodegen renders the coerced literal,
+// producing a NON_NULL Value, stamping the "constant" input consumed. It emits nothing when no constant is
+// present (not mine); when the constant cannot be coerced it refuses (design D1 of change decouple-engine-from-
+// strategy-semantics), carrying the "constant" input's own io.github.joke.percolate.spi.Subject so the deepest-
+// miss renderer can position the message at the offending literal. It is myopic: it reads only the demand,
+// never the graph.
 @AutoService(ExpansionStrategy.class)
 @NoArgsConstructor
 public final class ConstantValue implements ExpansionStrategy {
@@ -44,14 +42,14 @@ public final class ConstantValue implements ExpansionStrategy {
                 .orElseGet(Stream::empty);
     }
 
-    static Offer offerFor(final DirectiveInput input, final String raw, final TypeMirror target, final ResolveCtx ctx) {
+    Offer offerFor(final DirectiveInput input, final String raw, final TypeMirror target, final ResolveCtx ctx) {
         return LiteralCoercion.coerce(raw, target)
                 .<Offer>map(literal -> Offer.of(constantSpec(target, literal, input)))
                 .orElseGet(() ->
                         Offer.refusal(input.getSubject(), "cannot coerce '" + raw + "' to " + ctx.simpleName(target)));
     }
 
-    static OperationSpec constantSpec(final TypeMirror target, final CodeBlock literal, final DirectiveInput input) {
+    OperationSpec constantSpec(final TypeMirror target, final CodeBlock literal, final DirectiveInput input) {
         final OperationCodegen codegen = inputs -> literal;
         return OperationSpec.of(literal.toString(), codegen, Weights.STEP, List.of(), target, Nullability.NON_NULL)
                 .withConsumed(Set.of(input));

@@ -17,25 +17,20 @@ import java.util.List;
 import java.util.stream.Stream;
 import lombok.NoArgsConstructor;
 
-/**
- * The generic, kind-free element transform over a {@code Stream<T>} (design D3/D7) — a <b>functor lift</b>: given a
- * demand for {@code Stream<B>} it offers two scope-owning operations whose input port is the type-variable
- * {@code Stream<A>} (a {@link PortType#app App} over {@link PortType#variable Var 0}) and whose child scope is the
- * per-element plan:
- *
- * <ul>
- *   <li><b>map</b> ({@code Stream<A> → Stream<B>}, child {@code A → B}) — {@code stream.map(a -> …)};</li>
- *   <li><b>flatMap</b> ({@code Stream<A> → Stream<B>}, child {@code A → Stream<B>}) — {@code stream.flatMap(a -> …)},
- *       which is how a wrapper element (its {@code iterate} yields a 0-or-1 stream) is flattened / dropped.</li>
- * </ul>
- *
- * <p>It reads no candidate: the element type {@code A} is grounded by the engine (design D2) by <em>matching</em> the
- * {@code Stream<A>} port against an in-scope concrete source — directly when a {@code Stream<X>} source exists, or via
- * a container's {@link io.github.joke.percolate.spi.SourceProjection} when only a {@code List<X>}/{@code Optional<X>}/…
- * source exists (D8). It names no container kind beyond its own {@code Stream}; the grounded {@code Stream<A>} port is
- * produced target-driven by a container's own {@code iterate}, so cross-kind composition and flatten emerge from the
- * graph rather than from any multi-kind composer.
- */
+// The generic, kind-free element transform over a Stream<T> (design D3/D7) — a functor lift: given a demand for
+// Stream<B> it offers two scope-owning operations whose input port is the type-variable Stream<A> (a
+// PortType#app App over PortType#variable Var 0) and whose child scope is the per-element plan:
+//
+//   map     (Stream<A> → Stream<B>, child A → B)         — stream.map(a -> …)
+//   flatMap (Stream<A> → Stream<B>, child A → Stream<B>) — stream.flatMap(a -> …), which is how a wrapper
+//           element (its iterate yields a 0-or-1 stream) is flattened / dropped
+//
+// It reads no candidate: the element type A is grounded by the engine (design D2) by
+// matching the Stream<A> port against an in-scope concrete source — directly when a Stream<X> source exists, or
+// via a container's io.github.joke.percolate.spi.SourceProjection when only a List<X>/Optional<X>/… source
+// exists (D8). It names no container kind beyond its own Stream; the grounded Stream<A> port is produced
+// target-driven by a container's own iterate, so cross-kind composition and flatten emerge from the graph
+// rather than from any multi-kind composer.
 @AutoService(ExpansionStrategy.class)
 @NoArgsConstructor
 public final class StreamMap implements ExpansionStrategy {

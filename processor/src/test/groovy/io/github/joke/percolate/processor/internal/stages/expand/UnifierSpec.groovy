@@ -309,6 +309,7 @@ class UnifierSpec extends Specification {
         1 * ctx.typeArgumentCount(source) >> 1
         1 * ctx.typeArgument(source, 0) >> argSource
         1 * unifier.unify(argTemplate, argSource, bindings, 1, refusals) >> true
+        1 * unifier.matchesErasure(template, source, ctx)
         1 * unifier._
         0 * _
 
@@ -339,6 +340,7 @@ class UnifierSpec extends Specification {
         1 * ctx.typeArgumentCount(source) >> 2
         1 * ctx.typeArgument(source, 0) >> firstArgSource
         1 * unifier.unify(firstTemplate, firstArgSource, bindings, 1, refusals) >> false
+        1 * unifier.matchesErasure(template, source, ctx)
         1 * unifier._
         0 * _
 

@@ -5,12 +5,10 @@ import io.github.joke.percolate.spi.DirectiveInput;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
 
-/**
- * The generic {@link Directive} assembled at one target path from whatever a {@link
- * io.github.joke.percolate.spi.DirectiveReader} declared there — a {@code bind}'s source path (empty when the path
- * was never bound, e.g. a {@code @MapEnum}-only root) plus every {@code input} attached at that same path (design D7
- * of change {@code decouple-engine-from-strategy-semantics}). The core never inspects a key.
- */
+// The generic Directive assembled at one target path from whatever a
+// io.github.joke.percolate.spi.DirectiveReader declared there — a bind's source path (empty when the path was
+// never bound, e.g. a @MapEnum-only root) plus every input attached at that same path (design D7 of change
+// decouple-engine-from-strategy-semantics). The core never inspects a key.
 @RequiredArgsConstructor
 // each field backs the Directive accessor of the same name
 @SuppressWarnings("PMD.AvoidFieldNameMatchingMethodName")

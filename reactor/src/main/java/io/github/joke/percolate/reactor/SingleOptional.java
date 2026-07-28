@@ -15,11 +15,9 @@ import java.util.List;
 import java.util.stream.Stream;
 import lombok.NoArgsConstructor;
 
-/**
- * Same-paradigm reduction {@code Mono<T> → Mono<Optional<T>>} via {@code mono.singleOptional()} (design D4): a
- * target-driven conversion keyed on a concrete {@code Mono<Optional<T>>}, sourcing a concrete {@code Mono<T>} port. It
- * surfaces emptiness as an {@code Optional} while staying reactive; it never blocks.
- */
+// Same-paradigm reduction Mono<T> → Mono<Optional<T>> via mono.singleOptional() (design D4): a target-driven
+// conversion keyed on a concrete Mono<Optional<T>>, sourcing a concrete Mono<T> port. It surfaces emptiness as
+// an Optional while staying reactive; it never blocks.
 @AutoService(ExpansionStrategy.class)
 @NoArgsConstructor
 public final class SingleOptional implements ExpansionStrategy {
