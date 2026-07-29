@@ -1,38 +1,5 @@
 group = 'io.github.joke.percolate'
 
-// Generated into every module's test resources so it lands on the test classpath root, where Spock
-// auto-discovers it — no jvmArg needed, so it applies uniformly to `test` and to pitest's own minion JVMs
-// (a `systemProperty` on the `test` task would never reach those). Defined here in one place because the
-// mock-maker block below demonstrated the alternative's failure mode: hand-copied per module, it reached one
-// module out of six. Exists at all so the build never depends on a developer's machine-global
-// ~/.spock/SpockConfig.groovy, whose defaults are outside the repo's control.
-final SPOCK_CONFIG = '''\
-runner {
-    // Spock's OptimizeRunOrderExtension persists per-spec run history to ~/.spock/RunHistory/<SpecName>, a file
-    // shared by every concurrent JVM on the machine rather than scoped to a build, project, or module. Under
-    // pitest's minion-level parallelism those JVMs race to read and write it, corrupting a spec's entry and
-    // surfacing as "IllegalArgumentException: Comparison method violates its general contract!" during Spock's
-    // test-discovery sort — which crashes the entire spec class rather than any single mutant, and which pitest
-    // then misreports as widespread survived mutants unrelated to the code under test. Root-caused for `spi`,
-    // and very likely also the explanation for reactor-blocking's "mutation kill/test strength plateau at
-    // ~54-68%", previously attributed to pitest's own attribution nondeterminism. This is never to be diagnosed
-    // as a pitest limitation nor accommodated with a lowered per-module threshold.
-    optimizeRunOrder false
-    parallel {
-        // Two independent and currently-active reasons. (1) Deterministic single-threaded-per-JVM execution is
-        // the safer default for a mutation-testing oracle; pitest's OWN parallelism is separate JVMs and is
-        // unaffected by this setting. (2) Mockito's static mocking is confined to the registering thread, so
-        // SpyStatic(...) silently stops working if specs run in parallel inside one JVM.
-        enabled false
-    }
-}
-mockMaker {
-    // Required to mock or spy final classes and final methods — Lombok @Value types and the package-private
-    // final *Stage classes are both — and to make SpyStatic(...) available at all.
-    preferredMockMaker spock.mock.MockMakers.mockito
-}
-'''
-
 repositories {
     mavenCentral()
 }
@@ -80,31 +47,9 @@ pluginManager.withPlugin('com.diffplug.spotless') {
 }
 
 pluginManager.withPlugin('java') {
-    pluginManager.apply 'info.solidsoft.pitest'
-
     dependencies {
-        // The mockito mock maker configured in SPOCK_CONFIG below is only honoured if mockito is actually on the
-        // test runtime classpath; declared here rather than per module because it was the per-module copies that
-        // let the setting reach one module out of six. mockito-junit-jupiter is the coordinate the `dependencies`
-        // platform constrains, and it brings mockito-core (which supplies the maker) transitively.
         testRuntimeOnly platform(project(':dependencies'))
         testRuntimeOnly 'org.mockito:mockito-junit-jupiter'
-    }
-
-    def spockConfig = tasks.register('generateSpockConfig') {
-        def target = layout.buildDirectory.file('generated/spock-config/SpockConfig.groovy')
-        def text = SPOCK_CONFIG
-        inputs.property 'text', text
-        outputs.file target
-        doLast {
-            target.get().asFile.text = text
-        }
-    }
-    sourceSets.test.resources.srcDir spockConfig.map { it.outputs.files.singleFile.parentFile }
-
-    tasks.withType(Test).configureEach {
-        maxHeapSize = '2g'
-        jvmArgs '-XX:+HeapDumpOnOutOfMemoryError', '-XX:+CrashOnOutOfMemoryError'
     }
 
     tasks.named('test') {
@@ -126,6 +71,8 @@ pluginManager.withPlugin('java') {
     }
     tasks.withType(Test).configureEach {
         maxParallelForks = Runtime.runtime.availableProcessors().intdiv(2) ?: 1
+        maxHeapSize = '2g'
+        jvmArgs '-XX:+HeapDumpOnOutOfMemoryError', '-XX:+CrashOnOutOfMemoryError', '-XX:+EnableDynamicAgentLoading'
     }
 }
 

@@ -5,6 +5,7 @@ plugins {
     id 'maven-publish'
     id 'io.freefair.lombok'
     id 'percolate.conventions'
+    id 'info.solidsoft.pitest'
 }
 
 // Consumer-facing API: javadoc here is read by mapper authors and third-party strategy authors, so this module

@@ -4,6 +4,7 @@ plugins {
     id 'maven-publish'
     id 'io.freefair.lombok'
     id 'percolate.conventions'
+    id 'info.solidsoft.pitest'
 }
 
 dependencies {

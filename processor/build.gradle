@@ -5,6 +5,7 @@ plugins {
     id 'maven-publish'
     id 'io.freefair.lombok'
     id 'percolate.conventions'
+    id 'info.solidsoft.pitest'
 }
 
 // jgrapht-core/auto-common/dagger (and their own internal-only runtime dependencies: jheaps/apfloat,

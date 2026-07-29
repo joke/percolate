@@ -22,7 +22,3 @@ dependencies {
     testRuntimeOnly 'net.bytebuddy:byte-buddy'
     testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
 }
-
-tasks.named('pitest') {
-    enabled = false
-}

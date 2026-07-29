@@ -5,12 +5,10 @@ plugins {
 
 dependencies {
     annotationProcessor project(':percolate')
-    compileOnly project(':annotations')
-    compileOnly 'org.jspecify:jspecify:1.0.0'
-}
 
-tasks.named('pitest') {
-    enabled = false
+    compileOnly platform(project(':dependencies'))
+    compileOnly project(':annotations')
+    compileOnly 'org.jspecify:jspecify'
 }
 
 tasks.register('smokeRun', JavaExec) {

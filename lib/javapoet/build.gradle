@@ -40,7 +40,3 @@ configurations {
         outgoing.artifact(tasks.shadowJar)
     }
 }
-
-tasks.named('pitest') {
-    enabled = false
-}

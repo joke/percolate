@@ -5,6 +5,8 @@ plugins {
 }
 
 dependencies {
+    compileOnly platform(project(':dependencies'))
+
     testImplementation platform(project(':dependencies'))
     testImplementation project(':annotations')
     testImplementation project(':spi')
@@ -21,8 +23,4 @@ dependencies {
     testFixturesImplementation platform(project(':dependencies'))
     testFixturesImplementation 'com.tngtech.archunit:archunit'
     testFixturesImplementation 'org.apache.groovy:groovy'
-}
-
-tasks.named('pitest') {
-    enabled = false
 }
