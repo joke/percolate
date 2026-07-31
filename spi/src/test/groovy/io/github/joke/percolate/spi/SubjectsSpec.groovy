@@ -1,5 +1,6 @@
 package io.github.joke.percolate.spi
 
+import java.lang.reflect.Modifier
 import spock.lang.Specification
 import spock.lang.Tag
 
@@ -58,8 +59,26 @@ class SubjectsSpec extends Specification {
         position.value == null
     }
 
-    def 'none is a single shared instance'() {
+    def 'none is a single shared subject instance'() {
         expect:
+        Subjects.none() instanceof Subject
         Subjects.none().is(Subjects.none())
     }
+
+    // Subjects is a namespace of static factories: the constructor exists only to keep it uninstantiable from outside.
+    def 'the holder has only a private constructor'() {
+        def constructor = Subjects.declaredConstructors.first()
+        constructor.accessible = true
+
+        when:
+        def instance = constructor.newInstance()
+
+        then:
+        0 * _
+
+        expect:
+        Modifier.isPrivate(Subjects.declaredConstructors.first().modifiers)
+        instance != null
+    }
+
 }

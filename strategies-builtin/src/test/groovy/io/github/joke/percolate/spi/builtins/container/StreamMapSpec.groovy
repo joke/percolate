@@ -47,6 +47,7 @@ class StreamMapSpec extends Specification {
         map.weight == Weights.CONTAINER
         map.outputType.is(streamOfString)
         map.ports[0].name == 'stream'
+        map.ports[0].type.is(streamRawType)
         map.ports[0].template == expectedTemplate
         map.childScope.get().elementInTemplate == PortType.variable(0)
         CodeBlock.of('$L\n', ((ScopeCodegen) map.codegen).weave(CodeBlock.of('$N', 's'), 'v', CodeBlock.of('$N', 'b')))
@@ -55,6 +56,8 @@ class StreamMapSpec extends Specification {
         and: 'flatMap: child A -> Stream<String>'
         def flatMap = specs.find { it.childScope.get().elementOut.is(streamOfString) }
         flatMap != null
+        flatMap.weight == Weights.CONTAINER
+        flatMap.ports[0].type.is(streamRawType)
         flatMap.ports[0].template == expectedTemplate
         flatMap.childScope.get().elementInTemplate == PortType.variable(0)
         CodeBlock.of('$L\n', ((ScopeCodegen) flatMap.codegen).weave(CodeBlock.of('$N', 's'), 'v', CodeBlock.of('$N', 'b')))
@@ -75,7 +78,11 @@ class StreamMapSpec extends Specification {
     }
 
     def 'declines when the target is not a Stream'() {
+        // Everything the emission path needs is stubbed, so only the isStream guard can be what declines.
         ctx.isStream(listOfString) >> false
+        ctx.typeElementNamed('java.util.stream.Stream') >> streamElement
+        ctx.typeArgument(listOfString, 0) >> stringType
+        streamElement.asType() >> streamRawType
 
         expect:
         new StreamMap().expand(Demands.forTarget(listOfString), ctx).toList().empty

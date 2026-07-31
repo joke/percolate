@@ -84,7 +84,7 @@ class MonoBlockOptionalSpec extends Specification {
         spec.outputNullness == Nullability.NON_NULL
         spec.childScope.empty
         spec.codegen instanceof OperationCodegen
-        CodeBlock.of('$L\n', spec.codegen.render(singleInput(CodeBlock.of('$N', 'src')))).toString().contains('.blockOptional()')
+        CodeBlock.of('$L\n', spec.codegen.render(singleInput(CodeBlock.of('$N', 'src')))).toString() == 'src.blockOptional()\n'
     }
 
     def 'project() is empty when source is not a Mono'() {

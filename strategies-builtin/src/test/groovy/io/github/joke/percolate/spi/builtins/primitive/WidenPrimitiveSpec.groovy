@@ -1,5 +1,9 @@
 package io.github.joke.percolate.spi.builtins.primitive
 
+import javax.lang.model.type.TypeVisitor
+import io.github.joke.percolate.spi.IncomingValues
+import io.github.joke.percolate.lib.javapoet.TypeName
+import io.github.joke.percolate.lib.javapoet.CodeBlock
 import io.github.joke.percolate.spi.Nullability
 import io.github.joke.percolate.spi.ResolveCtx
 import io.github.joke.percolate.spi.Weights
@@ -140,6 +144,7 @@ class WidenPrimitiveSpec extends Specification {
         TypeMirror longType = Mock()
         TypeMirror intType = Mock()
         longType.toString() >> 'long'
+        longType.accept({ it instanceof TypeVisitor }, null) >> TypeName.LONG
         intType.toString() >> 'int'
         ctx.primitiveType(TypeKind.INT) >> intType
 
@@ -148,6 +153,7 @@ class WidenPrimitiveSpec extends Specification {
         step.inputType.is(intType)
         step.weight == Weights.STEP
         step.label == 'int→long'
+        step.codegen.render(singleInput(CodeBlock.of('$N', 'n'))).toString() == '(long) n'
     }
 
     def 'conversions dispatches a narrower-eligible target to one step per narrower kind'() {
@@ -166,5 +172,9 @@ class WidenPrimitiveSpec extends Specification {
 
         expect:
         widenPrimitive.conversions(byteType, ctx).toList().empty
+    }
+
+    private static IncomingValues singleInput(final CodeBlock value) {
+        [single: { -> value }] as IncomingValues
     }
 }

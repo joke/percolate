@@ -99,6 +99,6 @@ class MonoBlockSpec extends Specification {
         spec.outputNullness == Nullability.NON_NULL
         spec.childScope.empty
         spec.codegen instanceof OperationCodegen
-        CodeBlock.of('$L\n', spec.codegen.render(singleInput(CodeBlock.of('$N', 'src')))).toString().contains('.block()')
+        CodeBlock.of('$L\n', spec.codegen.render(singleInput(CodeBlock.of('$N', 'src')))).toString() == 'src.block()\n'
     }
 }

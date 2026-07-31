@@ -35,6 +35,16 @@ class PortTypeSpec extends Specification {
         PortType.variable(3, bound) == new PortType.Var(3, null)
     }
 
+    // The bounded overload exists to carry a real bound; a null one is a programming error caught at construction,
+    // not a silently unbounded slot indistinguishable from variable(index).
+    def 'variable with a bound rejects a null bound'() {
+        when:
+        PortType.variable(3, null as PortType.Bound)
+
+        then:
+        thrown(NullPointerException)
+    }
+
     def 'app wraps the erasure over a defensive copy of the argument shapes'() {
         def args = [PortType.variable(0), PortType.concrete(type)]
 
@@ -65,5 +75,14 @@ class PortTypeSpec extends Specification {
         expect:
         PortType.app(erasure, [PortType.variable(0)]) == PortType.app(erasure, [PortType.variable(0)])
         PortType.app(erasure, [PortType.variable(0)]) != PortType.app(erasure, [PortType.variable(1)])
+    }
+
+    // The bound is excluded from equality but still readable: the engine asks a grounded slot for its veto.
+    def 'a bounded variable keeps its bound reachable'() {
+        PortType.Bound bound = { source, ctx -> Optional.empty() }
+
+        expect:
+        PortType.variable(3, bound).bound.is(bound)
+        PortType.variable(3).bound == null
     }
 }

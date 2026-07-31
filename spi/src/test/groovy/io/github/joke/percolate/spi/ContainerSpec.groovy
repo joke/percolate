@@ -255,6 +255,7 @@ class ContainerSpec extends Specification {
         map.weight == Weights.CONTAINER
         map.codegen instanceof ScopeCodegen
         map.ports[0].name == 'source'
+        ctx.isSameType(map.ports[0].type, FakeType.declared(optionalElement))
         map.ports[0].template == PortType.app(optionalElement, [PortType.variable(0)])
         map.childScope.present
         def child = map.childScope.get()
@@ -353,11 +354,31 @@ class ContainerSpec extends Specification {
         result[0].label == 'unwrap'
         result[0].partial
         result[0].childScope.empty
+        result[0].weight == Weights.CONTAINER
         ctx.isSameType(result[0].ports[0].type, optionalOfString)
         result[0].ports[0].selector == Port.Selector.BY_TYPE
         result[0].ports[0].onMiss == Port.OnMiss.DECLINE
         ctx.isSameType(result[0].outputType, STRING)
         result[0].outputNullness == Nullability.NULLABLE
+
+        and: 'the snippet renders over the single incoming wrapper, under the demanded nullness'
+        CodeBlock.of('$L\n', result[0].codegen.render(singleInput(CodeBlock.of('$N', 'box'))))
+                .toString() == 'box.orElse(null)\n'
+    }
+
+    // The demanded nullness reaches the snippet, so the same container renders orElseThrow() for a NON_NULL target.
+    def 'unwrapInto renders the snippet under a non-null demanded nullness'() {
+        def specs = Stream.<OperationSpec> builder()
+
+        when:
+        new TestWrapper().unwrapInto(STRING, demand(STRING, Nullability.NON_NULL), ctx, specs)
+        def result = specs.build().toList()
+
+        then:
+        result.size() == 1
+        result[0].outputNullness == Nullability.NON_NULL
+        CodeBlock.of('$L\n', result[0].codegen.render(singleInput(CodeBlock.of('$N', 'box'))))
+                .toString() == 'box.orElseThrow()\n'
     }
 
     def 'unwrapInto emits nothing when unwrap is not supplied'() {
@@ -388,6 +409,50 @@ class ContainerSpec extends Specification {
         new TestSeq().isIntermediate(streamOfString, ctx)
         !new TestSeq().isIntermediate(listOfString, ctx)
         !new TestSeq().isIntermediate(FakeType.marker(TypeKind.INT), ctx)
+    }
+
+    // Mock-only, because the guard and the two erasures are exactly what a structural fake cannot distinguish: the
+    // refusal must happen before anything is erased, and both operands must reach isSameType already erased.
+    def 'isIntermediate refuses a non-declared type without erasing anything'() {
+        ResolveCtx mockCtx = Mock()
+        TypeMirror type = Mock()
+
+        when:
+        def result = new TestSeq().isIntermediate(type, mockCtx)
+
+        then:
+        1 * mockCtx.isDeclared(type) >> false
+        0 * _
+
+        expect:
+        !result
+    }
+
+    def 'isIntermediate compares the erasure of the type against the erasure of the intermediate'() {
+        ResolveCtx mockCtx = Mock()
+        TypeMirror type = Mock()
+        TypeMirror erasedType = Mock()
+        TypeElement intermediate = Mock()
+        TypeMirror intermediateType = Mock()
+        TypeMirror erasedIntermediate = Mock()
+
+        when:
+        def result = new TestSeq().isIntermediate(type, mockCtx)
+
+        then:
+        1 * mockCtx.isDeclared(type) >> true
+        1 * mockCtx.typeElementNamed('java.util.stream.Stream') >> intermediate
+        1 * intermediate.asType() >> intermediateType
+        1 * mockCtx.erasure(type) >> erasedType
+        1 * mockCtx.erasure(intermediateType) >> erasedIntermediate
+        1 * mockCtx.isSameType(erasedType, erasedIntermediate) >> same
+        0 * _
+
+        expect:
+        result == same
+
+        where:
+        same << [true, false]
     }
 
     def 'intermediateElement reads the first type argument of the intermediate'() {
@@ -438,6 +503,11 @@ class ContainerSpec extends Specification {
     def 'containerOf is empty when the kind has no erasure'() {
         expect:
         !new TestSeq(hasKindErasure: false).containerOf(STRING, ctx).present
+    }
+
+    /** A single-port {@link IncomingValues} for driving an {@link OperationCodegen}'s render directly. */
+    private static IncomingValues singleInput(final CodeBlock value) {
+        [single: { -> value }] as IncomingValues
     }
 
     private static ProduceDemand demand(final TypeMirror target, final Nullability nullness = Nullability.NON_NULL) {

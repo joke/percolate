@@ -62,8 +62,12 @@ final class Demands {
      * directive. Target-driven: the strategy reads only the demanded target/nullness, the directive, and the slot —
      * never a source candidate (the driver binds the reuse-only crossing ports).
      */
-    static ProduceDemand crossing(final TypeMirror target, final String slot, final String defaultValue = null) {
-        demand(target, Nullability.NON_NULL, directive(defaultValue == null ? [] : [scalar('defaultValue', defaultValue)]),
+    static ProduceDemand crossing(
+            final TypeMirror target,
+            final String slot,
+            final String defaultValue = null,
+            final Nullability targetNullness = Nullability.NON_NULL) {
+        demand(target, targetNullness, directive(defaultValue == null ? [] : [scalar('defaultValue', defaultValue)]),
                 [] as Set, slot, Nullability.NON_NULL)
     }
 

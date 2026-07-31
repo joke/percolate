@@ -4,6 +4,7 @@ import spock.lang.Specification
 import spock.lang.Tag
 
 import javax.lang.model.element.Element
+import javax.lang.model.element.ElementKind
 import javax.lang.model.element.Name
 import javax.lang.model.element.TypeElement
 import javax.lang.model.type.ArrayType
@@ -126,24 +127,52 @@ class ResolveCtxDefaultMethodsSpec extends Specification {
         ctx.typeArgument(declared, 1).is(second)
     }
 
-    def 'typeArgument throws on a non-declared type'() {
+    def 'typeArgument throws on a non-declared type, naming the offending type'() {
+        def primitive = kindOf(TypeKind.INT)
+
         when:
-        ctx.typeArgument(kindOf(TypeKind.INT), 0)
+        ctx.typeArgument(primitive, 0)
 
         then:
-        thrown(IllegalArgumentException)
+        def error = thrown(IllegalArgumentException)
+
+        expect:
+        error.message == "Not a declared type: ${primitive}"
     }
 
-    def 'typeArgument throws on an out-of-bounds index'() {
+    // The bound is exclusive, so `index == size` is the boundary that separates `>=` from `>`; asserting the message
+    // distinguishes this method's own refusal from the one List.get would raise a moment later on its own.
+    def 'typeArgument throws on an index at or past the last type argument'() {
         DeclaredType declared = Mock()
         declared.kind >> TypeKind.DECLARED
         declared.typeArguments >> [Mock(TypeMirror)]
 
         when:
-        ctx.typeArgument(declared, 5)
+        ctx.typeArgument(declared, index)
 
         then:
-        thrown(IndexOutOfBoundsException)
+        def error = thrown(IndexOutOfBoundsException)
+
+        expect:
+        error.message == "Index ${index} out of bounds for type arguments of ${declared}"
+
+        where:
+        index << [1, 5]
+    }
+
+    def 'typeArgument throws on a negative index'() {
+        DeclaredType declared = Mock()
+        declared.kind >> TypeKind.DECLARED
+        declared.typeArguments >> [Mock(TypeMirror)]
+
+        when:
+        ctx.typeArgument(declared, -1)
+
+        then:
+        def error = thrown(IndexOutOfBoundsException)
+
+        expect:
+        error.message == "Index -1 out of bounds for type arguments of ${declared}"
     }
 
     def 'typeArgumentCount reads the number of type arguments of a declared type'() {
@@ -155,12 +184,17 @@ class ResolveCtxDefaultMethodsSpec extends Specification {
         ctx.typeArgumentCount(declared) == 2
     }
 
-    def 'typeArgumentCount throws on a non-declared type'() {
+    def 'typeArgumentCount throws on a non-declared type, naming the offending type'() {
+        def primitive = kindOf(TypeKind.INT)
+
         when:
-        ctx.typeArgumentCount(kindOf(TypeKind.INT))
+        ctx.typeArgumentCount(primitive)
 
         then:
-        thrown(IllegalArgumentException)
+        def error = thrown(IllegalArgumentException)
+
+        expect:
+        error.message == "Not a declared type: ${primitive}"
     }
 
     def 'arrayComponent reads the component type of an array'() {
@@ -173,12 +207,17 @@ class ResolveCtxDefaultMethodsSpec extends Specification {
         ctx.arrayComponent(array).is(component)
     }
 
-    def 'arrayComponent throws on a non-array type'() {
+    def 'arrayComponent throws on a non-array type, naming the offending type'() {
+        def declared = kindOf(TypeKind.DECLARED)
+
         when:
-        ctx.arrayComponent(kindOf(TypeKind.DECLARED))
+        ctx.arrayComponent(declared)
 
         then:
-        thrown(IllegalArgumentException)
+        def error = thrown(IllegalArgumentException)
+
+        expect:
+        error.message == "Not an array type: ${declared}"
     }
 
     def 'declaredType delegates to Types.getDeclaredType'() {
@@ -415,6 +454,158 @@ class ResolveCtxDefaultMethodsSpec extends Specification {
 
         expect:
         result == [member]
+    }
+
+    def 'isEnum is true when the backing element is an enum declaration'() {
+        DeclaredType declared = Stub()
+        declared.kind >> TypeKind.DECLARED
+        TypeElement element = Stub()
+        element.kind >> ElementKind.ENUM
+
+        when:
+        def result = ctx.isEnum(declared)
+
+        then:
+        1 * types.asElement(declared) >> element
+        0 * _
+
+        expect:
+        result
+    }
+
+    def 'isEnum is false when the backing element is a class'() {
+        DeclaredType declared = Stub()
+        declared.kind >> TypeKind.DECLARED
+        TypeElement element = Stub()
+        element.kind >> ElementKind.CLASS
+
+        when:
+        def result = ctx.isEnum(declared)
+
+        then:
+        1 * types.asElement(declared) >> element
+        0 * _
+
+        expect:
+        !result
+    }
+
+    // The orElse arm: a type with no backing element is not an enum, and asking must not consult Types/Elements.
+    def 'isEnum is false when the type has no backing element'() {
+        when:
+        def result = ctx.isEnum(kindOf(TypeKind.INT))
+
+        then:
+        0 * _
+
+        expect:
+        !result
+    }
+
+    def 'isType is false for a non-declared type, without asking for the named element'() {
+        when:
+        def result = ctx.isType(kindOf(TypeKind.INT), 'java.util.List')
+
+        then:
+        0 * _
+
+        expect:
+        !result
+    }
+
+    def 'isType is false when the named type is absent from the compile classpath'() {
+        DeclaredType declared = Stub()
+        declared.kind >> TypeKind.DECLARED
+
+        when:
+        def result = ctx.isType(declared, 'java.util.List')
+
+        then:
+        1 * elements.getTypeElement('java.util.List') >> null
+        0 * _
+
+        expect:
+        !result
+    }
+
+    // Both sides are erased before comparison, so List<String> answers isType('java.util.List'). The strict
+    // interaction pins that: an unerased operand reaching isSameType is a different call than the one declared.
+    def 'isType compares the erasure of the type against the erasure of the named type'() {
+        DeclaredType declared = Stub()
+        declared.kind >> TypeKind.DECLARED
+        TypeMirror namedType = Stub()
+        TypeElement named = Stub()
+        named.asType() >> namedType
+        TypeMirror erasedDeclared = Stub()
+        TypeMirror erasedNamed = Stub()
+
+        when:
+        def result = ctx.isType(declared, 'java.util.List')
+
+        then:
+        1 * elements.getTypeElement('java.util.List') >> named
+        1 * types.erasure(declared) >> erasedDeclared
+        1 * types.erasure(namedType) >> erasedNamed
+        1 * types.isSameType(erasedDeclared, erasedNamed) >> same
+        0 * _
+
+        expect:
+        result == same
+
+        where:
+        same << [true, false]
+    }
+
+    def 'isAssignableToNamed is false for a non-declared type, without asking for the named element'() {
+        when:
+        def result = ctx.isAssignableToNamed(kindOf(TypeKind.INT), 'java.lang.Iterable')
+
+        then:
+        0 * _
+
+        expect:
+        !result
+    }
+
+    def 'isAssignableToNamed is false when the named type is absent from the compile classpath'() {
+        DeclaredType declared = Stub()
+        declared.kind >> TypeKind.DECLARED
+
+        when:
+        def result = ctx.isAssignableToNamed(declared, 'java.lang.Iterable')
+
+        then:
+        1 * elements.getTypeElement('java.lang.Iterable') >> null
+        0 * _
+
+        expect:
+        !result
+    }
+
+    def 'isAssignableToNamed asks Types.isAssignable about the two erasures'() {
+        DeclaredType declared = Stub()
+        declared.kind >> TypeKind.DECLARED
+        TypeMirror namedType = Stub()
+        TypeElement named = Stub()
+        named.asType() >> namedType
+        TypeMirror erasedDeclared = Stub()
+        TypeMirror erasedNamed = Stub()
+
+        when:
+        def result = ctx.isAssignableToNamed(declared, 'java.lang.Iterable')
+
+        then:
+        1 * elements.getTypeElement('java.lang.Iterable') >> named
+        1 * types.erasure(declared) >> erasedDeclared
+        1 * types.erasure(namedType) >> erasedNamed
+        1 * types.isAssignable(erasedDeclared, erasedNamed) >> assignable
+        0 * _
+
+        expect:
+        result == assignable
+
+        where:
+        assignable << [true, false]
     }
 
     private TypeMirror kindOf(final TypeKind kind) {

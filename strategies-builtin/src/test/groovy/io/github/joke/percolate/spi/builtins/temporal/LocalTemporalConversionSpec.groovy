@@ -4,6 +4,7 @@ import io.github.joke.percolate.lib.javapoet.CodeBlock
 import io.github.joke.percolate.spi.IncomingValues
 import io.github.joke.percolate.spi.ResolveCtx
 import io.github.joke.percolate.spi.Weights
+import io.github.joke.percolate.spi.builtins.Labels
 import io.github.joke.percolate.spi.builtins.test.Demands
 import spock.lang.Specification
 import spock.lang.Tag
@@ -46,6 +47,7 @@ class LocalTemporalConversionSpec extends Specification {
         specs[0].ports[0].type.is(localDateType)
         specs[0].outputType.is(localDateTimeType)
         specs[0].weight == Weights.STEP
+        specs[0].label == "${localDateType}${Labels.ARROW}${localDateTimeType}"
         specs[0].codegen.render(singleInput(CodeBlock.of('d'))).toString() == 'd.atStartOfDay()'
     }
 
@@ -59,6 +61,8 @@ class LocalTemporalConversionSpec extends Specification {
         specs.size() == 1
         specs[0].ports[0].type.is(localDateTimeType)
         specs[0].outputType.is(localDateType)
+        specs[0].weight == Weights.STEP
+        specs[0].label == "${localDateTimeType}${Labels.ARROW}${localDateType}"
         specs[0].codegen.render(singleInput(CodeBlock.of('dt'))).toString() == 'dt.toLocalDate()'
     }
 

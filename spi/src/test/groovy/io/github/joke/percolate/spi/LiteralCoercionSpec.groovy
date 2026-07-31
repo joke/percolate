@@ -1,5 +1,6 @@
 package io.github.joke.percolate.spi
 
+import java.lang.reflect.InvocationTargetException
 import spock.lang.Specification
 import spock.lang.Tag
 
@@ -216,6 +217,24 @@ class LiteralCoercionSpec extends Specification {
         LiteralCoercion.coerce(' hello ', declared('java.lang.String')).present
     }
 
+    // The @UtilityClass contract: Lombok generates a private constructor that refuses instantiation. Nothing in
+    // production calls it, so it is exercised here — the holder is a namespace, and a stray `new LiteralCoercion()` from a
+    // future edit must keep failing rather than quietly producing an instance.
+    def 'the holder refuses instantiation'() {
+        def constructor = LiteralCoercion.declaredConstructors.first()
+        constructor.accessible = true
+
+        when:
+        constructor.newInstance()
+
+        then:
+        def error = thrown(InvocationTargetException)
+        0 * _
+
+        expect:
+        error.cause instanceof UnsupportedOperationException
+    }
+
     private String render(final TypeMirror type, final String raw) {
         LiteralCoercion.coerce(raw, type).orElseThrow().toString()
     }
@@ -236,4 +255,5 @@ class LiteralCoercionSpec extends Specification {
         type.asElement() >> element
         type
     }
+
 }

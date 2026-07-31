@@ -84,7 +84,6 @@ class FluxCollectListBlockSpec extends Specification {
         spec.childScope.empty
         spec.codegen instanceof OperationCodegen
         def rendered = CodeBlock.of('$L\n', spec.codegen.render(singleInput(CodeBlock.of('$N', 'src')))).toString()
-        rendered.contains('.collectList()')
-        rendered.contains('.block()')
+        rendered == 'src.collectList().block()\n'
     }
 }

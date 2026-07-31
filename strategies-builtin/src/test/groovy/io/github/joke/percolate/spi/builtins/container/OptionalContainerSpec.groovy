@@ -71,7 +71,7 @@ class OptionalContainerSpec extends Specification {
         mapping.outputType.is(optionalOfString)
         !mapping.partial
         CodeBlock.of('$L\n', new OptionalContainer().mapPresence().get().weave(CodeBlock.of('$N', 'o'), 'v', CodeBlock.of('$N', 'b')))
-                .toString().contains('.map(')
+                .toString() == 'o.map(v -> b)\n'
     }
 
     def 'an Optional<E> iterates to a 0-or-1 Stream via Optional.stream(), a plain operation'() {

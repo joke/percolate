@@ -71,7 +71,8 @@ class SetContainerSpec extends Specification {
         collect.codegen instanceof OperationCodegen
         collect.weight == Weights.CONTAINER
         collect.outputType.is(setOfString)
-        CodeBlock.of('$L\n', new SetContainer().collect().get().render(CodeBlock.of('$N', 's'))).toString().contains('toSet()')
+        CodeBlock.of('$L\n', new SetContainer().collect().get().render(CodeBlock.of('$N', 's'))).toString()
+                == 's.collect(java.util.stream.Collectors.toSet())\n'
 
         and: 'a plain single-element wrap String -> Set<String>'
         def wrap = specs.find { it.ports[0].type.is(stringType) }

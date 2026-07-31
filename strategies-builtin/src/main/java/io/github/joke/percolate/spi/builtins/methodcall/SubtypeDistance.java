@@ -17,9 +17,7 @@ import javax.lang.model.type.TypeMirror;
 final class SubtypeDistance {
 
     int between(final TypeMirror from, final TypeMirror to, final ResolveCtx ctx) {
-        if (ctx.isSameType(from, to)) {
-            return 0;
-        }
+        // No same-type short-circuit here: bfsDistance opens with exactly that question and answers 0 itself.
         if (!ctx.isAssignable(from, to)) {
             // FOLLOW-UP: same-type and non-assignable both collapse to distance 0 here — a distance and a "no path"
             // outcome are conflated. Carried forward unchanged from the pre-extraction MethodCallBridge behaviour;

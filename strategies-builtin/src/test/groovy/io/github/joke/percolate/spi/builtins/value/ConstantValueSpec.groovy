@@ -80,6 +80,10 @@ class ConstantValueSpec extends Specification {
         spec.outputNullness == Nullability.NON_NULL
         spec.weight == Weights.STEP
         spec.codegen.render(null).toString() == '42L'
+
+        and: 'the directive input it was built from is stamped consumed, so nothing else claims it'
+        spec.consumed*.key == ['constant']
+        spec.consumed*.value*.get() == ['42']
     }
 
     def 'offerFor carries a coercible literal into a constant spec'() {

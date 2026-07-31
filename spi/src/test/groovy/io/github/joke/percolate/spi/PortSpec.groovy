@@ -123,4 +123,19 @@ class PortSpec extends Specification {
         expect:
         error.message == 'a BY_NAME port requires a non-empty binding name'
     }
+
+    // Ports are values: two ports built the same way are equal, hash alike, and print their fields — the engine
+    // compares and logs them, so the generated members are part of the contract.
+    def 'a port is a value: equal by fields, hashing alike, printing its name'() {
+        TypeMirror type = Mock()
+        def port = Port.byType('source', type, Nullability.NON_NULL)
+        def same = Port.byType('source', type, Nullability.NON_NULL)
+        def other = Port.byType('other', type, Nullability.NON_NULL)
+
+        expect:
+        port == same
+        port.hashCode() == same.hashCode()
+        port != other
+        port.toString().contains('source')
+    }
 }

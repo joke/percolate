@@ -3,13 +3,17 @@ package io.github.joke.percolate.spi.builtins.temporal
 import io.github.joke.percolate.lib.javapoet.CodeBlock
 import io.github.joke.percolate.spi.DirectiveInput
 import io.github.joke.percolate.spi.IncomingValues
+import io.github.joke.percolate.spi.Nullability
 import io.github.joke.percolate.spi.ResolveCtx
 import io.github.joke.percolate.spi.Subjects
+import io.github.joke.percolate.spi.Weights
+import io.github.joke.percolate.spi.builtins.Labels
 import io.github.joke.percolate.spi.builtins.test.Demands
 import spock.lang.Specification
 import spock.lang.Tag
 
 import javax.lang.model.element.TypeElement
+import javax.lang.model.type.TypeKind
 import javax.lang.model.type.TypeMirror
 
 /**
@@ -38,22 +42,38 @@ class LegacyTemporalFormatSpec extends Specification {
     }
 
     def 'formatting a Date to String uses a fresh, per-call SimpleDateFormat — no member requested'() {
-        ctx.isType(dateType, 'java.lang.String') >> true
+        TypeElement dateElement = Mock()
+        TypeElement timestampElement = Mock()
 
         when:
         def specs = legacyTemporalFormat.expand(Demands.withFormat(dateType, 'yyyy-MM-dd'), ctx)*.spec
 
-        then:
+        then: 'exactly the two legacy source types are resolved — no third, unnamed source is attempted'
+        1 * ctx.isType(dateType, 'java.lang.String') >> true
+        1 * ctx.typeElementNamed('java.util.Date') >> dateElement
+        1 * dateElement.asType() >> dateType
+        1 * ctx.typeElementNamed('java.sql.Timestamp') >> timestampElement
+        1 * timestampElement.asType() >> timestampType
+        3 * dateType.kind >> TypeKind.ERROR
+        1 * timestampType.kind >> TypeKind.ERROR
+        0 * _
+
+        expect:
         specs.size() == 2
         specs.every { it.memberRequests.empty }
         specs.every { it.consumed*.key == ['format'] }
         specs.every { !it.partial }
 
         and: 'the first candidate renders a fresh SimpleDateFormat().format(...) inline, not a shared field'
-        def rendered = specs[0].codegen.render(singleInput(CodeBlock.of('d'))).toString()
-        rendered.contains('new')
-        rendered.contains('SimpleDateFormat("yyyy-MM-dd")')
-        rendered.contains('.format(d)')
+        specs.every { it.weight == Weights.STEP }
+        specs.every { it.outputType.is(dateType) && it.outputNullness == Nullability.NON_NULL }
+        specs*.ports*.get(0)*.type == [dateType, timestampType]
+        specs[0].label == "${dateType}${Labels.ARROW}${dateType}"
+        specs[1].label == "${timestampType}${Labels.ARROW}${dateType}"
+        specs[0].codegen.render(singleInput(CodeBlock.of('d'))).toString()
+                == 'new java.text.SimpleDateFormat("yyyy-MM-dd").format(d)'
+        specs[1].codegen.render(singleInput(CodeBlock.of('t'))).toString()
+                == 'new java.text.SimpleDateFormat("yyyy-MM-dd").format(t)'
     }
 
     def 'parsing String into Date wraps the checked ParseException, no member requested'() {
@@ -70,11 +90,10 @@ class LegacyTemporalFormatSpec extends Specification {
         spec.consumed*.key == ['format']
         spec.ports[0].type.is(stringType)
         spec.outputType.is(dateType)
-        def rendered = spec.codegen.render(singleInput(CodeBlock.of('s'))).toString()
-        rendered.contains('SimpleDateFormat("yyyy-MM-dd")')
-        rendered.contains('.parse(s)')
-        rendered.contains('ParseException')
-        rendered.contains('RuntimeException')
+        spec.weight == Weights.STEP
+        spec.outputNullness == Nullability.NON_NULL
+        spec.label == "${stringType}${Labels.ARROW}${dateType}"
+        spec.codegen.render(singleInput(CodeBlock.of('s'))).toString() == parseAsDateExpr('yyyy-MM-dd', 's')
     }
 
     def 'parsing String into Timestamp wraps the parsed Date in a new Timestamp'() {
@@ -87,9 +106,10 @@ class LegacyTemporalFormatSpec extends Specification {
         then:
         specs.size() == 1
         specs[0].outputType.is(timestampType)
-        def rendered = specs[0].codegen.render(singleInput(CodeBlock.of('s'))).toString()
-        rendered.contains('new java.sql.Timestamp(')
-        rendered.contains('.getTime())')
+        specs[0].ports[0].type.is(stringType)
+        specs[0].partial
+        specs[0].codegen.render(singleInput(CodeBlock.of('s'))).toString()
+                == "new java.sql.Timestamp(${parseAsDateExpr('yyyy-MM-dd', 's')}.getTime())"
     }
 
     def 'a demand with no format directive is not matched'() {
@@ -144,28 +164,26 @@ class LegacyTemporalFormatSpec extends Specification {
 
     def 'dateParseCodegen renders a fresh SimpleDateFormat parse, wrapping the checked exception'() {
         expect:
-        def rendered = legacyTemporalFormat.dateParseCodegen('yyyy-MM-dd').render(singleInput(CodeBlock.of('s'))).toString()
-        rendered.contains('SimpleDateFormat("yyyy-MM-dd")')
-        rendered.contains('.parse(s)')
-        rendered.contains('ParseException')
-        rendered.contains('RuntimeException')
+        legacyTemporalFormat.dateParseCodegen('yyyy-MM-dd').render(singleInput(CodeBlock.of('s'))).toString()
+                == parseAsDateExpr('yyyy-MM-dd', 's')
     }
 
     def 'timestampParseCodegen wraps a parsed Date in a new Timestamp'() {
         expect:
-        def rendered = legacyTemporalFormat.timestampParseCodegen('yyyy-MM-dd').render(singleInput(CodeBlock.of('s'))).toString()
-        rendered.contains('new java.sql.Timestamp(')
-        rendered.contains('SimpleDateFormat("yyyy-MM-dd")')
-        rendered.contains('.getTime())')
+        legacyTemporalFormat.timestampParseCodegen('yyyy-MM-dd').render(singleInput(CodeBlock.of('s'))).toString()
+                == "new java.sql.Timestamp(${parseAsDateExpr('yyyy-MM-dd', 's')}.getTime())"
     }
 
     def 'parseAsDate builds the checked-exception-wrapping supplier both parse codegens share'() {
         expect:
-        def rendered = legacyTemporalFormat.parseAsDate('dd.MM.yyyy', CodeBlock.of('raw')).toString()
-        rendered.contains('SimpleDateFormat("dd.MM.yyyy")')
-        rendered.contains('.parse(raw)')
-        rendered.contains('catch (java.text.ParseException e)')
-        rendered.contains('throw new java.lang.RuntimeException(e)')
+        legacyTemporalFormat.parseAsDate('dd.MM.yyyy', CodeBlock.of('raw')).toString()
+                == parseAsDateExpr('dd.MM.yyyy', 'raw')
+    }
+
+    private static String parseAsDateExpr(final String pattern, final String source) {
+        '((java.util.function.Supplier<java.util.Date>) () -> { try { return new java.text.SimpleDateFormat' +
+                "(\"${pattern}\").parse(${source}); } catch (java.text.ParseException e) " +
+                '{ throw new java.lang.RuntimeException(e); } }).get()'
     }
 
     private static DirectiveInput formatInput() {

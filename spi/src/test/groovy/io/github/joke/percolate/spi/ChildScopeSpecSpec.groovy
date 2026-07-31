@@ -45,4 +45,17 @@ class ChildScopeSpecSpec extends Specification {
         spec.elementInTemplate.is(elementInTemplate)
         spec.elementOutTemplate == null
     }
+
+    // A child scope is a value too: the engine compares specs while pruning over-emitted offers.
+    def 'a child scope is a value: equal by fields, hashing alike, printing its nullnesses'() {
+        def scope = new ChildScopeSpec(elementIn, Nullability.NON_NULL, elementOut, Nullability.NULLABLE)
+        def same = new ChildScopeSpec(elementIn, Nullability.NON_NULL, elementOut, Nullability.NULLABLE)
+        def other = new ChildScopeSpec(elementOut, Nullability.NON_NULL, elementIn, Nullability.NULLABLE)
+
+        expect:
+        scope == same
+        scope.hashCode() == same.hashCode()
+        scope != other
+        scope.toString().contains('NULLABLE')
+    }
 }

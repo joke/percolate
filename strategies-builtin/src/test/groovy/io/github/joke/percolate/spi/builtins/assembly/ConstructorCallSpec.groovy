@@ -1,14 +1,20 @@
 package io.github.joke.percolate.spi.builtins.assembly
 
+import io.github.joke.percolate.lib.javapoet.ClassName
+import io.github.joke.percolate.lib.javapoet.CodeBlock
+import io.github.joke.percolate.spi.IncomingValues
 import io.github.joke.percolate.spi.Nullability
 import io.github.joke.percolate.spi.OperationCodegen
 import io.github.joke.percolate.spi.Port
+import io.github.joke.percolate.spi.ProduceDemand
 import io.github.joke.percolate.spi.ResolveCtx
 import io.github.joke.percolate.spi.Weights
 import io.github.joke.percolate.spi.builtins.test.Demands
 import spock.lang.Specification
 import spock.lang.Tag
 
+import javax.lang.model.element.Element
+import javax.lang.model.element.ElementVisitor
 import javax.lang.model.element.ExecutableElement
 import javax.lang.model.element.Name
 import javax.lang.model.element.TypeElement
@@ -33,8 +39,8 @@ class ConstructorCallSpec extends Specification {
     def 'emits no operation when the target type is not DECLARED'() {
         ctx.asTypeElement(targetType) >> Optional.empty()
 
-        expect:
-        constructorCall.expand(Demands.forTarget(targetType), ctx).toList().empty
+        expect: 'declared children are present, so only the missing element can stop the assembly'
+        constructorCall.expand(Demands.assembling(targetType, ['number'] as Set), ctx).toList().empty
     }
 
     def 'emits a multi-port assembly operation over the constructor parameters, in declaration order, when the goal spec matches'() {
@@ -52,6 +58,13 @@ class ConstructorCallSpec extends Specification {
         streetParam.simpleName >> nameOf('street')
         numberParam.asType() >> numberType
         streetParam.asType() >> streetType
+        numberType.toString() >> 'int'
+        streetType.toString() >> 'String'
+        // ClassName.get(TypeElement) resolves the owning package through the enclosing element's visitor.
+        Element enclosing = Stub()
+        enclosing.accept({ it instanceof ElementVisitor }, null) >> ClassName.get('com.example', 'Address')
+        typeElement.simpleName >> nameOf('Address')
+        typeElement.enclosingElement >> enclosing
 
         when:
         def declared = ['number', 'street'] as Set
@@ -70,6 +83,12 @@ class ConstructorCallSpec extends Specification {
         spec.ports.every { it.subTarget }
         spec.ports[0].type.is(numberType)
         spec.ports[1].type.is(streetType)
+        spec.ports.every { it.nullness == Nullability.NON_NULL }
+        spec.label == 'new Address(int, String)'
+
+        and: 'the codegen names the target type and feeds each port by name, in parameter order'
+        spec.codegen.render(byName([number: CodeBlock.of('$N', 'n'), street: CodeBlock.of('$N', 's')])).toString()
+                == 'new com.example.Address(n, s)'
     }
 
     def 'rejects a constructor whose parameters do not match the declared-children goal spec'() {
@@ -116,6 +135,49 @@ class ConstructorCallSpec extends Specification {
         constructorCall.expand(Demands.assembling(targetType, ['x'] as Set), ctx).toList().empty
     }
 
+    // candidateConstructor is the whole gate in one place: each rejection yields an empty stream of its own, never
+    // a null the surrounding flatMap would silently absorb.
+    def 'candidateConstructor yields the constructor itself when it is non-private and its parameters are the declared children'() {
+        ExecutableElement ctor = Mock()
+        VariableElement numberParam = Mock()
+        ctx.isConstructor(ctor) >> true
+        ctx.isPrivate(ctor) >> false
+        ctor.parameters >> [numberParam]
+        numberParam.simpleName >> nameOf('number')
+
+        expect:
+        constructorCall.candidateConstructor(ctor, ['number'] as Set, ctx).toList() == [ctor]
+    }
+
+    def 'candidateConstructor yields nothing for a member that is not a constructor'() {
+        Element member = Mock()
+        ctx.isConstructor(member) >> false
+
+        expect:
+        constructorCall.candidateConstructor(member, ['number'] as Set, ctx).toList().empty
+    }
+
+    def 'candidateConstructor yields nothing for a private constructor'() {
+        ExecutableElement ctor = Mock()
+        ctx.isConstructor(ctor) >> true
+        ctx.isPrivate(ctor) >> true
+
+        expect:
+        constructorCall.candidateConstructor(ctor, ['number'] as Set, ctx).toList().empty
+    }
+
+    def 'candidateConstructor yields nothing when the parameter names are not exactly the declared children'() {
+        ExecutableElement ctor = Mock()
+        VariableElement numberParam = Mock()
+        ctx.isConstructor(ctor) >> true
+        ctx.isPrivate(ctor) >> false
+        ctor.parameters >> [numberParam]
+        numberParam.simpleName >> nameOf('number')
+
+        expect:
+        constructorCall.candidateConstructor(ctor, ['street'] as Set, ctx).toList().empty
+    }
+
     def 'parameterNames collects each constructor parameter simple name into an unordered set'() {
         ExecutableElement ctor = Mock()
         VariableElement numberParam = Mock()
@@ -144,6 +206,50 @@ class ConstructorCallSpec extends Specification {
 
         expect:
         constructorCall.constructorLabel(typeElement, [port]) == 'new Address(int)'
+    }
+
+    // The cast to ExecutableElement is load-bearing: a member the seam reports as a constructor but that is not
+    // executable is a broken ResolveCtx, and it must fail loudly rather than be skipped like an ordinary mismatch.
+    def 'a non-executable member reported as a constructor fails rather than being skipped'() {
+        Element member = Mock()
+        ctx.asTypeElement(targetType) >> Optional.of(typeElement)
+        ctx.membersOf(typeElement) >> Stream.of(member)
+        ctx.isConstructor(member) >> true
+        ctx.isPrivate(member) >> true
+
+        when:
+        constructorCall.expand(Demands.assembling(targetType, ['x'] as Set), ctx).toList()
+
+        then:
+        thrown(ClassCastException)
+    }
+
+    // buildSpec asks the demand for each parameter's nullness with that parameter's own type and element.
+    def 'buildSpec reads every port nullness from the demand, per parameter'() {
+        ExecutableElement ctor = Stub()
+        VariableElement numberParam = Stub()
+        TypeMirror numberType = Stub()
+        TypeElement element = Stub()
+        ProduceDemand demand = Mock()
+        ctor.parameters >> [numberParam]
+        numberParam.simpleName >> nameOf('number')
+        numberParam.asType() >> numberType
+        element.simpleName >> nameOf('Address')
+
+        when:
+        def spec = constructorCall.buildSpec(ctor, element, targetType, demand)
+
+        then:
+        1 * demand.nullnessOf(numberType, numberParam) >> Nullability.NULLABLE
+        0 * _
+
+        expect:
+        spec.ports[0].nullness == Nullability.NULLABLE
+    }
+
+    /** An {@link IncomingValues} resolving each port by its slot name, as an assembly operation does. */
+    private static IncomingValues byName(final Map<String, CodeBlock> values) {
+        [byName: { String slot -> values[slot] }] as IncomingValues
     }
 
     private static Name nameOf(final String value) {

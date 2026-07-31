@@ -33,6 +33,12 @@ class NullnessCrossingSpec extends Specification {
     ResolveCtx ctx = Mock()
     NullnessCrossing crossing = new NullnessCrossing()
 
+    // Below every other strategy's default, so a crossing is applied before anything else competes for the slot.
+    def 'priority outcompetes the default strategy priority'() {
+        expect:
+        crossing.priority() == -1
+    }
+
     def 'emits a partial requireNonNull for a non-null reference-scalar demand'() {
         DeclaredType stringType = Mock()
         ctx.isDeclared(stringType) >> true
@@ -105,6 +111,41 @@ class NullnessCrossingSpec extends Specification {
 
         and: 'every crossing port is REUSE — the driver binds an in-scope source or the op does not apply'
         specs.every { it.ports[0].selector == Port.Selector.BY_TYPE && it.ports[0].onMiss == Port.OnMiss.DECLINE }
+
+        and: 'the guard names the demand\'s binding slot, and both coalesces consume the declared default'
+        specs.find { it.partial }.codegen.render(singleInput(CodeBlock.of('$N', 'src'))).toString()
+                == 'java.util.Objects.requireNonNull(src, "source for slot \'name\' is null but target is non-null")'
+        scalar.consumed == [DirectiveInput.scalar('defaultValue', 'unknown', Subjects.none())] as Set
+        optional.consumed == scalar.consumed
+
+        and: 'both coalesces render the coerced literal itself as the fallback operand'
+        scalar.codegen.render(singleInput(CodeBlock.of('$N', 'src'))).toString()
+                == 'java.util.Objects.requireNonNullElse(src, "unknown")'
+        CodeBlock.of('$L\n', optional.codegen.render(singleInput(CodeBlock.of('$N', 'src')))).toString()
+                == 'src.orElse("unknown")\n'
+    }
+
+    // A nullable target still uses its declared fallback; only the requireNonNull guard is tied to NON_NULL.
+    def 'a nullable demand with a declared default coalesces without any guard'() {
+        DeclaredType stringType = Mock()
+        TypeElement stringElement = Mock()
+        TypeElement optionalElement = Mock()
+        TypeMirror optionalOfString = Mock()
+        stringType.kind >> TypeKind.DECLARED
+        stringType.asElement() >> stringElement
+        stringElement.qualifiedName >> nameOf('java.lang.String')
+        ctx.isDeclared(stringType) >> true
+        ctx.isReferenceType(stringType) >> true
+        ctx.typeElementNamed('java.util.Optional') >> optionalElement
+        ctx.declaredType(optionalElement, stringType) >> optionalOfString
+
+        when:
+        def specs = crossing.expand(
+                Demands.crossing(stringType, 'name', 'unknown', Nullability.NULLABLE), ctx)*.spec
+
+        then:
+        specs*.label == ['coalesce', 'coalesce']
+        specs.every { !it.partial }
     }
 
     def 'coerces the default literal to a wrapper target type'() {
@@ -162,6 +203,8 @@ class NullnessCrossingSpec extends Specification {
 
     def 'guardOnly stays silent when the target is not NON_NULL'() {
         DeclaredType stringType = Mock()
+        // Declared, so the only thing standing between this call and a guard is the nullness check itself.
+        ctx.isDeclared(stringType) >> true
 
         expect:
         crossing.guardOnly(stringType, 'name', false, ctx).toList().empty
@@ -193,6 +236,12 @@ class NullnessCrossingSpec extends Specification {
         specs*.label == ['coalesce', 'coalesce']
         specs[0].ports[0].type.is(stringType)
         specs[1].ports[0].type.is(optionalOfString)
+
+        and: 'the scalar form coalesces through Objects, the Optional form through orElse'
+        specs[0].codegen.render(singleInput(CodeBlock.of('$N', 'src'))).toString()
+                == 'java.util.Objects.requireNonNullElse(src, "fallback")'
+        CodeBlock.of('$L\n', specs[1].codegen.render(singleInput(CodeBlock.of('$N', 'box')))).toString()
+                == 'box.orElse("fallback")\n'
     }
 
     def 'coalesce emits nothing for a target that is neither declared nor a reference'() {
@@ -206,6 +255,7 @@ class NullnessCrossingSpec extends Specification {
 
     def 'requireNonNullGuard is empty when the target is not NON_NULL-guarded'() {
         DeclaredType stringType = Mock()
+        ctx.isDeclared(stringType) >> true
 
         expect:
         crossing.requireNonNullGuard(stringType, 'name', false, ctx).toList().empty
@@ -236,7 +286,8 @@ class NullnessCrossingSpec extends Specification {
         spec.weight == Weights.NOOP
         spec.outputType.is(stringType)
         spec.outputNullness == Nullability.NON_NULL
-        spec.codegen.render(singleInput(CodeBlock.of('$N', 'src'))).toString().contains("slot 'name'")
+        spec.codegen.render(singleInput(CodeBlock.of('$N', 'src'))).toString()
+                == 'java.util.Objects.requireNonNull(src, "source for slot \'name\' is null but target is non-null")'
     }
 
     def 'coalesceSpec builds a total NOOP spec reusing the from-type at the given nullness'() {
@@ -252,11 +303,17 @@ class NullnessCrossingSpec extends Specification {
         spec.ports[0].nullness == Nullability.NULLABLE
         spec.ports[0].selector == Port.Selector.BY_TYPE && spec.ports[0].onMiss == Port.OnMiss.DECLINE
         spec.outputNullness == Nullability.NON_NULL
+        spec.consumed == [DirectiveInput.scalar('defaultValue', 'fallback', Subjects.none())] as Set
     }
 
     def 'optionalOf is empty for a non-reference element'() {
         TypeMirror primitiveType = Mock()
+        TypeElement optionalElement = Mock()
+        TypeMirror optionalOfPrimitive = Mock()
         ctx.isReferenceType(primitiveType) >> false
+        // Optional itself resolves, so only the reference-type check can keep the result empty.
+        ctx.typeElementNamed('java.util.Optional') >> optionalElement
+        ctx.declaredType(optionalElement, primitiveType) >> optionalOfPrimitive
 
         expect:
         crossing.optionalOf(primitiveType, ctx).empty

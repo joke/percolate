@@ -89,6 +89,23 @@ class MethodCallBridgeSpec extends Specification {
     }
 
     def 'a demand with declared children is never bridged by a method call (assembly wins)'() {
+        // A candidate that would otherwise match is in scope, so only the declared-children guard can decline it.
+        CallableMethods callableMethods = Mock()
+        ExecutableElement method = Mock()
+        VariableElement param = Mock()
+        Receiver receiver = Mock()
+        def candidate = new MethodCandidate(method, receiver)
+        ctx.callableMethods() >> callableMethods
+        callableMethods.producing(target) >> Stream.of(candidate)
+        method.parameters >> [param]
+        method.returnType >> target
+        method.simpleName >> nameOf('concat')
+        param.simpleName >> nameOf('arg')
+        param.asType() >> Mock(TypeMirror)
+        param.getAnnotation(Ambient) >> null
+        ctx.isAssignable(target, target) >> true
+        ctx.isSameType(target, target) >> true
+
         expect:
         new MethodCallBridge().expand(Demands.assembling(target, ['x'] as Set), ctx).toList().empty
     }
@@ -103,8 +120,17 @@ class MethodCallBridgeSpec extends Specification {
         ctx.callableMethods() >> callableMethods
         callableMethods.producing(target) >> Stream.of(candidate)
         method.parameters >> [first, second]
+        method.returnType >> target
+        method.simpleName >> nameOf('concat')
+        first.simpleName >> nameOf('first')
+        first.asType() >> Mock(TypeMirror)
+        second.simpleName >> nameOf('second')
+        second.asType() >> Mock(TypeMirror)
         first.getAnnotation(Ambient) >> null
         second.getAnnotation(Ambient) >> null
+        // Assignability holds, so the arity rule alone is what rejects the candidate.
+        ctx.isAssignable(target, target) >> true
+        ctx.isSameType(target, target) >> true
 
         expect:
         new MethodCallBridge().expand(Demands.forTarget(target), ctx).toList().empty
@@ -177,6 +203,45 @@ class MethodCallBridgeSpec extends Specification {
 
         and: 'the call is bound to the method as its call target (self-call guard rewiring)'
         spec.callTarget.get().is(method)
+    }
+
+    def 'buildSpec adds the return type\'s subtype distance to the METHOD base weight'() {
+        ExecutableElement method = Mock()
+        VariableElement param = Mock()
+        TypeMirror paramType = Mock()
+        TypeMirror returnType = Mock()
+        Receiver receiver = Mock()
+        def candidate = new MethodCandidate(method, receiver)
+        method.parameters >> [param]
+        method.returnType >> returnType
+        method.simpleName >> nameOf('concat')
+        param.simpleName >> nameOf('arg')
+        param.asType() >> paramType
+        param.getAnnotation(Ambient) >> null
+        // returnType is a direct subclass of target: assignable, not the same type, one superclass hop away.
+        ctx.isAssignable(returnType, target) >> true
+        ctx.isSameType(returnType, target) >> false
+        ctx.isDeclared(returnType) >> true
+        ctx.superclassOf(returnType) >> target
+        ctx.isDeclared(target) >> true
+        ctx.isSameType(target, target) >> true
+
+        expect:
+        new MethodCallBridge().buildSpec(candidate, target, Demands.forTarget(target), ctx).weight == Weights.METHOD + 1
+    }
+
+    def 'portFor types the port with the nullness the demand\'s oracle reports for the parameter'() {
+        VariableElement param = Mock()
+        TypeMirror paramType = Mock()
+        param.simpleName >> nameOf('arg')
+        param.asType() >> paramType
+        param.getAnnotation(Ambient) >> null
+
+        expect:
+        def port = new MethodCallBridge().portFor(param, Demands.forTarget(target), ctx)
+        port.nullness == Nullability.NON_NULL
+        port.type.is(paramType)
+        port.name == 'arg'
     }
 
     def 'buildSpec emits ports in declaration order, a BY_NAME/REQUIRE port carrying its binding name beside the mapped one'() {

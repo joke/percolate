@@ -1,9 +1,13 @@
 package io.github.joke.percolate.spi.builtins.primitive
 
+import io.github.joke.percolate.lib.javapoet.ClassName
+import io.github.joke.percolate.lib.javapoet.CodeBlock
+import io.github.joke.percolate.spi.IncomingValues
 import io.github.joke.percolate.spi.Nullability
 import io.github.joke.percolate.spi.OperationCodegen
 import io.github.joke.percolate.spi.ResolveCtx
 import io.github.joke.percolate.spi.Weights
+import io.github.joke.percolate.spi.builtins.Labels
 import io.github.joke.percolate.spi.builtins.test.Demands
 import spock.lang.Specification
 import spock.lang.Tag
@@ -12,6 +16,7 @@ import javax.lang.model.element.Name
 import javax.lang.model.element.TypeElement
 import javax.lang.model.type.TypeKind
 import javax.lang.model.type.TypeMirror
+import javax.lang.model.type.TypeVisitor
 
 /**
  * {@link PrimitiveWrapperConversion} unit-tested mock-only over the {@link ResolveCtx} type-query seam (change
@@ -82,11 +87,15 @@ class PrimitiveWrapperConversionSpec extends Specification {
     def 'box renders a $T.valueOf(...) call and carries the given primitive as its input'() {
         TypeMirror wrapperTarget = Mock()
         TypeMirror primitive = Mock()
+        // JavaPoet resolves the $T wrapper through the mirror's own visitor.
+        wrapperTarget.accept({ it instanceof TypeVisitor }, null) >> ClassName.get('java.lang', 'Integer')
 
         expect:
         def step = primitiveWrapperConversion.box(wrapperTarget, primitive)
         step.inputType.is(primitive)
         step.weight == Weights.STEP
+        step.label == "${primitive}${Labels.ARROW}${wrapperTarget}"
+        step.codegen.render(singleInput(CodeBlock.of('$N', 'i'))).toString() == 'java.lang.Integer.valueOf(i)'
     }
 
     def 'unbox picks the accessor named after the primitive kind and renders a chained call'() {
@@ -99,8 +108,35 @@ class PrimitiveWrapperConversionSpec extends Specification {
         def step = primitiveWrapperConversion.unbox(primitiveTarget, ctx)
         step.inputType.is(wrapper)
         step.weight == Weights.STEP
-        io.github.joke.percolate.lib.javapoet.CodeBlock.of('$L\n', step.codegen.render(singleInput(io.github.joke.percolate.lib.javapoet.CodeBlock.of('$N', 'w'))))
-                .toString().contains('w.longValue()')
+        step.label == "${wrapper}${Labels.ARROW}${primitiveTarget}"
+        CodeBlock.of('$L\n', step.codegen.render(singleInput(CodeBlock.of('$N', 'w')))).toString() == 'w.longValue()\n'
+    }
+
+    // The accessor table covers every primitive kind; a kind outside it is a broken seam answer, not a silent no-op.
+    def 'unbox refuses a target kind that has no unboxing accessor'() {
+        TypeMirror primitiveTarget = Mock()
+        TypeMirror wrapper = Mock()
+        ctx.boxed(primitiveTarget) >> wrapper
+        ctx.kind(primitiveTarget) >> TypeKind.DECLARED
+
+        when:
+        primitiveWrapperConversion.unbox(primitiveTarget, ctx)
+
+        then:
+        thrown(NullPointerException)
+    }
+
+    // The wrapper allow-list is what stops an arbitrary declared type from being unboxed into a plan.
+    def 'unboxedOrNull consults the wrapper allow-list, not merely the seam\'s unboxed answer'() {
+        TypeMirror stringType = Mock()
+        TypeElement stringElement = Mock()
+        TypeMirror intType = Mock()
+        ctx.asTypeElement(stringType) >> Optional.of(stringElement)
+        stringElement.qualifiedName >> nameOf('java.lang.String')
+        ctx.unboxed(stringType) >> intType
+
+        expect:
+        primitiveWrapperConversion.unboxedOrNull(stringType, ctx) == null
     }
 
     def 'unboxedOrNull returns null when the target is not a declared type at all'() {
@@ -161,7 +197,7 @@ class PrimitiveWrapperConversionSpec extends Specification {
         [contentEquals: { CharSequence cs -> cs.toString() == value }, toString: { value }] as Name
     }
 
-    private static io.github.joke.percolate.spi.IncomingValues singleInput(final io.github.joke.percolate.lib.javapoet.CodeBlock value) {
-        [single: { -> value }] as io.github.joke.percolate.spi.IncomingValues
+    private static IncomingValues singleInput(final CodeBlock value) {
+        [single: { -> value }] as IncomingValues
     }
 }

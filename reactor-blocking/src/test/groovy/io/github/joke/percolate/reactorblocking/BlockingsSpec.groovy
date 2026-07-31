@@ -4,6 +4,7 @@ import io.github.joke.percolate.spi.ResolveCtx
 import spock.lang.Specification
 import spock.lang.Tag
 
+import java.lang.reflect.InvocationTargetException
 import javax.lang.model.element.TypeElement
 import javax.lang.model.type.TypeMirror
 
@@ -225,5 +226,23 @@ class BlockingsSpec extends Specification {
 
         expect:
         result
+    }
+
+    // The @UtilityClass contract: Lombok generates a private constructor that refuses instantiation. Nothing in
+    // production calls it, so it is exercised here — the holder is a namespace, and a stray `new Blockings()` from a
+    // future edit must keep failing rather than quietly producing an instance.
+    def 'the holder refuses instantiation'() {
+        def constructor = Blockings.declaredConstructors.first()
+        constructor.accessible = true
+
+        when:
+        constructor.newInstance()
+
+        then:
+        def error = thrown(InvocationTargetException)
+        0 * _
+
+        expect:
+        error.cause instanceof UnsupportedOperationException
     }
 }

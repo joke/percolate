@@ -1,11 +1,13 @@
 package io.github.joke.percolate.spi.builtins.enumconversion
 
+import io.github.joke.percolate.lib.javapoet.ClassName
 import io.github.joke.percolate.lib.javapoet.CodeBlock
 import io.github.joke.percolate.spi.BodyCodegen
 import io.github.joke.percolate.spi.BodyRenderContext
 import io.github.joke.percolate.spi.DirectiveInput
 import io.github.joke.percolate.spi.Nullability
 import io.github.joke.percolate.spi.Offer
+import io.github.joke.percolate.spi.builtins.Labels
 import io.github.joke.percolate.spi.PortType
 import io.github.joke.percolate.spi.ResolveCtx
 import io.github.joke.percolate.spi.Subjects
@@ -21,6 +23,7 @@ import javax.lang.model.element.ElementKind
 import javax.lang.model.element.Name
 import javax.lang.model.element.TypeElement
 import javax.lang.model.type.TypeMirror
+import javax.lang.model.type.TypeVisitor
 
 /**
  * {@link EnumConversion} unit-tested mock-only: {@code expand} declares the bounded type-variable port and weight
@@ -65,6 +68,26 @@ class EnumConversionSpec extends Specification {
         spec.ports[0].nullness == Nullability.NON_NULL
         spec.ports[0].template == PortType.variable(0)
         spec.codegen instanceof BodyCodegen
+        spec.label == "enum${Labels.ARROW}${Labels.simple(targetType)}"
+        spec.consumed.empty
+    }
+
+    // The @MapEnum entries that name a real target constant are stamped consumed on the spec, which is how the
+    // directive-options rail later tells a declared-and-used override from a declared-but-inert one.
+    def 'expand stamps the effective overrides onto the spec as consumed'() {
+        TypeElement targetElement = Mock()
+        ctx.isEnum(targetType) >> true
+        ctx.asTypeElement(targetType) >> Optional.of(targetElement)
+        ctx.membersOf(targetElement) >> [constant('CREATED')].stream()
+        def effective = enumOverride('NEW', 'CREATED')
+        def inert = enumOverride('OLD', 'ARCHIVED')
+
+        when:
+        def spec = enumConversion.expand(Demands.withEnumOverrides(targetType, [effective, inert]), ctx)
+                .toList().first().spec
+
+        then:
+        spec.consumed == [effective] as Set
     }
 
     def 'expand\'s codegen carries the demand\'s @MapEnum overrides through to coverage on the classic tier'() {
@@ -149,17 +172,35 @@ class EnumConversionSpec extends Specification {
 
     // ---- renderClassic: coverage is guaranteed by sourceBound before render ever runs ------------------------------
 
-    def 'renderClassic renders every constant when every source constant is covered'() {
+    def 'renderClassic renders a case per source constant, in order, plus a defensive default'() {
+        targetType.accept({ it instanceof TypeVisitor }, null) >> ClassName.get('com.example', 'Status')
+
         expect:
         enumConversion.renderClassic(CodeBlock.of('v'), targetType, ['NEW', 'COMPLETED'],
-                [NEW: 'CREATED', COMPLETED: 'FULFILLED']) != null
+                [NEW: 'CREATED', COMPLETED: 'FULFILLED']).toString() == '''\
+switch (v) {
+  case NEW:
+    return com.example.Status.CREATED;
+  case COMPLETED:
+    return com.example.Status.FULFILLED;
+  default:
+    throw new java.lang.IllegalStateException("Unexpected enum constant");
+}
+'''
     }
 
     // ---- renderArrow: coverage is always deferred to javac's exhaustiveness check -----------------------------------
 
-    def 'renderArrow never throws, even for an uncovered constant — coverage is deferred to javac'() {
+    def 'renderArrow emits an arm only for a covered constant, leaving the gap for javac to reject'() {
+        targetType.accept({ it instanceof TypeVisitor }, null) >> ClassName.get('com.example', 'Status')
+
         expect:
-        enumConversion.renderArrow(CodeBlock.of('v'), targetType, ['NEW', 'CANCELLED'], [NEW: 'CREATED']) != null
+        enumConversion.renderArrow(CodeBlock.of('v'), targetType, ['NEW', 'CANCELLED'], [NEW: 'CREATED'])
+                .toString() == '''\
+return switch (v) {
+  case NEW -> com.example.Status.CREATED;
+};
+'''
     }
 
     // ---- render: dispatches by the effective style, and the classic/arrow coverage split holds end-to-end ----------
@@ -179,9 +220,69 @@ class EnumConversionSpec extends Specification {
         context.switchStyle() >> SwitchStyle.ARROW
         context.sourceVersion() >> SourceVersion.RELEASE_17
         context.single() >> CodeBlock.of('v')
+        targetType.accept({ it instanceof TypeVisitor }, null) >> ClassName.get('com.example', 'Status')
 
         expect:
-        enumConversion.render(context, targetType, []) != null
+        enumConversion.render(context, targetType, []).toString() == '''\
+return switch (v) {
+  case NEW -> com.example.Status.NEW;
+};
+'''
+    }
+
+    // AUTO on a 14+ target must be resolved to ARROW before dispatch — the raw option is never what chooses a tier.
+    def 'render resolves an AUTO style against the target version, reaching the arrow tier on 17'() {
+        TypeMirror sourceType = Mock()
+        TypeElement sourceElement = Mock()
+        TypeElement targetElement = Mock()
+        BodyRenderContext context = Mock()
+        context.resolveCtx() >> ctx
+        context.portType('value') >> sourceType
+        ctx.isEnum(sourceType) >> true
+        ctx.asTypeElement(sourceType) >> Optional.of(sourceElement)
+        ctx.membersOf(sourceElement) >> [constant('NEW')].stream()
+        ctx.asTypeElement(targetType) >> Optional.of(targetElement)
+        ctx.membersOf(targetElement) >> [constant('NEW')].stream()
+        context.switchStyle() >> SwitchStyle.AUTO
+        context.sourceVersion() >> SourceVersion.RELEASE_17
+        context.single() >> CodeBlock.of('v')
+        targetType.accept({ it instanceof TypeVisitor }, null) >> ClassName.get('com.example', 'Status')
+
+        expect:
+        enumConversion.render(context, targetType, []).toString() == '''\
+return switch (v) {
+  case NEW -> com.example.Status.NEW;
+};
+'''
+    }
+
+    // The classic tier is chosen by the same resolveStyle call, from the target version rather than the style option.
+    def 'render falls to the classic tier on a pre-14 target version'() {
+        TypeMirror sourceType = Mock()
+        TypeElement sourceElement = Mock()
+        TypeElement targetElement = Mock()
+        BodyRenderContext context = Mock()
+        context.resolveCtx() >> ctx
+        context.portType('value') >> sourceType
+        ctx.isEnum(sourceType) >> true
+        ctx.asTypeElement(sourceType) >> Optional.of(sourceElement)
+        ctx.membersOf(sourceElement) >> [constant('NEW')].stream()
+        ctx.asTypeElement(targetType) >> Optional.of(targetElement)
+        ctx.membersOf(targetElement) >> [constant('NEW')].stream()
+        context.switchStyle() >> SwitchStyle.AUTO
+        context.sourceVersion() >> SourceVersion.RELEASE_11
+        context.single() >> CodeBlock.of('v')
+        targetType.accept({ it instanceof TypeVisitor }, null) >> ClassName.get('com.example', 'Status')
+
+        expect:
+        enumConversion.render(context, targetType, []).toString() == '''\
+switch (v) {
+  case NEW:
+    return com.example.Status.NEW;
+  default:
+    throw new java.lang.IllegalStateException("Unexpected enum constant");
+}
+'''
     }
 
     // ---- sourceBound: vetoes a non-enum source or an uncovered one before render ever runs (design D6) -------------
@@ -197,7 +298,10 @@ class EnumConversionSpec extends Specification {
         0 * ctx.asTypeElement(_)
 
         expect:
-        refusal.present
+        verifyAll((Offer.Refusal) refusal.get()) {
+            message == "enum conversion requires an enum source, found ${sourceType}"
+            subject.is(Subjects.none())
+        }
     }
 
     def 'sourceBound refuses an enum source with an uncovered constant, naming it'() {
@@ -214,8 +318,10 @@ class EnumConversionSpec extends Specification {
         def refusal = enumConversion.sourceBound(targetType, []).check(sourceType, ctx)
 
         then:
-        refusal.present
-        ((Offer.Refusal) refusal.get()).message.contains('CANCELLED')
+        verifyAll((Offer.Refusal) refusal.get()) {
+            message == 'no @MapEnum or same-name match covers source constant(s): CANCELLED'
+            subject.is(Subjects.none())
+        }
     }
 
     def 'sourceBound accepts an enum source whose constants are fully covered'() {

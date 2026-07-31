@@ -4,6 +4,7 @@ import io.github.joke.percolate.spi.ResolveCtx
 import spock.lang.Specification
 import spock.lang.Tag
 
+import java.lang.reflect.InvocationTargetException
 import javax.lang.model.element.TypeElement
 import javax.lang.model.type.TypeMirror
 
@@ -49,5 +50,23 @@ class ReactorsSpec extends Specification {
         expect:
         Reactors.FLUX == 'reactor.core.publisher.Flux'
         Reactors.MONO == 'reactor.core.publisher.Mono'
+    }
+
+    // The @UtilityClass contract: Lombok generates a private constructor that refuses instantiation. Nothing in
+    // production calls it, so it is exercised here — the holder is a namespace, and a stray `new Reactors()` from a
+    // future edit must keep failing rather than quietly producing an instance.
+    def 'the holder refuses instantiation'() {
+        def constructor = Reactors.declaredConstructors.first()
+        constructor.accessible = true
+
+        when:
+        constructor.newInstance()
+
+        then:
+        def error = thrown(InvocationTargetException)
+        0 * _
+
+        expect:
+        error.cause instanceof UnsupportedOperationException
     }
 }

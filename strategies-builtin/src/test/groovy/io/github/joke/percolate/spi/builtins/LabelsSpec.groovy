@@ -3,6 +3,7 @@ package io.github.joke.percolate.spi.builtins
 import spock.lang.Specification
 import spock.lang.Tag
 
+import java.lang.reflect.InvocationTargetException
 import javax.lang.model.element.Name
 import javax.lang.model.element.TypeElement
 import javax.lang.model.type.DeclaredType
@@ -118,6 +119,24 @@ class LabelsSpec extends Specification {
         expect:
         Labels.conversion(intType, longWrapperType) == 'int' + Labels.ARROW + 'Long'
         Labels.conversion(intType, longWrapperType) == 'int→Long'
+    }
+
+    // The @UtilityClass contract: Lombok generates a private constructor that refuses instantiation. Nothing in
+    // production calls it, so it is exercised here — the holder is a namespace, and a stray `new Labels()` from a
+    // future edit must keep failing rather than quietly producing an instance.
+    def 'the holder refuses instantiation'() {
+        def constructor = Labels.declaredConstructors.first()
+        constructor.accessible = true
+
+        when:
+        constructor.newInstance()
+
+        then:
+        def error = thrown(InvocationTargetException)
+        0 * _
+
+        expect:
+        error.cause instanceof UnsupportedOperationException
     }
 
     private static Name nameOf(final String value) {

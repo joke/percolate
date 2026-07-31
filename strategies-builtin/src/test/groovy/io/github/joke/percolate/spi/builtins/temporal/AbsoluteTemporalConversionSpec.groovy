@@ -1,15 +1,18 @@
 package io.github.joke.percolate.spi.builtins.temporal
 
+import io.github.joke.percolate.lib.javapoet.ClassName
 import io.github.joke.percolate.lib.javapoet.CodeBlock
 import io.github.joke.percolate.spi.IncomingValues
 import io.github.joke.percolate.spi.ResolveCtx
 import io.github.joke.percolate.spi.Weights
+import io.github.joke.percolate.spi.builtins.Labels
 import io.github.joke.percolate.spi.builtins.test.Demands
 import spock.lang.Specification
 import spock.lang.Tag
 
 import javax.lang.model.element.TypeElement
 import javax.lang.model.type.TypeMirror
+import javax.lang.model.type.TypeVisitor
 
 /**
  * {@link AbsoluteTemporalConversion} unit-tested mock-only over the {@link ResolveCtx} type-query seam: the four
@@ -54,21 +57,26 @@ class AbsoluteTemporalConversionSpec extends Specification {
         and: 'the rendered step reads "toInstant()" off the spoke, e.g. Date -> Instant'
         specs.find { it.ports[0].type.is(dateType) }.codegen.render(singleInput(CodeBlock.of('d'))).toString() ==
                 'd.toInstant()'
+        specs.find { it.ports[0].type.is(dateType) }.label == "${dateType}${Labels.ARROW}${instantType}"
     }
 
     def 'demanding Date offers a Date.from(Instant) step, no zone'() {
         ctx.isType(dateType, 'java.util.Date') >> true
+        // JavaPoet resolves the $T target through the mirror's own visitor.
+        dateType.accept({ it instanceof TypeVisitor }, null) >> ClassName.get('java.util', 'Date')
 
         when:
         def specs = absoluteTemporalConversion.expand(Demands.forTarget(dateType), ctx)*.spec
 
-        then: 'the codegen renders Target.from($L) — not stringified here since $T needs a real compiler type'
+        then:
         specs.size() == 1
         specs[0].ports.size() == 1
         specs[0].ports[0].type.is(instantType)
         specs[0].outputType.is(dateType)
         specs[0].weight == Weights.STEP
         specs[0].consumed.empty
+        specs[0].label == "${instantType}${Labels.ARROW}${dateType}"
+        specs[0].codegen.render(singleInput(CodeBlock.of('i'))).toString() == 'java.util.Date.from(i)'
     }
 
     def 'demanding Timestamp offers a Timestamp.from(Instant) step'() {
@@ -81,6 +89,7 @@ class AbsoluteTemporalConversionSpec extends Specification {
         specs.size() == 1
         specs[0].ports[0].type.is(instantType)
         specs[0].outputType.is(timestampType)
+        specs[0].label == "${instantType}${Labels.ARROW}${timestampType}"
     }
 
     def 'demanding OffsetDateTime offers an atOffset(ZoneOffset.UTC) step — fixed, no configured zone read'() {
@@ -93,9 +102,10 @@ class AbsoluteTemporalConversionSpec extends Specification {
         specs.size() == 1
         specs[0].ports[0].type.is(instantType)
         specs[0].outputType.is(offsetDateTimeType)
-        def rendered = specs[0].codegen.render(singleInput(CodeBlock.of('i'))).toString()
-        rendered.contains('.atOffset(')
-        rendered.contains('UTC')
+        specs[0].weight == Weights.STEP
+        specs[0].label == "${instantType}${Labels.ARROW}${offsetDateTimeType}"
+        specs[0].codegen.render(singleInput(CodeBlock.of('i'))).toString()
+                == 'i.atOffset(java.time.ZoneOffset.UTC)'
 
         and: 'a spoke conversion is directive-blind and stamps no option'
         specs[0].consumed.empty
@@ -111,9 +121,10 @@ class AbsoluteTemporalConversionSpec extends Specification {
         specs.size() == 1
         specs[0].ports[0].type.is(instantType)
         specs[0].outputType.is(zonedDateTimeType)
-        def rendered = specs[0].codegen.render(singleInput(CodeBlock.of('i'))).toString()
-        rendered.contains('.atZone(')
-        rendered.contains('UTC')
+        specs[0].weight == Weights.STEP
+        specs[0].label == "${instantType}${Labels.ARROW}${zonedDateTimeType}"
+        specs[0].codegen.render(singleInput(CodeBlock.of('i'))).toString()
+                == 'i.atZone(java.time.ZoneOffset.UTC)'
     }
 
     def 'a partial temporal type (e.g. LocalTime) is not matched at all'() {

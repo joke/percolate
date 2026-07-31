@@ -61,6 +61,9 @@ class FluxMapSpec extends Specification {
         def flatMap = specs.find { it.childScope.get().elementOut.is(fluxOfString) }
         flatMap != null
         flatMap.label == 'flatMap'
+        flatMap.weight == Weights.CONTAINER
+        flatMap.outputType.is(fluxOfString)
+        flatMap.ports[0].name == 'flux'
         flatMap.ports[0].template == expectedTemplate
         flatMap.childScope.get().elementInTemplate == PortType.variable(0)
         CodeBlock.of('$L\n', ((ScopeCodegen) flatMap.codegen).weave(CodeBlock.of('$N', 'f'), 'v', CodeBlock.of('$N', 'b')))

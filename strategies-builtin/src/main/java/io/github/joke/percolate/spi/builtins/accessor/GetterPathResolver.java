@@ -55,10 +55,8 @@ public final class GetterPathResolver extends Accessor {
         return ctx.kind(returnType) == TypeKind.BOOLEAN || "java.lang.Boolean".equals(ctx.qualifiedName(returnType));
     }
 
+    // One return, so the empty case is not a second return statement indistinguishable from returning "".
     String capitalize(final String segment) {
-        if (segment.isEmpty()) {
-            return segment;
-        }
-        return Character.toUpperCase(segment.charAt(0)) + segment.substring(1);
+        return segment.isEmpty() ? segment : Character.toUpperCase(segment.charAt(0)) + segment.substring(1);
     }
 }

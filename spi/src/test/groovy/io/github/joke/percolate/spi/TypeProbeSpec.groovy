@@ -1,5 +1,6 @@
 package io.github.joke.percolate.spi
 
+import java.lang.reflect.InvocationTargetException
 import spock.lang.Specification
 import spock.lang.Tag
 
@@ -66,4 +67,23 @@ class TypeProbeSpec extends Specification {
         expect:
         TypeProbe.simpleName(type, ctx) == 'String'
     }
+
+    // The @UtilityClass contract: Lombok generates a private constructor that refuses instantiation. Nothing in
+    // production calls it, so it is exercised here — the holder is a namespace, and a stray `new TypeProbe()` from a
+    // future edit must keep failing rather than quietly producing an instance.
+    def 'the holder refuses instantiation'() {
+        def constructor = TypeProbe.declaredConstructors.first()
+        constructor.accessible = true
+
+        when:
+        constructor.newInstance()
+
+        then:
+        def error = thrown(InvocationTargetException)
+        0 * _
+
+        expect:
+        error.cause instanceof UnsupportedOperationException
+    }
+
 }

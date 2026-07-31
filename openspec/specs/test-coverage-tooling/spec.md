@@ -2,7 +2,7 @@
 
 ## Purpose
 
-Cross-cutting build-tooling contract for how coverage and mutation testing are configured across all modules — single coverage tool (pitest only), uniform enrollment rule, uniform thresholds, the ban on build-level exclusions in favor of source-level suppression annotations, and the Spock runner and mock-maker configuration every module needs to get deterministic scores — supplied once by the conventions plugin, since a setting that must hold everywhere cannot depend on someone noticing that near-identical per-module copies exist and editing all of them.
+Cross-cutting build-tooling contract for how coverage and mutation testing are configured across all modules — single coverage tool (pitest only), enrollment declared by the modules that carry it, a shared 100/100/100 threshold floor with a named ratchet where a module cannot yet meet it, the ban on build-level exclusions in favor of source-level suppression annotations, and the Spock runner and mock-maker configuration every module needs to get deterministic scores. How pitest runs is supplied once by the conventions plugin, since a setting that must hold everywhere cannot depend on someone noticing that near-identical copies exist and editing all of them; what a module states for itself is only that it is enrolled, and — where it applies — the thresholds it currently reaches. Spock's own configuration is the deliberate exception: it is a checked-in `SpockConfig.groovy` per module, kept in step by review of a tracked file that anyone debugging a spec can read.
 ## Requirements
 ### Requirement: pitest is the single coverage and mutation-testing tool
 
@@ -16,33 +16,85 @@ No module SHALL apply the `jacoco` Gradle plugin. Line/branch coverage SHALL be 
 - **WHEN** `./gradlew check` runs on a module enrolled in pitest
 - **THEN** the build fails if pitest's `coverageThreshold` is not met, and no separate jacoco coverage-verification task exists to fail independently
 
-### Requirement: pitest is auto-enrolled by the conventions plugin for modules with real unit-tested production code
+### Requirement: pitest is declared by the modules that carry mutation testing
 
-`percolate.conventions.gradle` SHALL apply `info.solidsoft.pitest` automatically for every module that applies the `java` plugin, rather than requiring each module to declare `id 'info.solidsoft.pitest'` individually. A module with no main source, or main source with no `unit`-tagged test suite exercising it, SHALL explicitly disable the pitest task rather than never having declared the plugin. As of this change, pitest SHALL run for `processor`, `spi`, `strategies-builtin`, `reactor`, and `reactor-blocking`, and SHALL be disabled for `annotations`, `percolate`, `percolate-javapoet`, `percolate-smoke`, `architecture-tests`, and `test-foundation`.
+The `info.solidsoft.pitest` plugin SHALL be applied by each module that has production code and a
+`unit`-tagged suite exercising it — currently `processor`, `spi`, `strategies-builtin`, `reactor`,
+and `reactor-blocking` — by declaring `id 'info.solidsoft.pitest'` in its own `plugins` block.
+`percolate.conventions.gradle` SHALL NOT apply the plugin to every `java` module, and no module
+SHALL carry a `tasks.named('pitest') { enabled = false }` opt-out. Configuring the plugin remains
+the conventions plugin's job: everything inside `pluginManager.withPlugin('info.solidsoft.pitest')`
+— thresholds, mutators, incremental analysis, included groups, JVM args, the history plugin and
+annotation dependencies, and the `check` wiring — SHALL stay declared once there, so an enrolling
+module states only that it is enrolled and never how. The single exception is a module-local
+threshold ratchet, which the thresholds requirement below defines: a module that cannot meet the
+shared floor states its own three numbers and nothing else.
 
-#### Scenario: A module with real code and unit tests gets pitest for free
-- **WHEN** `reactor/build.gradle` or `reactor-blocking/build.gradle` is inspected
-- **THEN** neither declares `id 'info.solidsoft.pitest'` explicitly, yet `./gradlew :reactor:check` and `./gradlew :reactor-blocking:check` each run pitest as part of `check`
+A module declaring the plugin without mutable code or without a `unit` suite still fails on
+`failWhenNoMutations`; enrollment is therefore an act of declaration rather than something a
+module must remember to switch off. Applying the plugin everywhere and disabling it again in the
+six modules that had nothing to mutate was the inverse arrangement, and it made the module list
+readable only by reading every module's opt-out.
 
-#### Scenario: A module with nothing to mutate opts out explicitly
-- **WHEN** `annotations/build.gradle`, `percolate/build.gradle`, `percolate-javapoet/build.gradle`, `percolate-smoke/build.gradle`, `architecture-tests/build.gradle`, or `test-foundation/build.gradle` is inspected
-- **THEN** the pitest task is explicitly disabled for that module, with no `failWhenNoMutations` failure on `check`
+#### Scenario: A mutation-tested module declares the plugin itself
 
-#### Scenario: A new module with production code is mutation-tested by default
-- **WHEN** a new module applying the `java` plugin is added to the build with no explicit pitest opt-out
-- **THEN** `./gradlew check` runs pitest against it, failing if it has production code with no `unit`-tagged tests covering it
+- **WHEN** `processor/build.gradle`, `spi/build.gradle`, `strategies-builtin/build.gradle`,
+  `reactor/build.gradle`, or `reactor-blocking/build.gradle` is inspected
+- **THEN** each declares `id 'info.solidsoft.pitest'` in its `plugins` block, and `check` runs
+  pitest for it against the thresholds the conventions plugin configures
 
-### Requirement: pitest thresholds are uniform across every enrolled module
+#### Scenario: A module with nothing to mutate says nothing at all
 
-`percolate.conventions.gradle` SHALL declare a single shared pitest configuration — `mutationThreshold = 85`, `coverageThreshold = 95`, `testStrengthThreshold = 90` — with no per-module override of any of the three values.
+- **WHEN** `annotations/build.gradle`, `percolate/build.gradle`, `percolate-javapoet/build.gradle`,
+  `percolate-smoke/build.gradle`, `architecture-tests/build.gradle`, `test-foundation/build.gradle`,
+  or `lib/javapoet/build.gradle` is inspected
+- **THEN** it neither applies `info.solidsoft.pitest` nor disables a pitest task, and its `check`
+  runs no mutation testing
 
-#### Scenario: No module overrides the shared thresholds
-- **WHEN** every enrolled module's `build.gradle` is inspected
-- **THEN** none sets `mutationThreshold`, `coverageThreshold`, or `testStrengthThreshold` to a value other than what `percolate.conventions.gradle` declares
+#### Scenario: Configuration stays central while enrollment is local
 
-#### Scenario: check fails below any of the three thresholds
-- **WHEN** `./gradlew check` runs on an enrolled module whose mutation score, line coverage, or test strength falls below 85%, 95%, or 90% respectively
-- **THEN** the build fails
+- **WHEN** an enrolled module's `build.gradle` is inspected
+- **THEN** it configures no pitest setting of its own beyond a documented threshold ratchet — the
+  mutators, incremental analysis, included groups, JVM args, the `pitest-history-plugin`
+  dependency, and the `check` dependency all live in `percolate.conventions.gradle`
+
+### Requirement: pitest thresholds are 100 by default, with a named ratchet where they are not
+
+`percolate.conventions.gradle` SHALL declare the shared pitest configuration —
+`mutationThreshold = 100`, `coverageThreshold = 100`, `testStrengthThreshold = 100` — and every
+enrolled module SHALL meet it unless it declares its own thresholds in its `build.gradle` with a
+comment stating why. A surviving mutant is otherwise a build failure rather than budget spent
+against a margin: with a margin, the first uncovered branch is invisible until enough of them
+accumulate to breach it, and the number that is easy to defend is the one with no slack in it.
+Code that genuinely cannot be mutation-tested is suppressed at the source level with
+`@DoNotMutate` / `@CoverageIgnore`, as the exclusions requirement already demands.
+
+A module-local override SHALL be set at what the module currently scores, never at a round number
+below it, so it acts as a ratchet: a regression fails the build, and recovered ground is nailed
+down by raising the numbers. `processor` is the one module that carries such an override
+(`mutationThreshold = 89`, `coverageThreshold = 97`, `testStrengthThreshold = 92`). Its gap is not
+simply missing tests: a large share of what survives there is equivalent by construction — the
+graph queries filter defensively for a vertex or edge kind the surrounding invariant already
+guarantees, so no test can tell the mutant from the original — and closing those means reshaping
+production code or blanketing it in `@DoNotMutate`.
+
+#### Scenario: An enrolled module meets the shared floor
+
+- **WHEN** `spi`, `strategies-builtin`, `reactor`, or `reactor-blocking` runs `check`
+- **THEN** pitest runs against 100/100/100, and the module's `build.gradle` sets no threshold of
+  its own
+
+#### Scenario: The one module below the floor states its own numbers
+
+- **WHEN** `processor/build.gradle` is inspected
+- **THEN** it declares a `pitest { }` block setting all three thresholds to the scores the module
+  currently achieves, with a comment naming the equivalent-mutant reason it is below the floor
+
+#### Scenario: check fails on any regression
+
+- **WHEN** `./gradlew check` runs on an enrolled module and a mutant that used to be killed
+  survives, a covered line becomes uncovered, or a mutant is left killed only by an incidental test
+- **THEN** the build fails, because each threshold sits at the score the module already reached
 
 ### Requirement: Coverage/mutation exclusions are source-level annotations, not build-level configuration
 
@@ -56,33 +108,67 @@ No module's `build.gradle` (nor `percolate.conventions.gradle`) SHALL declare a 
 - **WHEN** a class that cannot be meaningfully mutation-tested (e.g. Dagger-generated code, a debug-only DOT graph dumper) is inspected
 - **THEN** it carries `@DoNotMutate` or `@CoverageIgnore` from `com.groupcdg.pitest.annotations`, and no Gradle-level exclusion references it
 
-### Requirement: Every pitest-enrolled module disables Spock's cross-JVM run-order optimization
+### Requirement: Spock is configured by a checked-in per-module SpockConfig.groovy
 
-Every module enrolled in pitest (see the auto-enrollment requirement above) SHALL run with Spock's `optimizeRunOrder` runner setting disabled. Spock's `OptimizeRunOrderExtension` persists per-spec run-history to a file under the user's Spock home (`~/.spock/RunHistory/<SpecName>`) shared across **every concurrent JVM on the machine**, not scoped to a build, project, or module. Under pitest's own minion-level parallelism, concurrent JVMs race to read/write that file, corrupting a spec's history entry and causing `IllegalArgumentException: Comparison method violates its general contract!` during Spock's test-discovery sort — intermittently crashing the *entire* spec class (not any specific mutant) during a pitest coverage or mutation pass, which pitest then misreports as widespread survived mutants unrelated to the actual code under test. This SHALL NOT be diagnosed as a pitest test-to-mutant attribution limitation or accommodated with a lowered per-module threshold; it SHALL be fixed by disabling `optimizeRunOrder`.
+Every module with a Spock suite SHALL carry a checked-in `src/test/resources/SpockConfig.groovy`,
+and those files SHALL be identical in content. The configuration SHALL cover at minimum:
 
-The Spock configuration SHALL be supplied uniformly by the `percolate.conventions` plugin rather than duplicated as a per-module `SpockConfig.groovy`. Configuration that must hold for every module SHALL NOT depend on a developer noticing that five near-identical copies exist and editing all of them; the mock-maker setting demonstrated this failure mode by reaching only one module of six. Every module with a Spock suite — including modules not enrolled in pitest — SHALL receive the same configuration, covering at minimum:
+- `mockMaker { preferredMockMaker spock.mock.MockMakers.mockito }`, so final classes, final
+  methods, and `SpyStatic` are available everywhere
+- `runner { parallel { enabled !Boolean.getBoolean('spock.parallel.disabled') } }` — parallel by
+  default, switchable off by a system property (see the requirement below)
+- `timeout { globalTimeout java.time.Duration.ofMinutes(1); applyGlobalTimeoutToFixtures false }`,
+  so a deadlock or a runaway spec fails as a timed-out feature instead of hanging the build
 
-- `runner { optimizeRunOrder false }`, for the reason above
-- `runner { parallel { enabled false } }`, both for deterministic single-threaded execution under a mutation-testing oracle and because Mockito's static mocking is confined to the registering thread
-- `mockMaker { preferredMockMaker spock.mock.MockMakers.mockito }`, so final classes, final methods, and `SpyStatic` are available everywhere
+Spock's `optimizeRunOrder` SHALL NOT be enabled in any module. Its run-history file lives under
+the user's Spock home (`~/.spock/RunHistory/<SpecName>`), shared across every concurrent JVM on
+the machine rather than scoped to a build, project, or module; concurrent JVMs race on it and
+corrupt a spec's entry, producing `IllegalArgumentException: Comparison method violates its
+general contract!` during test discovery, which under pitest surfaces as widespread survived
+mutants unrelated to the code under test. The setting is off by default, so the requirement is
+that nothing turns it on — an explicit `optimizeRunOrder false` declaration is not required.
 
-The rationale for each setting SHALL remain recorded alongside it; consolidating the files SHALL NOT drop the explanations.
+A generated or plugin-synthesized `SpockConfig.groovy` SHALL NOT be used. The file is test input,
+it is read by anyone debugging a spec, and its per-module copies are kept in step by review of a
+tracked file rather than by a build step nobody sees.
 
-#### Scenario: Every module with a Spock suite carries the configuration
-- **WHEN** the resolved Spock configuration is inspected for `processor`, `spi`, `strategies-builtin`, `reactor`, `reactor-blocking`, `annotations`, and `architecture-tests`
-- **THEN** each has `optimizeRunOrder` disabled, parallel execution disabled, and the mockito preferred mock maker
+#### Scenario: Every module with a Spock suite carries the file
 
-#### Scenario: The configuration is defined once
-- **WHEN** the repository is searched for `SpockConfig.groovy` under a module's `src/test/resources`
-- **THEN** no per-module copy remains, and the settings originate from the `percolate.conventions` plugin
+- **WHEN** `src/test/resources/SpockConfig.groovy` is inspected for `processor`, `spi`,
+  `strategies-builtin`, `reactor`, `reactor-blocking`, `annotations`, `architecture-tests`, and
+  `percolate-smoke`
+- **THEN** each exists, is checked into version control, and carries the same mock-maker, parallel,
+  and timeout settings
 
-#### Scenario: A module newly enrolled in pitest gets the same treatment
-- **WHEN** a module with real production code and a `unit`-tagged test suite is newly enrolled in pitest
-- **THEN** it inherits the shared configuration automatically, rather than requiring a new file and rather than relying on run-to-run variance in mutation/coverage scores to be tolerated or attributed to pitest itself
+#### Scenario: No module enables run-order optimization
 
-#### Scenario: A settings drift cannot recur silently
-- **WHEN** a new Spock setting must hold repo-wide
-- **THEN** it is added in one place in the conventions plugin and applies to every module at once
+- **WHEN** every `SpockConfig.groovy` and every `build.gradle` is inspected
+- **THEN** none sets `optimizeRunOrder true`, and the default-off behaviour stands
+
+### Requirement: Spock parallel execution is on for test runs and off under pitest
+
+Spock's in-JVM parallel execution SHALL be enabled for ordinary `test` and `integrationTest` runs
+and SHALL be disabled while pitest runs, via the `spock.parallel.disabled` system property that
+`SpockConfig.groovy` reads and that `percolate.conventions.gradle` passes in pitest's `jvmArgs`.
+Mutation testing needs a deterministic single-threaded oracle — and Mockito's static mocking is
+confined to the registering thread — while an ordinary test run needs neither, and serializing it
+for pitest's benefit costs wall-clock time on every build. The two regimes SHALL therefore be
+distinguished by the property rather than by a repo-wide `enabled false`.
+
+Test-JVM parallelism SHALL likewise stay unrestricted: `percolate.conventions.gradle` SHALL set
+`maxParallelForks` from the full available processor count, not a fraction of it.
+
+#### Scenario: An ordinary test run is parallel
+
+- **WHEN** `./gradlew test` runs without `-Dspock.parallel.disabled`
+- **THEN** Spock executes specs concurrently, and `maxParallelForks` equals the available
+  processor count
+
+#### Scenario: A pitest run is serial
+
+- **WHEN** `./gradlew pitest` runs
+- **THEN** the pitest `jvmArgs` carry `-Dspock.parallel.disabled=true`, every minion JVM reads it,
+  and Spock runs single-threaded so mutation and coverage scores are deterministic
 
 ### Requirement: Test execution parallelism is not restricted without an active reason
 

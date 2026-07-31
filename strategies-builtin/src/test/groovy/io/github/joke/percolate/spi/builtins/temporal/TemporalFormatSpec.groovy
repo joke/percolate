@@ -1,17 +1,20 @@
 package io.github.joke.percolate.spi.builtins.temporal
 
+import io.github.joke.percolate.lib.javapoet.ClassName
 import io.github.joke.percolate.lib.javapoet.CodeBlock
 import io.github.joke.percolate.spi.DirectiveInput
 import io.github.joke.percolate.spi.IncomingValues
 import io.github.joke.percolate.spi.ResolveCtx
 import io.github.joke.percolate.spi.Subjects
 import io.github.joke.percolate.spi.Weights
+import io.github.joke.percolate.spi.builtins.Labels
 import io.github.joke.percolate.spi.builtins.test.Demands
 import spock.lang.Specification
 import spock.lang.Tag
 
 import javax.lang.model.element.TypeElement
 import javax.lang.model.type.TypeMirror
+import javax.lang.model.type.TypeVisitor
 
 /**
  * {@link TemporalFormat} unit-tested mock-only: {@code @Map(format = …)} parsing/rendering across the
@@ -44,6 +47,8 @@ class TemporalFormatSpec extends Specification {
     def 'parsing String into LocalDate requests a hoisted formatter, stamps format consumed, and is partial'() {
         ctx.isType(localDateType, 'java.lang.String') >> false
         ctx.isType(localDateType, 'java.time.LocalDate') >> true
+        // JavaPoet resolves the $T parse target through the mirror's own visitor.
+        localDateType.accept({ it instanceof TypeVisitor }, null) >> ClassName.get('java.time', 'LocalDate')
 
         when:
         def specs = temporalFormat.expand(Demands.withFormat(localDateType, 'yyyy-MM-dd'), ctx)*.spec
@@ -61,9 +66,11 @@ class TemporalFormatSpec extends Specification {
         spec.memberRequests[0].fieldType.toString() == 'java.time.format.DateTimeFormatter'
         spec.memberRequests[0].initializer.toString().contains('DateTimeFormatter.ofPattern("yyyy-MM-dd")')
 
-        and: 'the codegen resolves the member reference by dedup key (the $T target itself is not stringified here — it needs a real compiler type)'
+        and: 'the codegen parses the incoming String with the member resolved by dedup key'
+        spec.label == "${stringType}${Labels.ARROW}${localDateType}"
         def dedupKey = spec.memberRequests[0].dedupKey
-        spec.codegen.render(memberInput(CodeBlock.of('s'), dedupKey, CodeBlock.of('FMT'))) != null
+        spec.codegen.render(memberInput(CodeBlock.of('s'), dedupKey, CodeBlock.of('FMT'))).toString()
+                == 'java.time.LocalDate.parse(s, FMT)'
     }
 
     def 'formatting a java.time value to String over-emits one candidate per roster type, all sharing the formatter dedup key'() {
@@ -84,6 +91,9 @@ class TemporalFormatSpec extends Specification {
         def dedupKey = localDateSpec.memberRequests[0].dedupKey
         def rendered = localDateSpec.codegen.render(memberInput(CodeBlock.of('d'), dedupKey, CodeBlock.of('FMT'))).toString()
         rendered == 'd.format(FMT)'
+        localDateSpec.weight == Weights.STEP
+        localDateSpec.label == "${localDateType}${Labels.ARROW}${stringType}"
+        localDateSpec.consumed*.key == ['format']
     }
 
     def 'two demands with the same pattern request formatters under the same dedup key'() {

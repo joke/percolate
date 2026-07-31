@@ -88,7 +88,8 @@ class ListContainerSpec extends Specification {
         collect.childScope.empty
         collect.codegen instanceof OperationCodegen
         collect.outputType.is(listOfString)
-        CodeBlock.of('$L\n', new ListContainer().collect().get().render(CodeBlock.of('$N', 's'))).toString().contains('toList()')
+        CodeBlock.of('$L\n', new ListContainer().collect().get().render(CodeBlock.of('$N', 's'))).toString()
+                == 's.collect(java.util.stream.Collectors.toList())\n'
 
         and: 'a plain single-element wrap String -> List<String>, no child scope'
         def wrap = specs.find { it.ports[0].type.is(stringType) }
@@ -146,6 +147,23 @@ class ListContainerSpec extends Specification {
 
         expect:
         new ListContainer().intermediateErasure(ctx).is(streamElement)
+    }
+
+    // The shared StreamContainer base names Stream once for the whole JDK collection family; a JDK without it is
+    // not a situation any container can recover from, so the erasure lookup fails loudly rather than declining.
+    def 'intermediateErasure fails loudly when java.util.stream.Stream is unavailable'() {
+        ResolveCtx freshCtx = Mock()
+
+        when:
+        new ListContainer().intermediateErasure(freshCtx)
+
+        then:
+        def error = thrown(NullPointerException)
+        1 * freshCtx.typeElementNamed('java.util.stream.Stream') >> null
+        0 * _
+
+        expect:
+        error.message == 'java.util.stream.Stream is unavailable'
     }
 
     def 'wrap renders List.of(...) around the scalar'() {

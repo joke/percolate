@@ -101,7 +101,6 @@ class FluxSingleBlockSpec extends Specification {
         spec.childScope.empty
         spec.codegen instanceof OperationCodegen
         def rendered = CodeBlock.of('$L\n', spec.codegen.render(singleInput(CodeBlock.of('$N', 'src')))).toString()
-        rendered.contains('.single()')
-        rendered.contains('.block()')
+        rendered == 'src.single().block()\n'
     }
 }

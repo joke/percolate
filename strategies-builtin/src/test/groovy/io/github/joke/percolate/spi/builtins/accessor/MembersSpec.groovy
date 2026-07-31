@@ -4,6 +4,7 @@ import io.github.joke.percolate.spi.ResolveCtx
 import spock.lang.Specification
 import spock.lang.Tag
 
+import java.lang.reflect.InvocationTargetException
 import javax.lang.model.element.Element
 import javax.lang.model.element.ExecutableElement
 import javax.lang.model.element.TypeElement
@@ -119,5 +120,23 @@ class MembersSpec extends Specification {
 
         expect:
         Members.noArgMethodNamed(member, 'getName', ctx).get().is(member)
+    }
+
+    // The @UtilityClass contract: Lombok generates a private constructor that refuses instantiation. Nothing in
+    // production calls it, so it is exercised here — the holder is a namespace, and a stray `new Members()` from a
+    // future edit must keep failing rather than quietly producing an instance.
+    def 'the holder refuses instantiation'() {
+        def constructor = Members.declaredConstructors.first()
+        constructor.accessible = true
+
+        when:
+        constructor.newInstance()
+
+        then:
+        def error = thrown(InvocationTargetException)
+        0 * _
+
+        expect:
+        error.cause instanceof UnsupportedOperationException
     }
 }

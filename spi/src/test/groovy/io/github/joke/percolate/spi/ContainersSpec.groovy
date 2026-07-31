@@ -1,5 +1,6 @@
 package io.github.joke.percolate.spi
 
+import java.lang.reflect.InvocationTargetException
 import spock.lang.Specification
 import spock.lang.Tag
 
@@ -118,24 +119,52 @@ class ContainersSpec extends Specification {
         Containers.typeArgument(declaredType, 1).is(second)
     }
 
-    def 'typeArgument throws on non-declared types'() {
+    def 'typeArgument throws on non-declared types, naming the offending type'() {
+        def primitive = kindOf(TypeKind.INT)
+
         when:
-        Containers.typeArgument(kindOf(TypeKind.INT), 0)
+        Containers.typeArgument(primitive, 0)
 
         then:
-        thrown(IllegalArgumentException)
+        def error = thrown(IllegalArgumentException)
+
+        expect:
+        error.message == "Not a declared type: ${primitive}"
     }
 
-    def 'typeArgument throws on out-of-bounds index'() {
+    // The bound is exclusive, so `index == size` is the boundary that separates `>=` from `>`; asserting the message
+    // distinguishes this refusal from the one List.get would raise a moment later on its own.
+    def 'typeArgument throws on an index at or past the last type argument'() {
         DeclaredType declaredType = Mock()
         declaredType.kind >> TypeKind.DECLARED
         declaredType.typeArguments >> [Mock(TypeMirror)]
 
         when:
-        Containers.typeArgument(declaredType, 5)
+        Containers.typeArgument(declaredType, index)
 
         then:
-        thrown(IndexOutOfBoundsException)
+        def error = thrown(IndexOutOfBoundsException)
+
+        expect:
+        error.message == "Index ${index} out of bounds for type arguments of ${declaredType}"
+
+        where:
+        index << [1, 5]
+    }
+
+    def 'typeArgument throws on a negative index'() {
+        DeclaredType declaredType = Mock()
+        declaredType.kind >> TypeKind.DECLARED
+        declaredType.typeArguments >> [Mock(TypeMirror)]
+
+        when:
+        Containers.typeArgument(declaredType, -1)
+
+        then:
+        def error = thrown(IndexOutOfBoundsException)
+
+        expect:
+        error.message == "Index -1 out of bounds for type arguments of ${declaredType}"
     }
 
     def 'arrayComponentType returns the array element type'() {
@@ -148,12 +177,35 @@ class ContainersSpec extends Specification {
         Containers.arrayComponentType(arrayType).is(component)
     }
 
-    def 'arrayComponentType throws on non-array types'() {
+    def 'arrayComponentType throws on non-array types, naming the offending type'() {
+        def declared = kindOf(TypeKind.DECLARED)
+
         when:
-        Containers.arrayComponentType(kindOf(TypeKind.DECLARED))
+        Containers.arrayComponentType(declared)
 
         then:
-        thrown(IllegalArgumentException)
+        def error = thrown(IllegalArgumentException)
+
+        expect:
+        error.message == "Not an array type: ${declared}"
+    }
+
+    // The @UtilityClass contract: Lombok generates a private constructor that refuses instantiation. Nothing in
+    // production calls it, so it is exercised here — the holder is a namespace, and a stray `new Containers()` from a
+    // future edit must keep failing rather than quietly producing an instance.
+    def 'the holder refuses instantiation'() {
+        def constructor = Containers.declaredConstructors.first()
+        constructor.accessible = true
+
+        when:
+        constructor.newInstance()
+
+        then:
+        def error = thrown(InvocationTargetException)
+        0 * _
+
+        expect:
+        error.cause instanceof UnsupportedOperationException
     }
 
     private TypeMirror kindOf(final TypeKind kind) {
@@ -161,4 +213,5 @@ class ContainersSpec extends Specification {
         type.kind >> kind
         type
     }
+
 }

@@ -20,6 +20,7 @@ import io.github.joke.percolate.spi.builtins.Labels;
 import java.util.List;
 import java.util.Set;
 import java.util.stream.Stream;
+import javax.lang.model.element.Element;
 import javax.lang.model.element.ExecutableElement;
 import javax.lang.model.element.TypeElement;
 import javax.lang.model.type.TypeMirror;
@@ -50,12 +51,21 @@ public final class ConstructorCall implements ExpansionStrategy {
             return Stream.empty();
         }
         return ctx.membersOf(typeElement)
-                .filter(ctx::isConstructor)
-                .map(ExecutableElement.class::cast)
-                .filter(ctor -> !ctx.isPrivate(ctor))
-                .filter(ctor -> parameterNames(ctor).equals(declared))
+                .flatMap(member -> candidateConstructor(member, declared, ctx))
                 .map(ctor -> buildSpec(ctor, typeElement, targetType, demand))
                 .map(Offer::of);
+    }
+
+    // member as the constructor this demand can call — non-private, its parameter names exactly the declared
+    // children — or nothing. The narrowing cast is a plain cast rather than a mapping step: an element that
+    // answers isConstructor is executable by construction, so a mapped cast would only be untestable ceremony.
+    Stream<ExecutableElement> candidateConstructor(
+            final Element member, final Set<String> declared, final ResolveCtx ctx) {
+        if (!ctx.isConstructor(member)) {
+            return Stream.empty();
+        }
+        final var ctor = (ExecutableElement) member;
+        return !ctx.isPrivate(ctor) && parameterNames(ctor).equals(declared) ? Stream.of(ctor) : Stream.empty();
     }
 
     Set<String> parameterNames(final ExecutableElement ctor) {
