@@ -32,14 +32,14 @@ dependencies {
     testImplementation project(':test-foundation')
     testImplementation 'com.google.testing.compile:compile-testing'
     testImplementation 'org.spockframework:spock-core'
-    testImplementation 'org.mockito:mockito-junit-jupiter'
     testImplementation 'org.jspecify:jspecify'
     testImplementation 'io.projectreactor:reactor-core'
     testImplementation testFixtures(project(':architecture-tests'))
     testImplementation 'com.tngtech.archunit:archunit'
 
-    testRuntimeOnly 'net.bytebuddy:byte-buddy'
     testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+    testRuntimeOnly 'org.mockito:mockito-junit-jupiter'
+    testRuntimeOnly 'org.slf4j:slf4j-simple'
 }
 
 tasks.named('compileTestJava') {

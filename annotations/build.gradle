@@ -5,10 +5,6 @@ plugins {
     id 'percolate.conventions'
 }
 
-// Consumer-facing API: javadoc here is read by mapper authors and third-party strategy authors, so this module
-// keeps .pmd.xml alone and is exempt from the internal javadoc ban.
-percolatePublicApi = true
-
 dependencies {
     compileOnly platform(project(':dependencies'))
     compileOnly 'org.jspecify:jspecify'
@@ -19,6 +15,7 @@ dependencies {
     testImplementation 'com.google.testing.compile:compile-testing'
     testImplementation 'org.jspecify:jspecify'
 
-    testRuntimeOnly 'net.bytebuddy:byte-buddy'
     testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+    testRuntimeOnly 'org.mockito:mockito-junit-jupiter'
+    testRuntimeOnly 'org.slf4j:slf4j-simple'
 }

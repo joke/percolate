@@ -1,5 +1,6 @@
 plugins {
     id 'java'
+    id 'groovy'
     id 'percolate.conventions'
 }
 
@@ -9,13 +10,11 @@ dependencies {
     compileOnly platform(project(':dependencies'))
     compileOnly project(':annotations')
     compileOnly 'org.jspecify:jspecify'
-}
 
-tasks.register('smokeRun', JavaExec) {
-    classpath = sourceSets.main.runtimeClasspath
-    mainClass = 'com.example.smoke.SmokeMain'
-}
+    testImplementation platform(project(':dependencies'))
+    testImplementation 'org.spockframework:spock-core'
+    testImplementation 'org.apache.groovy:groovy'
 
-tasks.named('check') {
-    dependsOn 'smokeRun'
+    testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+    testRuntimeOnly 'org.slf4j:slf4j-simple'
 }

@@ -70,7 +70,7 @@ pluginManager.withPlugin('java') {
         dependsOn 'integrationTest'
     }
     tasks.withType(Test).configureEach {
-        maxParallelForks = Runtime.runtime.availableProcessors().intdiv(2) ?: 1
+        maxParallelForks = Runtime.runtime.availableProcessors()
         maxHeapSize = '2g'
         jvmArgs '-XX:+HeapDumpOnOutOfMemoryError', '-XX:+CrashOnOutOfMemoryError', '-XX:+EnableDynamicAgentLoading'
     }
@@ -105,18 +105,18 @@ pluginManager.withPlugin('groovy') {
 pluginManager.withPlugin('info.solidsoft.pitest') {
     pitest {
         outputFormats = ['XML', 'HTML']
-        pitestVersion = '1.25.1'
+        pitestVersion = '1.25.8'
         junit5PluginVersion = '1.2.3'
         mutators = ['ALL']
         enableDefaultIncrementalAnalysis = true
         includedGroups = ['unit']
         timestampedReports = false
         threads = Runtime.runtime.availableProcessors()
-        jvmArgs = ['-XX:+EnableDynamicAgentLoading']
+        jvmArgs = ['-XX:+EnableDynamicAgentLoading','-Dspock.parallel.disabled=true']
         failWhenNoMutations = true
-        mutationThreshold = 85
-        coverageThreshold = 95
-        testStrengthThreshold = 90
+        mutationThreshold = 100
+        coverageThreshold = 100
+        testStrengthThreshold = 100
     }
     dependencies {
         pitest 'org.pitest:pitest-history-plugin:0.0.1'
@@ -125,12 +125,6 @@ pluginManager.withPlugin('info.solidsoft.pitest') {
     tasks.named('check') { dependsOn 'pitest' }
 }
 
-// Declared by a module that publishes API a consumer reads (`percolatePublicApi = true` in its build.gradle);
-// everything else is internal by default, so a new module is javadoc-confined without having to remember anything.
-// Read from the module rather than named from here: naming `annotations` and `spi` from the plugin would be the
-// by-name cross-project reference Isolated Projects forbids, and module nature is a fact about the module.
-ext.percolatePublicApi = false
-
 pluginManager.withPlugin('pmd') {
     pmd {
         consoleOutput = false
@@ -138,42 +132,6 @@ pluginManager.withPlugin('pmd') {
         rulesMinimumPriority = 5
         ruleSets = ["$rootDir/.pmd.xml"]
     }
-}
-
-pluginManager.withPlugin('java') {
-    // Javadoc is confined to the two modules a consumer actually reads (annotations, spi). Everywhere else a /** */
-    // block renders into a javadoc jar nobody opens, while the design rationale it usually carries is better served
-    // by a // comment, which sits with the code and never pretends to be API documentation.
-    //
-    // A source scan rather than PMD's CommentRequired=unwanted: that rule can require/ban a comment on a type, a
-    // field, an enum constant, and a public or protected method — and has no setting at all for a PACKAGE-PRIVATE
-    // method, which after ArchUnit Rule A is where nearly every helper in this repo lives. PMD 7 also dropped
-    // FormalComment from the XPath-addressable AST, so the usual custom-rule fallback is gone too. The ban is about
-    // source text, so it is checked as source text: complete, and one mechanism instead of two partial ones.
-    def javadocScan = tasks.register('checkNoJavadoc') {
-        description = 'Fails when an internal module carries javadoc, which belongs only to the published API modules.'
-        def publicApi = project.ext.percolatePublicApi
-        // Excludes the same vendored path lib/javapoet already excludes from Pmd and Error Prone: it is upstream
-        // source, its javadoc is upstream's, and it is relocated wholesale into the shadow jar.
-        def sources = project.fileTree(project.layout.projectDirectory.dir('src/main/java')).matching {
-            include '**/*.java'
-            exclude '**/com/palantir/javapoet/**'
-        }
-        inputs.files(sources).withPropertyName('sources').skipWhenEmpty()
-        inputs.property('publicApi', publicApi)
-        // No file output, so an up-to-date check needs somewhere to record that the task ran.
-        outputs.file(layout.buildDirectory.file('reports/no-javadoc.txt'))
-        doLast {
-            def offenders = publicApi ? [] : sources.files.findAll { it.text.contains('/**') }
-            outputs.files.singleFile.text = offenders.join('\n')
-            if (offenders) {
-                throw new GradleException(
-                        "javadoc belongs to the published API modules only; found in:\n  "
-                                + offenders.collect { it.path }.join('\n  '))
-            }
-        }
-    }
-    tasks.named('check') { dependsOn javadocScan }
 }
 
 pluginManager.withPlugin('net.ltgt.errorprone') {

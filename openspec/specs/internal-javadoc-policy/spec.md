@@ -2,7 +2,7 @@
 
 ## Purpose
 
-Defines where javadoc belongs and what happens to the rationale it used to carry. Javadoc is documentation of an external contract, so it lives in the two modules an external developer consumes directly — `annotations` to use the library, `spi` to implement a custom strategy. Every other module is published for classpath reasons but internal in contract, and a block comment there renders into a javadoc jar nobody opens while pretending to be API documentation. Removing it is a demotion, not a deletion: an invariant, a rejected alternative, a cross-change decision or a tooling workaround becomes a `//` comment that sits with the code. In a codebase already subject to the no-private-methods and unused-protected rules, that is nearly every block — a method that exists as its own intercepted seam has a reason for existing that its signature does not carry. Enforcement scans source text, because the policy is about source text and no available static-analysis rule can express it.
+Defines where javadoc belongs and what happens to the rationale it used to carry. Javadoc is documentation of an external contract, so it lives in the two modules an external developer consumes directly — `annotations` to use the library, `spi` to implement a custom strategy. Every other module is published for classpath reasons but internal in contract, and a block comment there renders into a javadoc jar nobody opens while pretending to be API documentation. Removing it is a demotion, not a deletion: an invariant, a rejected alternative, a cross-change decision or a tooling workaround becomes a `//` comment that sits with the code. In a codebase already subject to the no-private-methods and unused-protected rules, that is nearly every block — a method that exists as its own intercepted seam has a reason for existing that its signature does not carry. The policy is unenforced by the build: no available static-analysis rule can express it, and a hand-written source scan in the build script is not an acceptable substitute, so it is carried by authoring and review instead.
 ## Requirements
 ### Requirement: Javadoc is confined to the externally consumed modules
 
@@ -40,21 +40,21 @@ Removing javadoc from an internal module SHALL be a demotion, not a blanket dele
 - **WHEN** a self-explanatory method is reviewed
 - **THEN** it carries no explanatory comment in either form
 
-### Requirement: The javadoc confinement is enforced by the build
+### Requirement: The javadoc confinement is a convention, not a build gate
 
-The build SHALL fail when a javadoc comment appears in a module where this policy forbids it, rather than relying on review. Enforcement SHALL scan the module's own main Java sources for a javadoc block, since the policy is about source text and no available static-analysis rule can express it: PMD's `CommentRequired` has no setting for a package-private method, which is where nearly every helper lives once the no-private-methods rule applies, and PMD 7 no longer exposes comments to a custom XPath rule. Each module SHALL declare whether it is public API, and the default SHALL be internal, so a newly added module is confined without anyone having to remember. Vendored source paths already excluded from the other analysers SHALL be excluded from the scan on the same terms.
+The javadoc confinement SHALL be carried by authoring and review, and SHALL NOT be verified by the build. No Gradle task SHALL scan module sources for javadoc blocks, and no module SHALL declare whether it is public API for the purpose of such a scan. No static-analysis rule SHALL be substituted either: PMD's `CommentRequired` cannot address a package-private method, which is where nearly every helper lives under the no-private-methods rule; PMD 7 no longer exposes comments to a custom XPath rule; and ArchUnit reads bytecode, from which comments are absent. A javadoc block reintroduced into an internal module is therefore an accepted, review-caught regression whose blast radius is a comment in a javadoc jar nobody opens.
 
-#### Scenario: A reintroduced javadoc block fails the build
-- **WHEN** a javadoc comment is added to a type or member in `processor`, `strategies-builtin`, `reactor`, `reactor-blocking`, or `percolate`
-- **THEN** `check` fails, naming the offending file
+#### Scenario: The build carries no javadoc scan
+- **WHEN** `buildSrc/src/main/groovy/percolate.conventions.gradle` and every module's `build.gradle` are inspected
+- **THEN** no task reads, greps, or parses source files looking for javadoc, and no `percolatePublicApi` declaration is present anywhere
 
-#### Scenario: The externally consumed modules opt out
-- **WHEN** the scan runs against `annotations` or `spi`
-- **THEN** their public-API declaration exempts them and their javadoc passes
+#### Scenario: A reintroduced javadoc block does not fail the build
+- **WHEN** a javadoc comment is added to a type or member in an internal module and `check` runs
+- **THEN** `check` succeeds, and the block is expected to be caught in review instead
 
-#### Scenario: A new module is confined without being named
-- **WHEN** a module is added and declares nothing about its nature
-- **THEN** it is treated as internal, because a policy that requires remembering to opt in is a policy that erodes
+#### Scenario: The policy still governs how code is written
+- **WHEN** a member in an internal module needs explanation
+- **THEN** it is written as a `//` comment, exactly as before — the confinement and demotion requirements of this capability are unchanged by the absence of enforcement
 
 ### Requirement: Publishing obligations are unaffected by the confinement
 

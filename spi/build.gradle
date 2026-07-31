@@ -8,10 +8,6 @@ plugins {
     id 'info.solidsoft.pitest'
 }
 
-// Consumer-facing API: javadoc here is read by mapper authors and third-party strategy authors, so this module
-// keeps .pmd.xml alone and is exempt from the internal javadoc ban.
-percolatePublicApi = true
-
 dependencies {
     annotationProcessor platform(project(':dependencies'))
     annotationProcessor 'org.projectlombok:lombok'
@@ -50,8 +46,9 @@ dependencies {
     testAnnotationProcessor 'io.projectreactor:reactor-core'
     testImplementation 'io.projectreactor:reactor-core'
 
-    testRuntimeOnly 'net.bytebuddy:byte-buddy'
     testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+    testRuntimeOnly 'org.mockito:mockito-junit-jupiter'
+    testRuntimeOnly 'org.slf4j:slf4j-simple'
 }
 
 components.java.withVariantsFromConfiguration(configurations.testFixturesApiElements) { skip() }

@@ -3,7 +3,7 @@ mockMaker {
 }
 runner {
     parallel {
-        enabled true
+        enabled !Boolean.getBoolean('spock.parallel.disabled')
     }
 }
 timeout {
