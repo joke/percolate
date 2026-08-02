@@ -38,7 +38,7 @@ jobs:
         # Antora derives versions from git refs; full history + tags are required.
         fetch-depth: 0
     - uses: jdx/mise-action@v4
-    - uses: gradle/actions/setup-gradle@v6
+    - uses: gradle/actions/setup-gradle@v6.2.0
       # The org.antora plugin builds the site on a managed Node; the `antora` task dependsOn the
       # doc-example specs that materialise the generated output the manual include::s.
     - run: ./gradlew antora
@@ -82,7 +82,7 @@ jobs:
         gpg_private_key: ${{ secrets.GPG_PRIVATE_KEY }}
         passphrase: ${{ secrets.GPG_PASSPHRASE }}
         fingerprint: ${{ secrets.GPG_FINGERPRINT }}
-    - uses: gradle/actions/setup-gradle@v6
+    - uses: gradle/actions/setup-gradle@v6.2.0
     - run: ./gradlew publishAggregationToCentralPortal
       env:
         ORG_GRADLE_PROJECT_mavenCentralUsername: ${{ secrets.mavenCentralUsername }}
