@@ -11,6 +11,7 @@ dependencies {
     annotationProcessor platform(project(':dependencies'))
     annotationProcessor 'org.projectlombok:lombok'
     annotationProcessor 'com.google.auto.service:auto-service'
+    annotationProcessor 'io.github.joke.jspecify:processor'
 
     compileOnly platform(project(':dependencies'))
     compileOnly 'com.google.auto.service:auto-service-annotations'
@@ -36,6 +37,8 @@ dependencies {
     testRuntimeOnly 'org.mockito:mockito-junit-jupiter'
     testRuntimeOnly 'org.slf4j:slf4j-simple'
 
+    testAnnotationProcessor platform(project(':dependencies'))
+    testAnnotationProcessor 'io.github.joke.jspecify:processor'
     testAnnotationProcessor project(':percolate')
 }
 

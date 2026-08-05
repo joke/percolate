@@ -43,6 +43,11 @@ dependencies {
     annotationProcessor 'org.projectlombok:lombok'
     annotationProcessor 'com.google.auto.service:auto-service'
     annotationProcessor 'com.google.dagger:dagger-compiler'
+    annotationProcessor 'io.github.joke.jspecify:processor'
+
+    testAnnotationProcessor platform(project(':dependencies'))
+    testAnnotationProcessor 'io.github.joke.jspecify:processor'
+    testCompileOnly 'org.jspecify:jspecify'
 
     compileOnly platform(project(':dependencies'))
     compileOnly project(':annotations')

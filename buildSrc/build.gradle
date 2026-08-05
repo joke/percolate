@@ -12,4 +12,5 @@ dependencies {
     implementation 'net.ltgt.gradle:gradle-errorprone-plugin:5.1.0'
     implementation 'net.ltgt.gradle:gradle-nullaway-plugin:3.0.0'
     implementation 'io.github.sgtsilvio.gradle:gradle-metadata:0.7.0'
+    implementation 'io.github.joke.conventional-version:io.github.joke.conventional-version.gradle.plugin:2.1.0'
 }

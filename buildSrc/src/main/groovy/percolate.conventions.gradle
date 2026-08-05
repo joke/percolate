@@ -1,22 +1,12 @@
+plugins {
+    id 'io.github.joke.conventional-version'
+}
+
 group = 'io.github.joke.percolate'
 
 repositories {
     mavenCentral()
 }
-
-def isCleanTag = providers.exec {
-    workingDir = rootDir
-    commandLine 'git', 'describe', '--tags', '--exact-match'
-    ignoreExitValue = true
-}.result.get().exitValue == 0
-
-def describeAlways = providers.exec {
-    workingDir = rootDir
-    commandLine 'git', 'describe', '--tags', '--always'
-    ignoreExitValue = true
-}.standardOutput.asText.map { it.trim() }.getOrElse('unspecified')
-
-version = isCleanTag ? describeAlways : "${describeAlways}-SNAPSHOT"
 
 pluginManager.withPlugin('java-base') {
     pluginManager.apply 'com.diffplug.spotless'

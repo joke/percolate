@@ -6,8 +6,14 @@ plugins {
 }
 
 dependencies {
+    annotationProcessor platform(project(':dependencies'))
+    annotationProcessor 'io.github.joke.jspecify:processor'
+
     compileOnly platform(project(':dependencies'))
     compileOnly 'org.jspecify:jspecify'
+
+    testAnnotationProcessor platform(project(':dependencies'))
+    testAnnotationProcessor 'io.github.joke.jspecify:processor'
 
     testImplementation platform(project(':dependencies'))
     testImplementation 'org.spockframework:spock-core'

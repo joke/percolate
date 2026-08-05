@@ -11,6 +11,7 @@ plugins {
 dependencies {
     annotationProcessor platform(project(':dependencies'))
     annotationProcessor 'org.projectlombok:lombok'
+    annotationProcessor 'io.github.joke.jspecify:processor'
 
     compileOnly platform(project(':dependencies'))
     compileOnly 'org.projectlombok:lombok'
@@ -38,6 +39,7 @@ dependencies {
     testImplementation testFixtures(project(':spi'))
 
     testAnnotationProcessor platform(project(':dependencies'))
+    testAnnotationProcessor 'io.github.joke.jspecify:processor'
     testAnnotationProcessor project(':percolate')
     testAnnotationProcessor project(':reactor')
     // reactor-core is compileOnly in :reactor (a peer dependency, not redistributed) - the

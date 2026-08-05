@@ -5,7 +5,12 @@ plugins {
 }
 
 dependencies {
+    annotationProcessor platform(project(':dependencies'))
     annotationProcessor project(':percolate')
+    annotationProcessor 'io.github.joke.jspecify:processor'
+
+    testAnnotationProcessor platform(project(':dependencies'))
+    testAnnotationProcessor 'io.github.joke.jspecify:processor'
 
     compileOnly platform(project(':dependencies'))
     compileOnly project(':annotations')
