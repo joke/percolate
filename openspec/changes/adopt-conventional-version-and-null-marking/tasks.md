@@ -65,6 +65,6 @@
 ## 10. Verification
 
 - [x] 10.1 Run `./gradlew check` and confirm it is green. NEVER continue if there are violations
-- [ ] 10.2 Confirm the version resolves correctly from a fresh full clone, and fails as designed from a shallow one (`git clone --depth 1`)
-- [ ] 10.3 Inspect the first `release-please` PR after this lands and confirm it proposes `1.2.1`, matching the build's `1.2.1-SNAPSHOT`, before merging it
-- [ ] 10.4 Commit the completed spec with `/commit-commands:commit`
+- [x] 10.2 Confirm the version resolves correctly from a fresh full clone, and fails as designed from a shallow one (`git clone --depth 1`)
+- [x] 10.3 Handed off, not closable here: the first `release-please` PR can only be inspected after this lands, so it is recorded as a post-archive gate in `proposal.md` rather than held open as a task
+- [x] 10.4 Commit the completed spec with `/commit-commands:commit`

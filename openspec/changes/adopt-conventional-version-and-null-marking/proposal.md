@@ -114,3 +114,17 @@ verified by the first release after the change lands.
 **Risk** — the irreversible surface is release plumbing: a wrong manifest seed makes `release-please`
 cut the wrong number, and a Maven Central release cannot be withdrawn. The manifest seed is checked
 against the current tag before the first post-change release.
+
+## Post-archive gate
+
+One check cannot be performed while the change is open, because it observes something that only
+exists after the change lands:
+
+**Before merging the first `release-please` PR raised after this change, confirm it proposes
+`1.2.1`.** That is the number the build resolves as `1.2.1-SNAPSHOT`; a disagreement means the
+manifest seed or the manifest-mode switch is wrong, and it must be resolved before the PR is merged,
+because merging cuts a tag and a Maven Central release that cannot be withdrawn.
+
+This is a merge-time gate on a future pull request, not outstanding implementation work. It does not
+block archiving — holding the change open for it would keep it open across an unbounded wait for an
+event no further work here can bring about.

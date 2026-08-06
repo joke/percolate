@@ -189,16 +189,22 @@ a nullness-sensitive shape — a `@Nullable` source crossing to a non-null targe
 `docs/nullness/OrderMapper`, where marked-ness is what makes percolate emit the `requireNonNull`
 guard.
 
-The adoption is therefore split by whether percolate's own processor runs on the sources:
+The adoption is therefore split by whether percolate's own processor runs on the sources — but only
+after a prior split on whether percolate *owns* the sources at all:
 
 ```mermaid
 graph TD
-    Q{"does percolate's processor<br/>compile this source set?"}
-    Q -->|no| SAFE["convert unconditionally<br/>annotations, spi/main, lib:javapoet,<br/>test-foundation, architecture-tests,<br/>processor/main, reactor*/main"]
+    O{"does percolate own<br/>the package?"}
+    O -->|no| VENDOR["do not wire the processor<br/>lib:javapoet (vendored, relocated)"]
+    O -->|yes| Q{"does percolate's processor<br/>compile this source set?"}
+    Q -->|no| SAFE["convert unconditionally<br/>annotations, spi/main, processor/main,<br/>reactor*/main, strategies-builtin/main"]
     Q -->|yes| GATE{"experiment result"}
     GATE -->|"marks ARE observed"| CONV["convert"]
     GATE -->|"marks are NOT observed"| KEEP["keep hand-written package-info<br/>in docs/ and e2e packages;<br/>record the constraint in the spec"]
 ```
+
+`test-foundation` and `architecture-tests` appear in neither branch: they compile no Java at all, so
+there is nothing to mark and no processor to wire.
 
 A negative result is not a failed change. It is a real constraint on the tool, belongs in the
 `null-marking` spec, and still leaves the majority of the 44 files deletable.
@@ -277,8 +283,12 @@ step is irreversible until a release is cut, which requires a separate merged `r
   that declare `project(':percolate')` as an annotation processor (`spi/src/test/java`,
   `strategies-builtin/src/test/java`, `percolate-smoke/src/main/java`) keep their hand-written files.
   That is 20 files retained and 26 converted, rather than the 44 the proposal hoped for.
-- **Do `testAnnotationProcessor` wirings need adding per module, or does the convention plugin place
-  them?** The convention plugin is the obvious home, but it must not add a processor to modules that
-  compile no Java. Settled during implementation against the existing `pluginManager.withPlugin`
-  gating.
+- ~~**Do `testAnnotationProcessor` wirings need adding per module, or does the convention plugin place
+  them?**~~ **RESOLVED: per module.** The convention plugin looked like the obvious home — an
+  existing `pluginManager.withPlugin('java')` gate would have kept it off modules that compile no
+  Java. It was rejected: the gate expresses "compiles Java", but the actual predicate is "percolate
+  owns these packages and wants them marked", and `lib:javapoet` compiles Java while failing that
+  predicate. Encoding it in the shared plugin would have meant a module-name carve-out, which the
+  convention plugin does not do. A module that must not be null-marked is now an absence in its own
+  build file.
 - **Is D8 worth doing at all**, given the root project would parse JSON by hand to avoid one exec.

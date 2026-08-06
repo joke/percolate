@@ -90,6 +90,9 @@ repeated in each file.
 
 ### Requirement: Generated marks are only relied upon where percolate observes them
 
+A source set that percolate's own annotation processor compiles SHALL keep its hand-written
+`package-info.java`, and SHALL NOT rely on a generated mark.
+
 percolate's own annotation processor resolves nullness by reading the annotation mirrors of a
 `PackageElement`. A `package-info.java` created through the `Filer` is not entered until the
 annotation-processing round *after* the one that wrote it, so a generated mark may be invisible to a
@@ -114,9 +117,8 @@ The generated `package-info.java` was present in the output directory; percolate
 `UNKNOWN` and dropped the guard. The failure is silent — the build stays green while a null flows
 into a non-null target field.
 
-A source set that percolate's own annotation processor compiles SHALL therefore keep its hand-written
-`package-info.java`. Those source sets are exactly the ones declaring `project(':percolate')` on an
-annotation processor configuration:
+The retained source sets are exactly the ones declaring `project(':percolate')` on an annotation
+processor configuration:
 
 - `spi/src/test/java`
 - `strategies-builtin/src/test/java`
