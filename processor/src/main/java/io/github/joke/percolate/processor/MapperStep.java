@@ -1,8 +1,5 @@
 package io.github.joke.percolate.processor;
 
-import static java.util.stream.Collectors.toUnmodifiableList;
-import static java.util.stream.Collectors.toUnmodifiableSet;
-
 import com.google.auto.common.BasicAnnotationProcessor.Step;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.ImmutableSetMultimap;
@@ -18,6 +15,9 @@ import javax.lang.model.element.Element;
 import javax.lang.model.element.TypeElement;
 import javax.lang.model.util.Elements;
 import lombok.RequiredArgsConstructor;
+
+import static java.util.stream.Collectors.toUnmodifiableList;
+import static java.util.stream.Collectors.toUnmodifiableSet;
 
 // The single Step for @Mapper types and the sole round-aware component (stages stay round-agnostic). For each
 // mapper it runs the Pipeline and classifies the outcome:

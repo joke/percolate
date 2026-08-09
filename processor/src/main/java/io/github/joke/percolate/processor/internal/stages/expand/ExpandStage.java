@@ -1,7 +1,5 @@
 package io.github.joke.percolate.processor.internal.stages.expand;
 
-import static java.util.stream.Collectors.toUnmodifiableList;
-
 import io.github.joke.percolate.processor.MapperContext;
 import io.github.joke.percolate.processor.ProcessorOptions;
 import io.github.joke.percolate.processor.internal.graph.Location;
@@ -30,6 +28,8 @@ import javax.lang.model.util.Elements;
 import javax.lang.model.util.Types;
 import lombok.RequiredArgsConstructor;
 import org.jspecify.annotations.Nullable;
+
+import static java.util.stream.Collectors.toUnmodifiableList;
 
 // The expansion driver (design D6/D9), a single uniform demand work-list over the bipartite graph: a demanded
 // target Value asks "what produces this?", the full strategy set answers with OperationSpecs, and the driver

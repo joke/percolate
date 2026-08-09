@@ -1,9 +1,5 @@
 package io.github.joke.percolate.processor.internal.stages.dump;
 
-import static java.util.stream.Collectors.groupingBy;
-import static java.util.stream.Collectors.toList;
-import static java.util.stream.Collectors.toUnmodifiableList;
-
 import io.github.joke.percolate.processor.Diagnostic;
 import io.github.joke.percolate.processor.MapperContext;
 import io.github.joke.percolate.processor.ProcessorOptions;
@@ -30,6 +26,10 @@ import javax.tools.StandardLocation;
 import lombok.RequiredArgsConstructor;
 import org.jgrapht.Graph;
 import org.jgrapht.graph.DirectedMultigraph;
+
+import static java.util.stream.Collectors.groupingBy;
+import static java.util.stream.Collectors.toList;
+import static java.util.stream.Collectors.toUnmodifiableList;
 
 // Owns the debug-graph IO shared by the Dump* stages: the debugGraphs gate, the empty-graph skip, the per-scope
 // partition, the DotRenderer pass, and the Filer write. Each stage supplies a vertex-inclusion predicate and a

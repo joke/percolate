@@ -1,13 +1,13 @@
 package io.github.joke.percolate.processor.internal.stages.discover;
 
-import static java.util.stream.Collectors.toUnmodifiableList;
-import static javax.lang.model.element.ElementKind.METHOD;
-
 import io.github.joke.percolate.spi.CallableMethods;
 import jakarta.inject.Inject;
 import java.util.List;
 import javax.lang.model.util.Types;
 import lombok.RequiredArgsConstructor;
+
+import static java.util.stream.Collectors.toUnmodifiableList;
+import static javax.lang.model.element.ElementKind.METHOD;
 
 // The pure decision half of callable-method discovery: from plain CandidateDescriptors it keeps the non-Object
 // methods and hands them to an IndexCallableMethods view. Arity — including any @Ambient-parameter adjustment —

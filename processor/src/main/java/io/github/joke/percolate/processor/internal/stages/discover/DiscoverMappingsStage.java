@@ -1,7 +1,5 @@
 package io.github.joke.percolate.processor.internal.stages.discover;
 
-import static java.util.stream.Collectors.toUnmodifiableList;
-
 import io.github.joke.percolate.processor.MapperContext;
 import io.github.joke.percolate.processor.internal.graph.MethodScope;
 import io.github.joke.percolate.processor.internal.stages.Stage;
@@ -12,6 +10,8 @@ import jakarta.inject.Inject;
 import java.util.List;
 import javax.lang.model.element.ExecutableElement;
 import lombok.RequiredArgsConstructor;
+
+import static java.util.stream.Collectors.toUnmodifiableList;
 
 // Runs every DirectiveReader on the processor path against each abstract mapper method (design D7 of change
 // decouple-engine-from-strategy-semantics): the processor itself reads no mapping annotation — a reader

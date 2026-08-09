@@ -1,11 +1,11 @@
 package io.github.joke.percolate.spi.builtins;
 
-import static java.util.stream.Collectors.joining;
-
 import javax.lang.model.type.DeclaredType;
 import javax.lang.model.type.TypeKind;
 import javax.lang.model.type.TypeMirror;
 import lombok.experimental.UtilityClass;
+
+import static java.util.stream.Collectors.joining;
 
 // Composes the human-readable, fully-typed label a built-in strategy attaches to its
 // io.github.joke.percolate.spi.OperationSpec (the operation's debug-graph identity). Type names are reduced to

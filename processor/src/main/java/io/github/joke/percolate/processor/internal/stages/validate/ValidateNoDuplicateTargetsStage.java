@@ -1,8 +1,5 @@
 package io.github.joke.percolate.processor.internal.stages.validate;
 
-import static java.util.stream.Collectors.groupingBy;
-import static java.util.stream.Collectors.toUnmodifiableList;
-
 import io.github.joke.percolate.processor.Diagnostic;
 import io.github.joke.percolate.processor.MapperContext;
 import io.github.joke.percolate.processor.internal.stages.Stage;
@@ -13,6 +10,9 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import lombok.RequiredArgsConstructor;
+
+import static java.util.stream.Collectors.groupingBy;
+import static java.util.stream.Collectors.toUnmodifiableList;
 
 // Two bindings at one target path are an error (design D7 of change decouple-engine-from-strategy-semantics)
 // regardless of which io.github.joke.percolate.spi.DirectiveReader declared them — a property of the sink, not

@@ -1,8 +1,5 @@
 package io.github.joke.percolate.processor;
 
-import static java.util.stream.Collectors.toUnmodifiableList;
-import static java.util.stream.Collectors.toUnmodifiableSet;
-
 import dagger.Module;
 import dagger.Provides;
 import io.github.joke.percolate.processor.internal.stages.Stage;
@@ -40,6 +37,9 @@ import javax.lang.model.util.Elements;
 import javax.lang.model.util.Types;
 import lombok.EqualsAndHashCode;
 import lombok.RequiredArgsConstructor;
+
+import static java.util.stream.Collectors.toUnmodifiableList;
+import static java.util.stream.Collectors.toUnmodifiableSet;
 
 @Module
 @RequiredArgsConstructor(onConstructor_ = @Inject)

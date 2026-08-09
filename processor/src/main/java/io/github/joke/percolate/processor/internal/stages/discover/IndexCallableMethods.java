@@ -1,7 +1,5 @@
 package io.github.joke.percolate.processor.internal.stages.discover;
 
-import static java.util.stream.Collectors.toUnmodifiableList;
-
 import io.github.joke.percolate.spi.CallableMethods;
 import io.github.joke.percolate.spi.MethodCandidate;
 import io.github.joke.percolate.spi.ThisReceiver;
@@ -10,6 +8,8 @@ import java.util.stream.Stream;
 import javax.lang.model.type.TypeMirror;
 import javax.lang.model.util.Types;
 import lombok.RequiredArgsConstructor;
+
+import static java.util.stream.Collectors.toUnmodifiableList;
 
 // The CallableMethods view over a mapper's callable candidates: .producing answers with the candidates whose
 // return type is assignable to the demanded output, each invoked on the mapper itself (ThisReceiver).

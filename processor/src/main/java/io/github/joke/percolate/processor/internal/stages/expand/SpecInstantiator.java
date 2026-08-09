@@ -1,7 +1,5 @@
 package io.github.joke.percolate.processor.internal.stages.expand;
 
-import static java.util.stream.Collectors.toUnmodifiableList;
-
 import io.github.joke.percolate.spi.ChildScopeSpec;
 import io.github.joke.percolate.spi.OperationSpec;
 import io.github.joke.percolate.spi.Port;
@@ -11,6 +9,8 @@ import java.util.Map;
 import javax.lang.model.type.TypeMirror;
 import lombok.RequiredArgsConstructor;
 import org.jspecify.annotations.Nullable;
+
+import static java.util.stream.Collectors.toUnmodifiableList;
 
 // Substitutes one binding map across a spec's ports and child scope, producing a fully-concrete OperationSpec
 // (design D4 of change decompose-engine-stages, decomposed out of Grounding's instantiate family). .ground

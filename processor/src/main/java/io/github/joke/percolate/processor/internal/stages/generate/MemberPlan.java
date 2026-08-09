@@ -1,10 +1,5 @@
 package io.github.joke.percolate.processor.internal.stages.generate;
 
-import static java.util.stream.Collectors.toUnmodifiableList;
-import static javax.lang.model.element.Modifier.FINAL;
-import static javax.lang.model.element.Modifier.PRIVATE;
-import static javax.lang.model.element.Modifier.STATIC;
-
 import io.github.joke.percolate.lib.javapoet.CodeBlock;
 import io.github.joke.percolate.lib.javapoet.FieldSpec;
 import io.github.joke.percolate.spi.MemberRequest;
@@ -12,6 +7,11 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import lombok.RequiredArgsConstructor;
+
+import static java.util.stream.Collectors.toUnmodifiableList;
+import static javax.lang.model.element.Modifier.FINAL;
+import static javax.lang.model.element.Modifier.PRIVATE;
+import static javax.lang.model.element.Modifier.STATIC;
 
 // The class-scoped sibling of HoistPlan (design D5 of change add-temporal-type-mapping): collects every
 // strategy-requested MemberRequest reachable from any method's winning plan across the whole generated mapper

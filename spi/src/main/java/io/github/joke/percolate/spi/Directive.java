@@ -1,9 +1,9 @@
 package io.github.joke.percolate.spi;
 
-import static java.util.stream.Collectors.toUnmodifiableList;
-
 import java.util.List;
 import java.util.Optional;
+
+import static java.util.stream.Collectors.toUnmodifiableList;
 
 /**
  * The {@code @Map} configuration in effect at a {@link Demand}, exposed to strategies without raw compiler

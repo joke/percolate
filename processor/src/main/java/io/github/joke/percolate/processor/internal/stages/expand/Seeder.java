@@ -1,7 +1,5 @@
 package io.github.joke.percolate.processor.internal.stages.expand;
 
-import static java.util.stream.Collectors.toUnmodifiableList;
-
 import io.github.joke.percolate.processor.internal.graph.AccessPath;
 import io.github.joke.percolate.processor.internal.graph.AddValue;
 import io.github.joke.percolate.processor.internal.graph.InputDecl;
@@ -23,6 +21,8 @@ import java.util.stream.Collectors;
 import javax.lang.model.element.ExecutableElement;
 import javax.lang.model.element.VariableElement;
 import lombok.RequiredArgsConstructor;
+
+import static java.util.stream.Collectors.toUnmodifiableList;
 
 // Mints one method's return-root Value (decomposed out of ExpandStage.Driver.seedReturnRoot by change
 // decompose-engine-stages): the only seed of an expansion run, landed through the Applier and marked as the

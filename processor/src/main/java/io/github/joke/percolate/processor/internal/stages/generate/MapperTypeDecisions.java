@@ -1,13 +1,13 @@
 package io.github.joke.percolate.processor.internal.stages.generate;
 
-import static javax.lang.model.element.ElementKind.INTERFACE;
-import static javax.lang.model.element.Modifier.FINAL;
-import static javax.lang.model.element.Modifier.PUBLIC;
-
 import jakarta.inject.Inject;
 import javax.lang.model.element.ElementKind;
 import javax.lang.model.element.Modifier;
 import lombok.NoArgsConstructor;
+
+import static javax.lang.model.element.ElementKind.INTERFACE;
+import static javax.lang.model.element.Modifier.FINAL;
+import static javax.lang.model.element.Modifier.PUBLIC;
 
 // The pure assembly decisions AssembleMapperType makes on plain inputs, split out from the TypeName.get(mirror)
 // render/Filer-write leaf so they unit-test without a compiler: the finality of a generated public member (a

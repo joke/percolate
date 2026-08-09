@@ -1,7 +1,5 @@
 package io.github.joke.percolate.spi.builtins.methodcall;
 
-import static java.util.stream.Collectors.toUnmodifiableList;
-
 import com.google.auto.service.AutoService;
 import io.github.joke.percolate.Ambient;
 import io.github.joke.percolate.lib.javapoet.CodeBlock;
@@ -21,6 +19,8 @@ import javax.lang.model.element.ExecutableElement;
 import javax.lang.model.element.VariableElement;
 import javax.lang.model.type.TypeMirror;
 import lombok.NoArgsConstructor;
+
+import static java.util.stream.Collectors.toUnmodifiableList;
 
 // Produces the demanded type by calling a callable method that returns it: an OperationSpec carrying one port
 // per declared parameter, in declaration order — the single non-ambient parameter's port sourced as today, and

@@ -32,6 +32,7 @@ pluginManager.withPlugin('com.diffplug.spotless') {
             forbidWildcardImports()
             removeUnusedImports()
             palantirJavaFormat('2.87.0')
+            importOrder('', '\\#')
         }
     }
 }

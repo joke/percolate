@@ -1,10 +1,10 @@
 package io.github.joke.percolate.processor.internal.graph;
 
-import static java.util.Objects.requireNonNull;
-
 import java.util.Optional;
 import java.util.stream.Stream;
 import org.jspecify.annotations.Nullable;
+
+import static java.util.Objects.requireNonNull;
 
 // The element scope owned by a scope-owning Operation (a container element mapping): the per-element transform
 // is a child plan with the same shape as a method body — an element input (declared, materialised lazily like

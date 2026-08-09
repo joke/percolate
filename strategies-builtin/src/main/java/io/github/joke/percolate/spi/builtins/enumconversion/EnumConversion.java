@@ -1,8 +1,5 @@
 package io.github.joke.percolate.spi.builtins.enumconversion;
 
-import static java.util.stream.Collectors.toUnmodifiableList;
-import static java.util.stream.Collectors.toUnmodifiableSet;
-
 import com.google.auto.service.AutoService;
 import io.github.joke.percolate.lib.javapoet.CodeBlock;
 import io.github.joke.percolate.spi.BodyCodegen;
@@ -30,6 +27,9 @@ import javax.lang.model.SourceVersion;
 import javax.lang.model.element.ElementKind;
 import javax.lang.model.type.TypeMirror;
 import lombok.NoArgsConstructor;
+
+import static java.util.stream.Collectors.toUnmodifiableList;
+import static java.util.stream.Collectors.toUnmodifiableSet;
 
 // Enum-to-enum conversion via a declared conversion method (design of change add-enum-conversion-mapping):
 // fires whenever the demanded target is an enum, declaring a bare top-level type-variable port that Grounding

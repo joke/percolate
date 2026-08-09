@@ -1,13 +1,13 @@
 package io.github.joke.percolate.processor.internal.stages.expand;
 
-import static java.util.stream.Collectors.toUnmodifiableList;
-
 import io.github.joke.percolate.spi.Offer;
 import io.github.joke.percolate.spi.OperationSpec;
 import java.util.List;
 import java.util.stream.Stream;
 import javax.lang.model.type.TypeMirror;
 import lombok.RequiredArgsConstructor;
+
+import static java.util.stream.Collectors.toUnmodifiableList;
 
 // Grounding-by-match (design D2/D5, change target-driven-engine §§ 2.2–2.4), decomposed (change decompose-
 // engine-stages) into an orchestrator over three collaborators: an OperationSpec with no type-variable port

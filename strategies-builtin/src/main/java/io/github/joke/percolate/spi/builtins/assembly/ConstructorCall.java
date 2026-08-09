@@ -1,9 +1,5 @@
 package io.github.joke.percolate.spi.builtins.assembly;
 
-import static java.util.stream.Collectors.joining;
-import static java.util.stream.Collectors.toUnmodifiableList;
-import static java.util.stream.Collectors.toUnmodifiableSet;
-
 import com.google.auto.service.AutoService;
 import io.github.joke.percolate.lib.javapoet.ClassName;
 import io.github.joke.percolate.lib.javapoet.CodeBlock;
@@ -25,6 +21,10 @@ import javax.lang.model.element.ExecutableElement;
 import javax.lang.model.element.TypeElement;
 import javax.lang.model.type.TypeMirror;
 import lombok.NoArgsConstructor;
+
+import static java.util.stream.Collectors.joining;
+import static java.util.stream.Collectors.toUnmodifiableList;
+import static java.util.stream.Collectors.toUnmodifiableSet;
 
 // Assembles the demanded type by calling one of its constructors: a multi-port OperationSpec whose ports are
 // the constructor parameters, named after them. It is gated by the demand's declared-children goal spec — a

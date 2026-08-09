@@ -1,9 +1,5 @@
 package io.github.joke.percolate.processor.internal.stages.validate;
 
-import static java.util.stream.Collectors.joining;
-import static java.util.stream.Collectors.toMap;
-import static java.util.stream.Collectors.toUnmodifiableSet;
-
 import io.github.joke.percolate.processor.Diagnostic;
 import io.github.joke.percolate.processor.MapperContext;
 import io.github.joke.percolate.processor.internal.stages.Stage;
@@ -23,6 +19,10 @@ import javax.lang.model.element.TypeElement;
 import javax.lang.model.element.VariableElement;
 import javax.lang.model.type.TypeKind;
 import lombok.RequiredArgsConstructor;
+
+import static java.util.stream.Collectors.joining;
+import static java.util.stream.Collectors.toMap;
+import static java.util.stream.Collectors.toUnmodifiableSet;
 
 // The engine's own rules about its own scope inputs (design D7 of change decouple-engine-from-strategy-
 // semantics): a bound source path must root at a scope input of the method — a path it cannot begin, not a

@@ -1,7 +1,5 @@
 package io.github.joke.percolate.processor.internal.stages.discover;
 
-import static java.util.stream.Collectors.toUnmodifiableList;
-
 import com.google.auto.common.MoreElements;
 import com.groupcdg.pitest.annotations.CoverageIgnore;
 import jakarta.inject.Inject;
@@ -12,6 +10,8 @@ import javax.lang.model.element.TypeElement;
 import javax.lang.model.util.Elements;
 import javax.lang.model.util.Types;
 import lombok.RequiredArgsConstructor;
+
+import static java.util.stream.Collectors.toUnmodifiableList;
 
 // The thin javax.lang.model leaf of abstract-method discovery: it enumerates a mapper type's local and
 // inherited methods (MoreElements.getLocalAndInheritedMethods) and projects each into a plain

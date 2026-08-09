@@ -1,7 +1,5 @@
 package io.github.joke.percolate.processor.internal.stages.generate;
 
-import static java.util.stream.Collectors.toUnmodifiableList;
-
 import io.github.joke.percolate.lib.javapoet.CodeBlock;
 import io.github.joke.percolate.lib.javapoet.TypeName;
 import io.github.joke.percolate.processor.MapperContext;
@@ -30,6 +28,8 @@ import java.util.Set;
 import javax.lang.model.SourceVersion;
 import javax.lang.model.element.ExecutableElement;
 import lombok.RequiredArgsConstructor;
+
+import static java.util.stream.Collectors.toUnmodifiableList;
 
 // Composes each abstract method body by walking the ExtractedPlan from the method's return-root Value (design
 // D8/codegen). Each scope renders as an ordered list of local-variable declarations followed by a single result

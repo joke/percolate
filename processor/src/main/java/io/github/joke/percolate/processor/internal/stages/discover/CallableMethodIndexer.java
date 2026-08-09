@@ -1,7 +1,5 @@
 package io.github.joke.percolate.processor.internal.stages.discover;
 
-import static java.util.stream.Collectors.toUnmodifiableList;
-
 import com.groupcdg.pitest.annotations.CoverageIgnore;
 import jakarta.inject.Inject;
 import java.util.List;
@@ -10,6 +8,8 @@ import javax.lang.model.element.ExecutableElement;
 import javax.lang.model.element.TypeElement;
 import javax.lang.model.util.Elements;
 import lombok.RequiredArgsConstructor;
+
+import static java.util.stream.Collectors.toUnmodifiableList;
 
 // The thin javax.lang.model leaf of callable-method discovery: it enumerates a mapper type's members
 // (Elements.getAllMembers), keeps the executable ones, and projects each into a plain CandidateDescriptor,

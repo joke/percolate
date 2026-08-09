@@ -1,7 +1,5 @@
 package io.github.joke.percolate.processor.internal.stages.expand;
 
-import static java.util.stream.Collectors.toUnmodifiableList;
-
 import io.github.joke.percolate.processor.internal.graph.AccessPath;
 import io.github.joke.percolate.processor.internal.graph.AddValue;
 import io.github.joke.percolate.processor.internal.graph.MapperGraph;
@@ -19,6 +17,8 @@ import java.util.List;
 import java.util.Optional;
 import lombok.RequiredArgsConstructor;
 import org.jspecify.annotations.Nullable;
+
+import static java.util.stream.Collectors.toUnmodifiableList;
 
 // Materialises a directive's source-path leaf by forward, target-bound descent (design D1/D2 of change forward-
 // target-bound-accessor-descent, decomposed out of ExpandStage.Driver by decompose-engine-stages): the scope-

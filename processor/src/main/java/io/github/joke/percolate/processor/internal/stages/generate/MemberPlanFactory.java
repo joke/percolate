@@ -1,7 +1,5 @@
 package io.github.joke.percolate.processor.internal.stages.generate;
 
-import static java.util.stream.Collectors.toUnmodifiableList;
-
 import io.github.joke.percolate.lib.javapoet.ClassName;
 import io.github.joke.percolate.lib.javapoet.NameAllocator;
 import io.github.joke.percolate.lib.javapoet.TypeName;
@@ -24,6 +22,8 @@ import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
+
+import static java.util.stream.Collectors.toUnmodifiableList;
 
 // Builds a MemberPlan — the class-wide MemberRequest walk, the dedup-key conflict report, and member naming.
 // Split from MemberPlan by change tighten-testability-conventions (design D2), for the same reason as

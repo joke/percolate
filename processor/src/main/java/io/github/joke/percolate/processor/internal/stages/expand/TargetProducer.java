@@ -1,7 +1,5 @@
 package io.github.joke.percolate.processor.internal.stages.expand;
 
-import static java.util.stream.Collectors.toUnmodifiableList;
-
 import io.github.joke.percolate.processor.internal.graph.Refusal;
 import io.github.joke.percolate.processor.internal.graph.Scope;
 import io.github.joke.percolate.processor.internal.graph.TargetLocation;
@@ -19,6 +17,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import lombok.RequiredArgsConstructor;
+
+import static java.util.stream.Collectors.toUnmodifiableList;
 
 // Enumerates the grounded OperationSpecs a FREE target demand admits (design D6/D9 of change target-driven-
 // engine, decomposed out of ExpandStage.Driver.expandFree by decompose-engine-stages): builds the myopic

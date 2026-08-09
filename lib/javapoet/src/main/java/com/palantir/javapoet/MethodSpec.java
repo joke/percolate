@@ -28,10 +28,6 @@
  */
 package com.palantir.javapoet;
 
-import static com.palantir.javapoet.Util.checkArgument;
-import static com.palantir.javapoet.Util.checkNotNull;
-import static com.palantir.javapoet.Util.checkState;
-
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.lang.reflect.Type;
@@ -52,6 +48,10 @@ import javax.lang.model.type.TypeKind;
 import javax.lang.model.type.TypeMirror;
 import javax.lang.model.type.TypeVariable;
 import javax.lang.model.util.Types;
+
+import static com.palantir.javapoet.Util.checkArgument;
+import static com.palantir.javapoet.Util.checkNotNull;
+import static com.palantir.javapoet.Util.checkState;
 
 /** A generated constructor or method declaration. */
 public final class MethodSpec {

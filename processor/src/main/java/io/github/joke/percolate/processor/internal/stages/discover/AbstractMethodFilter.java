@@ -1,12 +1,12 @@
 package io.github.joke.percolate.processor.internal.stages.discover;
 
-import static java.util.stream.Collectors.toUnmodifiableList;
-import static javax.lang.model.element.Modifier.ABSTRACT;
-
 import jakarta.inject.Inject;
 import java.util.List;
 import javax.lang.model.element.ExecutableElement;
 import lombok.NoArgsConstructor;
+
+import static java.util.stream.Collectors.toUnmodifiableList;
+import static javax.lang.model.element.Modifier.ABSTRACT;
 
 // The pure decision half of abstract-method discovery: from plain AbstractMethodDescriptors it keeps the
 // abstract, non-Object methods — the ones a mapper must implement — returning their opaque ExecutableElement
