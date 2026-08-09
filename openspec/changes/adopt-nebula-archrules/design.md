@@ -254,10 +254,54 @@ Rollback: revert the commit. No production code, no published artifact, and no p
 
 ## Open Questions
 
-- Does the runner's `ClassFileImporterWithPackage` leave ArchUnit's
-  `resolveMissingDependenciesFromClassPath` enabled? Rules 6 and 8 need it. Resolve empirically in step 3;
-  if disabled, both rules need reformulating against imported-only information.
-- Does `nebula-archrules-core`'s bundled ArchUnit match the version `dependencies` pins, and does the
-  plugin expose the `ArchCondition`/`DescribedPredicate` API surface the custom rules use?
-- Does the aggregate plugin's root-project configuration interact badly with the configuration cache in
-  this build, given the existing `shipkit-auto-version` constraint?
+All three were resolved by the task-group-1 spike. Recorded here as findings.
+
+- **Classpath type resolution — RESOLVED, enabled.** `implement("…stages.Stage")` matched all 12 `Stage`
+  implementations in `processor`, and `isAssignableTo("javax.lang.model.element.Element")` resolved
+  `TypeElement`/`ExecutableElement` through the non-imported javax hierarchy (33 matches). Rules 6 and 8
+  need no reformulation.
+- **ArchUnit version — RESOLVED, bumped.** `nebula-archrules-core` 1.3.1 depends on ArchUnit **1.5.0**;
+  `dependencies` pinned 1.4.2 (twice — a duplicate constraint, now deduplicated). The pin is raised to
+  1.5.0 so the `archRules` source set compiles against the version the runner evaluates with. All of
+  `ArchCondition`, `DescribedPredicate`, `ConditionEvents`, and `SimpleConditionEvent` compile and run from
+  an `ArchRulesService`.
+- **Aggregate plugin and the configuration cache — RESOLVED, no interaction.** With
+  `com.netflix.nebula.archrules.aggregate` applied at the root, the build succeeds both with and without
+  `--no-configuration-cache`, and a configuration cache entry is stored.
+
+Two findings the spike surfaced that were **not** anticipated:
+
+- **Enforcement lives in a separate task.** `checkArchRules<SourceSet>` only *evaluates* and writes
+  `build/reports/archrules/<sourceSet>.data`; it passes even with violations present. The gate is
+  `enforceArchRules`, which is separately wired into `check`. Verified: with `failureThreshold('LOW')` it
+  fails the build on a MEDIUM-priority violation, and it appears in `check`'s task graph. A migration that
+  only checked `checkArchRulesMain` would have looked green while enforcing nothing.
+- **The `archRules` source set inherits the whole analyser stack.** It is compiled by the conventions
+  plugin's `java-base` `JavaCompile` hook, so `-Werror` + Error Prone + NullAway apply. NullAway's
+  `RequireExplicitNullMarking` fails the compile unless the source set also gets the
+  `io.github.joke.jspecify:processor` annotation processor and the `org.jspecify:jspecify` compile-only
+  dependency, which the conventions `library` block now declares as `archRulesAnnotationProcessor` /
+  `archRulesCompileOnly`.
+
+Two pre-existing weaknesses observed while probing, both **out of scope** for this change — the rules are
+ported faithfully, bug included, because this migration changes the mechanism and must not silently change
+what is enforced.
+
+**Rule 14's boundary list exempts the whole `processor` subtree, not just the bare package.** The boundary
+is matched with `pkg.equals(boundary) || pkg.startsWith(boundary + ".")`, and the list's first entry is the
+bare `io.github.joke.percolate.processor`. The prefix arm therefore matches every package beneath it, which
+makes the four enumerated sub-packages (`…stages.expand`, `…stages.discover`, `…stages.generate`,
+`…nullability`) redundant and exempts `processor.internal.graph`, `…internal.stages.validate`,
+`…internal.stages.dump`, and the rest along with them. Verified empirically: a class in
+`processor.internal.graph` taking a `javax.lang.model.util.Types` parameter is **not** reported, while the
+same class in `spi.builtins` is. The identical logic is present in the pre-migration
+`ModuleBoundariesSpec` (confirmed against git history), so this is inherited, not introduced. Tightening it
+to an exact match for the bare package would be a genuine rule change that could surface pre-existing
+violations, and belongs in its own change.
+
+**Rule 6's receiver-type predicate misses the real shape.** Rule 6 tests
+`call.target.owner.isAssignableTo("javax.lang.model.element.Element")`, but the engine's real annotation
+read (`JspecifyNullabilityResolver#hasAny`) invokes `getAnnotationMirrors()` on an `AnnotatedConstruct`
+receiver — a *supertype* of `Element`, so the predicate is false and the rule would not catch that shape
+even outside the exempt package. The rule is ported as-is; task 5.2's negative fixture must therefore use
+an `Element`-typed receiver to exercise what the rule actually tests.

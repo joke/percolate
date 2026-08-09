@@ -110,8 +110,14 @@ No module's `build.gradle` (nor `percolate.conventions.gradle`) SHALL declare a 
 
 ### Requirement: Spock is configured by a checked-in per-module SpockConfig.groovy
 
-Every module with a Spock suite SHALL carry a checked-in `src/test/resources/SpockConfig.groovy`,
-and those files SHALL be identical in content. The configuration SHALL cover at minimum:
+Every module with a Spock suite SHALL carry a checked-in `SpockConfig.groovy` on that suite's own resources
+path, and those files SHALL be identical in content. For an ordinary `test` suite the path is
+`src/test/resources/SpockConfig.groovy`; for a suite bound to another source set the file lives on that
+source set's resources path — in particular `architecture-tests` carries it at
+`src/archRulesTest/resources/SpockConfig.groovy`, since its specs moved out of `src/test` when the module
+became a rules library whose only tests are the rule-library's own negative fixtures.
+
+The configuration SHALL cover at minimum:
 
 - `mockMaker { preferredMockMaker spock.mock.MockMakers.mockito }`, so final classes, final
   methods, and `SpyStatic` are available everywhere
@@ -134,11 +140,17 @@ tracked file rather than by a build step nobody sees.
 
 #### Scenario: Every module with a Spock suite carries the file
 
-- **WHEN** `src/test/resources/SpockConfig.groovy` is inspected for `processor`, `spi`,
+- **WHEN** `SpockConfig.groovy` is inspected on the suite resources path for `processor`, `spi`,
   `strategies-builtin`, `reactor`, `reactor-blocking`, `annotations`, `architecture-tests`, and
   `percolate-smoke`
 - **THEN** each exists, is checked into version control, and carries the same mock-maker, parallel,
   and timeout settings
+
+#### Scenario: The rules library carries the file on its own suite's path
+
+- **WHEN** `architecture-tests` is inspected
+- **THEN** it carries `src/archRulesTest/resources/SpockConfig.groovy` and no `src/test` source set, its
+  specs having moved to the suite that tests the rule library
 
 #### Scenario: No module enables run-order optimization
 

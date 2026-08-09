@@ -3,6 +3,7 @@ plugins {
     id 'info.solidsoft.pitest' apply false
     id 'org.antora'
     id 'io.freefair.lombok' apply false
+    id 'com.netflix.nebula.archrules.aggregate'
 }
 
 // com.gradleup.nmcp.settings (applied in settings.gradle) implicitly applies

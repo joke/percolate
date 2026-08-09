@@ -116,6 +116,43 @@ pluginManager.withPlugin('info.solidsoft.pitest') {
     tasks.named('check') { dependsOn 'pitest' }
 }
 
+pluginManager.withPlugin('com.netflix.nebula.archrules.library') {
+    dependencies {
+        // The archRules source set is compiled by the same JavaCompile hook as any other, so it
+        // inherits -Werror + Error Prone + NullAway and needs the generated null-marking too.
+        archRulesAnnotationProcessor platform(project(':dependencies'))
+        archRulesAnnotationProcessor 'io.github.joke.jspecify:processor'
+
+        archRulesCompileOnly platform(project(':dependencies'))
+        archRulesCompileOnly 'org.jspecify:jspecify'
+
+        archRulesImplementation platform(project(':dependencies'))
+        archRulesImplementation 'com.tngtech.archunit:archunit'
+
+        // The archRulesTest suite carries deliberately-violating Java fixtures, which are compiled by the
+        // same hook and so need the same null-marking wiring.
+        archRulesTestAnnotationProcessor platform(project(':dependencies'))
+        archRulesTestAnnotationProcessor 'io.github.joke.jspecify:processor'
+
+        archRulesTestCompileOnly platform(project(':dependencies'))
+        archRulesTestCompileOnly 'org.jspecify:jspecify'
+    }
+}
+
+pluginManager.withPlugin('com.netflix.nebula.archrules.runner') {
+    dependencies {
+        archRules project(':architecture-tests')
+    }
+    archRules {
+        // The plugin's default is to fail the build on NO priority - every rule would degrade to
+        // console decoration. Percolate's architecture rules are gates, so every priority fails.
+        failureThreshold('LOW')
+        // Replaces the ImportOption path-string filters the central suite used to carry.
+        skipSourceSet('test')
+        skipSourceSet('testFixtures')
+    }
+}
+
 pluginManager.withPlugin('pmd') {
     pmd {
         consoleOutput = false

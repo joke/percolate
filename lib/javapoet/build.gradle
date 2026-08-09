@@ -1,3 +1,9 @@
+// This module deliberately does NOT apply com.netflix.nebula.archrules.runner. Its one source file is a
+// percolate-owned overlay authored in the upstream `com.palantir.javapoet` package so it can compile against
+// that API with package-private access (see the javapoet-relocation spec). Running the rule library here
+// would trip the "no production class imports the unrelocated upstream JavaPoet package" rule against the
+// overlay's dependencies on its own package siblings. Everything else the rules protect is absent from this
+// module - it is vendored third-party code, not percolate's own.
 plugins {
     id 'java-library'
     id 'com.gradleup.shadow'

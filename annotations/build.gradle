@@ -2,6 +2,7 @@ plugins {
     id 'java-library'
     id 'groovy'
     id 'maven-publish'
+    id 'com.netflix.nebula.archrules.runner'
     id 'percolate.conventions'
 }
 

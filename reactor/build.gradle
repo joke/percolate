@@ -3,6 +3,7 @@ plugins {
     id 'groovy'
     id 'maven-publish'
     id 'io.freefair.lombok'
+    id 'com.netflix.nebula.archrules.runner'
     id 'percolate.conventions'
     id 'info.solidsoft.pitest'
 }
@@ -35,7 +36,6 @@ dependencies {
     testImplementation 'org.spockframework:spock-core'
     testImplementation 'org.jspecify:jspecify'
     testImplementation 'io.projectreactor:reactor-core'
-    testImplementation testFixtures(project(':architecture-tests'))
     testImplementation 'com.tngtech.archunit:archunit'
 
     testAnnotationProcessor platform(project(':dependencies'))

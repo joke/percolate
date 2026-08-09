@@ -1,29 +1,22 @@
 plugins {
     id 'groovy'
-    id 'java-test-fixtures'
+    // Authors the shared rule library. The runner is deliberately NOT applied here: this module would
+    // otherwise evaluate its own rules against itself, and `archRules project(':architecture-tests')`
+    // would be a dependency cycle.
+    id 'com.netflix.nebula.archrules.library'
     id 'percolate.conventions'
 }
 
+// This module depends on no sibling. The rules it publishes are evaluated by the runner inside each
+// consuming module against that module's own classes, so nothing here needs to see another module's
+// build output - which is exactly what the previous central union-classpath suite required.
 dependencies {
-    compileOnly platform(project(':dependencies'))
+    archRulesTestImplementation platform(project(':dependencies'))
+    archRulesTestImplementation 'com.tngtech.archunit:archunit'
+    archRulesTestImplementation 'org.apache.groovy:groovy'
+    archRulesTestImplementation 'org.spockframework:spock-core'
 
-    testImplementation platform(project(':dependencies'))
-    testImplementation project(':annotations')
-    testImplementation project(':spi')
-    testImplementation project(':processor')
-    testImplementation project(':strategies-builtin')
-    testImplementation project(':reactor')
-    testImplementation project(':reactor-blocking')
-    testImplementation project(':test-foundation')
-    testImplementation 'com.tngtech.archunit:archunit'
-    testImplementation 'org.apache.groovy:groovy'
-    testImplementation 'org.spockframework:spock-core'
-
-    testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
-    testRuntimeOnly 'org.mockito:mockito-junit-jupiter'
-    testRuntimeOnly 'org.slf4j:slf4j-simple'
-
-    testFixturesImplementation platform(project(':dependencies'))
-    testFixturesImplementation 'com.tngtech.archunit:archunit'
-    testFixturesImplementation 'org.apache.groovy:groovy'
+    archRulesTestRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+    archRulesTestRuntimeOnly 'org.mockito:mockito-junit-jupiter'
+    archRulesTestRuntimeOnly 'org.slf4j:slf4j-simple'
 }
