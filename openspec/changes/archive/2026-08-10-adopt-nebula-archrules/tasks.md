@@ -58,4 +58,4 @@
 - [x] 8.2 Run `/opsx:sync` to fold the delta specs into the main specs
 - [x] 8.3 Hand-edit `openspec/specs/module-boundaries/spec.md`'s **Purpose** paragraph — a delta cannot reach it, and it currently describes the central union-classpath suite and the `testFixtures`-published rule that this change removes
 - [x] 8.4 Run `./gradlew check --no-configuration-cache` and confirm it is green. **NEVER continue if there are violations**
-- [ ] 8.5 Commit with `/commit-commands:commit`
+- [x] 8.5 Commit with `/commit-commands:commit`
