@@ -4,6 +4,7 @@ import com.google.auto.service.AutoService;
 import io.github.joke.percolate.Ambient;
 import io.github.joke.percolate.lib.javapoet.CodeBlock;
 import io.github.joke.percolate.spi.ExpansionStrategy;
+import io.github.joke.percolate.spi.IncomingValues;
 import io.github.joke.percolate.spi.MethodCandidate;
 import io.github.joke.percolate.spi.Offer;
 import io.github.joke.percolate.spi.OperationCodegen;
@@ -53,13 +54,17 @@ public final class MethodCallBridge implements ExpansionStrategy {
         }
         final var targetType = demand.targetType();
         return callableMethods.producing(targetType).collect(toUnmodifiableList()).stream()
-                .filter(candidate -> {
-                    final var method = candidate.getMethod();
-                    return nonAmbientParameterCount(method) == NON_AMBIENT_PARAM_COUNT
-                            && ctx.isAssignable(method.getReturnType(), targetType);
-                })
+                .filter(candidate -> isBridgeable(candidate, targetType, ctx))
                 .map(candidate -> buildSpec(candidate, targetType, demand, ctx))
                 .map(Offer::of);
+    }
+
+    // A candidate bridges when exactly one of its parameters is non-ambient and its return type feeds the target.
+    @VisibleForTesting
+    boolean isBridgeable(final MethodCandidate candidate, final TypeMirror targetType, final ResolveCtx ctx) {
+        final var method = candidate.getMethod();
+        return nonAmbientParameterCount(method) == NON_AMBIENT_PARAM_COUNT
+                && ctx.isAssignable(method.getReturnType(), targetType);
     }
 
     @VisibleForTesting
@@ -118,9 +123,19 @@ public final class MethodCallBridge implements ExpansionStrategy {
         final var method = candidate.getMethod();
         final var methodName = method.getSimpleName().toString();
         final var portNames = ports.stream().map(Port::getName).collect(toUnmodifiableList());
-        return inputs -> {
-            final var args = portNames.stream().map(inputs::byName).collect(CodeBlock.joining(", "));
-            return CodeBlock.of("$L$Z.$N($L)", receiver, methodName, args);
-        };
+        return inputs -> renderCall(receiver, methodName, portNames, inputs);
+    }
+
+    // CodeBlock.joining is JavaPoet's own collector, not Collectors.joining, which is already static-imported
+    // here under the same simple name.
+    @SuppressWarnings("PMD.UseStaticImports")
+    @VisibleForTesting
+    CodeBlock renderCall(
+            final CodeBlock receiver,
+            final String methodName,
+            final List<String> portNames,
+            final IncomingValues inputs) {
+        final var args = portNames.stream().map(inputs::byName).collect(CodeBlock.joining(", "));
+        return CodeBlock.of("$L$Z.$N($L)", receiver, methodName, args);
     }
 }

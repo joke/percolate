@@ -4,6 +4,7 @@ import com.google.auto.service.AutoService;
 import io.github.joke.percolate.lib.javapoet.ClassName;
 import io.github.joke.percolate.lib.javapoet.CodeBlock;
 import io.github.joke.percolate.spi.ExpansionStrategy;
+import io.github.joke.percolate.spi.IncomingValues;
 import io.github.joke.percolate.spi.Offer;
 import io.github.joke.percolate.spi.OperationCodegen;
 import io.github.joke.percolate.spi.OperationSpec;
@@ -106,11 +107,18 @@ public final class ConstructorCall implements ExpansionStrategy {
 
     @VisibleForTesting
     OperationCodegen buildCodegen(final TypeElement typeElement, final List<String> portNames) {
-        return inputs -> {
-            final var args = portNames.stream().map(inputs::byName).collect(CodeBlock.joining(", "));
-            return CodeBlock.builder()
-                    .add("new $T($L)", ClassName.get(typeElement), args)
-                    .build();
-        };
+        return inputs -> renderConstructorCall(typeElement, portNames, inputs);
+    }
+
+    // CodeBlock.joining is JavaPoet's own collector, not Collectors.joining, which is already static-imported
+    // here under the same simple name.
+    @SuppressWarnings("PMD.UseStaticImports")
+    @VisibleForTesting
+    CodeBlock renderConstructorCall(
+            final TypeElement typeElement, final List<String> portNames, final IncomingValues inputs) {
+        final var args = portNames.stream().map(inputs::byName).collect(CodeBlock.joining(", "));
+        return CodeBlock.builder()
+                .add("new $T($L)", ClassName.get(typeElement), args)
+                .build();
     }
 }

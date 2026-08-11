@@ -62,16 +62,20 @@ public final class DotRenderer {
                 .vertexSet()
                 .forEach(vertex ->
                         appendStatement(dot, quote(vertex.id()), vertexAttributes(vertex, dimmed.test(vertex))));
-        scopeGraph.edgeSet().forEach(dep -> {
-            final var head = quote(scopeGraph.getEdgeSource(dep).id()) + " -> "
-                    + quote(scopeGraph.getEdgeTarget(dep).id());
-            appendStatement(dot, head, edgeAttributes(dep));
-        });
+        scopeGraph.edgeSet().forEach(dep -> appendEdge(dot, scopeGraph, dep));
         if (withRefusals) {
             scopeGraph.vertexSet().forEach(vertex -> appendRefusals(dot, vertex));
         }
         dot.append('}');
         return dot.toString();
+    }
+
+    // Draws one dependency edge as source -> target, both ends quoted.
+    @VisibleForTesting
+    void appendEdge(final StringBuilder dot, final Graph<GraphVertex, Dep> scopeGraph, final Dep dep) {
+        final var head = quote(scopeGraph.getEdgeSource(dep).id()) + " -> "
+                + quote(scopeGraph.getEdgeTarget(dep).id());
+        appendStatement(dot, head, edgeAttributes(dep));
     }
 
     // Draws vertex's refusals, if it is a Value carrying any, in the order they were recorded. The renderer treats

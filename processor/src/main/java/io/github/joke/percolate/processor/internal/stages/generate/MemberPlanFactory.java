@@ -14,6 +14,7 @@ import java.util.ArrayList;
 import java.util.IdentityHashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import lombok.RequiredArgsConstructor;
 import org.jetbrains.annotations.VisibleForTesting;
 
@@ -60,12 +61,22 @@ final class MemberPlanFactory {
         final var names = new NameAllocator();
         final var namesByDedupKey = new LinkedHashMap<String, String>();
         final var requestByDedupKey = new LinkedHashMap<String, MemberRequest>();
-        byDedupKey.forEach((key, attributions) -> {
-            final var winner = attributions.get(0).getRequest();
-            requestByDedupKey.put(key, winner);
-            namesByDedupKey.put(key, names.newName(memberBase(winner.getFieldType())));
-        });
+        byDedupKey.forEach(
+                (key, attributions) -> allocateMember(key, attributions, names, namesByDedupKey, requestByDedupKey));
         return new MemberPlan(namesByDedupKey, requestByDedupKey);
+    }
+
+    // The first attribution wins the key (conflicts were already reported), and allocates the field's name.
+    @VisibleForTesting
+    void allocateMember(
+            final String key,
+            final List<Attribution> attributions,
+            final NameAllocator names,
+            final Map<String, String> namesByDedupKey,
+            final Map<String, MemberRequest> requestByDedupKey) {
+        final var winner = attributions.get(0).getRequest();
+        requestByDedupKey.put(key, winner);
+        namesByDedupKey.put(key, names.newName(memberBase(winner.getFieldType())));
     }
 
     // Reports a mapper-type-positioned error when attributions disagree on (fieldType, initializer).

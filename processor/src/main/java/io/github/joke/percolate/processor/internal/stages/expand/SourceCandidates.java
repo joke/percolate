@@ -2,7 +2,6 @@ package io.github.joke.percolate.processor.internal.stages.expand;
 
 import io.github.joke.percolate.processor.internal.graph.AddValue;
 import io.github.joke.percolate.processor.internal.graph.InputDecl;
-import io.github.joke.percolate.processor.internal.graph.Location;
 import io.github.joke.percolate.processor.internal.graph.MapperGraph;
 import io.github.joke.percolate.processor.internal.graph.Scope;
 import io.github.joke.percolate.processor.internal.graph.Value;
@@ -18,6 +17,8 @@ import lombok.RequiredArgsConstructor;
 import org.jetbrains.annotations.VisibleForTesting;
 import org.jspecify.annotations.Nullable;
 
+import static io.github.joke.percolate.processor.internal.graph.Location.Role.ACCESS;
+import static io.github.joke.percolate.processor.internal.graph.Location.Role.LEAF;
 import static io.github.joke.percolate.spi.Nullability.NON_NULL;
 import static io.github.joke.percolate.spi.Nullability.NULLABLE;
 import static java.util.Comparator.comparing;
@@ -150,10 +151,15 @@ final class SourceCandidates {
 
     @VisibleForTesting
     Stream<Value> sourceValues(final Scope scope) {
-        return graph.valuesIn(scope).filter(value -> {
-            final var role = value.getLoc().role();
-            return role == Location.Role.ACCESS || role == Location.Role.LEAF;
-        });
+        return graph.valuesIn(scope).filter(this::isSourceRole);
+    }
+
+    // ACCESS (a descended source-path value) and LEAF (a parameter or element root) are the two roles a value
+    // may hold to feed a port; FREE and CONSTANT are not sources.
+    @VisibleForTesting
+    boolean isSourceRole(final Value value) {
+        final var role = value.getLoc().role();
+        return role == ACCESS || role == LEAF;
     }
 
     // Whether a source of (type, nullness) can feed port: same type, non-null satisfies any.

@@ -159,11 +159,15 @@ public final class ExpandStage implements Stage {
             final var pinnedSource = sourcePathDescender.pinnedSource(
                     value.getScope(), targetProducer.pinnedSourcePath(value), targetProducer.pinnedDirective(value));
             for (final var spec : targetProducer.produce(value)) {
-                land(value, spec, pinnedSource).ifPresent(operation -> {
-                    graph.portSourcesOf(operation).forEach(enqueue);
-                    operation.getChildScope().ifPresent(child -> enqueue.accept(child.getReturnRoot()));
-                });
+                land(value, spec, pinnedSource).ifPresent(operation -> enqueueFollowUps(operation, enqueue));
             }
+        }
+
+        // Every demand a landed operation raises: one per port source, plus its child scope's return root.
+        @VisibleForTesting
+        void enqueueFollowUps(final Operation operation, final Consumer<Value> enqueue) {
+            graph.portSourcesOf(operation).forEach(enqueue);
+            operation.getChildScope().ifPresent(child -> enqueue.accept(child.getReturnRoot()));
         }
 
         // Turns spec into a landed Operation bound by pinnedSource-ranked sources, or empty when a port can't be

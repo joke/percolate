@@ -9,7 +9,11 @@ import javax.lang.model.type.TypeMirror;
 import org.jetbrains.annotations.ApiStatus.OverrideOnly;
 import org.jetbrains.annotations.VisibleForTesting;
 
+import static io.github.joke.percolate.spi.ChildScopeSpec.lifted;
 import static io.github.joke.percolate.spi.Nullability.NON_NULL;
+import static io.github.joke.percolate.spi.OperationSpec.mapping;
+import static io.github.joke.percolate.spi.PortType.variable;
+import static io.github.joke.percolate.spi.Weights.CONTAINER;
 
 /**
  * The single base a developer extends to declare a container in <b>one</b> class (design D5/D8). The author supplies a
@@ -173,23 +177,34 @@ public abstract class Container implements ExpansionStrategy, SourceProjection {
                 .ifPresent(intermediate -> specs.add(OperationSpec.of(
                         "collect",
                         unary(close),
-                        Weights.CONTAINER,
+                        CONTAINER,
                         List.of(new Port(STREAM_ROLE, intermediate, NON_NULL)),
                         to,
                         NON_NULL))));
         wrap().ifPresent(lift -> specs.add(OperationSpec.of(
                 "wrap",
                 unary(lift),
-                Weights.CONTAINER,
+                CONTAINER,
                 List.of(new Port(ELEMENT_ROLE, elementOut, wrapNullness())),
                 to,
                 NON_NULL)));
-        mapPresence().ifPresent(map -> kindErasure(ctx).ifPresent(erasure -> {
-            final var template = PortType.app(erasure, List.of(PortType.variable(0)));
-            final var port = new Port(SOURCE_ROLE, erasure.asType(), NON_NULL, template);
-            final var child = ChildScopeSpec.lifted(PortType.variable(0), NON_NULL, elementOut, NON_NULL);
-            specs.add(OperationSpec.mapping("map", map, Weights.CONTAINER, List.of(port), to, NON_NULL, child));
-        }));
+        mapPresence().ifPresent(map -> kindErasure(ctx)
+                .ifPresent(erasure -> addPresenceMap(map, erasure, elementOut, to, specs)));
+    }
+
+    // The same-kind presence-preserving map as a functor lift: a type-variable source port over this kind, and a
+    // child scope lifting the element from the port's variable to the demanded element type.
+    @VisibleForTesting
+    protected void addPresenceMap(
+            final ScopeCodegen map,
+            final TypeElement erasure,
+            final TypeMirror elementOut,
+            final TypeMirror to,
+            final Stream.Builder<OperationSpec> specs) {
+        final var template = PortType.app(erasure, List.of(variable(0)));
+        final var port = new Port(SOURCE_ROLE, erasure.asType(), NON_NULL, template);
+        final var child = lifted(variable(0), NON_NULL, elementOut, NON_NULL);
+        specs.add(mapping("map", map, CONTAINER, List.of(port), to, NON_NULL, child));
     }
 
     @VisibleForTesting
@@ -198,7 +213,7 @@ public abstract class Container implements ExpansionStrategy, SourceProjection {
                 .ifPresent(source -> specs.add(OperationSpec.of(
                         "iterate",
                         unary(open),
-                        Weights.CONTAINER,
+                        CONTAINER,
                         List.of(new Port(SOURCE_ROLE, source, NON_NULL)),
                         to,
                         NON_NULL))));
@@ -218,7 +233,7 @@ public abstract class Container implements ExpansionStrategy, SourceProjection {
                 .ifPresent(source -> specs.add(OperationSpec.ofPartial(
                         "unwrap",
                         (OperationCodegen) inputs -> collapse.render(inputs.single(), demand.targetNullness()),
-                        Weights.CONTAINER,
+                        CONTAINER,
                         List.of(Port.byTypeOrDecline(SOURCE_ROLE, source, NON_NULL)),
                         to,
                         demand.targetNullness()))));

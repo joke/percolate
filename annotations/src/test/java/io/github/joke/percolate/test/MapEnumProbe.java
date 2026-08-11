@@ -30,11 +30,14 @@ public final class MapEnumProbe extends AbstractProcessor {
 
     @Override
     public boolean process(final Set<? extends TypeElement> annotations, final RoundEnvironment roundEnv) {
-        roundEnv.getRootElements().forEach(root -> {
-            emit(root);
-            root.getEnclosedElements().forEach(this::emit);
-        });
+        roundEnv.getRootElements().forEach(this::emitTree);
         return false;
+    }
+
+    @VisibleForTesting
+    void emitTree(final Element root) {
+        emit(root);
+        root.getEnclosedElements().forEach(this::emit);
     }
 
     @VisibleForTesting

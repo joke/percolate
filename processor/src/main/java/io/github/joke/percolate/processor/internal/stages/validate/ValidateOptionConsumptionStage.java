@@ -109,12 +109,20 @@ public final class ValidateOptionConsumptionStage implements Stage {
         if (!seen.add(value)) {
             return;
         }
-        plan.chosenProducer(value).ifPresent(producer -> {
-            ops.add(producer);
-            graph.portSourcesOf(producer).forEach(source -> collectWinningOps(graph, plan, source, ops, seen));
-            producer.getChildScope()
-                    .ifPresent(child -> collectWinningOps(graph, plan, child.getReturnRoot(), ops, seen));
-        });
+        plan.chosenProducer(value).ifPresent(producer -> descendInto(graph, plan, producer, ops, seen));
+    }
+
+    // Records producer and recurses into everything it consumes: each port source, and its child scope's root.
+    @VisibleForTesting
+    void descendInto(
+            final MapperGraph graph,
+            final ExtractedPlan plan,
+            final Operation producer,
+            final Set<Operation> ops,
+            final Set<Value> seen) {
+        ops.add(producer);
+        graph.portSourcesOf(producer).forEach(source -> collectWinningOps(graph, plan, source, ops, seen));
+        producer.getChildScope().ifPresent(child -> collectWinningOps(graph, plan, child.getReturnRoot(), ops, seen));
     }
 
     @VisibleForTesting

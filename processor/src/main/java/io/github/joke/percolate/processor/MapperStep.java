@@ -92,15 +92,20 @@ final class MapperStep implements Step {
     // BasicAnnotationProcessor does not invoke a Step at processingOver.
     @VisibleForTesting
     void flushDeferredDiagnostics() {
-        deferred.forEach((fqn, messages) -> {
-            final var location = elements.getTypeElement(fqn);
-            if (location != null) {
-                final var stale = messages.stream()
-                        .map(message -> Diagnostic.error(Subjects.none(), message))
-                        .collect(toUnmodifiableList());
-                diagnosticEmitter.flush(location, stale);
-            }
-        });
+        deferred.forEach(this::flushDeferredFor);
         deferred.clear();
+    }
+
+    // Re-resolves fqn and emits its recorded messages as errors; a name that no longer resolves is dropped.
+    @VisibleForTesting
+    void flushDeferredFor(final String fqn, final List<String> messages) {
+        final var location = elements.getTypeElement(fqn);
+        if (location == null) {
+            return;
+        }
+        final var stale = messages.stream()
+                .map(message -> Diagnostic.error(Subjects.none(), message))
+                .collect(toUnmodifiableList());
+        diagnosticEmitter.flush(location, stale);
     }
 }

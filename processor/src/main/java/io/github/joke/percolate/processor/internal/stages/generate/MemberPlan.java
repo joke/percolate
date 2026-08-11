@@ -5,10 +5,10 @@ import io.github.joke.percolate.lib.javapoet.FieldSpec;
 import io.github.joke.percolate.spi.MemberRequest;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import lombok.RequiredArgsConstructor;
 import org.jetbrains.annotations.VisibleForTesting;
 
+import static java.util.Objects.requireNonNull;
 import static java.util.stream.Collectors.toUnmodifiableList;
 import static javax.lang.model.element.Modifier.FINAL;
 import static javax.lang.model.element.Modifier.PRIVATE;
@@ -41,13 +41,15 @@ final class MemberPlan {
     // Every distinct requested member as a private static final field, in allocation order.
     @VisibleForTesting
     List<FieldSpec> fields() {
-        return namesByDedupKey.entrySet().stream()
-                .map(entry -> {
-                    final var request = Objects.requireNonNull(requestByDedupKey.get(entry.getKey()));
-                    return FieldSpec.builder(request.getFieldType(), entry.getValue(), PRIVATE, STATIC, FINAL)
-                            .initializer(request.getInitializer())
-                            .build();
-                })
-                .collect(toUnmodifiableList());
+        return namesByDedupKey.entrySet().stream().map(this::fieldFor).collect(toUnmodifiableList());
+    }
+
+    // The private static final field for one allocated member name, initialised from its winning request.
+    @VisibleForTesting
+    FieldSpec fieldFor(final Map.Entry<String, String> entry) {
+        final var request = requireNonNull(requestByDedupKey.get(entry.getKey()));
+        return FieldSpec.builder(request.getFieldType(), entry.getValue(), PRIVATE, STATIC, FINAL)
+                .initializer(request.getInitializer())
+                .build();
     }
 }

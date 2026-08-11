@@ -12,7 +12,6 @@ import io.github.joke.percolate.spi.Port;
 import io.github.joke.percolate.spi.PortType;
 import io.github.joke.percolate.spi.ProduceDemand;
 import io.github.joke.percolate.spi.ResolveCtx;
-import io.github.joke.percolate.spi.Subjects;
 import io.github.joke.percolate.spi.SwitchStyle;
 import io.github.joke.percolate.spi.builtins.Labels;
 import java.util.LinkedHashMap;
@@ -28,10 +27,13 @@ import lombok.NoArgsConstructor;
 import org.jetbrains.annotations.VisibleForTesting;
 
 import static io.github.joke.percolate.spi.Nullability.NON_NULL;
+import static io.github.joke.percolate.spi.Offer.refusal;
 import static io.github.joke.percolate.spi.PortType.variable;
+import static io.github.joke.percolate.spi.Subjects.none;
 import static io.github.joke.percolate.spi.SwitchStyle.AUTO;
 import static io.github.joke.percolate.spi.SwitchStyle.CLASSIC;
 import static io.github.joke.percolate.spi.Weights.EXPENSIVE;
+import static java.lang.String.join;
 import static java.util.stream.Collectors.toUnmodifiableList;
 import static java.util.stream.Collectors.toUnmodifiableSet;
 
@@ -102,23 +104,27 @@ public final class EnumConversion implements ExpansionStrategy {
     // ever competes, so .render never sees either failure.
     @VisibleForTesting
     PortType.Bound sourceBound(final TypeMirror target, final List<DirectiveInput> overrides) {
-        return (source, ctx) -> {
-            if (!ctx.isEnum(source)) {
-                return Optional.of(
-                        Offer.refusal(Subjects.none(), "enum conversion requires an enum source, found " + source));
-            }
-            final var sourceConstants = enumConstantNames(ctx, source);
-            final var mapping = buildMapping(sourceConstants, enumConstantNames(ctx, target), overrides);
-            final var uncovered = sourceConstants.stream()
-                    .filter(constant -> !mapping.containsKey(constant))
-                    .collect(toUnmodifiableList());
-            return uncovered.isEmpty()
-                    ? Optional.empty()
-                    : Optional.of(Offer.refusal(
-                            Subjects.none(),
-                            "no @MapEnum or same-name match covers source constant(s): "
-                                    + String.join(", ", uncovered)));
-        };
+        return (source, ctx) -> vetoSource(source, ctx, target, overrides);
+    }
+
+    @VisibleForTesting
+    Optional<Offer> vetoSource(
+            final TypeMirror source,
+            final ResolveCtx ctx,
+            final TypeMirror target,
+            final List<DirectiveInput> overrides) {
+        if (!ctx.isEnum(source)) {
+            return Optional.of(refusal(none(), "enum conversion requires an enum source, found " + source));
+        }
+        final var sourceConstants = enumConstantNames(ctx, source);
+        final var mapping = buildMapping(sourceConstants, enumConstantNames(ctx, target), overrides);
+        final var uncovered = sourceConstants.stream()
+                .filter(constant -> !mapping.containsKey(constant))
+                .collect(toUnmodifiableList());
+        return uncovered.isEmpty()
+                ? Optional.empty()
+                : Optional.of(refusal(
+                        none(), "no @MapEnum or same-name match covers source constant(s): " + join(", ", uncovered)));
     }
 
     // Renders the whole method body: a switch over the grounded source enum, form chosen by the effective style.

@@ -53,14 +53,22 @@ final class HoistPlanFactory {
         final var feedsNary = newSetFromMap(new IdentityHashMap<Value, Boolean>());
         for (final var operation : inPlanOps) {
             final var nary = operation.getPorts().size() >= NARY;
-            graph.portSourcesOf(operation).forEach(source -> {
-                portConsumers.merge(source, 1, Integer::sum);
-                if (nary) {
-                    feedsNary.add(source);
-                }
-            });
+            graph.portSourcesOf(operation).forEach(source -> tallyConsumer(source, nary, portConsumers, feedsNary));
         }
         return feedsNary;
+    }
+
+    // Counts one more port consuming source, and records it as n-ary-fed when its consumer is an n-ary operation.
+    @VisibleForTesting
+    void tallyConsumer(
+            final Value source,
+            final boolean nary,
+            final Map<Value, Integer> portConsumers,
+            final Set<Value> feedsNary) {
+        portConsumers.merge(source, 1, Integer::sum);
+        if (nary) {
+            feedsNary.add(source);
+        }
     }
 
     // The Values that materialise as named locals: a chosen producer feeding an n-ary op or more than one port.
@@ -68,12 +76,20 @@ final class HoistPlanFactory {
     Set<Value> hoistedValues(
             final ExtractedPlan plan, final Map<Value, Integer> portConsumers, final Set<Value> feedsNary) {
         final var hoisted = newSetFromMap(new IdentityHashMap<Value, Boolean>());
-        portConsumers.forEach((value, count) -> {
-            if (isHoistCandidate(plan, feedsNary, value, count)) {
-                hoisted.add(value);
-            }
-        });
+        portConsumers.forEach((value, count) -> hoistIfCandidate(plan, feedsNary, value, count, hoisted));
         return hoisted;
+    }
+
+    @VisibleForTesting
+    void hoistIfCandidate(
+            final ExtractedPlan plan,
+            final Set<Value> feedsNary,
+            final Value value,
+            final int count,
+            final Set<Value> hoisted) {
+        if (isHoistCandidate(plan, feedsNary, value, count)) {
+            hoisted.add(value);
+        }
     }
 
     @VisibleForTesting
@@ -91,10 +107,19 @@ final class HoistPlanFactory {
         if (!seen.add(value)) {
             return;
         }
-        plan.chosenProducer(value).ifPresent(producer -> {
-            ops.add(producer);
-            graph.portSourcesOf(producer).forEach(source -> collectOps(graph, plan, source, ops, seen));
-            producer.getChildScope().ifPresent(child -> collectOps(graph, plan, child.getReturnRoot(), ops, seen));
-        });
+        plan.chosenProducer(value).ifPresent(producer -> descendInto(graph, plan, producer, ops, seen));
+    }
+
+    // Records producer and recurses into everything it consumes: each port source, and its child scope's root.
+    @VisibleForTesting
+    void descendInto(
+            final MapperGraph graph,
+            final ExtractedPlan plan,
+            final Operation producer,
+            final Set<Operation> ops,
+            final Set<Value> seen) {
+        ops.add(producer);
+        graph.portSourcesOf(producer).forEach(source -> collectOps(graph, plan, source, ops, seen));
+        producer.getChildScope().ifPresent(child -> collectOps(graph, plan, child.getReturnRoot(), ops, seen));
     }
 }

@@ -127,19 +127,23 @@ public final class GraphDumpWriter {
         }
     }
 
+    // Copies dep into slice only when both of its ends survived the vertex filter.
+    @VisibleForTesting
+    void copyEdgeIfInSlice(final MapperGraph graph, final Graph<GraphVertex, Dep> slice, final Dep dep) {
+        final var from = graph.getDepSource(dep);
+        final var to = graph.getDepTarget(dep);
+        if (slice.containsVertex(from) && slice.containsVertex(to)) {
+            slice.addEdge(from, to, dep);
+        }
+    }
+
     @VisibleForTesting
     Graph<GraphVertex, Dep> slice(final MapperGraph graph, final Scope scope, final Predicate<GraphVertex> include) {
         final var slice = new DirectedMultigraph<GraphVertex, Dep>(Dep.class);
         graph.vertices()
                 .filter(vertex -> vertex.getScope().equals(scope) && include.test(vertex))
                 .forEach(slice::addVertex);
-        graph.deps().forEach(dep -> {
-            final var from = graph.getDepSource(dep);
-            final var to = graph.getDepTarget(dep);
-            if (slice.containsVertex(from) && slice.containsVertex(to)) {
-                slice.addEdge(from, to, dep);
-            }
-        });
+        graph.deps().forEach(dep -> copyEdgeIfInSlice(graph, slice, dep));
         return slice;
     }
 
