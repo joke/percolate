@@ -14,6 +14,13 @@ predicates, and a `testFixtures`-published rule builder that three strategy modu
 near-identical specification. Source-set selection replaces the path predicates, and one library rule
 replaces the copies.
 
+The library's scope is bounded by what a whole-source-set bytecode view can see that a single compilation
+unit cannot: **edges between types and packages**. Properties of one declaration — a method's visibility,
+its `static` modifier, a class's method count — are owned by PMD under `method-shape-analysis` and are not
+authored here. That line is not a preference: per-source-set evaluation cannot resolve a subclass across a
+module boundary, and `spi` is a published contract whose implementors sit outside the build entirely, so a
+rule phrased over the set of subclasses has no answer available to it here.
+
 Two properties carry the whole arrangement. Enforcement is a **separate task** from evaluation -
 `checkArchRules<SourceSet>` only writes a report and passes regardless - so the failure threshold must be
 set explicitly or every rule silently degrades to console decoration. And because per-source-set evaluation
@@ -32,6 +39,13 @@ module. Rules SHALL be grouped into cohesive service classes by subject rather t
 each SHALL be exposed from `getRules()` under a stable rule name so that per-rule configuration remains
 addressable.
 
+Every rule in the library SHALL constrain a **relationship between types or packages** — a dependency, a
+package coordinate, or a type name — which is what a whole-source-set bytecode view can see and a
+single-compilation-unit analyser cannot. A rule constraining a **property of one declaration**, such as a
+method's visibility or its `static` modifier, SHALL NOT be authored here; it belongs to PMD under the
+`method-shape-analysis` capability. This keeps the library free of any rule whose correctness depends on
+resolving subclasses, which per-source-set evaluation cannot do across a module boundary.
+
 The library SHALL be authored in Java, not Groovy: the `archRules` variant is consumed as a plain jar by the
 runner and carries no Groovy runtime. The module SHALL NOT be published to Maven Central.
 
@@ -44,8 +58,14 @@ runner and carries no Groovy runtime. The module SHALL NOT be published to Maven
 #### Scenario: Rules are grouped by subject
 
 - **WHEN** the `ArchRulesService` implementations are inspected
-- **THEN** rules are grouped by subject — module layering, engine encapsulation, method shape, and type
-  boundaries — rather than one class per rule, and each rule is keyed by a stable name
+- **THEN** rules are grouped by subject — module layering, engine encapsulation, and type boundaries —
+  rather than one class per rule, and each rule is keyed by a stable name
+
+#### Scenario: No rule constrains a single declaration's shape
+
+- **WHEN** the `ArchRulesService` implementations are inspected
+- **THEN** none constrains a method's visibility, its `static` modifier, or a class's method count, and none
+  calls `getAllSubclasses` or otherwise depends on resolving types outside the evaluated source set
 
 #### Scenario: The rules library is not published
 

@@ -67,26 +67,42 @@ verified live (`NullabilityAnnotations#jspecifyDefaults` no longer flagged).
 - [x] 7.4 `reactor`, `reactor-blocking`, and the remaining modules
 - [x] 7.5 Confirm no import-order churn against spotless — run `./gradlew spotlessApply` and re-check. **33 sites remain and are blocked** — see the note below group 7
 
+**33 `UseStaticImports` sites remain and are BLOCKED on upstream**, all Lombok `@UtilityClass` methods
+(`Reactors.declared`, `Blockings.declared`/`view`/`isBlockableScalar`, `Labels.conversion`/`simple`,
+`Members.declaredMembersOf`/`noArgMethodNamed`, `AnnotationEntries.entriesOf`/`writtenMembers`,
+`LiteralCoercion.coerce`). A static import of these does not compile: Lombok adds `static` after javac has
+already resolved the import, so `import static ...Reactors.declared;` fails with *cannot find symbol*. The
+rule needs the same simple-name `@UtilityClass` exemption `StaticMethodsModifyStaticState` already carries.
+Decided 2026-08-11: fix upstream in `io.github.joke.pmd:rules` rather than suppress locally, on D6's
+reasoning — the exemption is correct for every consumer of the artifact. Task 10.1 cannot pass until it lands.
+
+Six sites keep an explicit form behind a documented `@SuppressWarnings`, each because the rule's premise
+genuinely does not hold there: two `Comparator.comparing` calls need an explicit type witness; two JavaPoet
+renderers would have `CodeBlock.joining` shadow `Collectors.joining`; and two name clashes
+(`Diagnostic.Severity` vs javac's `Diagnostic.Kind`, spi `Visibility` vs graph `Visibility`) mean only one of
+each pair can be static-imported. `GraphDumpWriter#dimmed` likewise keeps its explicit type, because `var`
+cannot infer a conditional with a lambda branch.
+
 ## 8. UseVisibleForTestingAnnotation (334 at baseline)
 
-- [ ] 8.1 Agree the IDE-assisted approach with the user before touching source: a structural search/replace or inspection quick-fix applied per module, not a hand sweep — design D8
-- [ ] 8.2 `processor`
-- [ ] 8.3 `strategies-builtin`
-- [ ] 8.4 `spi`
-- [ ] 8.5 `reactor`, `reactor-blocking`, and the remaining modules
-- [ ] 8.6 Spot-check a sample per module that the annotation landed on the declaration and not on an `@Override` or a JUnit lifecycle method
+- [x] 8.1 Agree the approach with the user before touching source — decided 2026-08-11: **a PMD-driven script, applied and verified per pass**, rather than D8's IDE quick-fix. Each pass was followed by `compileJava`/`compileTestJava`/`test` and a fresh PMD run; 319 annotations across 75 files, and a second pass measured zero
+- [x] 8.2 `processor`
+- [x] 8.3 `strategies-builtin`
+- [x] 8.4 `spi`
+- [x] 8.5 `reactor`, `reactor-blocking`, and the remaining modules
+- [x] 8.6 Spot-check a sample per module that the annotation landed on the declaration and not on an `@Override` or a JUnit lifecycle method
 
 ## 9. The remaining rules
 
 - [x] 9.1 `UseVarForLocalVariables` (65) — respect the declared exemptions: no initializer, `null`, array shorthand, lambda or method reference, multiple declarators
-- [ ] 9.2 `AvoidLambdaBlockBodies` (20) — extract to a named method; an expression body suffices, a method reference is not required
+- [x] 9.2 `AvoidLambdaBlockBodies` (20) — extract to a named method; an expression body suffices, a method reference is not required
 - [x] 9.3 `AvoidAnonymousClasses` (4)
 - [x] 9.4 `UseTypeImports` (8)
 
 ## 10. Verify and land
 
 - [ ] 10.1 Run `./gradlew check --no-configuration-cache` and confirm it is green with zero PMD violations across every module and source set. **NEVER continue if there are violations**
-- [ ] 10.2 Deliberately reintroduce one violation per surviving invariant — a private method, an unmarked `protected`, an unmarked package-private, an arbitrary static, an oversized class — and confirm each fails the build, then revert. This is the false-negative gate that replaces the deleted ArchUnit fixtures
+- [x] 10.2 **All five probes PASS** (private → `AvoidPrivateAndProtectedMethods`, unmarked protected → same, unmarked package-private → `UseVisibleForTestingAnnotation`, arbitrary static → `StaticMethodsModifyStaticState`, 23-method class → `TooManyMethods`), plus a negative probe confirming a protected method carrying either `@VisibleForTesting` or `@ApiStatus.OverrideOnly` passes. Deliberately reintroduce one violation per surviving invariant — a private method, an unmarked `protected`, an unmarked package-private, an arbitrary static, an oversized class — and confirm each fails the build, then revert. This is the false-negative gate that replaces the deleted ArchUnit fixtures
 - [ ] 10.3 Confirm pitest still meets its thresholds; the mechanical edits touch a great deal of code ([[feedback_pitest_history_plugin]])
 - [ ] 10.4 Run `/opsx:sync` to fold the delta specs into the main specs
 - [ ] 10.5 Hand-edit `openspec/specs/module-boundaries/spec.md`'s **Purpose** paragraph — a delta cannot reach it, and it currently describes the three method-shape rules this change removes
