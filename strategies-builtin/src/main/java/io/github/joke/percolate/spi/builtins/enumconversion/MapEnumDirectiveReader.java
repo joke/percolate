@@ -10,11 +10,12 @@ import io.github.joke.percolate.spi.Subjects;
 import io.github.joke.percolate.spi.builtins.AnnotationEntries;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import javax.lang.model.element.AnnotationMirror;
-import javax.lang.model.element.AnnotationValue;
 import javax.lang.model.element.ExecutableElement;
 import lombok.NoArgsConstructor;
+
+import static io.github.joke.percolate.spi.DirectiveInput.structured;
+import static java.util.Objects.requireNonNull;
 
 // Reads a method's @MapEnum/@MapEnumList declarations into one repeated, structured "enum" input per entry,
 // attached at the empty root target path — @MapEnum is method-level, in effect only for a conversion method's
@@ -37,10 +38,10 @@ public final class MapEnumDirectiveReader implements DirectiveReader {
     }
 
     DirectiveInput toInput(final ExecutableElement method, final AnnotationMirror mirror) {
-        final Map<String, AnnotationValue> written = AnnotationEntries.writtenMembers(mirror);
-        final var sourceValue = Objects.requireNonNull(written.get(SOURCE));
-        final var targetValue = Objects.requireNonNull(written.get(TARGET));
-        return DirectiveInput.structured(
+        final var written = AnnotationEntries.writtenMembers(mirror);
+        final var sourceValue = requireNonNull(written.get(SOURCE));
+        final var targetValue = requireNonNull(written.get(TARGET));
+        return structured(
                 ENUM_KEY,
                 Map.of(
                         SOURCE,

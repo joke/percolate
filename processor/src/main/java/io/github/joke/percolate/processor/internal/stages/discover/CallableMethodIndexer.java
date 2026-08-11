@@ -3,7 +3,6 @@ package io.github.joke.percolate.processor.internal.stages.discover;
 import com.groupcdg.pitest.annotations.CoverageIgnore;
 import jakarta.inject.Inject;
 import java.util.List;
-import javax.lang.model.element.Element;
 import javax.lang.model.element.ExecutableElement;
 import javax.lang.model.element.TypeElement;
 import javax.lang.model.util.Elements;
@@ -42,7 +41,7 @@ final class CallableMethodIndexer {
     }
 
     boolean enclosingIsObject(final ExecutableElement method) {
-        final Element enclosing = method.getEnclosingElement();
+        final var enclosing = method.getEnclosingElement();
         return enclosing instanceof TypeElement
                 && OBJECT_FQN.equals(
                         ((TypeElement) enclosing).getQualifiedName().toString());

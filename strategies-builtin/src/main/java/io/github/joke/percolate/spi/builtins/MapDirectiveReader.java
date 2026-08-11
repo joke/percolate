@@ -9,12 +9,14 @@ import io.github.joke.percolate.spi.DirectiveSink;
 import io.github.joke.percolate.spi.Subject;
 import io.github.joke.percolate.spi.Subjects;
 import java.util.List;
-import java.util.Objects;
 import javax.lang.model.element.AnnotationMirror;
 import javax.lang.model.element.AnnotationValue;
 import javax.lang.model.element.ExecutableElement;
 import lombok.NoArgsConstructor;
 import lombok.RequiredArgsConstructor;
+
+import static io.github.joke.percolate.spi.DirectiveInput.scalar;
+import static java.util.Objects.requireNonNull;
 
 // Reads a method's @Map/@MapList declarations into DirectiveSink calls (design D4/D7 of change decouple-engine-
 // from-strategy-semantics): target is always written, while source, constant, defaultValue, format and zone
@@ -48,7 +50,7 @@ public final class MapDirectiveReader implements DirectiveReader {
 
     void readEntry(final ExecutableElement method, final AnnotationMirror mirror, final DirectiveSink sink) {
         final var written = AnnotationEntries.writtenMembers(mirror);
-        final var targetValue = Objects.requireNonNull(written.get(TARGET));
+        final var targetValue = requireNonNull(written.get(TARGET));
         final var targetPath = splitDotted(targetValue.getValue().toString());
         final var targetSubject = Subjects.of(method, mirror, targetValue);
 
@@ -62,8 +64,7 @@ public final class MapDirectiveReader implements DirectiveReader {
         sink.bind(targetPath, sourcePath, targetSubject);
         OPTIONAL_MEMBERS.stream()
                 .filter(key -> !SOURCE.equals(key) && written.containsKey(key))
-                .forEach(key ->
-                        sink.input(targetPath, toInput(method, mirror, key, Objects.requireNonNull(written.get(key)))));
+                .forEach(key -> sink.input(targetPath, toInput(method, mirror, key, requireNonNull(written.get(key)))));
     }
 
     // Enforces @Map's own shape rules, refusing the target path outright when violated.
@@ -101,7 +102,7 @@ public final class MapDirectiveReader implements DirectiveReader {
                 return false;
             }
             refuse(
-                    Subjects.of(method, mirror, Objects.requireNonNull(written.get(TARGET))),
+                    Subjects.of(method, mirror, requireNonNull(written.get(TARGET))),
                     "@Map must declare a 'source' or a 'constant'");
             return true;
         }
@@ -133,7 +134,7 @@ public final class MapDirectiveReader implements DirectiveReader {
             final AnnotationMirror mirror,
             final String key,
             final AnnotationValue value) {
-        return DirectiveInput.scalar(key, value.getValue().toString(), Subjects.of(method, mirror, value));
+        return scalar(key, value.getValue().toString(), Subjects.of(method, mirror, value));
     }
 
     List<String> splitDotted(final String path) {

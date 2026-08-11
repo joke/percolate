@@ -16,6 +16,9 @@ import java.util.stream.Stream;
 import javax.lang.model.type.TypeMirror;
 import lombok.NoArgsConstructor;
 
+import static io.github.joke.percolate.reactorblocking.Blockings.FLUX;
+import static io.github.joke.percolate.reactorblocking.Blockings.STREAM;
+
 // Upward async-to-sync crossing Flux<T> → Stream<T> via flux.toStream(): a distinct (lazily streaming, not
 // buffering) blocking bridge into the JDK Stream world — not redundant with collectList().block() + iterate
 // (that fully buffers first). Keyed on a target Stream<T> and sourcing a Flux<T> through a reuse-only port.
@@ -36,7 +39,7 @@ public final class FluxToStream implements ExpansionStrategy, SourceProjection {
         if (!ctx.isStream(to)) {
             return Stream.empty();
         }
-        return Blockings.declared(ctx, Blockings.FLUX, ctx.typeArgument(to, 0))
+        return Blockings.declared(ctx, FLUX, ctx.typeArgument(to, 0))
                 .map(flux -> OperationSpec.of(
                         "toStream",
                         (OperationCodegen) inputs -> CodeBlock.of("$L$Z.toStream()", inputs.single()),
@@ -50,6 +53,6 @@ public final class FluxToStream implements ExpansionStrategy, SourceProjection {
 
     @Override
     public Stream<TypeMirror> project(final TypeMirror source, final ResolveCtx ctx) {
-        return Blockings.view(source, Blockings.FLUX, Blockings.STREAM, ctx);
+        return Blockings.view(source, FLUX, STREAM, ctx);
     }
 }

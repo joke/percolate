@@ -1,7 +1,6 @@
 package io.github.joke.percolate.spi;
 
 import java.util.List;
-import java.util.Objects;
 import java.util.Optional;
 import javax.lang.model.element.TypeElement;
 import javax.lang.model.type.TypeMirror;
@@ -9,6 +8,8 @@ import lombok.EqualsAndHashCode;
 import lombok.ToString;
 import lombok.Value;
 import org.jspecify.annotations.Nullable;
+
+import static java.util.Objects.requireNonNull;
 
 /**
  * The structural shape of a {@link Port} type that may carry a <b>type variable</b> (design D2, change
@@ -48,7 +49,7 @@ public abstract class PortType {
      * the strategy vetoes an inadmissible match before it ever competes rather than crashing when it renders.
      */
     public static PortType variable(final int index, final Bound bound) {
-        return new Var(index, Objects.requireNonNull(bound));
+        return new Var(index, requireNonNull(bound));
     }
 
     /** A parameterised application, e.g. {@code Set<…>} / {@code Flux<…>}, whose arguments may be variables. */

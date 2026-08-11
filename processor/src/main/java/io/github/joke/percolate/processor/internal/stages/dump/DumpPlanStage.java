@@ -1,14 +1,13 @@
 package io.github.joke.percolate.processor.internal.stages.dump;
 
 import io.github.joke.percolate.processor.MapperContext;
-import io.github.joke.percolate.processor.internal.graph.ExtractedPlan;
-import io.github.joke.percolate.processor.internal.graph.GraphVertex;
 import io.github.joke.percolate.processor.internal.stages.Stage;
 import jakarta.inject.Inject;
-import java.util.Collections;
 import java.util.IdentityHashMap;
-import java.util.Set;
 import lombok.RequiredArgsConstructor;
+
+import static io.github.joke.percolate.processor.internal.graph.ExtractedPlan.extract;
+import static java.util.Collections.newSetFromMap;
 
 // Dumps the chosen-plan view (in-plan vertices only), one .plan.dot file per scope.
 @RequiredArgsConstructor(onConstructor_ = @Inject)
@@ -22,8 +21,8 @@ public final class DumpPlanStage implements Stage {
         if (graph == null) {
             return;
         }
-        final var plan = ExtractedPlan.extract(graph);
-        final Set<GraphVertex> inPlan = Collections.newSetFromMap(new IdentityHashMap<>());
+        final var plan = extract(graph);
+        final var inPlan = newSetFromMap(new IdentityHashMap<>());
         graph.values().forEach(value -> plan.chosenProducer(value).ifPresent(operation -> {
             inPlan.add(value);
             inPlan.add(operation);

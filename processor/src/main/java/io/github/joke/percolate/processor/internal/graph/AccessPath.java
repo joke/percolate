@@ -4,6 +4,8 @@ import java.util.List;
 import lombok.Value;
 import org.jspecify.annotations.Nullable;
 
+import static java.lang.String.join;
+
 @Value
 public class AccessPath {
     List<String> segments;
@@ -27,6 +29,6 @@ public class AccessPath {
 
     @Override
     public String toString() {
-        return String.join(".", segments);
+        return join(".", segments);
     }
 }

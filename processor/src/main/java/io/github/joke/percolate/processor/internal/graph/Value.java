@@ -2,12 +2,14 @@ package io.github.joke.percolate.processor.internal.graph;
 
 import io.github.joke.percolate.spi.Nullability;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
 import javax.lang.model.type.TypeMirror;
-import lombok.AccessLevel;
 import lombok.Getter;
+
+import static java.lang.System.identityHashCode;
+import static java.util.Collections.unmodifiableList;
+import static lombok.AccessLevel.NONE;
 
 // A typed variable at a Location: the OR-kind vertex of the bipartite graph — it is producible by any one of
 // its inbound producer Operations. Identity is dedup-by-key: MapperGraph.valueFor get-or- creates one instance
@@ -31,7 +33,7 @@ public final class Value implements GraphVertex {
     private Optional<TypeMirror> type;
     private Optional<Nullability> nullness;
 
-    @Getter(AccessLevel.NONE)
+    @Getter(NONE)
     private final List<Refusal> inadmissible = new ArrayList<>();
 
     Value(
@@ -52,7 +54,7 @@ public final class Value implements GraphVertex {
 
     // The refusals recorded against this demand, in recording order.
     public List<Refusal> getInadmissible() {
-        return Collections.unmodifiableList(inadmissible);
+        return unmodifiableList(inadmissible);
     }
 
     // This Value's type, or a failure if it has not yet been typed.
@@ -94,6 +96,6 @@ public final class Value implements GraphVertex {
 
     @Override
     public int hashCode() {
-        return System.identityHashCode(this);
+        return identityHashCode(this);
     }
 }

@@ -16,6 +16,8 @@ import java.util.stream.Stream;
 import lombok.NoArgsConstructor;
 import reactor.core.publisher.Flux;
 
+import static io.github.joke.percolate.reactor.Reactors.FLUX;
+
 // Downward interop bridge Stream<T> → Flux<T> via Flux.fromStream (design D5): a target-driven conversion keyed
 // on the concrete demanded Flux<T>, sourcing a concrete Stream<T> port. The JDK collection containers feed that
 // Stream<T> through the shared java.util.stream.Stream intermediate (e.g. a List<DTO> → Stream<DAO>), so any
@@ -27,7 +29,7 @@ public final class FluxFromStream implements ExpansionStrategy {
     @Override
     public Stream<Offer> expand(final ProduceDemand demand, final ResolveCtx ctx) {
         final var to = demand.targetType();
-        if (!ctx.isType(to, Reactors.FLUX)) {
+        if (!ctx.isType(to, FLUX)) {
             return Stream.empty();
         }
         return Reactors.declared(ctx, "java.util.stream.Stream", ctx.typeArgument(to, 0))

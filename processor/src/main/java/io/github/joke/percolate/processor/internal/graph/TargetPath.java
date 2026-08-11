@@ -3,6 +3,8 @@ package io.github.joke.percolate.processor.internal.graph;
 import java.util.List;
 import lombok.Value;
 
+import static java.lang.String.join;
+
 @Value
 public class TargetPath {
     List<String> segments;
@@ -21,6 +23,6 @@ public class TargetPath {
 
     @Override
     public String toString() {
-        return String.join(".", segments);
+        return join(".", segments);
     }
 }

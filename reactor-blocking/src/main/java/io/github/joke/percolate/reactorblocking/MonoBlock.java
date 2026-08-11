@@ -14,6 +14,8 @@ import java.util.List;
 import java.util.stream.Stream;
 import lombok.NoArgsConstructor;
 
+import static io.github.joke.percolate.reactorblocking.Blockings.MONO;
+
 // Upward async-to-sync crossing Mono<T> → T via mono.block(): a target-driven conversion keyed on a plain
 // scalar T, sourcing a Mono<T> through a reuse-only port (the unwrap pattern) so it never mints a fresh Mono
 // just to block it. The edge is weighted strictly above any non-blocking alternative, so a lazy reactive path
@@ -31,7 +33,7 @@ public final class MonoBlock implements ExpansionStrategy {
         if (!Blockings.isBlockableScalar(to, ctx)) {
             return Stream.empty();
         }
-        return Blockings.declared(ctx, Blockings.MONO, to)
+        return Blockings.declared(ctx, MONO, to)
                 .map(mono -> OperationSpec.ofPartial(
                         "block",
                         (OperationCodegen) inputs -> CodeBlock.of("$L$Z.block()", inputs.single()),

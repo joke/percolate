@@ -3,7 +3,6 @@ package io.github.joke.percolate.processor;
 import com.google.auto.common.BasicAnnotationProcessor;
 import com.google.auto.service.AutoService;
 import java.util.List;
-import java.util.Objects;
 import java.util.Set;
 import javax.annotation.processing.Processor;
 import javax.annotation.processing.RoundEnvironment;
@@ -11,6 +10,20 @@ import javax.lang.model.SourceVersion;
 import lombok.NoArgsConstructor;
 import org.jetbrains.annotations.VisibleForTesting;
 import org.jspecify.annotations.Nullable;
+
+import static io.github.joke.percolate.processor.DaggerProcessorComponent.factory;
+import static io.github.joke.percolate.processor.ProcessorOptions.CLASSES_FINAL;
+import static io.github.joke.percolate.processor.ProcessorOptions.DEBUG_GRAPHS;
+import static io.github.joke.percolate.processor.ProcessorOptions.DOC_TAGS;
+import static io.github.joke.percolate.processor.ProcessorOptions.LOCALS_FINAL;
+import static io.github.joke.percolate.processor.ProcessorOptions.LOCALS_VAR;
+import static io.github.joke.percolate.processor.ProcessorOptions.METHODS_FINAL;
+import static io.github.joke.percolate.processor.ProcessorOptions.NULLABLE_ANNOTATIONS;
+import static io.github.joke.percolate.processor.ProcessorOptions.PARAMETERS_FINAL;
+import static io.github.joke.percolate.processor.ProcessorOptions.SWITCH_STYLE;
+import static io.github.joke.percolate.processor.ProcessorOptions.TIME_ZONE;
+import static java.util.Objects.requireNonNull;
+import static javax.lang.model.SourceVersion.latestSupported;
 
 @AutoService(Processor.class)
 @NoArgsConstructor
@@ -20,31 +33,31 @@ public final class PercolateProcessor extends BasicAnnotationProcessor {
 
     @Override
     public SourceVersion getSupportedSourceVersion() {
-        return SourceVersion.latestSupported();
+        return latestSupported();
     }
 
     @Override
     public Set<String> getSupportedOptions() {
         return Set.of(
-                ProcessorOptions.DEBUG_GRAPHS,
-                ProcessorOptions.NULLABLE_ANNOTATIONS,
-                ProcessorOptions.LOCALS_FINAL,
-                ProcessorOptions.LOCALS_VAR,
-                ProcessorOptions.PARAMETERS_FINAL,
-                ProcessorOptions.METHODS_FINAL,
-                ProcessorOptions.CLASSES_FINAL,
-                ProcessorOptions.DOC_TAGS,
-                ProcessorOptions.TIME_ZONE,
-                ProcessorOptions.SWITCH_STYLE);
+                DEBUG_GRAPHS,
+                NULLABLE_ANNOTATIONS,
+                LOCALS_FINAL,
+                LOCALS_VAR,
+                PARAMETERS_FINAL,
+                METHODS_FINAL,
+                CLASSES_FINAL,
+                DOC_TAGS,
+                TIME_ZONE,
+                SWITCH_STYLE);
     }
 
     @Override
     @VisibleForTesting
     protected Iterable<? extends Step> steps() {
         if (component == null) {
-            component = DaggerProcessorComponent.factory().create(new ProcessorModule(processingEnv));
+            component = factory().create(new ProcessorModule(processingEnv));
         }
-        return List.of(Objects.requireNonNull(component).mapperStep());
+        return List.of(requireNonNull(component).mapperStep());
     }
 
     // On the final round, flush the recorded no plan diagnostics for any mapper still deferred.

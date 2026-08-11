@@ -6,13 +6,14 @@ import io.github.joke.percolate.spi.Accessor;
 import io.github.joke.percolate.spi.ExpansionStrategy;
 import io.github.joke.percolate.spi.OperationCodegen;
 import io.github.joke.percolate.spi.ResolveCtx;
-import io.github.joke.percolate.spi.Weights;
 import java.util.Optional;
 import javax.lang.model.element.Element;
 import javax.lang.model.element.TypeElement;
 import javax.lang.model.element.VariableElement;
 import lombok.NoArgsConstructor;
 import org.jetbrains.annotations.VisibleForTesting;
+
+import static io.github.joke.percolate.spi.Weights.STEP_FIELD;
 
 // Resolves one source-path segment to a visible (non-private, non-static) field on the parent type, on the
 // Accessor archetype base: candidate-free, the base pins the parent and the segment and wires the one-port
@@ -33,7 +34,7 @@ public final class FieldPathResolver extends Accessor {
 
     Step step(final VariableElement field, final String segment) {
         final OperationCodegen codegen = inputs -> CodeBlock.of("$L$Z.$N", inputs.single(), segment);
-        return new Step(field.asType(), field, "." + segment, Weights.STEP_FIELD, codegen);
+        return new Step(field.asType(), field, "." + segment, STEP_FIELD, codegen);
     }
 
     Optional<VariableElement> matchField(final Element member, final String segment, final ResolveCtx ctx) {

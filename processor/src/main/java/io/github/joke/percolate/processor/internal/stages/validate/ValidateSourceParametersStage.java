@@ -1,6 +1,5 @@
 package io.github.joke.percolate.processor.internal.stages.validate;
 
-import io.github.joke.percolate.processor.Diagnostic;
 import io.github.joke.percolate.processor.MapperContext;
 import io.github.joke.percolate.processor.internal.stages.Stage;
 import io.github.joke.percolate.processor.model.Bind;
@@ -13,16 +12,20 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
-import java.util.stream.Collectors;
 import javax.lang.model.element.ExecutableElement;
 import javax.lang.model.element.TypeElement;
 import javax.lang.model.element.VariableElement;
-import javax.lang.model.type.TypeKind;
+import javax.lang.model.type.DeclaredType;
+import javax.lang.model.type.TypeMirror;
 import lombok.RequiredArgsConstructor;
 
+import static io.github.joke.percolate.processor.Diagnostic.error;
+import static java.util.stream.Collectors.groupingBy;
 import static java.util.stream.Collectors.joining;
 import static java.util.stream.Collectors.toMap;
+import static java.util.stream.Collectors.toUnmodifiableList;
 import static java.util.stream.Collectors.toUnmodifiableSet;
+import static javax.lang.model.type.TypeKind.TYPEVAR;
 
 // The engine's own rules about its own scope inputs (design D7 of change decouple-engine-from-strategy-
 // semantics): a bound source path must root at a scope input of the method — a path it cannot begin, not a
@@ -73,8 +76,7 @@ public final class ValidateSourceParametersStage implements Stage {
             final String methodSig,
             final MapperContext ctx) {
         directives.getMethod().getParameters().stream()
-                .collect(Collectors.groupingBy(
-                        param -> nameOf(param, overrideByParam), LinkedHashMap::new, Collectors.toUnmodifiableList()))
+                .collect(groupingBy(param -> nameOf(param, overrideByParam), LinkedHashMap::new, toUnmodifiableList()))
                 .forEach((name, sharing) -> reportDuplicateScopeInputs(name, sharing, methodSig, ctx));
     }
 
@@ -85,9 +87,9 @@ public final class ValidateSourceParametersStage implements Stage {
             final MapperContext ctx) {
         sharing.stream()
                 .skip(1)
-                .forEach(param -> ctx.report(Diagnostic.error(
-                                Subjects.of(param, null, null), "duplicate scope input '" + name + "' on " + methodSig)
-                        .asPermanent()));
+                .forEach(param -> ctx.report(
+                        error(Subjects.of(param, null, null), "duplicate scope input '" + name + "' on " + methodSig)
+                                .asPermanent()));
     }
 
     String nameOf(final VariableElement param, final Map<VariableElement, ScopeInputOverride> overrideByParam) {
@@ -104,10 +106,9 @@ public final class ValidateSourceParametersStage implements Stage {
         if (names.contains(root)) {
             return;
         }
-        ctx.report(Diagnostic.error(
-                        bind.getSubject(),
-                        "source path is rooted at unknown scope input '" + root + "' on " + methodSig)
-                .asPermanent());
+        ctx.report(
+                error(bind.getSubject(), "source path is rooted at unknown scope input '" + root + "' on " + methodSig)
+                        .asPermanent());
     }
 
     String formatMethodSig(final ExecutableElement method) {
@@ -118,21 +119,21 @@ public final class ValidateSourceParametersStage implements Stage {
         return name + "(" + paramTypes + ")";
     }
 
-    String simpleTypeName(final javax.lang.model.type.TypeMirror mirror) {
+    String simpleTypeName(final TypeMirror mirror) {
         if (mirror == null) {
             return "?";
         }
-        if (mirror.getKind() == TypeKind.TYPEVAR) {
+        if (mirror.getKind() == TYPEVAR) {
             return mirror.toString();
         }
         return declaredSimpleName(mirror).orElseGet(mirror::toString);
     }
 
-    Optional<String> declaredSimpleName(final javax.lang.model.type.TypeMirror mirror) {
-        if (!(mirror instanceof javax.lang.model.type.DeclaredType)) {
+    Optional<String> declaredSimpleName(final TypeMirror mirror) {
+        if (!(mirror instanceof DeclaredType)) {
             return Optional.empty();
         }
-        final var elem = ((javax.lang.model.type.DeclaredType) mirror).asElement();
+        final var elem = ((DeclaredType) mirror).asElement();
         return elem instanceof TypeElement ? Optional.of(elem.getSimpleName().toString()) : Optional.empty();
     }
 }

@@ -8,6 +8,8 @@ import lombok.EqualsAndHashCode;
 import lombok.ToString;
 import lombok.Value;
 
+import static java.util.stream.Collectors.joining;
+
 // A method scope's identity is its .method alone (design D5 of change decouple-engine-from-strategy-semantics)
 // — two instances for the same method are the same scope regardless of which InputDecls they were built with,
 // so scope dedup (used pervasively as a map key) is unaffected by how a caller constructed it. MethodScope
@@ -36,9 +38,8 @@ public class MethodScope implements Scope {
     @Override
     public String encode() {
         final var name = method.getSimpleName().toString();
-        final var paramTypes = method.getParameters().stream()
-                .map(p -> p.asType().toString())
-                .collect(java.util.stream.Collectors.joining(","));
+        final var paramTypes =
+                method.getParameters().stream().map(p -> p.asType().toString()).collect(joining(","));
         return name + "(" + paramTypes + ")";
     }
 

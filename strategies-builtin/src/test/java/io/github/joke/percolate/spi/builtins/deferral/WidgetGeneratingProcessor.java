@@ -8,6 +8,9 @@ import javax.annotation.processing.RoundEnvironment;
 import javax.annotation.processing.SupportedAnnotationTypes;
 import javax.lang.model.SourceVersion;
 import javax.lang.model.element.TypeElement;
+import org.jetbrains.annotations.VisibleForTesting;
+
+import static javax.lang.model.SourceVersion.latestSupported;
 
 /**
  * Test-only co-processor standing in for Lombok: on its first round it writes {@code examples.deferral.Widget}, a
@@ -21,7 +24,7 @@ public final class WidgetGeneratingProcessor extends AbstractProcessor {
 
     @Override
     public SourceVersion getSupportedSourceVersion() {
-        return SourceVersion.latestSupported();
+        return latestSupported();
     }
 
     @Override
@@ -33,7 +36,8 @@ public final class WidgetGeneratingProcessor extends AbstractProcessor {
         return false;
     }
 
-    private void writeWidget() {
+    @VisibleForTesting
+    void writeWidget() {
         try {
             final var file = processingEnv.getFiler().createSourceFile("examples.deferral.Widget");
             try (var writer = file.openWriter()) {

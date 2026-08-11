@@ -2,6 +2,9 @@ package io.github.joke.percolate.processor.internal.graph;
 
 import lombok.Value;
 
+import static io.github.joke.percolate.processor.internal.graph.Location.Role.ACCESS;
+import static io.github.joke.percolate.processor.internal.graph.Location.Role.LEAF;
+
 @Value
 public class SourceLocation implements Location {
 
@@ -11,7 +14,7 @@ public class SourceLocation implements Location {
 
     @Override
     public Role role() {
-        return path.getSegments().size() > SINGLE_SEGMENT ? Role.ACCESS : Role.LEAF;
+        return path.getSegments().size() > SINGLE_SEGMENT ? ACCESS : LEAF;
     }
 
     @Override

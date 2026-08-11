@@ -10,7 +10,6 @@ import io.github.joke.percolate.processor.internal.graph.Visibility;
 import io.github.joke.percolate.spi.Nullability;
 import io.github.joke.percolate.spi.Port;
 import io.github.joke.percolate.spi.ResolveCtx;
-import java.util.Comparator;
 import java.util.List;
 import java.util.Optional;
 import java.util.stream.Stream;
@@ -18,7 +17,11 @@ import javax.lang.model.type.TypeMirror;
 import lombok.RequiredArgsConstructor;
 import org.jspecify.annotations.Nullable;
 
+import static io.github.joke.percolate.spi.Nullability.NON_NULL;
+import static io.github.joke.percolate.spi.Nullability.NULLABLE;
+import static java.util.Comparator.comparing;
 import static java.util.stream.Collectors.toUnmodifiableList;
+import static java.util.stream.Stream.concat;
 
 // Source-binding lookup for the expansion driver (demand-driven-expansion D4): given a scope, the in-scope
 // source Value that can feed a demanded Port — an already-materialised graph source first, else a matching
@@ -45,7 +48,7 @@ final class SourceCandidates {
     // parameters is therefore always offered to BindingEnumerator in declaration order, so grounding-by-match over-
     // emits and the extraction fold prunes ties in that same order.
     List<TypeMirror> sourceTypes(final Scope scope) {
-        return Stream.concat(
+        return concat(
                         scope.inputDecls().map(InputDecl::getType),
                         sourceValues(scope).map(Value::type))
                 .collect(toUnmodifiableList());
@@ -67,7 +70,7 @@ final class SourceCandidates {
     }
 
     Optional<Value> existingMatch(final Scope scope, final Port port) {
-        return sourceValues(scope).filter(value -> matchesPort(value, port)).min(Comparator.comparing(Value::id));
+        return sourceValues(scope).filter(value -> matchesPort(value, port)).min(comparing(Value::id));
     }
 
     // Whether value can feed port: same type and a non-null source satisfies any nullness.
@@ -141,7 +144,7 @@ final class SourceCandidates {
 
     // Whether a source of (type, nullness) can feed port: same type, non-null satisfies any.
     boolean matches(final TypeMirror sourceType, final Nullability sourceNullness, final Port port) {
-        final var nullnessClash = port.getNullness() == Nullability.NON_NULL && sourceNullness == Nullability.NULLABLE;
+        final var nullnessClash = port.getNullness() == NON_NULL && sourceNullness == NULLABLE;
         return !nullnessClash && resolveCtx.isSameType(sourceType, port.getType());
     }
 }

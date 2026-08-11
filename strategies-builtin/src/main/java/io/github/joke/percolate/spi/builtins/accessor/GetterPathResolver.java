@@ -6,14 +6,16 @@ import io.github.joke.percolate.spi.Accessor;
 import io.github.joke.percolate.spi.ExpansionStrategy;
 import io.github.joke.percolate.spi.OperationCodegen;
 import io.github.joke.percolate.spi.ResolveCtx;
-import io.github.joke.percolate.spi.Weights;
 import java.util.Optional;
 import javax.lang.model.element.Element;
 import javax.lang.model.element.ExecutableElement;
 import javax.lang.model.element.TypeElement;
-import javax.lang.model.type.TypeKind;
 import lombok.NoArgsConstructor;
 import org.jetbrains.annotations.VisibleForTesting;
+
+import static io.github.joke.percolate.spi.Weights.STEP_GETTER;
+import static java.lang.Character.toUpperCase;
+import static javax.lang.model.type.TypeKind.BOOLEAN;
 
 // Resolves one source-path segment to a JavaBeans getter (getX() / boolean isX()) on the parent type, on the
 // Accessor archetype base: candidate-free, the base pins the parent and the segment and wires the one-port
@@ -39,7 +41,7 @@ public final class GetterPathResolver extends Accessor {
     Step step(final ExecutableElement method) {
         final var methodName = method.getSimpleName().toString();
         final OperationCodegen codegen = inputs -> CodeBlock.of("$L$Z.$N()", inputs.single(), methodName);
-        return new Step(method.getReturnType(), method, methodName + "()", Weights.STEP_GETTER, codegen);
+        return new Step(method.getReturnType(), method, methodName + "()", STEP_GETTER, codegen);
     }
 
     Optional<ExecutableElement> matchGetter(final Element member, final String getterName, final ResolveCtx ctx) {
@@ -52,11 +54,11 @@ public final class GetterPathResolver extends Accessor {
 
     boolean isBooleanReturn(final ExecutableElement method, final ResolveCtx ctx) {
         final var returnType = method.getReturnType();
-        return ctx.kind(returnType) == TypeKind.BOOLEAN || "java.lang.Boolean".equals(ctx.qualifiedName(returnType));
+        return ctx.kind(returnType) == BOOLEAN || "java.lang.Boolean".equals(ctx.qualifiedName(returnType));
     }
 
     // One return, so the empty case is not a second return statement indistinguishable from returning "".
     String capitalize(final String segment) {
-        return segment.isEmpty() ? segment : Character.toUpperCase(segment.charAt(0)) + segment.substring(1);
+        return segment.isEmpty() ? segment : toUpperCase(segment.charAt(0)) + segment.substring(1);
     }
 }

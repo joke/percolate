@@ -5,6 +5,15 @@ import com.tngtech.archunit.lang.ArchRule;
 import java.util.Map;
 
 import static com.tngtech.archunit.lang.syntax.ArchRuleDefinition.noClasses;
+import static io.github.joke.percolate.architecture.Packages.ANNOTATIONS;
+import static io.github.joke.percolate.architecture.Packages.BUILTINS;
+import static io.github.joke.percolate.architecture.Packages.PROCESSOR;
+import static io.github.joke.percolate.architecture.Packages.REACTOR;
+import static io.github.joke.percolate.architecture.Packages.REACTOR_BLOCKING;
+import static io.github.joke.percolate.architecture.Packages.SPI;
+import static io.github.joke.percolate.architecture.Packages.SPI_TREE;
+import static io.github.joke.percolate.architecture.Packages.STRATEGY_MODULES;
+import static io.github.joke.percolate.architecture.Packages.TEST_FOUNDATION;
 
 /**
  * The declared module layering. Every rule here is an <em>outgoing dependency</em> rule, so it only needs
@@ -15,46 +24,40 @@ public class ModuleLayeringRules implements ArchRulesService {
 
     static final ArchRule ENGINE_HAS_NO_EDGE_TO_STRATEGY = noClasses()
             .that()
-            .resideInAPackage(Packages.PROCESSOR)
+            .resideInAPackage(PROCESSOR)
             .should()
             .dependOnClassesThat()
-            .resideInAnyPackage(Packages.STRATEGY_MODULES)
+            .resideInAnyPackage(STRATEGY_MODULES)
             .allowEmptyShould(true)
             .as("The engine has no edge to any strategy module")
             .because("the engine must stay strategy-agnostic; strategies plug in through the spi contract");
 
     static final ArchRule HARNESS_IS_STRATEGY_AGNOSTIC = noClasses()
             .that()
-            .resideInAPackage(Packages.TEST_FOUNDATION)
+            .resideInAPackage(TEST_FOUNDATION)
             .should()
             .dependOnClassesThat()
-            .resideInAnyPackage(Packages.STRATEGY_MODULES)
+            .resideInAnyPackage(STRATEGY_MODULES)
             .allowEmptyShould(true)
             .as("The compile harness is strategy-agnostic")
             .because("test-foundation drives the engine with a FakeStrategy and must not bind to a real one");
 
     static final ArchRule SPI_DEPENDS_ON_NEITHER_SIDE = noClasses()
             .that()
-            .resideInAPackage(Packages.SPI)
+            .resideInAPackage(SPI)
             .should()
             .dependOnClassesThat()
-            .resideInAnyPackage(Packages.PROCESSOR, Packages.BUILTINS, Packages.REACTOR, Packages.REACTOR_BLOCKING)
+            .resideInAnyPackage(PROCESSOR, BUILTINS, REACTOR, REACTOR_BLOCKING)
             .allowEmptyShould(true)
             .as("The spi contract depends on neither the engine nor any strategy")
             .because("spi is the contract both sides implement, so it may depend on neither side");
 
     static final ArchRule ANNOTATIONS_DEPEND_ON_NOTHING = noClasses()
             .that()
-            .resideInAPackage(Packages.ANNOTATIONS)
+            .resideInAPackage(ANNOTATIONS)
             .should()
             .dependOnClassesThat()
-            .resideInAnyPackage(
-                    Packages.SPI_TREE,
-                    Packages.PROCESSOR,
-                    Packages.BUILTINS,
-                    Packages.REACTOR,
-                    Packages.REACTOR_BLOCKING,
-                    Packages.TEST_FOUNDATION)
+            .resideInAnyPackage(SPI_TREE, PROCESSOR, BUILTINS, REACTOR, REACTOR_BLOCKING, TEST_FOUNDATION)
             .allowEmptyShould(true)
             .as("The annotations depend on no other percolate module")
             .because("a consumer puts annotations on its compile classpath without pulling in the processor");

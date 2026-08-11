@@ -14,6 +14,9 @@ import java.util.List;
 import java.util.Map;
 import javax.lang.model.element.VariableElement;
 
+import static io.github.joke.percolate.processor.Diagnostic.error;
+import static java.lang.String.join;
+
 // The one DirectiveSink implementation, collecting one mapper method's reader calls as plain data (design D7 of
 // change decouple-engine-from-strategy-semantics): every DirectiveReader on the processor path runs against the
 // same instance, so declarations from different readers merge naturally — a duplicate target from two different
@@ -35,7 +38,7 @@ final class DirectiveSinkImpl implements DirectiveSink {
     @Override
     public void input(final List<String> targetPath, final DirectiveInput input) {
         inputsByTarget
-                .computeIfAbsent(String.join(".", targetPath), key -> new ArrayList<>())
+                .computeIfAbsent(join(".", targetPath), key -> new ArrayList<>())
                 .add(input);
     }
 
@@ -47,13 +50,13 @@ final class DirectiveSinkImpl implements DirectiveSink {
     @Override
     public void constrain(final List<String> targetPath, final Constraint constraint) {
         constraintsByTarget
-                .computeIfAbsent(String.join(".", targetPath), key -> new ArrayList<>())
+                .computeIfAbsent(join(".", targetPath), key -> new ArrayList<>())
                 .add(constraint);
     }
 
     @Override
     public void reject(final Subject subject, final String message) {
-        rejections.add(Diagnostic.error(subject, message).asPermanent());
+        rejections.add(error(subject, message).asPermanent());
     }
 
     List<Bind> getBinds() {

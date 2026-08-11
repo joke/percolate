@@ -3,16 +3,17 @@ package io.github.joke.percolate.spi.builtins.deferral;
 import io.github.joke.percolate.lib.javapoet.ClassName;
 import io.github.joke.percolate.lib.javapoet.CodeBlock;
 import io.github.joke.percolate.spi.ExpansionStrategy;
-import io.github.joke.percolate.spi.Nullability;
 import io.github.joke.percolate.spi.Offer;
 import io.github.joke.percolate.spi.OperationCodegen;
 import io.github.joke.percolate.spi.OperationSpec;
 import io.github.joke.percolate.spi.Port;
 import io.github.joke.percolate.spi.ProduceDemand;
 import io.github.joke.percolate.spi.ResolveCtx;
-import io.github.joke.percolate.spi.Weights;
 import java.util.List;
 import java.util.stream.Stream;
+
+import static io.github.joke.percolate.spi.Nullability.NON_NULL;
+import static io.github.joke.percolate.spi.Weights.STEP;
 
 /**
  * Test-only fixture, registered via {@code META-INF/services} for the {@code strategies-builtin} test classpath
@@ -42,9 +43,9 @@ public final class DeferredWidgetFixtureStrategy implements ExpansionStrategy {
         if (stringElement == null) {
             return Stream.empty();
         }
-        final var port = new Port("value", stringElement.asType(), Nullability.NON_NULL);
+        final var port = new Port("value", stringElement.asType(), NON_NULL);
         final OperationCodegen codegen = inputs -> CodeBlock.of("new $T()", WIDGET_TYPE);
-        return Stream.of(Offer.of(OperationSpec.of(
-                "new Widget()", codegen, Weights.STEP, List.of(port), demand.targetType(), Nullability.NON_NULL)));
+        return Stream.of(Offer.of(
+                OperationSpec.of("new Widget()", codegen, STEP, List.of(port), demand.targetType(), NON_NULL)));
     }
 }

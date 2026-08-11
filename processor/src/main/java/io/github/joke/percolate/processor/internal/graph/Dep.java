@@ -4,6 +4,8 @@ import java.util.Optional;
 import lombok.Getter;
 import lombok.ToString;
 
+import static java.lang.System.identityHashCode;
+
 // A pure dependency edge of the bipartite graph — payload only, carrying no endpoints (topology is maintained
 // solely by the graph and supplied at mutation time). A Dep into an Operation carries the .portId it feeds; a
 // Dep into a Value (from its producer Operation) carries none. It carries no codegen, weight, kind, element
@@ -38,6 +40,6 @@ public final class Dep {
 
     @Override
     public int hashCode() {
-        return System.identityHashCode(this);
+        return identityHashCode(this);
     }
 }

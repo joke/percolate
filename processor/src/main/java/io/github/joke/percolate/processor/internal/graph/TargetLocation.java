@@ -2,13 +2,15 @@ package io.github.joke.percolate.processor.internal.graph;
 
 import lombok.Value;
 
+import static io.github.joke.percolate.processor.internal.graph.Location.Role.FREE;
+
 @Value
 public class TargetLocation implements Location {
     TargetPath path;
 
     @Override
     public Role role() {
-        return Role.FREE;
+        return FREE;
     }
 
     @Override

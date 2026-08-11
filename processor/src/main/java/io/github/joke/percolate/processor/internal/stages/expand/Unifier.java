@@ -83,7 +83,7 @@ final class Unifier {
             return false;
         }
         final var templateArgs = template.getArgs();
-        for (int i = 0; i < templateArgs.size(); i++) {
+        for (var i = 0; i < templateArgs.size(); i++) {
             if (!unify(templateArgs.get(i), ctx.typeArgument(source, i), bindings, depth + 1, refusals)) {
                 return false;
             }

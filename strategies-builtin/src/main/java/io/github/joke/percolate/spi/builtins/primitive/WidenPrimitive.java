@@ -6,7 +6,6 @@ import io.github.joke.percolate.spi.Conversion;
 import io.github.joke.percolate.spi.ExpansionStrategy;
 import io.github.joke.percolate.spi.OperationCodegen;
 import io.github.joke.percolate.spi.ResolveCtx;
-import io.github.joke.percolate.spi.Weights;
 import io.github.joke.percolate.spi.builtins.Labels;
 import java.util.Map;
 import java.util.Set;
@@ -15,7 +14,14 @@ import javax.lang.model.type.TypeKind;
 import javax.lang.model.type.TypeMirror;
 import lombok.NoArgsConstructor;
 import org.jetbrains.annotations.VisibleForTesting;
-import org.jspecify.annotations.Nullable;
+
+import static io.github.joke.percolate.spi.Weights.STEP;
+import static javax.lang.model.type.TypeKind.BYTE;
+import static javax.lang.model.type.TypeKind.CHAR;
+import static javax.lang.model.type.TypeKind.DOUBLE;
+import static javax.lang.model.type.TypeKind.FLOAT;
+import static javax.lang.model.type.TypeKind.LONG;
+import static javax.lang.model.type.TypeKind.SHORT;
 
 // Widening primitive conversion (JLS 5.1.2), authored target-to-source on the Conversion archetype base: a
 // primitive target consumes each strictly narrower primitive that widens to it, each a single unary conversion
@@ -28,17 +34,21 @@ import org.jspecify.annotations.Nullable;
 public final class WidenPrimitive extends Conversion {
 
     private static final Map<TypeKind, Set<TypeKind>> WIDENS_FROM = Map.of(
-            TypeKind.SHORT, Set.of(TypeKind.BYTE),
-            TypeKind.INT, Set.of(TypeKind.BYTE, TypeKind.SHORT, TypeKind.CHAR),
-            TypeKind.LONG, Set.of(TypeKind.BYTE, TypeKind.SHORT, TypeKind.CHAR, TypeKind.INT),
-            TypeKind.FLOAT, Set.of(TypeKind.BYTE, TypeKind.SHORT, TypeKind.CHAR, TypeKind.INT, TypeKind.LONG),
-            TypeKind.DOUBLE,
-                    Set.of(TypeKind.BYTE, TypeKind.SHORT, TypeKind.CHAR, TypeKind.INT, TypeKind.LONG, TypeKind.FLOAT));
+            SHORT,
+            Set.of(BYTE),
+            TypeKind.INT,
+            Set.of(BYTE, SHORT, CHAR),
+            LONG,
+            Set.of(BYTE, SHORT, CHAR, TypeKind.INT),
+            FLOAT,
+            Set.of(BYTE, SHORT, CHAR, TypeKind.INT, LONG),
+            DOUBLE,
+            Set.of(BYTE, SHORT, CHAR, TypeKind.INT, LONG, FLOAT));
 
     @Override
     @VisibleForTesting
     protected Stream<Step> conversions(final TypeMirror target, final ResolveCtx ctx) {
-        final @Nullable Set<TypeKind> narrower = WIDENS_FROM.get(ctx.kind(target));
+        final var narrower = WIDENS_FROM.get(ctx.kind(target));
         if (narrower == null) {
             return Stream.empty();
         }
@@ -46,8 +56,8 @@ public final class WidenPrimitive extends Conversion {
     }
 
     Step wideningStep(final TypeKind from, final TypeMirror target, final ResolveCtx ctx) {
-        final TypeMirror inputType = ctx.primitiveType(from);
+        final var inputType = ctx.primitiveType(from);
         final OperationCodegen codegen = inputs -> CodeBlock.of("($T) $L", target, inputs.single());
-        return new Step(inputType, Labels.conversion(inputType, target), Weights.STEP, codegen);
+        return new Step(inputType, Labels.conversion(inputType, target), STEP, codegen);
     }
 }

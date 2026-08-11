@@ -6,10 +6,8 @@ import io.github.joke.percolate.spi.Conversion;
 import io.github.joke.percolate.spi.ExpansionStrategy;
 import io.github.joke.percolate.spi.OperationCodegen;
 import io.github.joke.percolate.spi.ResolveCtx;
-import io.github.joke.percolate.spi.Weights;
 import io.github.joke.percolate.spi.builtins.Labels;
 import java.util.Map;
-import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Stream;
 import javax.lang.model.type.TypeKind;
@@ -17,6 +15,16 @@ import javax.lang.model.type.TypeMirror;
 import lombok.NoArgsConstructor;
 import org.jetbrains.annotations.VisibleForTesting;
 import org.jspecify.annotations.Nullable;
+
+import static io.github.joke.percolate.spi.Weights.STEP;
+import static java.util.Objects.requireNonNull;
+import static javax.lang.model.type.TypeKind.BOOLEAN;
+import static javax.lang.model.type.TypeKind.BYTE;
+import static javax.lang.model.type.TypeKind.CHAR;
+import static javax.lang.model.type.TypeKind.DOUBLE;
+import static javax.lang.model.type.TypeKind.FLOAT;
+import static javax.lang.model.type.TypeKind.LONG;
+import static javax.lang.model.type.TypeKind.SHORT;
 
 // Boxing (JLS 5.1.7) and unboxing (JLS 5.1.8) as one concept — the primitive↔wrapper identity — authored
 // target-to-source on the Conversion archetype base. A wrapper target consumes its primitive (box); a primitive
@@ -37,14 +45,22 @@ public final class PrimitiveWrapperConversion extends Conversion {
             "java.lang.Double");
 
     private static final Map<TypeKind, String> UNBOX_ACCESSOR = Map.of(
-            TypeKind.BOOLEAN, "booleanValue",
-            TypeKind.BYTE, "byteValue",
-            TypeKind.SHORT, "shortValue",
-            TypeKind.CHAR, "charValue",
-            TypeKind.INT, "intValue",
-            TypeKind.LONG, "longValue",
-            TypeKind.FLOAT, "floatValue",
-            TypeKind.DOUBLE, "doubleValue");
+            BOOLEAN,
+            "booleanValue",
+            BYTE,
+            "byteValue",
+            SHORT,
+            "shortValue",
+            CHAR,
+            "charValue",
+            TypeKind.INT,
+            "intValue",
+            LONG,
+            "longValue",
+            FLOAT,
+            "floatValue",
+            DOUBLE,
+            "doubleValue");
 
     @Override
     @VisibleForTesting
@@ -58,14 +74,14 @@ public final class PrimitiveWrapperConversion extends Conversion {
 
     Step box(final TypeMirror wrapperTarget, final TypeMirror primitive) {
         final OperationCodegen codegen = inputs -> CodeBlock.of("$T.valueOf($L)", wrapperTarget, inputs.single());
-        return new Step(primitive, Labels.conversion(primitive, wrapperTarget), Weights.STEP, codegen);
+        return new Step(primitive, Labels.conversion(primitive, wrapperTarget), STEP, codegen);
     }
 
     Step unbox(final TypeMirror primitiveTarget, final ResolveCtx ctx) {
-        final TypeMirror wrapper = ctx.boxed(primitiveTarget);
-        final var accessor = Objects.requireNonNull(UNBOX_ACCESSOR.get(ctx.kind(primitiveTarget)));
+        final var wrapper = ctx.boxed(primitiveTarget);
+        final var accessor = requireNonNull(UNBOX_ACCESSOR.get(ctx.kind(primitiveTarget)));
         final OperationCodegen codegen = inputs -> CodeBlock.of("$L$Z.$N()", inputs.single(), accessor);
-        return new Step(wrapper, Labels.conversion(wrapper, primitiveTarget), Weights.STEP, codegen);
+        return new Step(wrapper, Labels.conversion(wrapper, primitiveTarget), STEP, codegen);
     }
 
     // The primitive a declared wrapper target unboxes to, or null when the target is not a wrapper.

@@ -2,6 +2,8 @@ package io.github.joke.percolate.processor.internal.graph;
 
 import lombok.Value;
 
+import static io.github.joke.percolate.processor.internal.graph.Location.Role.LEAF;
+
 @Value
 public class ElementLocation implements Location {
     String name;
@@ -16,7 +18,7 @@ public class ElementLocation implements Location {
 
     @Override
     public Role role() {
-        return Role.LEAF;
+        return LEAF;
     }
 
     @Override

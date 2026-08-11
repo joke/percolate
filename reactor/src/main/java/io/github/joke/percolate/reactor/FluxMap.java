@@ -2,20 +2,22 @@ package io.github.joke.percolate.reactor;
 
 import com.google.auto.service.AutoService;
 import io.github.joke.percolate.lib.javapoet.CodeBlock;
-import io.github.joke.percolate.spi.ChildScopeSpec;
 import io.github.joke.percolate.spi.ExpansionStrategy;
-import io.github.joke.percolate.spi.Nullability;
 import io.github.joke.percolate.spi.Offer;
-import io.github.joke.percolate.spi.OperationSpec;
 import io.github.joke.percolate.spi.Port;
 import io.github.joke.percolate.spi.PortType;
 import io.github.joke.percolate.spi.ProduceDemand;
 import io.github.joke.percolate.spi.ResolveCtx;
 import io.github.joke.percolate.spi.ScopeCodegen;
-import io.github.joke.percolate.spi.Weights;
 import java.util.List;
 import java.util.stream.Stream;
 import lombok.NoArgsConstructor;
+
+import static io.github.joke.percolate.spi.ChildScopeSpec.lifted;
+import static io.github.joke.percolate.spi.Nullability.NON_NULL;
+import static io.github.joke.percolate.spi.OperationSpec.mapping;
+import static io.github.joke.percolate.spi.PortType.variable;
+import static io.github.joke.percolate.spi.Weights.CONTAINER;
 
 // The generic, kind-free element transform over a Flux<T> — the reactive twin of StreamMap, keyed to
 // reactor.core.publisher.Flux instead of java.util.stream.Stream (design D3/D5). Given a demand for Flux<B> it
@@ -50,16 +52,13 @@ public final class FluxMap implements ExpansionStrategy {
             return Stream.empty();
         }
         final var elementOut = ctx.typeArgument(to, 0);
-        final var template = PortType.app(fluxErasure, List.of(PortType.variable(0)));
-        final var ports = List.of(new Port(SOURCE_ROLE, fluxErasure.asType(), Nullability.NON_NULL, template));
-        final var mapChild =
-                ChildScopeSpec.lifted(PortType.variable(0), Nullability.NON_NULL, elementOut, Nullability.NON_NULL);
-        final var flatMapChild =
-                ChildScopeSpec.lifted(PortType.variable(0), Nullability.NON_NULL, to, Nullability.NON_NULL);
+        final var template = PortType.app(fluxErasure, List.of(variable(0)));
+        final var ports = List.of(new Port(SOURCE_ROLE, fluxErasure.asType(), NON_NULL, template));
+        final var mapChild = lifted(variable(0), NON_NULL, elementOut, NON_NULL);
+        final var flatMapChild = lifted(variable(0), NON_NULL, to, NON_NULL);
         return Stream.of(
-                        OperationSpec.mapping("map", MAP, Weights.CONTAINER, ports, to, Nullability.NON_NULL, mapChild),
-                        OperationSpec.mapping(
-                                "flatMap", FLAT_MAP, Weights.CONTAINER, ports, to, Nullability.NON_NULL, flatMapChild))
+                        mapping("map", MAP, CONTAINER, ports, to, NON_NULL, mapChild),
+                        mapping("flatMap", FLAT_MAP, CONTAINER, ports, to, NON_NULL, flatMapChild))
                 .map(Offer::of);
     }
 }

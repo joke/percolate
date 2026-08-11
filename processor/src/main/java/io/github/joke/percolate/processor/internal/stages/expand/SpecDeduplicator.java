@@ -4,8 +4,9 @@ import io.github.joke.percolate.spi.OperationSpec;
 import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.List;
-import java.util.stream.Collectors;
 import lombok.NoArgsConstructor;
+
+import static java.util.stream.Collectors.joining;
 
 // Drops duplicate OperationSpecs from an over-emitted offer set, keeping the first of each structural
 // signature. Two strategies independently offering the same operation is normal under over-emission (design
@@ -31,7 +32,7 @@ final class SpecDeduplicator {
     String signature(final OperationSpec spec) {
         final var ports = spec.getPorts().stream()
                 .map(port -> port.getName() + ':' + port.getType() + ':' + port.getNullness())
-                .collect(Collectors.joining(","));
+                .collect(joining(","));
         return spec.getLabel() + '|' + spec.getOutputType() + '|' + ports;
     }
 }

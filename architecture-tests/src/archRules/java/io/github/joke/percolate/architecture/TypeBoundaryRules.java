@@ -7,15 +7,17 @@ import com.tngtech.archunit.lang.ArchRule;
 import java.util.List;
 import java.util.Map;
 
+import static com.tngtech.archunit.base.DescribedPredicate.describe;
 import static com.tngtech.archunit.lang.syntax.ArchRuleDefinition.classes;
 import static com.tngtech.archunit.lang.syntax.ArchRuleDefinition.noClasses;
+import static io.github.joke.percolate.architecture.Packages.ROOT;
 
 /** Rules confining compiler-service types and the relocated codegen library to their boundaries. */
 public class TypeBoundaryRules implements ArchRulesService {
 
     static final ArchRule STAGE_IMPLEMENTATIONS_ARE_NAMED_STAGE = classes()
             .that()
-            .implement(Packages.ROOT + ".processor.internal.stages.Stage")
+            .implement(ROOT + ".processor.internal.stages.Stage")
             .should()
             .haveSimpleNameEndingWith("Stage")
             .allowEmptyShould(true)
@@ -34,18 +36,21 @@ public class TypeBoundaryRules implements ArchRulesService {
      * Types/Elements too.
      */
     static final List<String> TYPE_BOUNDARY_PACKAGES = List.of(
-            Packages.ROOT + ".processor",
-            Packages.ROOT + ".processor.internal.stages.expand",
-            Packages.ROOT + ".processor.internal.stages.discover",
-            Packages.ROOT + ".processor.internal.stages.generate",
-            Packages.ROOT + ".processor.nullability");
+            ROOT + ".processor",
+            ROOT + ".processor.internal.stages.expand",
+            ROOT + ".processor.internal.stages.discover",
+            ROOT + ".processor.internal.stages.generate",
+            ROOT + ".processor.nullability");
 
     /** ResolveCtx declares types()/elements() so a real-javac implementation can answer through them. */
-    static final String RESOLVE_CTX = Packages.ROOT + ".spi.ResolveCtx";
+    static final String RESOLVE_CTX = ROOT + ".spi.ResolveCtx";
 
-    static final DescribedPredicate<JavaClass> NOT_TYPE_BOUNDARY = DescribedPredicate.describe(
+    static final DescribedPredicate<JavaClass> NOT_TYPE_BOUNDARY = describe(
             "not the seam impl, discovery adapter, codegen emission, or nullability resolver",
-            javaClass -> !RESOLVE_CTX.equals(javaClass.getName()) && !isTypeBoundaryPackage(javaClass));
+            javaClass -> !RESOLVE_CTX.equals(javaClass.getName())
+                    && TYPE_BOUNDARY_PACKAGES.stream()
+                            .noneMatch(boundary -> javaClass.getPackageName().equals(boundary)
+                                    || javaClass.getPackageName().startsWith(boundary + ".")));
 
     static final ArchRule COMPILER_SERVICES_ARE_CONFINED = noClasses()
             .that(NOT_TYPE_BOUNDARY)
@@ -71,12 +76,6 @@ public class TypeBoundaryRules implements ArchRulesService {
             .allowEmptyShould(true)
             .as("No production class imports the unrelocated upstream JavaPoet package")
             .because("a foreign JavaPoet version on a shared processorpath would otherwise be substitutable");
-
-    static boolean isTypeBoundaryPackage(final JavaClass javaClass) {
-        final String pkg = javaClass.getPackageName();
-        return TYPE_BOUNDARY_PACKAGES.stream()
-                .anyMatch(boundary -> pkg.equals(boundary) || pkg.startsWith(boundary + "."));
-    }
 
     @Override
     public Map<String, ArchRule> getRules() {

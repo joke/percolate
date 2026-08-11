@@ -1,7 +1,6 @@
 package io.github.joke.percolate.test;
 
 import io.github.joke.percolate.MapEnum;
-import java.util.Arrays;
 import java.util.Set;
 import javax.annotation.processing.AbstractProcessor;
 import javax.annotation.processing.RoundEnvironment;
@@ -10,6 +9,9 @@ import javax.lang.model.SourceVersion;
 import javax.lang.model.element.Element;
 import javax.lang.model.element.TypeElement;
 import javax.tools.Diagnostic;
+
+import static java.util.Arrays.stream;
+import static javax.lang.model.SourceVersion.latestSupported;
 
 /**
  * A minimal processor whose sole job is proving {@code @MapEnum} is repeatable and readable through the ordinary
@@ -22,7 +24,7 @@ public final class MapEnumProbe extends AbstractProcessor {
 
     @Override
     public SourceVersion getSupportedSourceVersion() {
-        return SourceVersion.latestSupported();
+        return latestSupported();
     }
 
     @Override
@@ -35,7 +37,7 @@ public final class MapEnumProbe extends AbstractProcessor {
     }
 
     void emit(final Element element) {
-        Arrays.stream(element.getAnnotationsByType(MapEnum.class)).forEach(override -> processingEnv
+        stream(element.getAnnotationsByType(MapEnum.class)).forEach(override -> processingEnv
                 .getMessager()
                 .printMessage(
                         Diagnostic.Kind.NOTE, "MapEnum:" + override.source() + "->" + override.target(), element));

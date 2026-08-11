@@ -2,9 +2,12 @@ package io.github.joke.percolate.spi;
 
 import javax.lang.model.type.ArrayType;
 import javax.lang.model.type.DeclaredType;
-import javax.lang.model.type.TypeKind;
 import javax.lang.model.type.TypeMirror;
 import lombok.experimental.UtilityClass;
+
+import static javax.lang.model.type.TypeKind.ARRAY;
+import static javax.lang.model.type.TypeKind.DECLARED;
+import static javax.lang.model.type.TypeKind.TYPEVAR;
 
 /**
  * Container-kind predicates and structural accessors, forwarding to the {@link ResolveCtx} type-query seam (change
@@ -27,7 +30,7 @@ public class Containers {
     /** Whether {@code element} is a reference type — i.e. usable as a generic type argument (not a primitive). */
     public boolean isReferenceType(final TypeMirror element) {
         final var kind = element.getKind();
-        return kind == TypeKind.DECLARED || kind == TypeKind.ARRAY || kind == TypeKind.TYPEVAR;
+        return kind == DECLARED || kind == ARRAY || kind == TYPEVAR;
     }
 
     public boolean isList(final TypeMirror t, final ResolveCtx ctx) {
@@ -47,11 +50,11 @@ public class Containers {
     }
 
     public boolean isArray(final TypeMirror t) {
-        return t.getKind() == TypeKind.ARRAY;
+        return t.getKind() == ARRAY;
     }
 
     public TypeMirror typeArgument(final TypeMirror declaredType, final int index) {
-        if (declaredType.getKind() != TypeKind.DECLARED) {
+        if (declaredType.getKind() != DECLARED) {
             throw new IllegalArgumentException("Not a declared type: " + declaredType);
         }
         final var declared = (DeclaredType) declaredType;
@@ -64,7 +67,7 @@ public class Containers {
     }
 
     public TypeMirror arrayComponentType(final TypeMirror arrayType) {
-        if (arrayType.getKind() != TypeKind.ARRAY) {
+        if (arrayType.getKind() != ARRAY) {
             throw new IllegalArgumentException("Not an array type: " + arrayType);
         }
         return ((ArrayType) arrayType).getComponentType();

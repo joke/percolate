@@ -1,6 +1,5 @@
 package io.github.joke.percolate.processor.internal.stages.validate;
 
-import io.github.joke.percolate.processor.Diagnostic;
 import io.github.joke.percolate.processor.MapperContext;
 import io.github.joke.percolate.processor.internal.graph.ExtractedPlan;
 import io.github.joke.percolate.processor.internal.graph.MapperGraph;
@@ -8,14 +7,17 @@ import io.github.joke.percolate.processor.internal.graph.Operation;
 import io.github.joke.percolate.processor.internal.graph.TargetLocation;
 import io.github.joke.percolate.processor.internal.graph.Value;
 import io.github.joke.percolate.processor.internal.stages.Stage;
-import io.github.joke.percolate.spi.Subjects;
 import jakarta.inject.Inject;
 import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.Optional;
-import java.util.Set;
 import javax.lang.model.type.TypeMirror;
 import lombok.RequiredArgsConstructor;
+
+import static io.github.joke.percolate.processor.Diagnostic.error;
+import static io.github.joke.percolate.processor.internal.graph.ExtractedPlan.extract;
+import static io.github.joke.percolate.spi.Subjects.none;
+import static java.lang.String.format;
 
 // Walks unsatisfied demands and records the closest miss (design D11): for each return-root Value left
 // unreachable (infinite extraction cost), it descends the deepest unreachable port chain to the demand with no
@@ -34,7 +36,7 @@ public final class RealisationDiagnosticsStage implements Stage {
         if (graph == null || ctx.hasErrors()) {
             return;
         }
-        final var plan = ExtractedPlan.extract(graph);
+        final var plan = extract(graph);
         graph.returnRoots().filter(root -> !plan.reachable(root)).forEach(root -> report(ctx, graph, plan, root));
     }
 
@@ -42,24 +44,24 @@ public final class RealisationDiagnosticsStage implements Stage {
         final var miss = deepestMiss(graph, plan, root);
         final var refusals = miss.getInadmissible();
         if (refusals.isEmpty()) {
-            ctx.report(Diagnostic.error(Subjects.none(), genericMessage(root, miss)));
+            ctx.report(error(none(), genericMessage(root, miss)));
             return;
         }
-        final Set<String> reported = new LinkedHashSet<>();
+        final var reported = new LinkedHashSet<String>();
         refusals.stream()
                 .filter(refusal -> reported.add(refusal.getMessage()))
-                .forEach(refusal -> ctx.report(Diagnostic.error(refusal.getSubject(), refusal.getMessage())));
+                .forEach(refusal -> ctx.report(error(refusal.getSubject(), refusal.getMessage())));
     }
 
     String genericMessage(final Value root, final Value miss) {
-        return String.format(
+        return format(
                 "no plan for %s: %s has no producer in the graph. Likely missing: a @Map-annotated method whose source produces %s",
                 label(root), label(miss), typeName(miss));
     }
 
     // Descends the first unreachable port chain from value to the demand with no reachable producer.
     Value deepestMiss(final MapperGraph graph, final ExtractedPlan plan, final Value value) {
-        final Set<Value> visited = new HashSet<>();
+        final var visited = new HashSet<Value>();
         var current = value;
         while (visited.add(current)) {
             final var next = nextUnsatisfied(graph, plan, current);

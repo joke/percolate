@@ -7,9 +7,10 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import javax.lang.model.type.TypeMirror;
 import lombok.RequiredArgsConstructor;
+
+import static java.util.Objects.requireNonNull;
 
 // Collects every consistent cross-product binding of a spec's template Ports against a match set (design D4 of
 // change decompose-engine-stages, decomposed out of Grounding's assign): each port is assigned, in turn, to
@@ -44,7 +45,7 @@ final class BindingEnumerator {
             out.add(new HashMap<>(current));
             return;
         }
-        final var template = Objects.requireNonNull(ports.get(index).getTemplate());
+        final var template = requireNonNull(ports.get(index).getTemplate());
         for (final var source : sources) {
             tryAssign(ports, index, sources, current, out, template, source, refusals);
         }

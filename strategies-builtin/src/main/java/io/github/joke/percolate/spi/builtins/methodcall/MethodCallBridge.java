@@ -11,7 +11,6 @@ import io.github.joke.percolate.spi.OperationSpec;
 import io.github.joke.percolate.spi.Port;
 import io.github.joke.percolate.spi.ProduceDemand;
 import io.github.joke.percolate.spi.ResolveCtx;
-import io.github.joke.percolate.spi.Weights;
 import java.util.List;
 import java.util.Optional;
 import java.util.stream.Stream;
@@ -20,6 +19,8 @@ import javax.lang.model.element.VariableElement;
 import javax.lang.model.type.TypeMirror;
 import lombok.NoArgsConstructor;
 
+import static io.github.joke.percolate.spi.OperationSpec.callOf;
+import static io.github.joke.percolate.spi.Weights.METHOD;
 import static java.util.stream.Collectors.toUnmodifiableList;
 
 // Produces the demanded type by calling a callable method that returns it: an OperationSpec carrying one port
@@ -83,11 +84,11 @@ public final class MethodCallBridge implements ExpansionStrategy {
         final var method = candidate.getMethod();
         final var returnType = method.getReturnType();
         final var returnDistance = subtypeDistance.between(returnType, targetType, ctx);
-        final var weight = Weights.METHOD + returnDistance;
+        final var weight = METHOD + returnDistance;
         final var ports = method.getParameters().stream()
                 .map(param -> portFor(param, demand, ctx))
                 .collect(toUnmodifiableList());
-        return OperationSpec.callOf(
+        return callOf(
                 method.getSimpleName() + "(…)",
                 renderCodegen(candidate, ports),
                 weight,

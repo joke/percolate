@@ -11,14 +11,15 @@ import io.github.joke.percolate.spi.Constraint;
 import io.github.joke.percolate.spi.Offer;
 import io.github.joke.percolate.spi.OperationSpec;
 import io.github.joke.percolate.spi.ResolveCtx;
-import io.github.joke.percolate.spi.Subjects;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
-import java.util.stream.Collectors;
-import java.util.stream.IntStream;
 import javax.lang.model.element.ExecutableElement;
-import javax.lang.model.element.Modifier;
+
+import static io.github.joke.percolate.spi.Subjects.none;
+import static java.util.stream.Collectors.toUnmodifiableSet;
+import static java.util.stream.IntStream.range;
+import static javax.lang.model.element.Modifier.ABSTRACT;
 
 // The engine's own built-in landing constraint (design D8 of change decouple-engine-from-strategy-semantics,
 // replacing the bespoke SelfCallGuard): a method may not land calling another method's whole whole parameter
@@ -56,7 +57,7 @@ final class SelfCallConstraint implements Constraint {
             return Optional.empty();
         }
         return Optional.of(new Offer.Refusal(
-                Subjects.none(),
+                none(),
                 "landing '" + candidate.getLabel()
                         + "' here would call the method being generated on its own whole parameter — a degenerate"
                         + " self-call"));
@@ -68,7 +69,7 @@ final class SelfCallConstraint implements Constraint {
         }
         final var callTarget = spec.getCallTarget().get();
         final var method = ((MethodScope) scope).getMethod();
-        return callTarget.getModifiers().contains(Modifier.ABSTRACT) && sameShape(callTarget, method);
+        return callTarget.getModifiers().contains(ABSTRACT) && sameShape(callTarget, method);
     }
 
     // The whole-parameter source locations of method: a LEAF SourceLocation per parameter.
@@ -76,7 +77,7 @@ final class SelfCallConstraint implements Constraint {
         return method.getParameters().stream()
                 .map(parameter -> (Location) new SourceLocation(
                         AccessPath.of(parameter.getSimpleName().toString())))
-                .collect(Collectors.toUnmodifiableSet());
+                .collect(toUnmodifiableSet());
     }
 
     // Whether a and b declare the same parameter types and return type, ignoring method name.
@@ -85,7 +86,7 @@ final class SelfCallConstraint implements Constraint {
         final var paramsB = b.getParameters();
         return paramsA.size() == paramsB.size()
                 && ctx.isSameType(a.getReturnType(), b.getReturnType())
-                && IntStream.range(0, paramsA.size())
+                && range(0, paramsA.size())
                         .allMatch(i -> ctx.isSameType(
                                 paramsA.get(i).asType(), paramsB.get(i).asType()));
     }

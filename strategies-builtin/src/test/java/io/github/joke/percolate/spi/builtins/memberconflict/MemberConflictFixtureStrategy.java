@@ -5,17 +5,18 @@ import io.github.joke.percolate.lib.javapoet.CodeBlock;
 import io.github.joke.percolate.spi.DirectiveInput;
 import io.github.joke.percolate.spi.ExpansionStrategy;
 import io.github.joke.percolate.spi.MemberRequest;
-import io.github.joke.percolate.spi.Nullability;
 import io.github.joke.percolate.spi.Offer;
 import io.github.joke.percolate.spi.OperationCodegen;
 import io.github.joke.percolate.spi.OperationSpec;
 import io.github.joke.percolate.spi.Port;
 import io.github.joke.percolate.spi.ProduceDemand;
 import io.github.joke.percolate.spi.ResolveCtx;
-import io.github.joke.percolate.spi.Weights;
 import java.util.List;
 import java.util.Set;
 import java.util.stream.Stream;
+
+import static io.github.joke.percolate.spi.Nullability.NON_NULL;
+import static io.github.joke.percolate.spi.Weights.STEP;
 
 /**
  * Test-only fixture, registered via {@code META-INF/services} for the {@code strategies-builtin} test classpath
@@ -44,18 +45,13 @@ public final class MemberConflictFixtureStrategy implements ExpansionStrategy {
         final var formatInput = demand.directive().flatMap(d -> d.input("format"));
         final var tag = formatInput.flatMap(DirectiveInput::getValue).orElse("default");
         final var request = new MemberRequest(STRING_TYPE, CodeBlock.of("$S", tag), "widget-member");
-        final var port = new Port("value", stringElement.asType(), Nullability.NON_NULL);
+        final var port = new Port("value", stringElement.asType(), NON_NULL);
         final OperationCodegen codegen =
                 inputs -> CodeBlock.of("new $T($L, $L)", WIDGET_TYPE, inputs.single(), inputs.member("widget-member"));
         final var consumed = formatInput.map(Set::of).orElseGet(Set::of);
-        return Stream.of(Offer.of(OperationSpec.of(
-                        "widget-from-" + tag,
-                        codegen,
-                        Weights.STEP,
-                        List.of(port),
-                        demand.targetType(),
-                        Nullability.NON_NULL)
-                .withConsumed(consumed)
-                .withMemberRequests(List.of(request))));
+        return Stream.of(Offer.of(
+                OperationSpec.of("widget-from-" + tag, codegen, STEP, List.of(port), demand.targetType(), NON_NULL)
+                        .withConsumed(consumed)
+                        .withMemberRequests(List.of(request))));
     }
 }

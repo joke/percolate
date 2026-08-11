@@ -6,13 +6,14 @@ import io.github.joke.percolate.spi.Accessor;
 import io.github.joke.percolate.spi.ExpansionStrategy;
 import io.github.joke.percolate.spi.OperationCodegen;
 import io.github.joke.percolate.spi.ResolveCtx;
-import io.github.joke.percolate.spi.Weights;
 import java.util.Optional;
 import javax.lang.model.element.Element;
 import javax.lang.model.element.ExecutableElement;
 import javax.lang.model.element.TypeElement;
 import lombok.NoArgsConstructor;
 import org.jetbrains.annotations.VisibleForTesting;
+
+import static io.github.joke.percolate.spi.Weights.STEP_METHOD;
 
 // Resolves one source-path segment to a no-arg accessor method whose name equals the segment (a fluent
 // accessor, e.g. value()) on the parent type, on the Accessor archetype base: candidate-free, the base pins the
@@ -34,7 +35,7 @@ public final class MethodPathResolver extends Accessor {
 
     Step step(final ExecutableElement method, final String segment) {
         final OperationCodegen codegen = inputs -> CodeBlock.of("$L$Z.$N()", inputs.single(), segment);
-        return new Step(method.getReturnType(), method, segment + "()", Weights.STEP_METHOD, codegen);
+        return new Step(method.getReturnType(), method, segment + "()", STEP_METHOD, codegen);
     }
 
     Optional<ExecutableElement> matchAccessor(final Element member, final String segment, final ResolveCtx ctx) {

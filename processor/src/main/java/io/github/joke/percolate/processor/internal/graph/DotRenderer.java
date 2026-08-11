@@ -5,14 +5,17 @@ import jakarta.inject.Inject;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.function.Predicate;
-import java.util.stream.Collectors;
 import javax.lang.model.type.DeclaredType;
-import javax.lang.model.type.TypeKind;
 import javax.lang.model.type.TypeMirror;
 import lombok.NoArgsConstructor;
 import org.jetbrains.annotations.VisibleForTesting;
 import org.jgrapht.Graph;
 import org.jspecify.annotations.Nullable;
+
+import static io.github.joke.percolate.spi.Nullability.NON_NULL;
+import static io.github.joke.percolate.spi.Nullability.NULLABLE;
+import static java.util.stream.Collectors.joining;
+import static javax.lang.model.type.TypeKind.DECLARED;
 
 // Renders a scope slice of the bipartite graph to DOT (Petri-style): Operations are boxes labelled with their
 // typed production label, Values are ellipses labelled with location plus a readable type (simple names + a
@@ -109,7 +112,7 @@ public final class DotRenderer {
                 : " ["
                         + attrs.entrySet().stream()
                                 .map(entry -> entry.getKey() + "=" + quote(entry.getValue()))
-                                .collect(Collectors.joining(", "))
+                                .collect(joining(", "))
                         + ']';
         final var statementLine = "  " + head + bracket + ";\n";
         dot.append(statementLine);
@@ -160,7 +163,7 @@ public final class DotRenderer {
     // wildcards) fall back to their text form, unmarked.
     @VisibleForTesting
     String formatType(final TypeMirror type, final @Nullable Nullability topNullness) {
-        if (type.getKind() != TypeKind.DECLARED) {
+        if (type.getKind() != DECLARED) {
             return body(type);
         }
         return body(type) + topMark(topNullness);
@@ -168,7 +171,7 @@ public final class DotRenderer {
 
     @VisibleForTesting
     String body(final TypeMirror type) {
-        if (type.getKind() != TypeKind.DECLARED) {
+        if (type.getKind() != DECLARED) {
             return type.toString();
         }
         final var declared = (DeclaredType) type;
@@ -177,16 +180,16 @@ public final class DotRenderer {
         if (args.isEmpty()) {
             return name;
         }
-        final var inner = args.stream().map(this::body).collect(Collectors.joining(", "));
+        final var inner = args.stream().map(this::body).collect(joining(", "));
         return name + '<' + inner + '>';
     }
 
     @VisibleForTesting
     String topMark(final @Nullable Nullability nullness) {
-        if (nullness == Nullability.NULLABLE) {
+        if (nullness == NULLABLE) {
             return "?";
         }
-        return nullness == Nullability.NON_NULL ? "!" : "";
+        return nullness == NON_NULL ? "!" : "";
     }
 
     @VisibleForTesting

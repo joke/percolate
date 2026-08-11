@@ -16,12 +16,14 @@ import io.github.joke.percolate.processor.model.ScopeInputOverride;
 import io.github.joke.percolate.processor.nullability.NullabilityResolver;
 import java.util.List;
 import java.util.Map;
-import java.util.function.Function;
-import java.util.stream.Collectors;
 import javax.lang.model.element.ExecutableElement;
 import javax.lang.model.element.VariableElement;
 import lombok.RequiredArgsConstructor;
 
+import static io.github.joke.percolate.processor.internal.graph.Visibility.LOCAL;
+import static io.github.joke.percolate.spi.Visibility.INHERITED;
+import static java.util.function.Function.identity;
+import static java.util.stream.Collectors.toMap;
 import static java.util.stream.Collectors.toUnmodifiableList;
 
 // Mints one method's return-root Value (decomposed out of ExpandStage.Driver.seedReturnRoot by change
@@ -30,7 +32,7 @@ import static java.util.stream.Collectors.toUnmodifiableList;
 // extraction/diagnostics/codegen key on. Builds the method's MethodScope with one resolved InputDecl per
 // parameter (design D5/D7 of change decouple-engine-from-strategy-semantics) — the one place a method's
 // parameters are read and resolved, since MethodScope itself is plain data. A parameter's name/visibility
-// default to its own simple name/Visibility.LOCAL unless a io.github.joke.percolate.spi.DirectiveReader
+// default to its own simple name/LOCAL unless a io.github.joke.percolate.spi.DirectiveReader
 // published a ScopeInputOverride for it (e.g. @Ambient) — the engine reads no annotation itself.
 @RequiredArgsConstructor
 final class Seeder {
@@ -70,8 +72,7 @@ final class Seeder {
             return Map.of();
         }
         return goalSpec.getScopeInputOverrides().stream()
-                .collect(Collectors.toMap(
-                        ScopeInputOverride::getParameter, Function.identity(), (first, second) -> first));
+                .collect(toMap(ScopeInputOverride::getParameter, identity(), (first, second) -> first));
     }
 
     String nameOf(final VariableElement param, final Map<VariableElement, ScopeInputOverride> overrideByParam) {
@@ -79,14 +80,15 @@ final class Seeder {
         return override == null ? param.getSimpleName().toString() : override.getName();
     }
 
+    // Two different Visibility enums are in play — the spi one on the override and the graph one this returns —
+    // and both declare INHERITED, so only one of the two can be static-imported.
+    @SuppressWarnings("PMD.UseStaticImports")
     Visibility visibilityOf(
             final VariableElement param, final Map<VariableElement, ScopeInputOverride> overrideByParam) {
         final var override = overrideByParam.get(param);
         if (override == null) {
-            return Visibility.LOCAL;
+            return LOCAL;
         }
-        return override.getVisibility() == io.github.joke.percolate.spi.Visibility.INHERITED
-                ? Visibility.INHERITED
-                : Visibility.LOCAL;
+        return override.getVisibility() == INHERITED ? Visibility.INHERITED : LOCAL;
     }
 }

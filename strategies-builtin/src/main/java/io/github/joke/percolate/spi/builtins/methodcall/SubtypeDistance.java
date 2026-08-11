@@ -31,9 +31,9 @@ final class SubtypeDistance {
         if (ctx.isSameType(start, target)) {
             return 0;
         }
-        final Set<String> visited = new HashSet<>();
+        final var visited = new HashSet<String>();
         visited.add(start.toString());
-        final Deque<Hop> queue = new ArrayDeque<>();
+        final var queue = new ArrayDeque<Hop>();
         queue.add(new Hop(start, 0));
         while (!queue.isEmpty()) {
             final var distance = advance(queue.remove(), target, visited, queue, ctx);

@@ -1,11 +1,14 @@
 package io.github.joke.percolate.processor.internal.graph;
 
 import java.util.Comparator;
-import lombok.AccessLevel;
 import lombok.AllArgsConstructor;
 import lombok.EqualsAndHashCode;
 import lombok.Getter;
 import lombok.ToString;
+
+import static java.lang.Boolean.compare;
+import static java.util.Comparator.comparingInt;
+import static lombok.AccessLevel.PRIVATE;
 
 // The selection cost of a plan vertex (design D1): either .INFINITE (unreachable) or a finite,
 // lexicographically-ordered vector (partials, weight) with partials — the transitive count of partial
@@ -16,11 +19,11 @@ import lombok.ToString;
 @Getter
 @ToString
 @EqualsAndHashCode
-@AllArgsConstructor(access = AccessLevel.PRIVATE)
+@AllArgsConstructor(access = PRIVATE)
 public final class Cost implements Comparable<Cost> {
 
     private static final Comparator<Cost> FINITE_ORDER =
-            Comparator.comparingInt(Cost::getPartials).thenComparingDouble(Cost::getWeight);
+            comparingInt(Cost::getPartials).thenComparingDouble(Cost::getWeight);
 
     // The unreachable cost: greater than every finite cost, and absorbing under .plus.
     public static final Cost INFINITE = new Cost(true, 0, 0.0);
@@ -57,7 +60,7 @@ public final class Cost implements Comparable<Cost> {
     @Override
     public int compareTo(final Cost other) {
         if (infinite || other.infinite) {
-            return Boolean.compare(infinite, other.infinite);
+            return compare(infinite, other.infinite);
         }
         return FINITE_ORDER.compare(this, other);
     }

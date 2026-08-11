@@ -15,6 +15,9 @@ import java.util.List;
 import java.util.stream.Stream;
 import lombok.NoArgsConstructor;
 
+import static io.github.joke.percolate.reactor.Reactors.FLUX;
+import static io.github.joke.percolate.reactor.Reactors.MONO;
+
 // Same-paradigm reduction Flux<T> → Mono<List<T>> via flux.collectList() (design D4): a target-driven
 // conversion keyed on a concrete Mono<List<T>>, sourcing a concrete Flux<T> port. The result stays in the
 // reactive world (a Mono); it never blocks. The blocking Flux<T> → List<T> (which adds .block()) lives only in
@@ -26,14 +29,14 @@ public final class CollectList implements ExpansionStrategy {
     @Override
     public Stream<Offer> expand(final ProduceDemand demand, final ResolveCtx ctx) {
         final var to = demand.targetType();
-        if (!ctx.isType(to, Reactors.MONO)) {
+        if (!ctx.isType(to, MONO)) {
             return Stream.empty();
         }
         final var inner = ctx.typeArgument(to, 0);
         if (!ctx.isList(inner)) {
             return Stream.empty();
         }
-        return Reactors.declared(ctx, Reactors.FLUX, ctx.typeArgument(inner, 0))
+        return Reactors.declared(ctx, FLUX, ctx.typeArgument(inner, 0))
                 .map(flux -> OperationSpec.of(
                         "collectList",
                         (OperationCodegen) inputs -> CodeBlock.of("$L$Z.collectList()", inputs.single()),

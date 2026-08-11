@@ -6,7 +6,6 @@ import io.github.joke.percolate.spi.BodyCodegen;
 import io.github.joke.percolate.spi.BodyRenderContext;
 import io.github.joke.percolate.spi.DirectiveInput;
 import io.github.joke.percolate.spi.ExpansionStrategy;
-import io.github.joke.percolate.spi.Nullability;
 import io.github.joke.percolate.spi.Offer;
 import io.github.joke.percolate.spi.OperationSpec;
 import io.github.joke.percolate.spi.Port;
@@ -15,7 +14,6 @@ import io.github.joke.percolate.spi.ProduceDemand;
 import io.github.joke.percolate.spi.ResolveCtx;
 import io.github.joke.percolate.spi.Subjects;
 import io.github.joke.percolate.spi.SwitchStyle;
-import io.github.joke.percolate.spi.Weights;
 import io.github.joke.percolate.spi.builtins.Labels;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -28,6 +26,11 @@ import javax.lang.model.element.ElementKind;
 import javax.lang.model.type.TypeMirror;
 import lombok.NoArgsConstructor;
 
+import static io.github.joke.percolate.spi.Nullability.NON_NULL;
+import static io.github.joke.percolate.spi.PortType.variable;
+import static io.github.joke.percolate.spi.SwitchStyle.AUTO;
+import static io.github.joke.percolate.spi.SwitchStyle.CLASSIC;
+import static io.github.joke.percolate.spi.Weights.EXPENSIVE;
 import static java.util.stream.Collectors.toUnmodifiableList;
 import static java.util.stream.Collectors.toUnmodifiableSet;
 
@@ -40,7 +43,7 @@ import static java.util.stream.Collectors.toUnmodifiableSet;
 // modern arrow switch expression depending on the effective SwitchStyle (design D4/D6) — the engine makes none
 // of this decision.
 //
-// Weighted at Weights.EXPENSIVE, well above a method call (Weights.METHOD): when a user's own declared
+// Weighted at EXPENSIVE, well above a method call (Weights.METHOD): when a user's own declared
 // conversion method could also satisfy the same demand (reached through MethodCallBridge), that cheaper,
 // explicit path wins over this inline fallback (design Risk/Trade-off: "competition with a user's hand-written
 // conversion method" — resolved by cost, never by special-casing the engine).
@@ -65,16 +68,15 @@ public final class EnumConversion implements ExpansionStrategy {
             return Stream.empty();
         }
         final var overrides = demand.directive().map(d -> d.inputs(ENUM_KEY)).orElseGet(List::of);
-        final var port = new Port(
-                VALUE_ROLE, target, Nullability.NON_NULL, PortType.variable(0, sourceBound(target, overrides)));
+        final var port = new Port(VALUE_ROLE, target, NON_NULL, variable(0, sourceBound(target, overrides)));
         final BodyCodegen codegen = context -> render(context, target, overrides);
         return Stream.of(Offer.of(OperationSpec.of(
                         "enum" + Labels.ARROW + Labels.simple(target),
                         codegen,
-                        Weights.EXPENSIVE,
+                        EXPENSIVE,
                         List.of(port),
                         target,
-                        Nullability.NON_NULL)
+                        NON_NULL)
                 .withConsumed(effectiveOverrides(target, overrides, ctx))));
     }
 
@@ -130,10 +132,10 @@ public final class EnumConversion implements ExpansionStrategy {
 
     // AUTO resolves against the target SourceVersion: arrow for Java 14+, else classic.
     SwitchStyle resolveStyle(final SwitchStyle configured, final SourceVersion sourceVersion) {
-        if (configured != SwitchStyle.AUTO) {
+        if (configured != AUTO) {
             return configured;
         }
-        return sourceVersion.compareTo(JAVA_14) >= 0 ? SwitchStyle.ARROW : SwitchStyle.CLASSIC;
+        return sourceVersion.compareTo(JAVA_14) >= 0 ? SwitchStyle.ARROW : CLASSIC;
     }
 
     // Same-name matches first, then @MapEnum overrides — which take precedence over a coincidental match.
@@ -143,7 +145,7 @@ public final class EnumConversion implements ExpansionStrategy {
             final List<String> targetConstants,
             final List<DirectiveInput> overrides) {
         final var targetSet = Set.copyOf(targetConstants);
-        final Map<String, String> mapping = new LinkedHashMap<>();
+        final var mapping = new LinkedHashMap<String, String>();
         for (final var constant : sourceConstants) {
             if (targetSet.contains(constant)) {
                 mapping.put(constant, constant);

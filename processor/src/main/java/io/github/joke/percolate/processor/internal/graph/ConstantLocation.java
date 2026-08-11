@@ -2,6 +2,8 @@ package io.github.joke.percolate.processor.internal.graph;
 
 import lombok.Value;
 
+import static io.github.joke.percolate.processor.internal.graph.Location.Role.CONSTANT;
+
 // The Location of a constant-value node: the untyped origin a @Map(constant = "...") directive plants in the
 // graph, carrying the raw literal string. It is deliberately neither a SourceLocation nor a TargetLocation so
 // the driver and code generator can tell a literal origin apart from a moved source value and from a target
@@ -14,7 +16,7 @@ public class ConstantLocation implements Location {
 
     @Override
     public Role role() {
-        return Role.CONSTANT;
+        return CONSTANT;
     }
 
     @Override

@@ -9,6 +9,8 @@ import java.util.Optional;
 import java.util.Set;
 import lombok.Getter;
 
+import static java.lang.System.identityHashCode;
+
 // A single production (constructor call, accessor, conversion, container operation, constant): the AND-kind
 // vertex of the bipartite graph — it is usable only when every port of its ordered Port signature is fed. The
 // operation owns the consumer contract (the former edge-carried Slot), its codegen, its weight, and a partial
@@ -69,6 +71,6 @@ public final class Operation implements GraphVertex {
 
     @Override
     public int hashCode() {
-        return System.identityHashCode(this);
+        return identityHashCode(this);
     }
 }

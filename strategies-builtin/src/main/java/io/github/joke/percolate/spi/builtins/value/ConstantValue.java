@@ -5,18 +5,19 @@ import io.github.joke.percolate.lib.javapoet.CodeBlock;
 import io.github.joke.percolate.spi.DirectiveInput;
 import io.github.joke.percolate.spi.ExpansionStrategy;
 import io.github.joke.percolate.spi.LiteralCoercion;
-import io.github.joke.percolate.spi.Nullability;
 import io.github.joke.percolate.spi.Offer;
 import io.github.joke.percolate.spi.OperationCodegen;
 import io.github.joke.percolate.spi.OperationSpec;
 import io.github.joke.percolate.spi.ProduceDemand;
 import io.github.joke.percolate.spi.ResolveCtx;
-import io.github.joke.percolate.spi.Weights;
 import java.util.List;
 import java.util.Set;
 import java.util.stream.Stream;
 import javax.lang.model.type.TypeMirror;
 import lombok.NoArgsConstructor;
+
+import static io.github.joke.percolate.spi.Nullability.NON_NULL;
+import static io.github.joke.percolate.spi.Weights.STEP;
 
 // Produces a @Map(constant = "...") target value: on a demand whose directive declares a present "constant"
 // input, it coerces the raw literal to the demanded type via LiteralCoercion and, on success, emits a single
@@ -51,7 +52,7 @@ public final class ConstantValue implements ExpansionStrategy {
 
     OperationSpec constantSpec(final TypeMirror target, final CodeBlock literal, final DirectiveInput input) {
         final OperationCodegen codegen = inputs -> literal;
-        return OperationSpec.of(literal.toString(), codegen, Weights.STEP, List.of(), target, Nullability.NON_NULL)
+        return OperationSpec.of(literal.toString(), codegen, STEP, List.of(), target, NON_NULL)
                 .withConsumed(Set.of(input));
     }
 }

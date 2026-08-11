@@ -14,6 +14,8 @@ import java.util.List;
 import java.util.stream.Stream;
 import lombok.NoArgsConstructor;
 
+import static io.github.joke.percolate.reactorblocking.Blockings.FLUX;
+
 // Upward async-to-sync crossing Flux<T> → T via flux.single().block(): the canonical single-element blocking
 // reduction, keyed on a plain scalar T and sourcing a Flux<T> through a reuse-only port. It is partial
 // (single() fails unless the Flux has exactly one element), so the element-preserving collectList().block /
@@ -30,7 +32,7 @@ public final class FluxSingleBlock implements ExpansionStrategy {
         if (!Blockings.isBlockableScalar(to, ctx)) {
             return Stream.empty();
         }
-        return Blockings.declared(ctx, Blockings.FLUX, to)
+        return Blockings.declared(ctx, FLUX, to)
                 .map(flux -> OperationSpec.ofPartial(
                         "single().block",
                         (OperationCodegen) inputs -> CodeBlock.of("$L$Z.single()$Z.block()", inputs.single()),

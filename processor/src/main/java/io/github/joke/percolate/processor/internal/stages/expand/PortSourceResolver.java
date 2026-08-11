@@ -1,13 +1,17 @@
 package io.github.joke.percolate.processor.internal.stages.expand;
 
 import io.github.joke.percolate.processor.internal.graph.AddValue;
-import io.github.joke.percolate.processor.internal.graph.Location;
 import io.github.joke.percolate.processor.internal.graph.Refusal;
 import io.github.joke.percolate.processor.internal.graph.Value;
 import io.github.joke.percolate.spi.Port;
 import io.github.joke.percolate.spi.Subject;
 import lombok.RequiredArgsConstructor;
 import org.jspecify.annotations.Nullable;
+
+import static io.github.joke.percolate.processor.internal.graph.Location.child;
+import static io.github.joke.percolate.spi.Port.OnMiss.MINT;
+import static io.github.joke.percolate.spi.Port.OnMiss.REQUIRE;
+import static io.github.joke.percolate.spi.Port.Selector.BY_NAME;
 
 // Resolves one Port's feeding AddValue by its declared axes (design D5 of change decouple-engine-from-strategy-
 // semantics, decomposed out of ExpandStage.Driver by decompose-engine-stages): a sub-target port mints a deeper
@@ -34,7 +38,7 @@ final class PortSourceResolver {
             final Subject subject) {
         if (port.isSubTarget()) {
             return new AddValue(
-                    output.getScope(), Location.child(parentPath, port.getName()), port.getType(), port.getNullness());
+                    output.getScope(), child(parentPath, port.getName()), port.getType(), port.getNullness());
         }
         final var bound = boundSource(output, port, pinnedSource);
         return bound != null ? operationLander.reuse(bound) : onMiss(output, port, subject);
@@ -42,14 +46,14 @@ final class PortSourceResolver {
 
     @Nullable
     Value boundSource(final Value output, final Port port, final @Nullable Value pinnedSource) {
-        return port.getSelector() == Port.Selector.BY_NAME
+        return port.getSelector() == BY_NAME
                 ? sourceCandidates.byNameSource(output.getScope(), port)
                 : sourceCandidates.matchingSource(output.getScope(), port, pinnedSource);
     }
 
     @Nullable
     AddValue onMiss(final Value output, final Port port, final Subject subject) {
-        if (port.getOnMiss() == Port.OnMiss.MINT) {
+        if (port.getOnMiss() == MINT) {
             return new AddValue(output.getScope(), output.getLoc(), port.getType(), port.getNullness());
         }
         recordRequireRefusal(output, port, subject);
@@ -57,7 +61,7 @@ final class PortSourceResolver {
     }
 
     void recordRequireRefusal(final Value output, final Port port, final Subject subject) {
-        if (port.getOnMiss() == Port.OnMiss.REQUIRE) {
+        if (port.getOnMiss() == REQUIRE) {
             output.addInadmissible(new Refusal(subject, requireMissMessage(output, port)));
         }
     }

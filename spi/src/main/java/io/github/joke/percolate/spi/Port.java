@@ -5,6 +5,12 @@ import lombok.AllArgsConstructor;
 import lombok.Value;
 import org.jspecify.annotations.Nullable;
 
+import static io.github.joke.percolate.spi.Port.OnMiss.DECLINE;
+import static io.github.joke.percolate.spi.Port.OnMiss.MINT;
+import static io.github.joke.percolate.spi.Port.OnMiss.REQUIRE;
+import static io.github.joke.percolate.spi.Port.Selector.BY_NAME;
+import static io.github.joke.percolate.spi.Port.Selector.BY_TYPE;
+
 /**
  * One input of an operation's ordered port signature: the consumer contract a feeding value must satisfy —
  * the port's name, its declared type, its declared nullness, and how the engine binds its feeding value. The
@@ -62,13 +68,13 @@ public class Port {
 
     /** A concrete port whose {@link #type} fully determines the feeding value (no type variable), {@code BY_TYPE}/{@code MINT}. */
     public Port(final String name, final TypeMirror type, final Nullability nullness) {
-        this(name, type, nullness, null, false, Selector.BY_TYPE, OnMiss.MINT, "");
+        this(name, type, nullness, null, false, BY_TYPE, MINT, "");
     }
 
     /** A type-variable port carrying a {@link PortType} {@code template} the engine grounds by match, {@code BY_TYPE}/{@code MINT}. */
     public Port(
             final String name, final TypeMirror type, final Nullability nullness, final @Nullable PortType template) {
-        this(name, type, nullness, template, false, Selector.BY_TYPE, OnMiss.MINT, "");
+        this(name, type, nullness, template, false, BY_TYPE, MINT, "");
     }
 
     /** A concrete {@code BY_TYPE}/{@code MINT} port — the plain-constructor default, named for readability at the call site. */
@@ -78,7 +84,7 @@ public class Port {
 
     /** A concrete {@code BY_TYPE}/{@code DECLINE} port: bound to an in-scope source or the operation does not apply (never minted). */
     public static Port byTypeOrDecline(final String name, final TypeMirror type, final Nullability nullness) {
-        return new Port(name, type, nullness, null, false, Selector.BY_TYPE, OnMiss.DECLINE, "");
+        return new Port(name, type, nullness, null, false, BY_TYPE, DECLINE, "");
     }
 
     /** A concrete sub-target port: a structural sub-target the engine demands at the child location. */
@@ -96,7 +102,7 @@ public class Port {
         if (bindingName.isEmpty()) {
             throw new IllegalArgumentException("a BY_NAME port requires a non-empty binding name");
         }
-        return new Port(name, type, nullness, null, false, Selector.BY_NAME, OnMiss.REQUIRE, bindingName);
+        return new Port(name, type, nullness, null, false, BY_NAME, REQUIRE, bindingName);
     }
 
     /**

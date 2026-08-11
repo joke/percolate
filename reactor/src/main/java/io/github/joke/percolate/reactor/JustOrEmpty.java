@@ -16,6 +16,8 @@ import java.util.stream.Stream;
 import lombok.NoArgsConstructor;
 import reactor.core.publisher.Mono;
 
+import static io.github.joke.percolate.reactor.Reactors.MONO;
+
 // Downward interop bridge Optional<T> → Mono<T> via Mono.justOrEmpty (design D5): a target-driven conversion
 // keyed on the concrete demanded Mono<T>, sourcing a concrete Optional<T> port. Entering the reactive world
 // from a synchronous Optional never blocks.
@@ -26,7 +28,7 @@ public final class JustOrEmpty implements ExpansionStrategy {
     @Override
     public Stream<Offer> expand(final ProduceDemand demand, final ResolveCtx ctx) {
         final var to = demand.targetType();
-        if (!ctx.isType(to, Reactors.MONO)) {
+        if (!ctx.isType(to, MONO)) {
             return Stream.empty();
         }
         return Reactors.declared(ctx, "java.util.Optional", ctx.typeArgument(to, 0))

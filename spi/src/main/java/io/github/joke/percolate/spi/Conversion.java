@@ -4,6 +4,7 @@ import java.util.List;
 import java.util.stream.Stream;
 import javax.lang.model.type.TypeMirror;
 import lombok.Value;
+import org.jetbrains.annotations.ApiStatus.OverrideOnly;
 
 /**
  * Convenience base for the recurring target-driven <b>unary conversion</b> shape (design D1/D6): a strategy that, for a
@@ -21,6 +22,7 @@ public abstract class Conversion implements ExpansionStrategy {
     private static final String VALUE_ROLE = "value";
 
     /** The conversions that produce {@code target} from a single non-null input, or empty when none apply. */
+    @OverrideOnly
     protected abstract Stream<Step> conversions(TypeMirror target, ResolveCtx ctx);
 
     @Override

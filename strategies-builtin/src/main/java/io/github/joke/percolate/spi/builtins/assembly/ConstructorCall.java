@@ -4,14 +4,12 @@ import com.google.auto.service.AutoService;
 import io.github.joke.percolate.lib.javapoet.ClassName;
 import io.github.joke.percolate.lib.javapoet.CodeBlock;
 import io.github.joke.percolate.spi.ExpansionStrategy;
-import io.github.joke.percolate.spi.Nullability;
 import io.github.joke.percolate.spi.Offer;
 import io.github.joke.percolate.spi.OperationCodegen;
 import io.github.joke.percolate.spi.OperationSpec;
 import io.github.joke.percolate.spi.Port;
 import io.github.joke.percolate.spi.ProduceDemand;
 import io.github.joke.percolate.spi.ResolveCtx;
-import io.github.joke.percolate.spi.Weights;
 import io.github.joke.percolate.spi.builtins.Labels;
 import java.util.List;
 import java.util.Set;
@@ -22,6 +20,8 @@ import javax.lang.model.element.TypeElement;
 import javax.lang.model.type.TypeMirror;
 import lombok.NoArgsConstructor;
 
+import static io.github.joke.percolate.spi.Nullability.NON_NULL;
+import static io.github.joke.percolate.spi.Weights.STEP;
 import static java.util.stream.Collectors.joining;
 import static java.util.stream.Collectors.toUnmodifiableList;
 import static java.util.stream.Collectors.toUnmodifiableSet;
@@ -79,18 +79,18 @@ public final class ConstructorCall implements ExpansionStrategy {
             final TypeElement typeElement,
             final TypeMirror targetType,
             final ProduceDemand demand) {
-        final List<Port> ports = ctor.getParameters().stream()
+        final var ports = ctor.getParameters().stream()
                 .map(param -> Port.subTarget(
                         param.getSimpleName().toString(), param.asType(), demand.nullnessOf(param.asType(), param)))
                 .collect(toUnmodifiableList());
-        final List<String> portNames = ports.stream().map(Port::getName).collect(toUnmodifiableList());
+        final var portNames = ports.stream().map(Port::getName).collect(toUnmodifiableList());
         return OperationSpec.of(
                 constructorLabel(typeElement, ports),
                 buildCodegen(typeElement, portNames),
-                Weights.STEP,
+                STEP,
                 ports,
                 targetType,
-                Nullability.NON_NULL);
+                NON_NULL);
     }
 
     String constructorLabel(final TypeElement typeElement, final List<Port> ports) {

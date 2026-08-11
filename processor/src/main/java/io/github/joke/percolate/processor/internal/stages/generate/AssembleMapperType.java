@@ -7,7 +7,6 @@ import io.github.joke.percolate.lib.javapoet.JavaFile;
 import io.github.joke.percolate.lib.javapoet.MethodSpec;
 import io.github.joke.percolate.lib.javapoet.ParameterSpec;
 import io.github.joke.percolate.lib.javapoet.TypeName;
-import io.github.joke.percolate.lib.javapoet.TypeSpec;
 import io.github.joke.percolate.processor.MapperContext;
 import io.github.joke.percolate.processor.ProcessorOptions;
 import jakarta.inject.Inject;
@@ -15,11 +14,15 @@ import java.io.IOException;
 import javax.annotation.processing.Filer;
 import javax.annotation.processing.Generated;
 import javax.lang.model.element.ExecutableElement;
-import javax.lang.model.element.Modifier;
 import javax.lang.model.element.VariableElement;
 import javax.lang.model.type.TypeKind;
 import javax.lang.model.util.Elements;
 import lombok.RequiredArgsConstructor;
+
+import static io.github.joke.percolate.lib.javapoet.MethodSpec.constructorBuilder;
+import static io.github.joke.percolate.lib.javapoet.MethodSpec.methodBuilder;
+import static io.github.joke.percolate.lib.javapoet.TypeSpec.classBuilder;
+import static javax.lang.model.element.Modifier.PUBLIC;
 
 // Assembles and writes the generated mapper implementation via JavaPoet and the Filer. The thin
 // javax.lang.model/Filer leaf of code generation: covered end-to-end by the compile-based feature-e2e layer,
@@ -42,7 +45,7 @@ public final class AssembleMapperType {
         final var packageName =
                 elements.getPackageOf(mapperType).getQualifiedName().toString();
 
-        final var typeBuilder = TypeSpec.classBuilder(simpleName)
+        final var typeBuilder = classBuilder(simpleName)
                 .addModifiers(decisions.publicModifiers(options.isClassesFinal()))
                 .addAnnotation(generatedAnnotation())
                 .addFields(methodBodies.getMembers())
@@ -66,12 +69,12 @@ public final class AssembleMapperType {
     }
 
     MethodSpec emptyPublicConstructor() {
-        return MethodSpec.constructorBuilder().addModifiers(Modifier.PUBLIC).build();
+        return constructorBuilder().addModifiers(PUBLIC).build();
     }
 
     MethodSpec overrideMethod(final MethodImpl impl) {
-        final ExecutableElement method = impl.getMethod();
-        final var builder = MethodSpec.methodBuilder(method.getSimpleName().toString())
+        final var method = impl.getMethod();
+        final var builder = methodBuilder(method.getSimpleName().toString())
                 .addModifiers(decisions.publicModifiers(options.isMethodsFinal()))
                 .addAnnotation(Override.class)
                 .returns(returnTypeName(method))

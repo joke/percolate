@@ -7,7 +7,6 @@ import io.github.joke.percolate.spi.Conversion;
 import io.github.joke.percolate.spi.ExpansionStrategy;
 import io.github.joke.percolate.spi.OperationCodegen;
 import io.github.joke.percolate.spi.ResolveCtx;
-import io.github.joke.percolate.spi.Weights;
 import io.github.joke.percolate.spi.builtins.Labels;
 import java.util.List;
 import java.util.Optional;
@@ -15,6 +14,9 @@ import java.util.stream.Stream;
 import javax.lang.model.type.TypeMirror;
 import lombok.NoArgsConstructor;
 import org.jetbrains.annotations.VisibleForTesting;
+
+import static io.github.joke.percolate.spi.Weights.STEP;
+import static java.util.stream.Stream.concat;
 
 // The absolute (instant-based) temporal family's single-hop spoke conversions to and from the Instant hub
 // (design D1 of change add-temporal-type-mapping): java.util.Date, java.sql.Timestamp, OffsetDateTime, and
@@ -48,7 +50,7 @@ public final class AbsoluteTemporalConversion extends Conversion {
     }
 
     Stream<Step> toInstantSteps(final ResolveCtx ctx) {
-        return Stream.concat(
+        return concat(
                 METHOD_SPOKES.stream().map(fqn -> toInstantByMethod(fqn, ctx)).flatMap(Optional::stream),
                 FIXED_OFFSET_SPOKES.stream()
                         .map(fqn -> toInstantByMethod(fqn, ctx))
@@ -65,7 +67,7 @@ public final class AbsoluteTemporalConversion extends Conversion {
         final var spokeType = spokeElement.asType();
         final var instantType = instantElement.asType();
         final OperationCodegen codegen = inputs -> CodeBlock.of("$L.toInstant()", inputs.single());
-        return Optional.of(new Step(spokeType, Labels.conversion(spokeType, instantType), Weights.STEP, codegen));
+        return Optional.of(new Step(spokeType, Labels.conversion(spokeType, instantType), STEP, codegen));
     }
 
     Optional<Step> fromInstantStep(final TypeMirror target, final ResolveCtx ctx) {
@@ -98,7 +100,7 @@ public final class AbsoluteTemporalConversion extends Conversion {
         }
         final var instantType = instantElement.asType();
         final OperationCodegen codegen = inputs -> CodeBlock.of("$T.from($L)", target, inputs.single());
-        return Optional.of(new Step(instantType, Labels.conversion(instantType, target), Weights.STEP, codegen));
+        return Optional.of(new Step(instantType, Labels.conversion(instantType, target), STEP, codegen));
     }
 
     // Instant.atOffset/.atZone fixed at the literal ZoneOffset.UTC — zone-free, no truncation.
@@ -109,6 +111,6 @@ public final class AbsoluteTemporalConversion extends Conversion {
         }
         final var instantType = instantElement.asType();
         final OperationCodegen codegen = inputs -> CodeBlock.of("$L.$N($T.UTC)", inputs.single(), method, ZONE_OFFSET);
-        return Optional.of(new Step(instantType, Labels.conversion(instantType, target), Weights.STEP, codegen));
+        return Optional.of(new Step(instantType, Labels.conversion(instantType, target), STEP, codegen));
     }
 }

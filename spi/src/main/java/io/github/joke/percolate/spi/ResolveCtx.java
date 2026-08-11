@@ -4,7 +4,6 @@ import java.util.Optional;
 import java.util.stream.Stream;
 import javax.lang.model.element.Element;
 import javax.lang.model.element.ElementKind;
-import javax.lang.model.element.Modifier;
 import javax.lang.model.element.TypeElement;
 import javax.lang.model.type.ArrayType;
 import javax.lang.model.type.DeclaredType;
@@ -14,6 +13,15 @@ import javax.lang.model.type.TypeMirror;
 import javax.lang.model.util.Elements;
 import javax.lang.model.util.Types;
 import org.jspecify.annotations.Nullable;
+
+import static javax.lang.model.element.ElementKind.CONSTRUCTOR;
+import static javax.lang.model.element.ElementKind.FIELD;
+import static javax.lang.model.element.ElementKind.METHOD;
+import static javax.lang.model.element.Modifier.PRIVATE;
+import static javax.lang.model.element.Modifier.STATIC;
+import static javax.lang.model.type.TypeKind.ARRAY;
+import static javax.lang.model.type.TypeKind.DECLARED;
+import static javax.lang.model.type.TypeKind.TYPEVAR;
 
 /**
  * The narrow, mockable type-query seam (change {@code type-query-seam}): the engine and strategies ask their type and
@@ -63,17 +71,17 @@ public interface ResolveCtx {
 
     /** Whether {@code type} is an array. */
     default boolean isArray(final TypeMirror type) {
-        return type.getKind() == TypeKind.ARRAY;
+        return type.getKind() == ARRAY;
     }
 
     /** Whether {@code type} is a declared (class/interface) type. */
     default boolean isDeclared(final TypeMirror type) {
-        return type.getKind() == TypeKind.DECLARED;
+        return type.getKind() == DECLARED;
     }
 
     /** Whether {@code type} is a type variable. */
     default boolean isTypeVariable(final TypeMirror type) {
-        return type.getKind() == TypeKind.TYPEVAR;
+        return type.getKind() == TYPEVAR;
     }
 
     /** The {@code index}-th type argument of the declared type {@code type}. */
@@ -233,26 +241,26 @@ public interface ResolveCtx {
 
     /** Whether {@code member} is a field. */
     default boolean isField(final Element member) {
-        return member.getKind() == ElementKind.FIELD;
+        return member.getKind() == FIELD;
     }
 
     /** Whether {@code member} is a method. */
     default boolean isMethod(final Element member) {
-        return member.getKind() == ElementKind.METHOD;
+        return member.getKind() == METHOD;
     }
 
     /** Whether {@code member} is a constructor. */
     default boolean isConstructor(final Element member) {
-        return member.getKind() == ElementKind.CONSTRUCTOR;
+        return member.getKind() == CONSTRUCTOR;
     }
 
     /** Whether {@code member} is declared {@code private}. */
     default boolean isPrivate(final Element member) {
-        return member.getModifiers().contains(Modifier.PRIVATE);
+        return member.getModifiers().contains(PRIVATE);
     }
 
     /** Whether {@code member} is declared {@code static}. */
     default boolean isStatic(final Element member) {
-        return member.getModifiers().contains(Modifier.STATIC);
+        return member.getModifiers().contains(STATIC);
     }
 }

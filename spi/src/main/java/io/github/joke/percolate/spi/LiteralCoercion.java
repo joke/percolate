@@ -12,6 +12,16 @@ import javax.lang.model.type.TypeMirror;
 import lombok.experimental.UtilityClass;
 import org.jspecify.annotations.Nullable;
 
+import static java.lang.String.format;
+import static javax.lang.model.type.TypeKind.BOOLEAN;
+import static javax.lang.model.type.TypeKind.BYTE;
+import static javax.lang.model.type.TypeKind.CHAR;
+import static javax.lang.model.type.TypeKind.DECLARED;
+import static javax.lang.model.type.TypeKind.DOUBLE;
+import static javax.lang.model.type.TypeKind.FLOAT;
+import static javax.lang.model.type.TypeKind.LONG;
+import static javax.lang.model.type.TypeKind.SHORT;
+
 /**
  * Coerces a raw {@code @Map} string ({@code constant} or {@code defaultValue}) into a typed Java literal for the JDK
  * scalar types only: the 8 primitives, their 8 wrappers, and {@code String}. Every other target type — enums,
@@ -35,14 +45,22 @@ public class LiteralCoercion {
 
     /** Primitive coercers keyed by {@link TypeKind}; each renders a bare primitive literal. */
     private static final Map<TypeKind, Function<String, Optional<CodeBlock>>> PRIMITIVES = Map.of(
-            TypeKind.BOOLEAN, LiteralCoercion::booleanLiteral,
-            TypeKind.BYTE, LiteralCoercion::byteLiteral,
-            TypeKind.SHORT, LiteralCoercion::shortLiteral,
-            TypeKind.INT, LiteralCoercion::intLiteral,
-            TypeKind.LONG, LiteralCoercion::longLiteral,
-            TypeKind.CHAR, LiteralCoercion::charLiteral,
-            TypeKind.FLOAT, LiteralCoercion::floatLiteral,
-            TypeKind.DOUBLE, LiteralCoercion::doubleLiteral);
+            BOOLEAN,
+            LiteralCoercion::booleanLiteral,
+            BYTE,
+            LiteralCoercion::byteLiteral,
+            SHORT,
+            LiteralCoercion::shortLiteral,
+            TypeKind.INT,
+            LiteralCoercion::intLiteral,
+            LONG,
+            LiteralCoercion::longLiteral,
+            CHAR,
+            LiteralCoercion::charLiteral,
+            FLOAT,
+            LiteralCoercion::floatLiteral,
+            DOUBLE,
+            LiteralCoercion::doubleLiteral);
 
     /** Wrapper / {@code String} coercers keyed by fully-qualified name; wrappers box their primitive literal. */
     private static final Map<String, Function<String, Optional<CodeBlock>>> DECLARED_COERCERS = Map.of(
@@ -75,7 +93,7 @@ public class LiteralCoercion {
         if (primitive != null) {
             return primitive.apply(raw);
         }
-        if (targetType.getKind() == TypeKind.DECLARED) {
+        if (targetType.getKind() == DECLARED) {
             return declared(raw, (DeclaredType) targetType);
         }
         return Optional.empty();
@@ -131,7 +149,7 @@ public class LiteralCoercion {
 
     static Optional<CodeBlock> integral(
             final String raw, final long min, final long max, final String castPrefix, final String suffix) {
-        final Long value = parseLong(raw);
+        final var value = parseLong(raw);
         if (value == null || value < min || value > max) {
             return Optional.empty();
         }
@@ -178,7 +196,7 @@ public class LiteralCoercion {
             return known;
         }
         if (c < FIRST_PRINTABLE || c > LAST_PRINTABLE) {
-            return String.format("\\u%04x", (int) c);
+            return format("\\u%04x", (int) c);
         }
         return String.valueOf(c);
     }

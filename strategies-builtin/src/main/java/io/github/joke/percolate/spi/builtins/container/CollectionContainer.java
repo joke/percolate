@@ -4,6 +4,7 @@ import io.github.joke.percolate.lib.javapoet.CodeBlock;
 import io.github.joke.percolate.spi.ResolveCtx;
 import java.util.Optional;
 import javax.lang.model.element.TypeElement;
+import org.jetbrains.annotations.ApiStatus.OverrideOnly;
 import org.jetbrains.annotations.VisibleForTesting;
 
 // Shared stream snippets for the JDK collection sequence containers. List and Set differ only by their terminal
@@ -12,9 +13,11 @@ import org.jetbrains.annotations.VisibleForTesting;
 abstract class CollectionContainer extends StreamContainer {
 
     // The terminal collector snippet, e.g. Collectors.toList().
+    @OverrideOnly
     protected abstract CodeBlock collector();
 
     // The single-element factory type, e.g. List so the wrap renders List.of(x); also the kind.
+    @OverrideOnly
     protected abstract Class<?> factoryType();
 
     @Override

@@ -11,15 +11,17 @@ import io.github.joke.percolate.processor.internal.stages.Stage;
 import io.github.joke.percolate.processor.model.MethodDirectives;
 import io.github.joke.percolate.spi.DirectiveInput;
 import jakarta.inject.Inject;
-import java.util.Collections;
 import java.util.HashSet;
 import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
-import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
 import org.jspecify.annotations.Nullable;
+
+import static io.github.joke.percolate.processor.internal.graph.ExtractedPlan.extract;
+import static java.util.Collections.newSetFromMap;
+import static java.util.stream.Collectors.toUnmodifiableSet;
 
 // The consumption-tracked directive-option rail's diagnostic half (design D3/D7 of change decouple-engine-from-
 // strategy-semantics): after expansion, for every explicitly bound target path (one a reader called bind at),
@@ -45,7 +47,7 @@ public final class ValidateOptionConsumptionStage implements Stage {
         if (methodDirectives == null || graph == null) {
             return;
         }
-        final var plan = ExtractedPlan.extract(graph);
+        final var plan = extract(graph);
         methodDirectives.forEach(directives -> checkMethod(directives, graph, plan, ctx));
     }
 
@@ -57,7 +59,7 @@ public final class ValidateOptionConsumptionStage implements Stage {
         final var scope = new MethodScope(directives.getMethod());
         final var boundPaths = directives.getBinds().stream()
                 .map(bind -> String.join(".", bind.getTargetPath()))
-                .collect(Collectors.toUnmodifiableSet());
+                .collect(toUnmodifiableSet());
         directives.getInputsByTarget().entrySet().stream()
                 .filter(entry -> boundPaths.contains(entry.getKey()))
                 .forEach(entry -> checkPath(entry.getKey(), entry.getValue(), scope, graph, plan, ctx));
@@ -86,9 +88,9 @@ public final class ValidateOptionConsumptionStage implements Stage {
 
     // The consumed-input union over every Operation the winning plan reaches from target.
     Set<DirectiveInput> consumedInputs(final MapperGraph graph, final ExtractedPlan plan, final Value target) {
-        final Set<Operation> ops = new HashSet<>();
+        final var ops = new HashSet<Operation>();
         collectWinningOps(graph, plan, target, ops, newSeenSet());
-        final Set<DirectiveInput> inputs = new HashSet<>();
+        final var inputs = new HashSet<DirectiveInput>();
         ops.forEach(op -> inputs.addAll(op.getConsumed()));
         return inputs;
     }
@@ -112,7 +114,7 @@ public final class ValidateOptionConsumptionStage implements Stage {
 
     @SuppressWarnings("IdentityHashMapUsage")
     Set<Value> newSeenSet() {
-        return Collections.newSetFromMap(new IdentityHashMap<>());
+        return newSetFromMap(new IdentityHashMap<>());
     }
 
     // The target Value at the end of target's dotted path, walked from the method's assembly root. The base case is

@@ -10,6 +10,7 @@ import javax.lang.model.type.TypeMirror;
 import lombok.RequiredArgsConstructor;
 import org.jspecify.annotations.Nullable;
 
+import static io.github.joke.percolate.spi.OperationSpec.mapping;
 import static java.util.stream.Collectors.toUnmodifiableList;
 
 // Substitutes one binding map across a spec's ports and child scope, producing a fully-concrete OperationSpec
@@ -27,7 +28,7 @@ final class SpecInstantiator {
                 spec.getPorts().stream().map(port -> groundPort(port, bindings)).collect(toUnmodifiableList());
         final var childScope = spec.getChildScope().map(child -> groundChild(child, bindings));
         if (childScope.isPresent()) {
-            return OperationSpec.mapping(
+            return mapping(
                             spec.getLabel(),
                             spec.getCodegen(),
                             spec.getWeight(),

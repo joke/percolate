@@ -33,6 +33,9 @@ dependencies {
     testImplementation testFixtures(project(':spi'))
     testImplementation 'com.tngtech.archunit:archunit'
 
+    testCompileOnly platform(project(':dependencies'))
+    testCompileOnly 'org.jetbrains:annotations'
+
     testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
     testRuntimeOnly 'org.mockito:mockito-junit-jupiter'
     testRuntimeOnly 'org.slf4j:slf4j-simple'

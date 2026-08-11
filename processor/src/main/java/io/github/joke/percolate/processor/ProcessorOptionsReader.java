@@ -2,13 +2,25 @@ package io.github.joke.percolate.processor;
 
 import io.github.joke.percolate.spi.SwitchStyle;
 import jakarta.inject.Inject;
-import java.util.Arrays;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
-import java.util.stream.Collectors;
 import lombok.NoArgsConstructor;
+
+import static io.github.joke.percolate.processor.ProcessorOptions.CLASSES_FINAL;
+import static io.github.joke.percolate.processor.ProcessorOptions.DEBUG_GRAPHS;
+import static io.github.joke.percolate.processor.ProcessorOptions.DOC_TAGS;
+import static io.github.joke.percolate.processor.ProcessorOptions.LOCALS_FINAL;
+import static io.github.joke.percolate.processor.ProcessorOptions.LOCALS_VAR;
+import static io.github.joke.percolate.processor.ProcessorOptions.METHODS_FINAL;
+import static io.github.joke.percolate.processor.ProcessorOptions.NULLABLE_ANNOTATIONS;
+import static io.github.joke.percolate.processor.ProcessorOptions.PARAMETERS_FINAL;
+import static io.github.joke.percolate.processor.ProcessorOptions.SWITCH_STYLE;
+import static io.github.joke.percolate.processor.ProcessorOptions.TIME_ZONE;
+import static io.github.joke.percolate.spi.SwitchStyle.AUTO;
+import static java.util.Arrays.stream;
+import static java.util.Locale.ROOT;
+import static java.util.stream.Collectors.toUnmodifiableSet;
 
 // Reads the raw -A option map into a ProcessorOptions. Split out of that value type by change tighten-
 // testability-conventions (design D2): the parsing decisions — a missing flag defaulting to false, an
@@ -20,28 +32,26 @@ public class ProcessorOptionsReader {
 
     public ProcessorOptions from(final Map<String, String> options) {
         return ProcessorOptions.builder()
-                .debugGraphs(flag(options, ProcessorOptions.DEBUG_GRAPHS))
+                .debugGraphs(flag(options, DEBUG_GRAPHS))
                 .customNullableAnnotations(nullableAnnotations(options))
-                .localsFinal(flag(options, ProcessorOptions.LOCALS_FINAL))
-                .localsVar(flag(options, ProcessorOptions.LOCALS_VAR))
-                .parametersFinal(flag(options, ProcessorOptions.PARAMETERS_FINAL))
-                .methodsFinal(flag(options, ProcessorOptions.METHODS_FINAL))
-                .classesFinal(flag(options, ProcessorOptions.CLASSES_FINAL))
-                .docTags(flag(options, ProcessorOptions.DOC_TAGS))
-                .timeZone(Optional.ofNullable(options.get(ProcessorOptions.TIME_ZONE)))
+                .localsFinal(flag(options, LOCALS_FINAL))
+                .localsVar(flag(options, LOCALS_VAR))
+                .parametersFinal(flag(options, PARAMETERS_FINAL))
+                .methodsFinal(flag(options, METHODS_FINAL))
+                .classesFinal(flag(options, CLASSES_FINAL))
+                .docTags(flag(options, DOC_TAGS))
+                .timeZone(Optional.ofNullable(options.get(TIME_ZONE)))
                 .switchStyle(parseSwitchStyle(options))
                 .build();
     }
 
     // The comma-separated custom nullable annotations, empty segments dropped so a trailing comma is harmless.
     Set<String> nullableAnnotations(final Map<String, String> options) {
-        final var raw = options.get(ProcessorOptions.NULLABLE_ANNOTATIONS);
+        final var raw = options.get(NULLABLE_ANNOTATIONS);
         if (raw == null || raw.isEmpty()) {
             return Set.of();
         }
-        return Arrays.stream(raw.split(","))
-                .filter(segment -> !segment.isEmpty())
-                .collect(Collectors.toUnmodifiableSet());
+        return stream(raw.split(",")).filter(segment -> !segment.isEmpty()).collect(toUnmodifiableSet());
     }
 
     boolean flag(final Map<String, String> options, final String key) {
@@ -50,14 +60,14 @@ public class ProcessorOptionsReader {
 
     // An unrecognised or absent switch.style degrades to AUTO — never fails the round.
     SwitchStyle parseSwitchStyle(final Map<String, String> options) {
-        final var raw = options.get(ProcessorOptions.SWITCH_STYLE);
+        final var raw = options.get(SWITCH_STYLE);
         if (raw == null) {
-            return SwitchStyle.AUTO;
+            return AUTO;
         }
         try {
-            return SwitchStyle.valueOf(raw.toUpperCase(Locale.ROOT));
+            return SwitchStyle.valueOf(raw.toUpperCase(ROOT));
         } catch (final IllegalArgumentException e) {
-            return SwitchStyle.AUTO;
+            return AUTO;
         }
     }
 }

@@ -6,7 +6,6 @@ import java.lang.annotation.Repeatable;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import java.util.stream.Stream;
 import javax.lang.model.element.AnnotationMirror;
 import javax.lang.model.element.AnnotationValue;
@@ -14,6 +13,9 @@ import javax.lang.model.element.ExecutableElement;
 import javax.lang.model.element.TypeElement;
 import lombok.experimental.UtilityClass;
 import org.jspecify.annotations.Nullable;
+
+import static java.util.Objects.requireNonNull;
+import static java.util.stream.Collectors.toUnmodifiableList;
 
 // The one thin javax.lang.model helper shared by every built-in io.github.joke.percolate.spi.DirectiveReader
 // (design D4/D7 of change decouple-engine-from-strategy-semantics): finds every mirror of a mapping annotation
@@ -33,7 +35,7 @@ public class AnnotationEntries {
         final var containerFqn = containerFqn(annotationClass);
         return method.getAnnotationMirrors().stream()
                 .flatMap(mirror -> matching(mirror, fqn, containerFqn))
-                .collect(java.util.stream.Collectors.toUnmodifiableList());
+                .collect(toUnmodifiableList());
     }
 
     static Stream<AnnotationMirror> matching(
@@ -57,7 +59,7 @@ public class AnnotationEntries {
     @SuppressWarnings("unchecked")
     static Stream<AnnotationMirror> unwrapContainer(final AnnotationMirror containerMirror) {
         final var containerValue =
-                Objects.requireNonNull(writtenMembers(containerMirror).get("value"));
+                requireNonNull(writtenMembers(containerMirror).get("value"));
         final var entries = (List<AnnotationValue>) containerValue.getValue();
         return entries.stream().map(av -> (AnnotationMirror) av.getValue());
     }
@@ -70,7 +72,7 @@ public class AnnotationEntries {
     // mirror's written members only, keyed by simple name — never a member left at its declared default.
     @SuppressWarnings("PMD.UseConcurrentHashMap") // single-threaded annotation processing; no concurrent access
     public static Map<String, AnnotationValue> writtenMembers(final AnnotationMirror mirror) {
-        final Map<String, AnnotationValue> written = new LinkedHashMap<>();
+        final var written = new LinkedHashMap<String, AnnotationValue>();
         mirror.getElementValues()
                 .forEach((member, value) -> written.put(member.getSimpleName().toString(), value));
         return written;

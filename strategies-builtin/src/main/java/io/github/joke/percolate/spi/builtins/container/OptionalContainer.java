@@ -13,6 +13,8 @@ import javax.lang.model.type.TypeMirror;
 import lombok.NoArgsConstructor;
 import org.jetbrains.annotations.VisibleForTesting;
 
+import static io.github.joke.percolate.spi.Nullability.NULLABLE;
+
 // The java.util.Optional presence container. It supplies no collect — that absence is what makes its kind a
 // presence wrapper. .iterate() yields a 0-or-1 element stream (Optional.stream()), which is how a flat-map
 // drops empties; .mapPresence() maps the wrapped value (opt.map) as a functor lift; .wrap() lifts a scalar via
@@ -52,12 +54,12 @@ public final class OptionalContainer extends StreamContainer {
     @Override
     @VisibleForTesting
     protected Nullability wrapNullness() {
-        return Nullability.NULLABLE;
+        return NULLABLE;
     }
 
     @Override
     public Optional<UnwrapSnippet> unwrap() {
-        return Optional.of((wrapper, targetNullability) -> targetNullability == Nullability.NULLABLE
+        return Optional.of((wrapper, targetNullability) -> targetNullability == NULLABLE
                 ? CodeBlock.of("$L$Z.orElse(null)", wrapper)
                 : CodeBlock.of("$L$Z.orElseThrow()", wrapper));
     }

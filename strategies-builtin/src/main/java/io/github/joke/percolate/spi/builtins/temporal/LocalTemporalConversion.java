@@ -6,13 +6,14 @@ import io.github.joke.percolate.spi.Conversion;
 import io.github.joke.percolate.spi.ExpansionStrategy;
 import io.github.joke.percolate.spi.OperationCodegen;
 import io.github.joke.percolate.spi.ResolveCtx;
-import io.github.joke.percolate.spi.Weights;
 import io.github.joke.percolate.spi.builtins.Labels;
 import java.util.Optional;
 import java.util.stream.Stream;
 import javax.lang.model.type.TypeMirror;
 import lombok.NoArgsConstructor;
 import org.jetbrains.annotations.VisibleForTesting;
+
+import static io.github.joke.percolate.spi.Weights.STEP;
 
 // The local (wall-time, no instant) temporal family's single-hop spoke conversion to and from the LocalDateTime
 // hub (design D1/D2 of change add-temporal-type-mapping): LocalDate. Neither hop reads a zone — the local
@@ -50,8 +51,7 @@ public final class LocalTemporalConversion extends Conversion {
         final var localDateType = localDateElement.asType();
         final var localDateTimeType = localDateTimeElement.asType();
         final OperationCodegen codegen = inputs -> CodeBlock.of("$L.atStartOfDay()", inputs.single());
-        return Optional.of(
-                new Step(localDateType, Labels.conversion(localDateType, localDateTimeType), Weights.STEP, codegen));
+        return Optional.of(new Step(localDateType, Labels.conversion(localDateType, localDateTimeType), STEP, codegen));
     }
 
     // LocalDateTime → LocalDate via toLocalDate() — a user-requested narrowing, not a hub truncation.
@@ -64,7 +64,7 @@ public final class LocalTemporalConversion extends Conversion {
         final var localDateType = localDateElement.asType();
         final var localDateTimeType = localDateTimeElement.asType();
         final OperationCodegen codegen = inputs -> CodeBlock.of("$L.toLocalDate()", inputs.single());
-        return Optional.of(new Step(
-                localDateTimeType, Labels.conversion(localDateTimeType, localDateType), Weights.STEP, codegen));
+        return Optional.of(
+                new Step(localDateTimeType, Labels.conversion(localDateTimeType, localDateType), STEP, codegen));
     }
 }

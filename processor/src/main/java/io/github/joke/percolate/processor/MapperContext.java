@@ -13,11 +13,12 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import javax.lang.model.element.TypeElement;
-import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 import lombok.Setter;
 import org.jspecify.annotations.Nullable;
+
+import static lombok.AccessLevel.NONE;
 
 @RequiredArgsConstructor(onConstructor_ = @Inject)
 @Getter
@@ -38,7 +39,7 @@ public final class MapperContext {
 
     // Diagnostics collected for this mapper's round, in report order (design D14) — flushed by MapperStep, never
     // eagerly.
-    @Getter(AccessLevel.NONE)
+    @Getter(NONE)
     private final List<Diagnostic> diagnostics = new ArrayList<>();
 
     // Records diagnostic, collected rather than emitted.

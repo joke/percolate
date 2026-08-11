@@ -7,7 +7,6 @@ import java.util.LinkedHashSet;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
-import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import javax.lang.model.type.TypeMirror;
 import lombok.NoArgsConstructor;
@@ -15,6 +14,11 @@ import org.jgrapht.Graph;
 import org.jgrapht.graph.AsUnmodifiableGraph;
 import org.jgrapht.graph.DirectedMultigraph;
 import org.jgrapht.graph.MaskSubgraph;
+
+import static io.github.joke.percolate.processor.internal.graph.Dep.port;
+import static io.github.joke.percolate.processor.internal.graph.Visibility.LOCAL;
+import static java.util.Comparator.comparing;
+import static java.util.stream.Collectors.toUnmodifiableList;
 
 // The bipartite resolution graph: a single JGraphT DirectedMultigraph of GraphVertex (Value / Operation)
 // connected by pure Dep dependency edges. It is append-only after construction — vertices and edges are never
@@ -72,7 +76,7 @@ public final class MapperGraph {
     // during expansion.
     public Operation apply(final AddOperation delta) {
         final var output = apply(delta.getOutput());
-        final var ports = delta.getPorts().stream().map(PortBinding::getPort).collect(Collectors.toUnmodifiableList());
+        final var ports = delta.getPorts().stream().map(PortBinding::getPort).collect(toUnmodifiableList());
         final var seq = operationSeq;
         operationSeq++;
         final var operation = new Operation(
@@ -91,7 +95,7 @@ public final class MapperGraph {
         addDep(operation, output, Dep.output());
         for (final var binding : delta.getPorts()) {
             final var source = apply(binding.getSource());
-            addDep(source, operation, Dep.port(binding.getPort().getName()));
+            addDep(source, operation, port(binding.getPort().getName()));
         }
         return operation;
     }
@@ -104,7 +108,7 @@ public final class MapperGraph {
         final var returnRoot = valueFor(
                 child, new TargetLocation(TargetPath.of("")), decl.getElementOut(), decl.getElementOutNullness());
         final var elementInput = new InputDecl(
-                new ElementLocation(), decl.getElementIn(), decl.getElementInNullness(), "element", Visibility.LOCAL);
+                new ElementLocation(), decl.getElementIn(), decl.getElementInNullness(), "element", LOCAL);
         child.initialise(returnRoot, elementInput);
     }
 
@@ -125,7 +129,7 @@ public final class MapperGraph {
                 .map(bipartite::getEdgeSource)
                 .filter(Operation.class::isInstance)
                 .map(Operation.class::cast)
-                .sorted(Comparator.comparing(GraphVertex::id));
+                .sorted(comparing(GraphVertex::id));
     }
 
     // All Values feeding operation's ports, in declared port order.
@@ -162,7 +166,7 @@ public final class MapperGraph {
                 .filter(Value.class::isInstance)
                 .map(Value.class::cast)
                 .filter(value -> value.getScope().equals(scope))
-                .sorted(Comparator.comparing(GraphVertex::id));
+                .sorted(comparing(GraphVertex::id));
     }
 
     // A read-only view of the whole bipartite graph.
@@ -177,7 +181,7 @@ public final class MapperGraph {
 
     // All bipartite vertices in deterministic GraphVertex.id() order.
     public Stream<GraphVertex> vertices() {
-        return bipartite.vertexSet().stream().sorted(Comparator.comparing(GraphVertex::id));
+        return bipartite.vertexSet().stream().sorted(comparing(GraphVertex::id));
     }
 
     // All Values in deterministic order.
@@ -204,6 +208,8 @@ public final class MapperGraph {
     }
 
     // All dependency edges in deterministic (source id, target id, port) order.
+    // Comparator.comparing needs an explicit type witness here, which a static import cannot carry.
+    @SuppressWarnings("PMD.UseStaticImports")
     public Stream<Dep> deps() {
         return bipartite.edgeSet().stream()
                 .sorted(Comparator.<Dep, String>comparing(

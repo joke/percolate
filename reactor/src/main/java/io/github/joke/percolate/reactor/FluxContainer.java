@@ -6,13 +6,14 @@ import io.github.joke.percolate.spi.Container;
 import io.github.joke.percolate.spi.ExpansionStrategy;
 import io.github.joke.percolate.spi.ResolveCtx;
 import io.github.joke.percolate.spi.SourceProjection;
-import java.util.Objects;
 import java.util.Optional;
 import javax.lang.model.element.TypeElement;
 import javax.lang.model.type.TypeMirror;
 import lombok.NoArgsConstructor;
 import org.jetbrains.annotations.VisibleForTesting;
 import reactor.core.publisher.Flux;
+
+import static java.util.Objects.requireNonNull;
 
 // The reactor.core.publisher.Flux sequence container over the single shared reactive intermediate — which is
 // Flux itself (design D1). Because the kind is the intermediate, .iterate() and .collect() would be identities
@@ -46,7 +47,7 @@ public final class FluxContainer extends Container {
     @Override
     @VisibleForTesting
     protected TypeElement intermediateErasure(final ResolveCtx ctx) {
-        return Objects.requireNonNull(
+        return requireNonNull(
                 ctx.typeElementNamed(FLUX), "reactor-core must be on the compile classpath when reactor is active");
     }
 

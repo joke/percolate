@@ -24,11 +24,8 @@ import io.github.joke.percolate.spi.SourceProjection;
 import jakarta.inject.Inject;
 import jakarta.inject.Named;
 import jakarta.inject.Singleton;
-import java.util.Comparator;
 import java.util.List;
-import java.util.ServiceLoader;
 import java.util.stream.Stream;
-import java.util.stream.StreamSupport;
 import javax.annotation.processing.Filer;
 import javax.annotation.processing.Messager;
 import javax.annotation.processing.ProcessingEnvironment;
@@ -38,9 +35,18 @@ import javax.lang.model.util.Types;
 import lombok.EqualsAndHashCode;
 import lombok.RequiredArgsConstructor;
 
+import static io.github.joke.percolate.processor.nullability.NullabilityAnnotations.jspecifyDefaults;
+import static java.util.Comparator.comparing;
+import static java.util.Comparator.comparingInt;
+import static java.util.ServiceLoader.load;
 import static java.util.stream.Collectors.toUnmodifiableList;
 import static java.util.stream.Collectors.toUnmodifiableSet;
+import static java.util.stream.Stream.concat;
+import static java.util.stream.StreamSupport.stream;
 
+// Dagger requires every @Provides method on a @Module to be static, so the whole class is framework-mandated
+// statics. Suppressed here rather than five times over, which would itself trip AvoidDuplicateLiterals.
+@SuppressWarnings("PMD.StaticMethodsModifyStaticState")
 @Module
 @RequiredArgsConstructor(onConstructor_ = @Inject)
 @EqualsAndHashCode(onlyExplicitlyIncluded = true)
@@ -83,13 +89,13 @@ public final class ProcessorModule {
     @Provides
     @Singleton
     NullabilityAnnotations nullabilityAnnotations(final ProcessorOptions processorOptions) {
-        final var defaults = NullabilityAnnotations.jspecifyDefaults();
+        final var defaults = jspecifyDefaults();
         final var custom = processorOptions.getCustomNullableAnnotations();
         if (custom.isEmpty()) {
             return defaults;
         }
-        final var merged = Stream.concat(defaults.getNullableFqns().stream(), custom.stream())
-                .collect(toUnmodifiableSet());
+        final var merged =
+                concat(defaults.getNullableFqns().stream(), custom.stream()).collect(toUnmodifiableSet());
         return new NullabilityAnnotations(merged, defaults.getMarkedFqns(), defaults.getUnmarkedFqns());
     }
 
@@ -132,7 +138,7 @@ public final class ProcessorModule {
             final ValidateOptionConsumptionStage validateOptionConsumption,
             final RealisationDiagnosticsStage realisationDiagnostics,
             final GenerateStage generateStage) {
-        return Stream.concat(
+        return concat(
                         discoverStages.stream(),
                         Stream.<Stage>of(
                                 validateNoDuplicateTargets,
@@ -154,11 +160,11 @@ public final class ProcessorModule {
     @Singleton
     @Provides
     static List<ExpansionStrategy> expansionStrategies() {
-        return StreamSupport.stream(
-                        ServiceLoader.load(ExpansionStrategy.class, ProcessorModule.class.getClassLoader())
+        return stream(
+                        load(ExpansionStrategy.class, ProcessorModule.class.getClassLoader())
                                 .spliterator(),
                         false)
-                .sorted(Comparator.comparingInt(ExpansionStrategy::priority)
+                .sorted(comparingInt(ExpansionStrategy::priority)
                         .thenComparing(strategy -> strategy.getClass().getName()))
                 .collect(toUnmodifiableList());
     }
@@ -168,11 +174,11 @@ public final class ProcessorModule {
     @Singleton
     @Provides
     static List<DirectiveReader> directiveReaders() {
-        return StreamSupport.stream(
-                        ServiceLoader.load(DirectiveReader.class, ProcessorModule.class.getClassLoader())
+        return stream(
+                        load(DirectiveReader.class, ProcessorModule.class.getClassLoader())
                                 .spliterator(),
                         false)
-                .sorted(Comparator.comparing(reader -> reader.getClass().getName()))
+                .sorted(comparing(reader -> reader.getClass().getName()))
                 .collect(toUnmodifiableList());
     }
 
@@ -181,11 +187,11 @@ public final class ProcessorModule {
     @Singleton
     @Provides
     static List<SourceProjection> sourceProjections() {
-        return StreamSupport.stream(
-                        ServiceLoader.load(SourceProjection.class, ProcessorModule.class.getClassLoader())
+        return stream(
+                        load(SourceProjection.class, ProcessorModule.class.getClassLoader())
                                 .spliterator(),
                         false)
-                .sorted(Comparator.comparing(projection -> projection.getClass().getName()))
+                .sorted(comparing(projection -> projection.getClass().getName()))
                 .collect(toUnmodifiableList());
     }
 }

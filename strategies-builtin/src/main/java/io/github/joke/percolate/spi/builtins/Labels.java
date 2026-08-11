@@ -1,11 +1,11 @@
 package io.github.joke.percolate.spi.builtins;
 
 import javax.lang.model.type.DeclaredType;
-import javax.lang.model.type.TypeKind;
 import javax.lang.model.type.TypeMirror;
 import lombok.experimental.UtilityClass;
 
 import static java.util.stream.Collectors.joining;
+import static javax.lang.model.type.TypeKind.DECLARED;
 
 // Composes the human-readable, fully-typed label a built-in strategy attaches to its
 // io.github.joke.percolate.spi.OperationSpec (the operation's debug-graph identity). Type names are reduced to
@@ -18,7 +18,7 @@ public class Labels {
 
     // The simple name of type, recursing into generic arguments (e.g. Optional<Set<Address>>).
     public static String simple(final TypeMirror type) {
-        if (type.getKind() != TypeKind.DECLARED) {
+        if (type.getKind() != DECLARED) {
             return type.toString();
         }
         final var declared = (DeclaredType) type;

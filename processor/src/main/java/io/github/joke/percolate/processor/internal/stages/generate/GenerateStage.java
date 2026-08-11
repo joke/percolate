@@ -1,13 +1,15 @@
 package io.github.joke.percolate.processor.internal.stages.generate;
 
-import io.github.joke.percolate.processor.Diagnostic;
 import io.github.joke.percolate.processor.MapperContext;
 import io.github.joke.percolate.processor.internal.stages.Stage;
-import io.github.joke.percolate.spi.Subjects;
 import jakarta.inject.Inject;
+import lombok.RequiredArgsConstructor;
+
+import static io.github.joke.percolate.processor.Diagnostic.error;
+import static io.github.joke.percolate.spi.Subjects.none;
 
 @SuppressWarnings("PMD.AvoidCatchingGenericException")
-@lombok.RequiredArgsConstructor(onConstructor_ = @Inject)
+@RequiredArgsConstructor(onConstructor_ = @Inject)
 public final class GenerateStage implements Stage {
 
     private final BuildMethodBodies buildMethodBodies;
@@ -26,8 +28,8 @@ public final class GenerateStage implements Stage {
             final var methodBodies = buildMethodBodies.build(ctx);
             assembleMapperType.assemble(ctx, methodBodies);
         } catch (final Throwable t) {
-            ctx.report(Diagnostic.error(Subjects.none(), "code generation failed: " + t.getMessage())
-                    .asPermanent());
+            ctx.report(
+                    error(none(), "code generation failed: " + t.getMessage()).asPermanent());
         }
     }
 }

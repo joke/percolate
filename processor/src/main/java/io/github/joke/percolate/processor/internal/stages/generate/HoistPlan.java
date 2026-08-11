@@ -10,6 +10,8 @@ import javax.lang.model.type.DeclaredType;
 import javax.lang.model.type.TypeMirror;
 import lombok.RequiredArgsConstructor;
 
+import static java.lang.Character.toLowerCase;
+
 // The separable, pure hoist decision plus variable naming for one method body (design D1/D2/D5). Given the
 // ExtractedPlan reachable from a method return-root, it decides which in-plan Values materialise as named
 // locals: a Value with a chosen producer that either feeds a port of an n-ary Operation (getPorts().size() >= 2
@@ -66,7 +68,7 @@ final class HoistPlan {
 
     String typeBase(final TypeMirror type) {
         final var simple = declaredSimpleName(type);
-        return simple.isEmpty() ? "element" : Character.toLowerCase(simple.charAt(0)) + simple.substring(1);
+        return simple.isEmpty() ? "element" : toLowerCase(simple.charAt(0)) + simple.substring(1);
     }
 
     String declaredSimpleName(final TypeMirror type) {

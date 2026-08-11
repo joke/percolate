@@ -16,6 +16,9 @@ import java.util.stream.Stream;
 import javax.lang.model.type.TypeMirror;
 import lombok.NoArgsConstructor;
 
+import static io.github.joke.percolate.reactorblocking.Blockings.MONO;
+import static io.github.joke.percolate.reactorblocking.Blockings.OPTIONAL;
+
 // Upward async-to-sync crossing Mono<T> → Optional<T> via mono.blockOptional(): the presence-preserving
 // blocking bridge, keyed on a target Optional<T> and sourcing a Mono<T> through a reuse-only port. Weighted
 // strictly above any non-blocking alternative; shipped only in the opt-in reactor-blocking module.
@@ -34,7 +37,7 @@ public final class MonoBlockOptional implements ExpansionStrategy, SourceProject
         if (!ctx.isOptional(to)) {
             return Stream.empty();
         }
-        return Blockings.declared(ctx, Blockings.MONO, ctx.typeArgument(to, 0))
+        return Blockings.declared(ctx, MONO, ctx.typeArgument(to, 0))
                 .map(mono -> OperationSpec.of(
                         "blockOptional",
                         (OperationCodegen) inputs -> CodeBlock.of("$L$Z.blockOptional()", inputs.single()),
@@ -48,6 +51,6 @@ public final class MonoBlockOptional implements ExpansionStrategy, SourceProject
 
     @Override
     public Stream<TypeMirror> project(final TypeMirror source, final ResolveCtx ctx) {
-        return Blockings.view(source, Blockings.MONO, Blockings.OPTIONAL, ctx);
+        return Blockings.view(source, MONO, OPTIONAL, ctx);
     }
 }

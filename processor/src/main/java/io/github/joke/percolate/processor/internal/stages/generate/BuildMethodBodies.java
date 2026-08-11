@@ -29,6 +29,7 @@ import javax.lang.model.SourceVersion;
 import javax.lang.model.element.ExecutableElement;
 import lombok.RequiredArgsConstructor;
 
+import static io.github.joke.percolate.processor.internal.graph.ExtractedPlan.extract;
 import static java.util.stream.Collectors.toUnmodifiableList;
 
 // Composes each abstract method body by walking the ExtractedPlan from the method's return-root Value (design
@@ -57,7 +58,7 @@ public final class BuildMethodBodies {
         if (shape == null || graph == null || resolveCtx == null) {
             return new MethodBodies(List.of(), List.of());
         }
-        final var plan = ExtractedPlan.extract(graph);
+        final var plan = extract(graph);
         final var memberPlan = memberPlanFactory.forMapper(graph, plan, ctx);
         final var bodies = shape.getAbstractMethods().stream()
                 .map(method -> renderMethod(graph, plan, memberPlan, method, resolveCtx))
@@ -213,8 +214,8 @@ public final class BuildMethodBodies {
 
         @SuppressWarnings("PMD.UseConcurrentHashMap") // single-threaded render; insertion order is the port order
         CodeBlock renderPlain(final Operation operation) {
-            final List<CodeBlock> positional = new ArrayList<>();
-            final Map<String, CodeBlock> byName = new LinkedHashMap<>();
+            final var positional = new ArrayList<CodeBlock>();
+            final var byName = new LinkedHashMap<String, CodeBlock>();
             for (final var port : operation.getPorts()) {
                 final var operand = graph.portSource(operation, port.getName())
                         .map(this::renderOperand)
@@ -223,7 +224,7 @@ public final class BuildMethodBodies {
                 positional.add(operand);
                 byName.put(port.getName(), operand);
             }
-            final Map<String, CodeBlock> members = new LinkedHashMap<>();
+            final var members = new LinkedHashMap<String, CodeBlock>();
             operation
                     .getMemberRequests()
                     .forEach(
@@ -279,7 +280,7 @@ public final class BuildMethodBodies {
         // reference. The walk stays within the scope — it descends a producer's port sources but never its child scope
         // — and excludes root itself (the return-root renders inline).
         List<Value> hoistedInScope(final Value root) {
-            final List<Value> ordered = new ArrayList<>();
+            final var ordered = new ArrayList<Value>();
             // Value is identity-equal (equals/hashCode are identity), so a HashSet is effectively an identity set.
             collectHoisted(root, root, ordered, new HashSet<>());
             return ordered;

@@ -6,7 +6,10 @@ import java.util.Optional;
 import java.util.stream.Stream;
 import javax.lang.model.element.TypeElement;
 import javax.lang.model.type.TypeMirror;
+import org.jetbrains.annotations.ApiStatus.OverrideOnly;
 import org.jetbrains.annotations.VisibleForTesting;
+
+import static io.github.joke.percolate.spi.Nullability.NON_NULL;
 
 /**
  * The single base a developer extends to declare a container in <b>one</b> class (design D5/D8). The author supplies a
@@ -69,18 +72,23 @@ public abstract class Container implements ExpansionStrategy, SourceProjection {
     }
 
     /** Whether {@code type} is this container's kind. */
+    @OverrideOnly
     protected abstract boolean matches(TypeMirror type, ResolveCtx ctx);
 
     /** The element type of a {@code type} of this container's kind. */
+    @OverrideOnly
     protected abstract TypeMirror element(TypeMirror type, ResolveCtx ctx);
 
     /** This kind's declared erasure ({@code List}/{@code Set}/{@code Optional}/{@code Flux}…); empty for arrays. */
+    @OverrideOnly
     protected abstract Optional<TypeElement> kindErasure(ResolveCtx ctx);
 
     /** This container's element-sequence intermediate erasure (JDK = {@code java.util.stream.Stream}). */
+    @OverrideOnly
     protected abstract TypeElement intermediateErasure(ResolveCtx ctx);
 
     /** Build this container's kind over {@code element}, or empty when not formable (e.g. a primitive element). */
+    @OverrideOnly
     protected Optional<TypeMirror> containerOf(final TypeMirror element, final ResolveCtx ctx) {
         if (!ctx.isReferenceType(element)) {
             return Optional.empty();
@@ -109,8 +117,9 @@ public abstract class Container implements ExpansionStrategy, SourceProjection {
      * Override to {@code NULLABLE} for a kind whose wrap is itself null-safe (e.g. {@code Optional.ofNullable}), so a
      * {@code @Nullable}-declared source binds directly instead of forcing a spurious {@code NullnessCrossing} guard.
      */
+    @OverrideOnly
     protected Nullability wrapNullness() {
-        return Nullability.NON_NULL;
+        return NON_NULL;
     }
 
     /** Collapse this container to a scalar ({@code Cont<E> → E}, partial); empty for a sequence. */
@@ -165,23 +174,21 @@ public abstract class Container implements ExpansionStrategy, SourceProjection {
                         "collect",
                         unary(close),
                         Weights.CONTAINER,
-                        List.of(new Port(STREAM_ROLE, intermediate, Nullability.NON_NULL)),
+                        List.of(new Port(STREAM_ROLE, intermediate, NON_NULL)),
                         to,
-                        Nullability.NON_NULL))));
+                        NON_NULL))));
         wrap().ifPresent(lift -> specs.add(OperationSpec.of(
                 "wrap",
                 unary(lift),
                 Weights.CONTAINER,
                 List.of(new Port(ELEMENT_ROLE, elementOut, wrapNullness())),
                 to,
-                Nullability.NON_NULL)));
+                NON_NULL)));
         mapPresence().ifPresent(map -> kindErasure(ctx).ifPresent(erasure -> {
             final var template = PortType.app(erasure, List.of(PortType.variable(0)));
-            final var port = new Port(SOURCE_ROLE, erasure.asType(), Nullability.NON_NULL, template);
-            final var child =
-                    ChildScopeSpec.lifted(PortType.variable(0), Nullability.NON_NULL, elementOut, Nullability.NON_NULL);
-            specs.add(OperationSpec.mapping(
-                    "map", map, Weights.CONTAINER, List.of(port), to, Nullability.NON_NULL, child));
+            final var port = new Port(SOURCE_ROLE, erasure.asType(), NON_NULL, template);
+            final var child = ChildScopeSpec.lifted(PortType.variable(0), NON_NULL, elementOut, NON_NULL);
+            specs.add(OperationSpec.mapping("map", map, Weights.CONTAINER, List.of(port), to, NON_NULL, child));
         }));
     }
 
@@ -192,9 +199,9 @@ public abstract class Container implements ExpansionStrategy, SourceProjection {
                         "iterate",
                         unary(open),
                         Weights.CONTAINER,
-                        List.of(new Port(SOURCE_ROLE, source, Nullability.NON_NULL)),
+                        List.of(new Port(SOURCE_ROLE, source, NON_NULL)),
                         to,
-                        Nullability.NON_NULL))));
+                        NON_NULL))));
     }
 
     @VisibleForTesting
@@ -212,7 +219,7 @@ public abstract class Container implements ExpansionStrategy, SourceProjection {
                         "unwrap",
                         (OperationCodegen) inputs -> collapse.render(inputs.single(), demand.targetNullness()),
                         Weights.CONTAINER,
-                        List.of(Port.byTypeOrDecline(SOURCE_ROLE, source, Nullability.NON_NULL)),
+                        List.of(Port.byTypeOrDecline(SOURCE_ROLE, source, NON_NULL)),
                         to,
                         demand.targetNullness()))));
     }

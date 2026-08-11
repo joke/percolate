@@ -5,14 +5,12 @@ import io.github.joke.percolate.lib.javapoet.ClassName;
 import io.github.joke.percolate.lib.javapoet.CodeBlock;
 import io.github.joke.percolate.spi.DirectiveInput;
 import io.github.joke.percolate.spi.ExpansionStrategy;
-import io.github.joke.percolate.spi.Nullability;
 import io.github.joke.percolate.spi.Offer;
 import io.github.joke.percolate.spi.OperationCodegen;
 import io.github.joke.percolate.spi.OperationSpec;
 import io.github.joke.percolate.spi.Port;
 import io.github.joke.percolate.spi.ProduceDemand;
 import io.github.joke.percolate.spi.ResolveCtx;
-import io.github.joke.percolate.spi.Weights;
 import io.github.joke.percolate.spi.builtins.Labels;
 import java.util.List;
 import java.util.Optional;
@@ -20,6 +18,9 @@ import java.util.Set;
 import java.util.stream.Stream;
 import javax.lang.model.type.TypeMirror;
 import lombok.NoArgsConstructor;
+
+import static io.github.joke.percolate.spi.Nullability.NON_NULL;
+import static io.github.joke.percolate.spi.Weights.STEP;
 
 // @Map(format = "…") for String ⇄ java.util.Date/java.sql.Timestamp (design D6 of change add-temporal-type-
 // mapping): unlike TemporalFormat, this uses a fresh, per-call new java.text.SimpleDateFormat(pattern) — it is
@@ -76,15 +77,10 @@ public final class LegacyTemporalFormat implements ExpansionStrategy {
         final var sourceType = sourceElement.asType();
         final OperationCodegen codegen =
                 inputs -> CodeBlock.of("new $T($S).format($L)", SIMPLE_DATE_FORMAT, pattern, inputs.single());
-        final var port = new Port(VALUE_ROLE, sourceType, Nullability.NON_NULL);
-        return Optional.of(OperationSpec.of(
-                        Labels.conversion(sourceType, target),
-                        codegen,
-                        Weights.STEP,
-                        List.of(port),
-                        target,
-                        Nullability.NON_NULL)
-                .withConsumed(Set.of(formatInput)));
+        final var port = new Port(VALUE_ROLE, sourceType, NON_NULL);
+        return Optional.of(
+                OperationSpec.of(Labels.conversion(sourceType, target), codegen, STEP, List.of(port), target, NON_NULL)
+                        .withConsumed(Set.of(formatInput)));
     }
 
     // String -> Date/Timestamp via a fresh SimpleDateFormat, its checked ParseException rethrown.
@@ -99,15 +95,10 @@ public final class LegacyTemporalFormat implements ExpansionStrategy {
             return Optional.empty();
         }
         final var stringType = stringElement.asType();
-        final OperationCodegen codegen = isTimestamp.get() ? timestampParseCodegen(pattern) : dateParseCodegen(pattern);
-        final var port = new Port(VALUE_ROLE, stringType, Nullability.NON_NULL);
+        final var codegen = isTimestamp.get() ? timestampParseCodegen(pattern) : dateParseCodegen(pattern);
+        final var port = new Port(VALUE_ROLE, stringType, NON_NULL);
         return Optional.of(OperationSpec.ofPartial(
-                        Labels.conversion(stringType, target),
-                        codegen,
-                        Weights.STEP,
-                        List.of(port),
-                        target,
-                        Nullability.NON_NULL)
+                        Labels.conversion(stringType, target), codegen, STEP, List.of(port), target, NON_NULL)
                 .withConsumed(Set.of(formatInput)));
     }
 

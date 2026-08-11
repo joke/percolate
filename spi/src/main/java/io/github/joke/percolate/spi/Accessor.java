@@ -7,7 +7,10 @@ import javax.lang.model.element.Element;
 import javax.lang.model.element.TypeElement;
 import javax.lang.model.type.TypeMirror;
 import lombok.Value;
+import org.jetbrains.annotations.ApiStatus.OverrideOnly;
 import org.jetbrains.annotations.VisibleForTesting;
+
+import static io.github.joke.percolate.spi.Nullability.NON_NULL;
 
 /**
  * Convenience base for the recurring <b>source-accessor</b> shape (design D6, source-path resolution): a strategy that
@@ -24,6 +27,7 @@ public abstract class Accessor implements ExpansionStrategy {
     private static final String VALUE_ROLE = "value";
 
     /** Resolve the one source-path {@code segment} to an accessor on {@code parent}, or empty when none matches. */
+    @OverrideOnly
     protected abstract Optional<Step> accessor(TypeElement parent, String segment, ResolveCtx ctx);
 
     @Override
@@ -38,7 +42,7 @@ public abstract class Accessor implements ExpansionStrategy {
 
     @VisibleForTesting
     protected OperationSpec toSpec(final Step step, final DescendDemand demand) {
-        final var port = new Port(VALUE_ROLE, demand.parentType(), Nullability.NON_NULL);
+        final var port = new Port(VALUE_ROLE, demand.parentType(), NON_NULL);
         final var nullness = demand.nullnessOf(step.getOutputType(), step.getMember());
         return OperationSpec.of(
                 step.getLabel(), step.getCodegen(), step.getWeight(), List.of(port), step.getOutputType(), nullness);
