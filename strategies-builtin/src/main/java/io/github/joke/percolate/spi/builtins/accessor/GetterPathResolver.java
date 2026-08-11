@@ -38,26 +38,31 @@ public final class GetterPathResolver extends Accessor {
                 .map(this::step);
     }
 
+    @VisibleForTesting
     Step step(final ExecutableElement method) {
         final var methodName = method.getSimpleName().toString();
         final OperationCodegen codegen = inputs -> CodeBlock.of("$L$Z.$N()", inputs.single(), methodName);
         return new Step(method.getReturnType(), method, methodName + "()", STEP_GETTER, codegen);
     }
 
+    @VisibleForTesting
     Optional<ExecutableElement> matchGetter(final Element member, final String getterName, final ResolveCtx ctx) {
         return Members.noArgMethodNamed(member, getterName, ctx);
     }
 
+    @VisibleForTesting
     Optional<ExecutableElement> matchBooleanIs(final Element member, final String isName, final ResolveCtx ctx) {
         return Members.noArgMethodNamed(member, isName, ctx).filter(method -> isBooleanReturn(method, ctx));
     }
 
+    @VisibleForTesting
     boolean isBooleanReturn(final ExecutableElement method, final ResolveCtx ctx) {
         final var returnType = method.getReturnType();
         return ctx.kind(returnType) == BOOLEAN || "java.lang.Boolean".equals(ctx.qualifiedName(returnType));
     }
 
     // One return, so the empty case is not a second return statement indistinguishable from returning "".
+    @VisibleForTesting
     String capitalize(final String segment) {
         return segment.isEmpty() ? segment : toUpperCase(segment.charAt(0)) + segment.substring(1);
     }

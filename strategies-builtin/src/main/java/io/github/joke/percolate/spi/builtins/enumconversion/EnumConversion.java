@@ -25,6 +25,7 @@ import javax.lang.model.SourceVersion;
 import javax.lang.model.element.ElementKind;
 import javax.lang.model.type.TypeMirror;
 import lombok.NoArgsConstructor;
+import org.jetbrains.annotations.VisibleForTesting;
 
 import static io.github.joke.percolate.spi.Nullability.NON_NULL;
 import static io.github.joke.percolate.spi.PortType.variable;
@@ -83,6 +84,7 @@ public final class EnumConversion implements ExpansionStrategy {
     // The overrides that name a real target constant — the rail (design D3 of change decouple-engine-from-strategy-
     // semantics) reports any other @MapEnum entry as declared but having had no effect, replacing
     // ValidateEnumOverridesStage's target-side check.
+    @VisibleForTesting
     Set<DirectiveInput> effectiveOverrides(
             final TypeMirror target, final List<DirectiveInput> overrides, final ResolveCtx ctx) {
         if (overrides.isEmpty()) {
@@ -98,6 +100,7 @@ public final class EnumConversion implements ExpansionStrategy {
     // A PortType.Bound rejecting a non-enum source or one whose constants are not all covered by a same-name match
     // or @MapEnum (design D6 of change decouple-engine-from-strategy-semantics): the grounding is vetoed before it
     // ever competes, so .render never sees either failure.
+    @VisibleForTesting
     PortType.Bound sourceBound(final TypeMirror target, final List<DirectiveInput> overrides) {
         return (source, ctx) -> {
             if (!ctx.isEnum(source)) {
@@ -119,6 +122,7 @@ public final class EnumConversion implements ExpansionStrategy {
     }
 
     // Renders the whole method body: a switch over the grounded source enum, form chosen by the effective style.
+    @VisibleForTesting
     CodeBlock render(final BodyRenderContext context, final TypeMirror target, final List<DirectiveInput> overrides) {
         final var resolveCtx = context.resolveCtx();
         final var source = context.portType(VALUE_ROLE);
@@ -131,6 +135,7 @@ public final class EnumConversion implements ExpansionStrategy {
     }
 
     // AUTO resolves against the target SourceVersion: arrow for Java 14+, else classic.
+    @VisibleForTesting
     SwitchStyle resolveStyle(final SwitchStyle configured, final SourceVersion sourceVersion) {
         if (configured != AUTO) {
             return configured;
@@ -139,6 +144,7 @@ public final class EnumConversion implements ExpansionStrategy {
     }
 
     // Same-name matches first, then @MapEnum overrides — which take precedence over a coincidental match.
+    @VisibleForTesting
     Map<String, String> buildMapping(
             final List<String> sourceConstants,
             final List<String> targetConstants,
@@ -157,6 +163,7 @@ public final class EnumConversion implements ExpansionStrategy {
     }
 
     // A modern switch expression with no default: javac's own exhaustiveness check rejects a gap.
+    @VisibleForTesting
     CodeBlock renderArrow(
             final CodeBlock sourceExpr,
             final TypeMirror target,
@@ -171,6 +178,7 @@ public final class EnumConversion implements ExpansionStrategy {
     }
 
     // A classic switch statement: .sourceBound guarantees every source constant is already covered.
+    @VisibleForTesting
     CodeBlock renderClassic(
             final CodeBlock sourceExpr,
             final TypeMirror target,
@@ -192,6 +200,7 @@ public final class EnumConversion implements ExpansionStrategy {
     }
 
     // type's declared enum constants, in declaration order; empty when type has no backing element.
+    @VisibleForTesting
     List<String> enumConstantNames(final ResolveCtx ctx, final TypeMirror type) {
         return ctx.asTypeElement(type)
                 .map(element -> ctx.membersOf(element)

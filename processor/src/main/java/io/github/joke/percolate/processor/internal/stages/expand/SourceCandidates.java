@@ -15,6 +15,7 @@ import java.util.Optional;
 import java.util.stream.Stream;
 import javax.lang.model.type.TypeMirror;
 import lombok.RequiredArgsConstructor;
+import org.jetbrains.annotations.VisibleForTesting;
 import org.jspecify.annotations.Nullable;
 
 import static io.github.joke.percolate.spi.Nullability.NON_NULL;
@@ -47,6 +48,7 @@ final class SourceCandidates {
     // ordered List in declaration order, and MapperGraph.valuesIn is sorted by Value.id. A same-typed pair of
     // parameters is therefore always offered to BindingEnumerator in declaration order, so grounding-by-match over-
     // emits and the extraction fold prunes ties in that same order.
+    @VisibleForTesting
     List<TypeMirror> sourceTypes(final Scope scope) {
         return concat(
                         scope.inputDecls().map(InputDecl::getType),
@@ -58,6 +60,7 @@ final class SourceCandidates {
     // typed sibling can never shadow it), then an already-materialised graph source of least id, else the first
     // matching scope input declaration materialised on demand as a LEAF (idempotent through the dedup index).
     // pinnedSource is null when the demand carries no directive source path.
+    @VisibleForTesting
     @Nullable
     Value matchingSource(final Scope scope, final Port port, final @Nullable Value pinnedSource) {
         return pinnedMatch(pinnedSource, port)
@@ -65,15 +68,18 @@ final class SourceCandidates {
                 .orElseGet(() -> materialiseMatchingInput(scope, port));
     }
 
+    @VisibleForTesting
     Optional<Value> pinnedMatch(final @Nullable Value pinnedSource, final Port port) {
         return Optional.ofNullable(pinnedSource).filter(value -> matchesPort(value, port));
     }
 
+    @VisibleForTesting
     Optional<Value> existingMatch(final Scope scope, final Port port) {
         return sourceValues(scope).filter(value -> matchesPort(value, port)).min(comparing(Value::id));
     }
 
     // Whether value can feed port: same type and a non-null source satisfies any nullness.
+    @VisibleForTesting
     boolean matchesPort(final Value value, final Port port) {
         return matches(value.type(), value.nullness(), port);
     }
@@ -81,6 +87,7 @@ final class SourceCandidates {
     // Deterministic by construction: Scope.inputDecls streams the scope's input declarations in declaration order
     // (an ordered List, never a hash-ordered collection), so findFirst() always selects the earlier-declared match
     // when two declarations — e.g. two same-typed parameters — both fit.
+    @VisibleForTesting
     @Nullable
     Value materialiseMatchingInput(final Scope scope, final Port port) {
         return scope.inputDecls()
@@ -99,6 +106,7 @@ final class SourceCandidates {
     // binding's type is not assignable to the port's declared type (design Decision 2: verified, not encoded into
     // the name). Either failure is reported by PortSourceResolver's REQUIRE handling — the engine's own concern,
     // not this collaborator's.
+    @VisibleForTesting
     @Nullable
     Value byNameSource(final Scope scope, final Port port) {
         return byNameDecl(scope, port.getBindingName())
@@ -109,25 +117,30 @@ final class SourceCandidates {
     }
 
     // The declared type of the binding named port.getBindingName(), for a REQUIRE-miss mismatch message.
+    @VisibleForTesting
     Optional<TypeMirror> byNameDeclaredType(final Scope scope, final Port port) {
         return byNameDecl(scope, port.getBindingName()).map(InputDecl::getType);
     }
 
     // scope's own declaration named name, else the nearest ancestor's INHERITED one.
+    @VisibleForTesting
     Optional<InputDecl> byNameDecl(final Scope scope, final String name) {
         return ownNamedDecl(scope, name).or(() -> inheritedAncestorDecl(scope, name));
     }
 
+    @VisibleForTesting
     Optional<InputDecl> ownNamedDecl(final Scope scope, final String name) {
         return scope.inputDecls().filter(decl -> decl.getName().equals(name)).findFirst();
     }
 
     // Walks scope's ancestor chain for the nearest INHERITED declaration named name.
+    @VisibleForTesting
     Optional<InputDecl> inheritedAncestorDecl(final Scope scope, final String name) {
         return scope.parent()
                 .flatMap(parent -> ownInheritedDecl(parent, name).or(() -> inheritedAncestorDecl(parent, name)));
     }
 
+    @VisibleForTesting
     Optional<InputDecl> ownInheritedDecl(final Scope scope, final String name) {
         return scope.inputDecls()
                 .filter(decl -> decl.getVisibility() == Visibility.INHERITED
@@ -135,6 +148,7 @@ final class SourceCandidates {
                 .findFirst();
     }
 
+    @VisibleForTesting
     Stream<Value> sourceValues(final Scope scope) {
         return graph.valuesIn(scope).filter(value -> {
             final var role = value.getLoc().role();
@@ -143,6 +157,7 @@ final class SourceCandidates {
     }
 
     // Whether a source of (type, nullness) can feed port: same type, non-null satisfies any.
+    @VisibleForTesting
     boolean matches(final TypeMirror sourceType, final Nullability sourceNullness, final Port port) {
         final var nullnessClash = port.getNullness() == NON_NULL && sourceNullness == NULLABLE;
         return !nullnessClash && resolveCtx.isSameType(sourceType, port.getType());

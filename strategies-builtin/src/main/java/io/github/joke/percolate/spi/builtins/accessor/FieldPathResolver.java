@@ -32,11 +32,13 @@ public final class FieldPathResolver extends Accessor {
                 .map(field -> step(field, segment));
     }
 
+    @VisibleForTesting
     Step step(final VariableElement field, final String segment) {
         final OperationCodegen codegen = inputs -> CodeBlock.of("$L$Z.$N", inputs.single(), segment);
         return new Step(field.asType(), field, "." + segment, STEP_FIELD, codegen);
     }
 
+    @VisibleForTesting
     Optional<VariableElement> matchField(final Element member, final String segment, final ResolveCtx ctx) {
         if (!isVisibleField(member, ctx)) {
             return Optional.empty();
@@ -44,6 +46,7 @@ public final class FieldPathResolver extends Accessor {
         return member.getSimpleName().contentEquals(segment) ? Optional.of((VariableElement) member) : Optional.empty();
     }
 
+    @VisibleForTesting
     boolean isVisibleField(final Element member, final ResolveCtx ctx) {
         return ctx.isField(member) && !ctx.isPrivate(member) && !ctx.isStatic(member);
     }

@@ -19,6 +19,7 @@ import javax.lang.model.element.ExecutableElement;
 import javax.lang.model.element.TypeElement;
 import javax.lang.model.type.TypeMirror;
 import lombok.NoArgsConstructor;
+import org.jetbrains.annotations.VisibleForTesting;
 
 import static io.github.joke.percolate.spi.Nullability.NON_NULL;
 import static io.github.joke.percolate.spi.Weights.STEP;
@@ -59,6 +60,7 @@ public final class ConstructorCall implements ExpansionStrategy {
     // member as the constructor this demand can call — non-private, its parameter names exactly the declared
     // children — or nothing. The narrowing cast is a plain cast rather than a mapping step: an element that
     // answers isConstructor is executable by construction, so a mapped cast would only be untestable ceremony.
+    @VisibleForTesting
     Stream<ExecutableElement> candidateConstructor(
             final Element member, final Set<String> declared, final ResolveCtx ctx) {
         if (!ctx.isConstructor(member)) {
@@ -68,12 +70,14 @@ public final class ConstructorCall implements ExpansionStrategy {
         return !ctx.isPrivate(ctor) && parameterNames(ctor).equals(declared) ? Stream.of(ctor) : Stream.empty();
     }
 
+    @VisibleForTesting
     Set<String> parameterNames(final ExecutableElement ctor) {
         return ctor.getParameters().stream()
                 .map(param -> param.getSimpleName().toString())
                 .collect(toUnmodifiableSet());
     }
 
+    @VisibleForTesting
     OperationSpec buildSpec(
             final ExecutableElement ctor,
             final TypeElement typeElement,
@@ -93,12 +97,14 @@ public final class ConstructorCall implements ExpansionStrategy {
                 NON_NULL);
     }
 
+    @VisibleForTesting
     String constructorLabel(final TypeElement typeElement, final List<Port> ports) {
         final var params =
                 ports.stream().map(port -> Labels.simple(port.getType())).collect(joining(", "));
         return "new " + typeElement.getSimpleName() + "(" + params + ")";
     }
 
+    @VisibleForTesting
     OperationCodegen buildCodegen(final TypeElement typeElement, final List<String> portNames) {
         return inputs -> {
             final var args = portNames.stream().map(inputs::byName).collect(CodeBlock.joining(", "));

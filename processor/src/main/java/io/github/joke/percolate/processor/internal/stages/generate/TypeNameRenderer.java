@@ -3,6 +3,7 @@ package io.github.joke.percolate.processor.internal.stages.generate;
 import com.groupcdg.pitest.annotations.CoverageIgnore;
 import io.github.joke.percolate.lib.javapoet.TypeName;
 import javax.lang.model.type.TypeMirror;
+import org.jetbrains.annotations.VisibleForTesting;
 
 // Renders a TypeMirror to its JavaPoet TypeName (design D7 of change decompose-engine-stages): the irreducible
 // compiler-backed leaf behind a hoisted local's declared type — JavaPoet can only render a TypeName from a real
@@ -11,6 +12,7 @@ import javax.lang.model.type.TypeMirror;
 @CoverageIgnore
 final class TypeNameRenderer {
 
+    @VisibleForTesting
     TypeName render(final TypeMirror type) {
         return TypeName.get(type);
     }

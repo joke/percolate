@@ -8,6 +8,7 @@ import io.github.joke.percolate.spi.ResolveCtx;
 import java.util.Map;
 import javax.lang.model.type.TypeMirror;
 import lombok.RequiredArgsConstructor;
+import org.jetbrains.annotations.VisibleForTesting;
 import org.jspecify.annotations.Nullable;
 
 import static io.github.joke.percolate.spi.OperationSpec.mapping;
@@ -23,6 +24,7 @@ final class SpecInstantiator {
     private final ResolveCtx ctx;
 
     // spec with every template port and the child scope substituted by bindings.
+    @VisibleForTesting
     OperationSpec instantiate(final OperationSpec spec, final Map<Integer, TypeMirror> bindings) {
         final var ports =
                 spec.getPorts().stream().map(port -> groundPort(port, bindings)).collect(toUnmodifiableList());
@@ -62,6 +64,7 @@ final class SpecInstantiator {
     }
 
     // port with its template substituted by bindings, or port unchanged when it has none.
+    @VisibleForTesting
     Port groundPort(final Port port, final Map<Integer, TypeMirror> bindings) {
         final var template = port.getTemplate();
         if (template == null) {
@@ -80,6 +83,7 @@ final class SpecInstantiator {
     }
 
     // child with its element-in/out templates (if any) substituted by bindings.
+    @VisibleForTesting
     ChildScopeSpec groundChild(final ChildScopeSpec child, final Map<Integer, TypeMirror> bindings) {
         final var elementIn = groundOr(child.getElementInTemplate(), child.getElementIn(), bindings);
         final var elementOut = groundOr(child.getElementOutTemplate(), child.getElementOut(), bindings);
@@ -87,12 +91,14 @@ final class SpecInstantiator {
     }
 
     // concrete when template is null, else template substituted by bindings.
+    @VisibleForTesting
     TypeMirror groundOr(
             final @Nullable PortType template, final TypeMirror concrete, final Map<Integer, TypeMirror> bindings) {
         return template == null ? concrete : ground(template, bindings);
     }
 
     // The concrete TypeMirror template denotes once every variable is substituted by bindings.
+    @VisibleForTesting
     TypeMirror ground(final PortType template, final Map<Integer, TypeMirror> bindings) {
         if (template instanceof PortType.Concrete) {
             return ((PortType.Concrete) template).getType();
@@ -107,6 +113,7 @@ final class SpecInstantiator {
         return ctx.declaredType(app.getErasure(), args);
     }
 
+    @VisibleForTesting
     TypeMirror groundVar(final PortType.Var template, final Map<Integer, TypeMirror> bindings) {
         final var bound = bindings.get(template.getIndex());
         if (bound == null) {

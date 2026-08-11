@@ -6,6 +6,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import lombok.NoArgsConstructor;
+import org.jetbrains.annotations.VisibleForTesting;
 
 import static io.github.joke.percolate.processor.ProcessorOptions.CLASSES_FINAL;
 import static io.github.joke.percolate.processor.ProcessorOptions.DEBUG_GRAPHS;
@@ -46,6 +47,7 @@ public class ProcessorOptionsReader {
     }
 
     // The comma-separated custom nullable annotations, empty segments dropped so a trailing comma is harmless.
+    @VisibleForTesting
     Set<String> nullableAnnotations(final Map<String, String> options) {
         final var raw = options.get(NULLABLE_ANNOTATIONS);
         if (raw == null || raw.isEmpty()) {
@@ -54,11 +56,13 @@ public class ProcessorOptionsReader {
         return stream(raw.split(",")).filter(segment -> !segment.isEmpty()).collect(toUnmodifiableSet());
     }
 
+    @VisibleForTesting
     boolean flag(final Map<String, String> options, final String key) {
         return "true".equalsIgnoreCase(options.getOrDefault(key, "false"));
     }
 
     // An unrecognised or absent switch.style degrades to AUTO — never fails the round.
+    @VisibleForTesting
     SwitchStyle parseSwitchStyle(final Map<String, String> options) {
         final var raw = options.get(SWITCH_STYLE);
         if (raw == null) {

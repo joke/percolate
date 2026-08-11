@@ -6,6 +6,7 @@ import java.util.List;
 import java.util.stream.Stream;
 import javax.lang.model.type.TypeMirror;
 import lombok.RequiredArgsConstructor;
+import org.jetbrains.annotations.VisibleForTesting;
 
 import static java.util.stream.Collectors.toUnmodifiableList;
 
@@ -27,6 +28,7 @@ final class Grounding {
     // concrete spec is emitted per consistent match (none when nothing unifies — no bridge invented). Every bound
     // refusal encountered along the way (design D6 of change decouple-engine-from-strategy-semantics) is recorded
     // to refusals.
+    @VisibleForTesting
     Stream<OperationSpec> ground(final OperationSpec spec, final List<TypeMirror> sources, final List<Offer> refusals) {
         final var templatePorts = spec.getPorts().stream()
                 .filter(port -> port.getTemplate() != null)

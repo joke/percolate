@@ -6,6 +6,7 @@ import java.util.List;
 import java.util.Optional;
 import javax.lang.model.type.TypeMirror;
 import lombok.Getter;
+import org.jetbrains.annotations.VisibleForTesting;
 
 import static java.lang.System.identityHashCode;
 import static java.util.Collections.unmodifiableList;
@@ -81,10 +82,12 @@ public final class Value implements GraphVertex {
         return scope.encode() + "::" + loc.segment() + "::" + typeEncode() + "::" + nullnessEncode();
     }
 
+    @VisibleForTesting
     String typeEncode() {
         return type.map(TypeMirror::toString).orElse(UNKNOWN);
     }
 
+    @VisibleForTesting
     String nullnessEncode() {
         return nullness.map(Enum::name).orElse(UNKNOWN);
     }

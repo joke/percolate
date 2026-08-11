@@ -8,6 +8,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 import lombok.RequiredArgsConstructor;
+import org.jetbrains.annotations.VisibleForTesting;
 import org.jspecify.annotations.Nullable;
 
 // Binds every port of spec to a feeding source, or declines (design D1 of change target-driven-engine,
@@ -21,6 +22,7 @@ final class PortBinder {
     private final PortSourceResolver portSourceResolver;
 
     // Every port of spec bound to a feeding source, or empty when any port resolves none.
+    @VisibleForTesting
     Optional<List<PortBinding>> bind(
             final Value output, final String parentPath, final OperationSpec spec, final @Nullable Value pinnedSource) {
         final var subject = spec.getCallTarget()

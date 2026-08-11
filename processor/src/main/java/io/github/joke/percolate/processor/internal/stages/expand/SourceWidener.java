@@ -6,6 +6,7 @@ import java.util.ArrayList;
 import java.util.List;
 import javax.lang.model.type.TypeMirror;
 import lombok.RequiredArgsConstructor;
+import org.jetbrains.annotations.VisibleForTesting;
 
 // Widens a source list by each registered SourceProjection's one-step view of it (design D8 of change target-
 // driven-engine, decomposed out of Grounding by decompose-engine-stages): the grounding match set is the in-
@@ -19,6 +20,7 @@ final class SourceWidener {
     private final List<SourceProjection> projections;
 
     // The in-scope sources plus each projector's one-step view of them.
+    @VisibleForTesting
     List<TypeMirror> widen(final List<TypeMirror> sources) {
         if (projections.isEmpty()) {
             return sources;

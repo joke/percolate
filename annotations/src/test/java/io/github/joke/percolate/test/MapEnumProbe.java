@@ -9,6 +9,7 @@ import javax.lang.model.SourceVersion;
 import javax.lang.model.element.Element;
 import javax.lang.model.element.TypeElement;
 import javax.tools.Diagnostic;
+import org.jetbrains.annotations.VisibleForTesting;
 
 import static java.util.Arrays.stream;
 import static javax.lang.model.SourceVersion.latestSupported;
@@ -36,6 +37,7 @@ public final class MapEnumProbe extends AbstractProcessor {
         return false;
     }
 
+    @VisibleForTesting
     void emit(final Element element) {
         stream(element.getAnnotationsByType(MapEnum.class)).forEach(override -> processingEnv
                 .getMessager()

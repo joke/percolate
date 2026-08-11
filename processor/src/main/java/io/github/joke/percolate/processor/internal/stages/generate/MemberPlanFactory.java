@@ -15,6 +15,7 @@ import java.util.IdentityHashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
+import org.jetbrains.annotations.VisibleForTesting;
 
 import static io.github.joke.percolate.processor.Diagnostic.error;
 import static io.github.joke.percolate.spi.Subjects.none;
@@ -42,6 +43,7 @@ final class MemberPlanFactory {
     // Builds the member plan for every MemberRequest reachable from any of graph's return roots. Requests sharing a
     // dedup key must agree on (fieldType, initializer) (design D11 of change decouple-engine-from-strategy-
     // semantics); a disagreement is reported at the mapper type and the first-seen request wins the field.
+    @VisibleForTesting
     MemberPlan forMapper(final MapperGraph graph, final ExtractedPlan plan, final MapperContext ctx) {
         final var ops = newSetFromMap(new IdentityHashMap<Operation, Boolean>());
         final var seen = newSetFromMap(new IdentityHashMap<Value, Boolean>());
@@ -67,6 +69,7 @@ final class MemberPlanFactory {
     }
 
     // Reports a mapper-type-positioned error when attributions disagree on (fieldType, initializer).
+    @VisibleForTesting
     void reportConflict(final MapperContext ctx, final String key, final List<Attribution> attributions) {
         final var distinctRequests =
                 attributions.stream().map(Attribution::getRequest).distinct().collect(toUnmodifiableList());
@@ -88,6 +91,7 @@ final class MemberPlanFactory {
     }
 
     // A lower-camel base name derived from a class field type's simple name, or "member" when unknown.
+    @VisibleForTesting
     String memberBase(final TypeName fieldType) {
         if (!(fieldType instanceof ClassName)) {
             return "member";

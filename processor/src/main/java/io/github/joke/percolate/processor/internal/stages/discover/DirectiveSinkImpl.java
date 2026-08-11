@@ -13,6 +13,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import javax.lang.model.element.VariableElement;
+import org.jetbrains.annotations.VisibleForTesting;
 
 import static io.github.joke.percolate.processor.Diagnostic.error;
 import static java.lang.String.join;
@@ -59,23 +60,28 @@ final class DirectiveSinkImpl implements DirectiveSink {
         rejections.add(error(subject, message).asPermanent());
     }
 
+    @VisibleForTesting
     List<Bind> getBinds() {
         return List.copyOf(binds);
     }
 
+    @VisibleForTesting
     Map<String, List<DirectiveInput>> getInputsByTarget() {
         return Map.copyOf(inputsByTarget);
     }
 
+    @VisibleForTesting
     List<ScopeInputOverride> getScopeInputOverrides() {
         return List.copyOf(scopeInputOverrides);
     }
 
+    @VisibleForTesting
     Map<String, List<Constraint>> getConstraintsByTarget() {
         return Map.copyOf(constraintsByTarget);
     }
 
     // What the readers rejected outright, already permanent — reported whether or not anything demands the path.
+    @VisibleForTesting
     List<Diagnostic> getRejections() {
         return List.copyOf(rejections);
     }

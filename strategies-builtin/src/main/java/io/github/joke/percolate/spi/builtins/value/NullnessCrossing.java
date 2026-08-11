@@ -18,6 +18,7 @@ import java.util.Set;
 import java.util.stream.Stream;
 import javax.lang.model.type.TypeMirror;
 import lombok.NoArgsConstructor;
+import org.jetbrains.annotations.VisibleForTesting;
 
 import static io.github.joke.percolate.spi.Nullability.NON_NULL;
 import static io.github.joke.percolate.spi.Nullability.NULLABLE;
@@ -83,6 +84,7 @@ public final class NullnessCrossing implements ExpansionStrategy {
     }
 
     // No default declared: silence unless the target is NON_NULL, which still wants the guard alone.
+    @VisibleForTesting
     Stream<Offer> guardOnly(
             final TypeMirror target, final String bindingName, final boolean guardsNullness, final ResolveCtx ctx) {
         if (!guardsNullness) {
@@ -92,6 +94,7 @@ public final class NullnessCrossing implements ExpansionStrategy {
     }
 
     // The [requireNonNull] crossing, when the target is both NON_NULL and declared.
+    @VisibleForTesting
     Stream<OperationSpec> requireNonNullGuard(
             final TypeMirror target, final String bindingName, final boolean guardsNullness, final ResolveCtx ctx) {
         return guardsNullness && ctx.isDeclared(target)
@@ -99,6 +102,7 @@ public final class NullnessCrossing implements ExpansionStrategy {
                 : Stream.empty();
     }
 
+    @VisibleForTesting
     OperationSpec requireNonNull(final TypeMirror target, final String slotName) {
         final var message = "source for slot '" + slotName + "' is null but target is non-null";
         final OperationCodegen codegen =
@@ -108,6 +112,7 @@ public final class NullnessCrossing implements ExpansionStrategy {
     }
 
     // Over-emits the coalesce forms that can produce target: a nullable scalar and an Optional<T>.
+    @VisibleForTesting
     Stream<OperationSpec> coalesce(
             final TypeMirror target, final CodeBlock literal, final DirectiveInput defaultInput, final ResolveCtx ctx) {
         final var specs = Stream.<OperationSpec>builder();
@@ -129,6 +134,7 @@ public final class NullnessCrossing implements ExpansionStrategy {
         return specs.build();
     }
 
+    @VisibleForTesting
     OperationSpec coalesceSpec(
             final TypeMirror from,
             final Nullability fromNullness,
@@ -141,6 +147,7 @@ public final class NullnessCrossing implements ExpansionStrategy {
     }
 
     // Optional<element> for a reference element, or empty (no Optional of a primitive).
+    @VisibleForTesting
     Optional<TypeMirror> optionalOf(final TypeMirror element, final ResolveCtx ctx) {
         if (!ctx.isReferenceType(element)) {
             return Optional.empty();

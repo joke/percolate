@@ -5,6 +5,7 @@ import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.List;
 import lombok.NoArgsConstructor;
+import org.jetbrains.annotations.VisibleForTesting;
 
 import static java.util.stream.Collectors.joining;
 
@@ -17,6 +18,7 @@ import static java.util.stream.Collectors.joining;
 final class SpecDeduplicator {
 
     // specs with duplicate structural signatures dropped, preserving first-seen order.
+    @VisibleForTesting
     List<OperationSpec> dedup(final List<OperationSpec> specs) {
         final var seen = new LinkedHashSet<String>();
         final var unique = new ArrayList<OperationSpec>();
@@ -29,6 +31,7 @@ final class SpecDeduplicator {
     }
 
     // The structural signature (label, output type, port shapes) two specs share iff they are duplicates.
+    @VisibleForTesting
     String signature(final OperationSpec spec) {
         final var ports = spec.getPorts().stream()
                 .map(port -> port.getName() + ':' + port.getType() + ':' + port.getNullness())

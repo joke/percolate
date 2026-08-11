@@ -10,6 +10,7 @@ import jakarta.inject.Inject;
 import java.util.List;
 import javax.lang.model.element.ExecutableElement;
 import lombok.RequiredArgsConstructor;
+import org.jetbrains.annotations.VisibleForTesting;
 
 import static java.util.stream.Collectors.toUnmodifiableList;
 
@@ -48,6 +49,7 @@ public final class DiscoverMappingsStage implements Stage {
                                 directives.getScopeInputOverrides())));
     }
 
+    @VisibleForTesting
     MethodDirectives readMethod(final ExecutableElement method, final MapperContext ctx) {
         final var sink = new DirectiveSinkImpl();
         readers.forEach(reader -> reader.read(method, sink));

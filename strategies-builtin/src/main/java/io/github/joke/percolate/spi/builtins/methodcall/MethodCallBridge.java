@@ -18,6 +18,7 @@ import javax.lang.model.element.ExecutableElement;
 import javax.lang.model.element.VariableElement;
 import javax.lang.model.type.TypeMirror;
 import lombok.NoArgsConstructor;
+import org.jetbrains.annotations.VisibleForTesting;
 
 import static io.github.joke.percolate.spi.OperationSpec.callOf;
 import static io.github.joke.percolate.spi.Weights.METHOD;
@@ -61,6 +62,7 @@ public final class MethodCallBridge implements ExpansionStrategy {
                 .map(Offer::of);
     }
 
+    @VisibleForTesting
     long nonAmbientParameterCount(final ExecutableElement method) {
         return method.getParameters().stream()
                 .filter(param -> ambientKey(param).isEmpty())
@@ -68,6 +70,7 @@ public final class MethodCallBridge implements ExpansionStrategy {
     }
 
     // The binding key @Ambient publishes for param: its own name, or the annotation's override.
+    @VisibleForTesting
     Optional<String> ambientKey(final VariableElement param) {
         final var ambient = param.getAnnotation(Ambient.class);
         if (ambient == null) {
@@ -76,6 +79,7 @@ public final class MethodCallBridge implements ExpansionStrategy {
         return Optional.of(ambient.value().isEmpty() ? param.getSimpleName().toString() : ambient.value());
     }
 
+    @VisibleForTesting
     OperationSpec buildSpec(
             final MethodCandidate candidate,
             final TypeMirror targetType,
@@ -98,6 +102,7 @@ public final class MethodCallBridge implements ExpansionStrategy {
                 method);
     }
 
+    @VisibleForTesting
     Port portFor(final VariableElement param, final ProduceDemand demand, final ResolveCtx ctx) {
         final var name = param.getSimpleName().toString();
         final var type = param.asType();
@@ -107,6 +112,7 @@ public final class MethodCallBridge implements ExpansionStrategy {
                 .orElseGet(() -> new Port(name, type, nullness));
     }
 
+    @VisibleForTesting
     OperationCodegen renderCodegen(final MethodCandidate candidate, final List<Port> ports) {
         final var receiver = candidate.getReceiver().asExpression();
         final var method = candidate.getMethod();

@@ -10,6 +10,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import lombok.NoArgsConstructor;
+import org.jetbrains.annotations.VisibleForTesting;
 
 import static java.lang.String.join;
 
@@ -40,6 +41,7 @@ public class GoalSpecFactory {
     }
 
     // Parent dotted path -> declared child names at that level, derived from every bind's target path segments.
+    @VisibleForTesting
     Map<String, Set<String>> childLevels(final List<Bind> binds) {
         final var levels = new LinkedHashMap<String, Set<String>>();
         for (final var bind : binds) {
@@ -53,6 +55,7 @@ public class GoalSpecFactory {
     }
 
     // Exact dotted target path -> the first bind's source path declared there (first bind wins on a duplicate).
+    @VisibleForTesting
     Map<String, List<String>> sourcePathByTarget(final List<Bind> binds) {
         final var sourceByTarget = new LinkedHashMap<String, List<String>>();
         for (final var bind : binds) {
@@ -62,6 +65,7 @@ public class GoalSpecFactory {
     }
 
     // A Directive per path either bound or input-only, merging both sets of dotted target paths.
+    @VisibleForTesting
     Map<String, Directive> directivesByTarget(
             final Map<String, List<String>> sourceByTarget, final Map<String, List<DirectiveInput>> inputsByTarget) {
         final var directives = new LinkedHashMap<String, Directive>();

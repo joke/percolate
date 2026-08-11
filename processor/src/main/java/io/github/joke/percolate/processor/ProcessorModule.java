@@ -34,6 +34,7 @@ import javax.lang.model.util.Elements;
 import javax.lang.model.util.Types;
 import lombok.EqualsAndHashCode;
 import lombok.RequiredArgsConstructor;
+import org.jetbrains.annotations.VisibleForTesting;
 
 import static io.github.joke.percolate.processor.nullability.NullabilityAnnotations.jspecifyDefaults;
 import static java.util.Comparator.comparing;
@@ -54,26 +55,31 @@ public final class ProcessorModule {
 
     private final ProcessingEnvironment processingEnvironment;
 
+    @VisibleForTesting
     @Provides
     Elements elements() {
         return processingEnvironment.getElementUtils();
     }
 
+    @VisibleForTesting
     @Provides
     Types types() {
         return processingEnvironment.getTypeUtils();
     }
 
+    @VisibleForTesting
     @Provides
     Messager messager() {
         return processingEnvironment.getMessager();
     }
 
+    @VisibleForTesting
     @Provides
     Filer filer() {
         return processingEnvironment.getFiler();
     }
 
+    @VisibleForTesting
     @Provides
     ProcessorOptions processorOptions(final ProcessorOptionsReader reader) {
         return reader.from(processingEnvironment.getOptions());
@@ -81,11 +87,13 @@ public final class ProcessorModule {
 
     // The target SourceVersion, read once from the environment — the enum-conversion strategy's codegen resolves
     // switch.style's AUTO against it; the engine itself reads no version.
+    @VisibleForTesting
     @Provides
     SourceVersion sourceVersion() {
         return processingEnvironment.getSourceVersion();
     }
 
+    @VisibleForTesting
     @Provides
     @Singleton
     NullabilityAnnotations nullabilityAnnotations(final ProcessorOptions processorOptions) {
@@ -99,12 +107,14 @@ public final class ProcessorModule {
         return new NullabilityAnnotations(merged, defaults.getMarkedFqns(), defaults.getUnmarkedFqns());
     }
 
+    @VisibleForTesting
     @Provides
     @Singleton
     NullabilityResolver nullabilityResolver(final JspecifyNullabilityResolver resolver) {
         return resolver;
     }
 
+    @VisibleForTesting
     @Provides
     ExpandStage expandStage(
             final List<ExpansionStrategy> strategies,
@@ -116,6 +126,7 @@ public final class ProcessorModule {
         return new ExpandStage(strategies, projections, types, elements, nullabilityResolver, options);
     }
 
+    @VisibleForTesting
     @Provides
     @Named("discover")
     static List<Stage> discoverStages(
@@ -125,6 +136,7 @@ public final class ProcessorModule {
         return List.of(discoverAbstractMethods, discoverMappings, discoverCallableMethods);
     }
 
+    @VisibleForTesting
     @Provides
     @SuppressWarnings("PMD.ExcessiveParameterList")
     static List<Stage> stages(
@@ -157,6 +169,7 @@ public final class ProcessorModule {
 
     // The single ExpansionStrategy list, loaded once and tried as one round each pass (no kind-ordering). Ordered
     // by ExpansionStrategy.priority() then FQN for deterministic, stable expansion.
+    @VisibleForTesting
     @Singleton
     @Provides
     static List<ExpansionStrategy> expansionStrategies() {
@@ -171,6 +184,7 @@ public final class ProcessorModule {
 
     // The DirectiveReader list (design D7 of change decouple-engine-from-strategy-semantics), loaded once via
     // ServiceLoader exactly as ExpansionStrategy is; ordered by FQN for deterministic discovery.
+    @VisibleForTesting
     @Singleton
     @Provides
     static List<DirectiveReader> directiveReaders() {
@@ -184,6 +198,7 @@ public final class ProcessorModule {
 
     // The SourceProjection list (design D8), loaded once. Source-facing projectors the driver consults to widen
     // grounding-by-match's match set; ordered by FQN for deterministic expansion.
+    @VisibleForTesting
     @Singleton
     @Provides
     static List<SourceProjection> sourceProjections() {

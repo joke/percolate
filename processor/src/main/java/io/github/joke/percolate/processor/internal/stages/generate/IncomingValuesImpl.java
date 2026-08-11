@@ -4,6 +4,7 @@ import io.github.joke.percolate.lib.javapoet.CodeBlock;
 import io.github.joke.percolate.spi.IncomingValues;
 import java.util.List;
 import java.util.Map;
+import org.jetbrains.annotations.VisibleForTesting;
 
 final class IncomingValuesImpl implements IncomingValues {
 
@@ -61,6 +62,7 @@ final class IncomingValuesImpl implements IncomingValues {
         return result;
     }
 
+    @VisibleForTesting
     static IncomingValues of(final CodeBlock singleValue) {
         return new IncomingValuesImpl(List.of(singleValue), Map.of());
     }

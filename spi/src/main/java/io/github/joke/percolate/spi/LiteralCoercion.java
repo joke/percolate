@@ -10,6 +10,7 @@ import javax.lang.model.type.DeclaredType;
 import javax.lang.model.type.TypeKind;
 import javax.lang.model.type.TypeMirror;
 import lombok.experimental.UtilityClass;
+import org.jetbrains.annotations.VisibleForTesting;
 import org.jspecify.annotations.Nullable;
 
 import static java.lang.String.format;
@@ -99,6 +100,7 @@ public class LiteralCoercion {
         return Optional.empty();
     }
 
+    @VisibleForTesting
     static Optional<CodeBlock> declared(final String raw, final DeclaredType type) {
         final var element = type.asElement();
         if (!(element instanceof TypeElement)) {
@@ -109,6 +111,7 @@ public class LiteralCoercion {
         return coercer == null ? Optional.empty() : coercer.apply(raw);
     }
 
+    @VisibleForTesting
     static Optional<CodeBlock> booleanLiteral(final String raw) {
         if (BOOLEAN_LITERALS.contains(raw)) {
             return Optional.of(CodeBlock.of("$L", raw));
@@ -116,30 +119,37 @@ public class LiteralCoercion {
         return Optional.empty();
     }
 
+    @VisibleForTesting
     static Optional<CodeBlock> byteLiteral(final String raw) {
         return integral(raw, Byte.MIN_VALUE, Byte.MAX_VALUE, "(byte) ", "");
     }
 
+    @VisibleForTesting
     static Optional<CodeBlock> shortLiteral(final String raw) {
         return integral(raw, Short.MIN_VALUE, Short.MAX_VALUE, "(short) ", "");
     }
 
+    @VisibleForTesting
     static Optional<CodeBlock> intLiteral(final String raw) {
         return integral(raw, Integer.MIN_VALUE, Integer.MAX_VALUE, "", "");
     }
 
+    @VisibleForTesting
     static Optional<CodeBlock> longLiteral(final String raw) {
         return integral(raw, Long.MIN_VALUE, Long.MAX_VALUE, "", "L");
     }
 
+    @VisibleForTesting
     static Optional<CodeBlock> floatLiteral(final String raw) {
         return parseFloat(raw).filter(Float::isFinite).map(value -> CodeBlock.of("$L", value + "f"));
     }
 
+    @VisibleForTesting
     static Optional<CodeBlock> doubleLiteral(final String raw) {
         return parseDouble(raw).filter(Double::isFinite).map(value -> CodeBlock.of("$L", value.toString()));
     }
 
+    @VisibleForTesting
     static Optional<CodeBlock> charLiteral(final String raw) {
         if (raw.length() != SINGLE_CHAR_LENGTH) {
             return Optional.empty();
@@ -147,6 +157,7 @@ public class LiteralCoercion {
         return Optional.of(CodeBlock.of("$L", charLiteralText(raw.charAt(0))));
     }
 
+    @VisibleForTesting
     static Optional<CodeBlock> integral(
             final String raw, final long min, final long max, final String castPrefix, final String suffix) {
         final var value = parseLong(raw);
@@ -156,6 +167,7 @@ public class LiteralCoercion {
         return Optional.of(CodeBlock.of("$L", castPrefix + value + suffix));
     }
 
+    @VisibleForTesting
     static Optional<Float> parseFloat(final String raw) {
         try {
             return Optional.of(Float.parseFloat(raw));
@@ -164,6 +176,7 @@ public class LiteralCoercion {
         }
     }
 
+    @VisibleForTesting
     static Optional<Double> parseDouble(final String raw) {
         try {
             return Optional.of(Double.parseDouble(raw));
@@ -172,6 +185,7 @@ public class LiteralCoercion {
         }
     }
 
+    @VisibleForTesting
     @Nullable
     static Long parseLong(final String raw) {
         try {
@@ -181,15 +195,18 @@ public class LiteralCoercion {
         }
     }
 
+    @VisibleForTesting
     static Function<CodeBlock, CodeBlock> box(final Class<?> wrapper) {
         return primitive -> CodeBlock.of("$T.valueOf($L)", wrapper, primitive);
     }
 
     /** A Java {@code char} literal for {@code c}, escaping the special and non-printable characters. */
+    @VisibleForTesting
     static String charLiteralText(final char c) {
         return "'" + escape(c) + "'";
     }
 
+    @VisibleForTesting
     static String escape(final char c) {
         final var known = CHAR_ESCAPES.get(c);
         if (known != null) {

@@ -8,6 +8,7 @@ import java.util.HashSet;
 import java.util.Set;
 import java.util.function.Consumer;
 import lombok.RequiredArgsConstructor;
+import org.jetbrains.annotations.VisibleForTesting;
 
 // Drives the demand work-list to fixpoint (design D6 of change target-driven-engine, decomposed out of
 // ExpandStage.Driver by decompose-engine-stages): self-seeds one return-root demand per abstract method, then
@@ -23,6 +24,7 @@ final class ExpansionLoop {
     private final Set<Value> visited = new HashSet<>();
 
     // Self-seeds one return-root demand per abstract method into the empty graph, then drains the work-list.
+    @VisibleForTesting
     void seedAndExpand(final MapperShape shape) {
         shape.getAbstractMethods().forEach(method -> enqueue(seeder.seed(method)));
         while (!workList.isEmpty()) {
@@ -34,6 +36,7 @@ final class ExpansionLoop {
     }
 
     // Adds value to the work-list, to be expanded once (first visit only) when its turn comes.
+    @VisibleForTesting
     void enqueue(final Value value) {
         workList.add(value);
     }

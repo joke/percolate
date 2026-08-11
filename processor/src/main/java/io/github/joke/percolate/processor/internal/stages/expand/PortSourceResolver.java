@@ -6,6 +6,7 @@ import io.github.joke.percolate.processor.internal.graph.Value;
 import io.github.joke.percolate.spi.Port;
 import io.github.joke.percolate.spi.Subject;
 import lombok.RequiredArgsConstructor;
+import org.jetbrains.annotations.VisibleForTesting;
 import org.jspecify.annotations.Nullable;
 
 import static io.github.joke.percolate.processor.internal.graph.Location.child;
@@ -29,6 +30,7 @@ final class PortSourceResolver {
 
     // The feeding AddValue for port on output, or null when the port finds no source. subject positions any
     // REQUIRE-miss refusal — the spec's call target when present, else Subjects.none().
+    @VisibleForTesting
     @Nullable
     AddValue sourceForPort(
             final Value output,
@@ -44,6 +46,7 @@ final class PortSourceResolver {
         return bound != null ? operationLander.reuse(bound) : onMiss(output, port, subject);
     }
 
+    @VisibleForTesting
     @Nullable
     Value boundSource(final Value output, final Port port, final @Nullable Value pinnedSource) {
         return port.getSelector() == BY_NAME
@@ -51,6 +54,7 @@ final class PortSourceResolver {
                 : sourceCandidates.matchingSource(output.getScope(), port, pinnedSource);
     }
 
+    @VisibleForTesting
     @Nullable
     AddValue onMiss(final Value output, final Port port, final Subject subject) {
         if (port.getOnMiss() == MINT) {
@@ -60,6 +64,7 @@ final class PortSourceResolver {
         return null;
     }
 
+    @VisibleForTesting
     void recordRequireRefusal(final Value output, final Port port, final Subject subject) {
         if (port.getOnMiss() == REQUIRE) {
             output.addInadmissible(new Refusal(subject, requireMissMessage(output, port)));
@@ -67,6 +72,7 @@ final class PortSourceResolver {
     }
 
     // Names the port, the binding name, and — for a resolvable-but-mismatched name — both types.
+    @VisibleForTesting
     String requireMissMessage(final Value output, final Port port) {
         return sourceCandidates
                 .byNameDeclaredType(output.getScope(), port)

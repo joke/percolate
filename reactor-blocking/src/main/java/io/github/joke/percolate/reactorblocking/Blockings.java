@@ -5,6 +5,7 @@ import java.util.Optional;
 import java.util.stream.Stream;
 import javax.lang.model.type.TypeMirror;
 import lombok.experimental.UtilityClass;
+import org.jetbrains.annotations.VisibleForTesting;
 
 // Shared reactor FQNs, a concrete-type builder, and the deliberately high upward-crossing weight for the
 // blocking (async-to-sync) bridge strategies. Every blocking edge is weighted strictly above any non-blocking
@@ -23,6 +24,7 @@ class Blockings {
     static final int WEIGHT = 1_000;
 
     // fqn<arg> as a concrete declared type, or empty when fqn is not on the compile classpath.
+    @VisibleForTesting
     Optional<TypeMirror> declared(final ResolveCtx ctx, final String fqn, final TypeMirror arg) {
         final var element = ctx.typeElementNamed(fqn);
         return element == null ? Optional.empty() : Optional.of(ctx.declaredType(element, arg));
@@ -33,6 +35,7 @@ class Blockings {
     // its element type against a reactive source. It only widens the match set; the concrete intermediate is still
     // produced target-driven by the weighted reuse-only blocking bridge, so no eager block is invented. Returns
     // empty for any unrecognised source and names no kind beyond the two requested.
+    @VisibleForTesting
     Stream<TypeMirror> view(
             final TypeMirror source, final String kindFqn, final String targetFqn, final ResolveCtx ctx) {
         if (!isSingleReferenceArgKind(source, kindFqn, ctx)) {
@@ -43,6 +46,7 @@ class Blockings {
     }
 
     // source is a declared kindFqn<X> with exactly one reference type argument X.
+    @VisibleForTesting
     boolean isSingleReferenceArgKind(final TypeMirror source, final String kindFqn, final ResolveCtx ctx) {
         if (!ctx.isDeclared(source) || !ctx.isType(source, kindFqn)) {
             return false;
@@ -51,6 +55,7 @@ class Blockings {
     }
 
     // A target eligible for block()/single().block(): a plain reference type, never itself reactive.
+    @VisibleForTesting
     boolean isBlockableScalar(final TypeMirror type, final ResolveCtx ctx) {
         return ctx.isDeclared(type) && !ctx.isType(type, MONO) && !ctx.isType(type, FLUX);
     }

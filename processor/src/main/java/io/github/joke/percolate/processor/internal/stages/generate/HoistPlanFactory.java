@@ -11,6 +11,7 @@ import java.util.IdentityHashMap;
 import java.util.Map;
 import java.util.Set;
 import lombok.NoArgsConstructor;
+import org.jetbrains.annotations.VisibleForTesting;
 
 import static java.util.Collections.newSetFromMap;
 
@@ -27,6 +28,7 @@ final class HoistPlanFactory {
 
     // Builds the hoist decision for the plan reachable from root, descending into child scopes; reservedNames (the
     // method's parameter names) are pre-allocated so no local shadows a parameter.
+    @VisibleForTesting
     HoistPlan forMethod(
             final MapperGraph graph,
             final ExtractedPlan plan,
@@ -45,6 +47,7 @@ final class HoistPlanFactory {
     }
 
     // Tallies how many in-plan ports consume each source, returning the subset feeding an n-ary operation.
+    @VisibleForTesting
     Set<Value> collectPortConsumers(
             final MapperGraph graph, final Set<Operation> inPlanOps, final Map<Value, Integer> portConsumers) {
         final var feedsNary = newSetFromMap(new IdentityHashMap<Value, Boolean>());
@@ -61,6 +64,7 @@ final class HoistPlanFactory {
     }
 
     // The Values that materialise as named locals: a chosen producer feeding an n-ary op or more than one port.
+    @VisibleForTesting
     Set<Value> hoistedValues(
             final ExtractedPlan plan, final Map<Value, Integer> portConsumers, final Set<Value> feedsNary) {
         final var hoisted = newSetFromMap(new IdentityHashMap<Value, Boolean>());
@@ -72,10 +76,12 @@ final class HoistPlanFactory {
         return hoisted;
     }
 
+    @VisibleForTesting
     boolean isHoistCandidate(final ExtractedPlan plan, final Set<Value> feedsNary, final Value value, final int count) {
         return plan.chosenProducer(value).isPresent() && (feedsNary.contains(value) || count > 1);
     }
 
+    @VisibleForTesting
     void collectOps(
             final MapperGraph graph,
             final ExtractedPlan plan,

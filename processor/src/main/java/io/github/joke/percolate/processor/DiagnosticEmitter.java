@@ -6,6 +6,7 @@ import javax.annotation.processing.Messager;
 import javax.lang.model.element.Element;
 import javax.tools.Diagnostic.Kind;
 import lombok.RequiredArgsConstructor;
+import org.jetbrains.annotations.VisibleForTesting;
 
 import static io.github.joke.percolate.spi.Subjects.resolve;
 import static javax.tools.Diagnostic.Kind.ERROR;
@@ -24,6 +25,7 @@ public final class DiagnosticEmitter {
         diagnostics.forEach(diagnostic -> emit(mapperType, diagnostic));
     }
 
+    @VisibleForTesting
     void emit(final Element mapperType, final Diagnostic diagnostic) {
         final var position = resolve(diagnostic.getPosition(), mapperType);
         messager.printMessage(
@@ -36,6 +38,7 @@ public final class DiagnosticEmitter {
 
     // Percolate's Diagnostic.Severity and javac's Diagnostic.Kind both declare ERROR, so only one of the two
     // can be static-imported; the other stays qualified.
+    @VisibleForTesting
     @SuppressWarnings("PMD.UseStaticImports")
     Kind kind(final Diagnostic.Severity severity) {
         return severity == Diagnostic.Severity.ERROR ? ERROR : WARNING;

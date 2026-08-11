@@ -1,5 +1,7 @@
 package io.github.joke.percolate.spi;
 
+import org.jetbrains.annotations.VisibleForTesting;
+
 public enum Nullability {
     NULLABLE,
     NON_NULL,
@@ -16,6 +18,7 @@ public enum Nullability {
     }
 
     /** Whether either {@code a} or {@code b} is this constant — the receiver is the value being looked for. */
+    @VisibleForTesting
     boolean either(final Nullability a, final Nullability b) {
         return a == this || b == this;
     }

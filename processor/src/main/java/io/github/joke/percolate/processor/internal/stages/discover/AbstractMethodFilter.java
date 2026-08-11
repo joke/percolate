@@ -4,6 +4,7 @@ import jakarta.inject.Inject;
 import java.util.List;
 import javax.lang.model.element.ExecutableElement;
 import lombok.NoArgsConstructor;
+import org.jetbrains.annotations.VisibleForTesting;
 
 import static java.util.stream.Collectors.toUnmodifiableList;
 import static javax.lang.model.element.Modifier.ABSTRACT;
@@ -15,6 +16,7 @@ import static javax.lang.model.element.Modifier.ABSTRACT;
 @NoArgsConstructor(onConstructor_ = @Inject)
 final class AbstractMethodFilter {
 
+    @VisibleForTesting
     List<ExecutableElement> abstractMethods(final List<AbstractMethodDescriptor> descriptors) {
         return descriptors.stream()
                 .filter(this::isAbstract)
@@ -23,6 +25,7 @@ final class AbstractMethodFilter {
                 .collect(toUnmodifiableList());
     }
 
+    @VisibleForTesting
     boolean isAbstract(final AbstractMethodDescriptor descriptor) {
         return descriptor.getModifiers().contains(ABSTRACT);
     }

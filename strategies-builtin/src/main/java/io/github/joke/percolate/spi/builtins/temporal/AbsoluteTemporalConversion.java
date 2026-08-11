@@ -49,6 +49,7 @@ public final class AbsoluteTemporalConversion extends Conversion {
         return fromInstantStep(target, ctx).stream();
     }
 
+    @VisibleForTesting
     Stream<Step> toInstantSteps(final ResolveCtx ctx) {
         return concat(
                 METHOD_SPOKES.stream().map(fqn -> toInstantByMethod(fqn, ctx)).flatMap(Optional::stream),
@@ -58,6 +59,7 @@ public final class AbsoluteTemporalConversion extends Conversion {
     }
 
     // spokeFqn's no-arg toInstant() accessor: $L.toInstant(), input type spokeFqn.
+    @VisibleForTesting
     Optional<Step> toInstantByMethod(final String spokeFqn, final ResolveCtx ctx) {
         final var spokeElement = ctx.typeElementNamed(spokeFqn);
         final var instantElement = ctx.typeElementNamed(INSTANT);
@@ -70,6 +72,7 @@ public final class AbsoluteTemporalConversion extends Conversion {
         return Optional.of(new Step(spokeType, Labels.conversion(spokeType, instantType), STEP, codegen));
     }
 
+    @VisibleForTesting
     Optional<Step> fromInstantStep(final TypeMirror target, final ResolveCtx ctx) {
         if (isMethodSpoke(target, ctx)) {
             return fromInstantByFactory(target, ctx);
@@ -77,11 +80,13 @@ public final class AbsoluteTemporalConversion extends Conversion {
         return fixedOffsetMethodName(target, ctx).flatMap(method -> fromInstantAtFixedOffset(target, ctx, method));
     }
 
+    @VisibleForTesting
     boolean isMethodSpoke(final TypeMirror target, final ResolveCtx ctx) {
         return METHOD_SPOKES.stream().anyMatch(fqn -> ctx.isType(target, fqn));
     }
 
     // The Instant accessor method name for a fixed-offset spoke target, or empty when target is neither.
+    @VisibleForTesting
     Optional<String> fixedOffsetMethodName(final TypeMirror target, final ResolveCtx ctx) {
         if (ctx.isType(target, OFFSET_DATE_TIME)) {
             return Optional.of("atOffset");
@@ -93,6 +98,7 @@ public final class AbsoluteTemporalConversion extends Conversion {
     }
 
     // target's static from(Instant) factory: Target.from($L).
+    @VisibleForTesting
     Optional<Step> fromInstantByFactory(final TypeMirror target, final ResolveCtx ctx) {
         final var instantElement = ctx.typeElementNamed(INSTANT);
         if (instantElement == null) {
@@ -104,6 +110,7 @@ public final class AbsoluteTemporalConversion extends Conversion {
     }
 
     // Instant.atOffset/.atZone fixed at the literal ZoneOffset.UTC — zone-free, no truncation.
+    @VisibleForTesting
     Optional<Step> fromInstantAtFixedOffset(final TypeMirror target, final ResolveCtx ctx, final String method) {
         final var instantElement = ctx.typeElementNamed(INSTANT);
         if (instantElement == null) {

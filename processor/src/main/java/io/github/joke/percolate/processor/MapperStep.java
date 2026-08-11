@@ -15,6 +15,7 @@ import javax.lang.model.element.Element;
 import javax.lang.model.element.TypeElement;
 import javax.lang.model.util.Elements;
 import lombok.RequiredArgsConstructor;
+import org.jetbrains.annotations.VisibleForTesting;
 
 import static java.util.stream.Collectors.toUnmodifiableList;
 import static java.util.stream.Collectors.toUnmodifiableSet;
@@ -69,6 +70,7 @@ final class MapperStep implements Step {
     // iff it recorded at least one error and every recorded error is transient (design D14). Deferring retains only
     // the message text; consuming (whether realised, scarred, or warning-only) flushes every collected diagnostic
     // immediately.
+    @VisibleForTesting
     boolean processAndShouldDefer(final TypeElement mapperType) {
         final var ctx = pipeline.process(mapperType);
         final var fqn = mapperType.getQualifiedName().toString();
@@ -88,6 +90,7 @@ final class MapperStep implements Step {
     // Emits the recorded no plan diagnostic for every mapper still deferred when processing ends, re-resolving each
     // location by name. Invoked from PercolateProcessor.postRound on the final round, because
     // BasicAnnotationProcessor does not invoke a Step at processingOver.
+    @VisibleForTesting
     void flushDeferredDiagnostics() {
         deferred.forEach((fqn, messages) -> {
             final var location = elements.getTypeElement(fqn);

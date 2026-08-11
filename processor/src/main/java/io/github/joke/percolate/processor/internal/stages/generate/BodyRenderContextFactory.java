@@ -16,6 +16,7 @@ import java.util.function.Function;
 import javax.lang.model.SourceVersion;
 import javax.lang.model.type.TypeMirror;
 import lombok.NoArgsConstructor;
+import org.jetbrains.annotations.VisibleForTesting;
 
 // Assembles the BodyRenderContext a BodyCodegen producer renders its whole method body against, and decides
 // whether that verbatim path applies at all. Split from BodyRenderContextImpl by change tighten-testability-
@@ -27,6 +28,7 @@ final class BodyRenderContextFactory {
 
     // Renders producer's codegen when it is a BodyCodegen — the whole method body, verbatim — else empty (an
     // OperationCodegen producer, or no chosen producer at all).
+    @VisibleForTesting
     Optional<CodeBlock> renderIfBodyCodegen(
             final MapperGraph graph,
             final Optional<Operation> producer,
@@ -49,6 +51,7 @@ final class BodyRenderContextFactory {
     }
 
     // Builds the render context for operation's BodyCodegen, rendering each port via operandRenderer.
+    @VisibleForTesting
     BodyRenderContext buildFor(
             final MapperGraph graph,
             final Operation operation,

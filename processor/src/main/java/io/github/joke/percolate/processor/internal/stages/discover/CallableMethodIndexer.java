@@ -7,6 +7,7 @@ import javax.lang.model.element.ExecutableElement;
 import javax.lang.model.element.TypeElement;
 import javax.lang.model.util.Elements;
 import lombok.RequiredArgsConstructor;
+import org.jetbrains.annotations.VisibleForTesting;
 
 import static java.util.stream.Collectors.toUnmodifiableList;
 
@@ -23,6 +24,7 @@ final class CallableMethodIndexer {
 
     private final Elements elements;
 
+    @VisibleForTesting
     List<CandidateDescriptor> index(final TypeElement mapperType) {
         return elements.getAllMembers(mapperType).stream()
                 .filter(ExecutableElement.class::isInstance)
@@ -31,6 +33,7 @@ final class CallableMethodIndexer {
                 .collect(toUnmodifiableList());
     }
 
+    @VisibleForTesting
     CandidateDescriptor describe(final ExecutableElement method) {
         return new CandidateDescriptor(
                 method.getKind(),
@@ -40,6 +43,7 @@ final class CallableMethodIndexer {
                 method);
     }
 
+    @VisibleForTesting
     boolean enclosingIsObject(final ExecutableElement method) {
         final var enclosing = method.getEnclosingElement();
         return enclosing instanceof TypeElement

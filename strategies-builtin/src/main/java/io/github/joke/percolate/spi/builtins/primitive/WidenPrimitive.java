@@ -55,6 +55,7 @@ public final class WidenPrimitive extends Conversion {
         return narrower.stream().map(from -> wideningStep(from, target, ctx));
     }
 
+    @VisibleForTesting
     Step wideningStep(final TypeKind from, final TypeMirror target, final ResolveCtx ctx) {
         final var inputType = ctx.primitiveType(from);
         final OperationCodegen codegen = inputs -> CodeBlock.of("($T) $L", target, inputs.single());

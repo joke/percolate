@@ -42,6 +42,7 @@ public final class LocalTemporalConversion extends Conversion {
     }
 
     // LocalDate → LocalDateTime via atStartOfDay() — the source inherently carries no time.
+    @VisibleForTesting
     Optional<Step> atStartOfDayStep(final ResolveCtx ctx) {
         final var localDateElement = ctx.typeElementNamed(LOCAL_DATE);
         final var localDateTimeElement = ctx.typeElementNamed(LOCAL_DATE_TIME);
@@ -55,6 +56,7 @@ public final class LocalTemporalConversion extends Conversion {
     }
 
     // LocalDateTime → LocalDate via toLocalDate() — a user-requested narrowing, not a hub truncation.
+    @VisibleForTesting
     Optional<Step> toLocalDateStep(final ResolveCtx ctx) {
         final var localDateElement = ctx.typeElementNamed(LOCAL_DATE);
         final var localDateTimeElement = ctx.typeElementNamed(LOCAL_DATE_TIME);

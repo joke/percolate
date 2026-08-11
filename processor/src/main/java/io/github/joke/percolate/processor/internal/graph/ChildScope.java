@@ -2,6 +2,7 @@ package io.github.joke.percolate.processor.internal.graph;
 
 import java.util.Optional;
 import java.util.stream.Stream;
+import org.jetbrains.annotations.VisibleForTesting;
 import org.jspecify.annotations.Nullable;
 
 import static java.util.Objects.requireNonNull;
@@ -42,6 +43,7 @@ public final class ChildScope implements Scope {
         return requireNonNull(elementInput, "child scope roots are minted when the owning Operation lands");
     }
 
+    @VisibleForTesting
     void initialise(final Value newReturnRoot, final InputDecl newElementInput) {
         if (returnRoot != null || elementInput != null) {
             throw new IllegalStateException("child scope roots are set exactly once");

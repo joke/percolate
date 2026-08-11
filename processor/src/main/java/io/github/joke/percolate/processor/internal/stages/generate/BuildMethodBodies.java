@@ -28,6 +28,7 @@ import java.util.Set;
 import javax.lang.model.SourceVersion;
 import javax.lang.model.element.ExecutableElement;
 import lombok.RequiredArgsConstructor;
+import org.jetbrains.annotations.VisibleForTesting;
 
 import static io.github.joke.percolate.processor.internal.graph.ExtractedPlan.extract;
 import static java.util.stream.Collectors.toUnmodifiableList;
@@ -51,6 +52,7 @@ public final class BuildMethodBodies {
     private final MemberPlanFactory memberPlanFactory;
     private final BodyRenderContextFactory bodyRenderContextFactory;
 
+    @VisibleForTesting
     MethodBodies build(final MapperContext ctx) {
         final var shape = ctx.getShape();
         final var graph = ctx.getGraph();
@@ -66,6 +68,7 @@ public final class BuildMethodBodies {
         return new MethodBodies(bodies, memberPlan.fields());
     }
 
+    @VisibleForTesting
     MethodImpl renderMethod(
             final MapperGraph graph,
             final ExtractedPlan plan,
@@ -146,6 +149,7 @@ public final class BuildMethodBodies {
         // verbatim (no enclosing return <expr>;) — dispatch is solely on which codegen shape the producer supplied,
         // reading no target Java version and no processor option here. Otherwise the scope's local declarations, then
         // return <return-root expression>;.
+        @VisibleForTesting
         CodeBlock renderMethodBody(final Value root) {
             final var bodyRendered = bodyRenderContextFactory.renderIfBodyCodegen(
                     graph,
@@ -167,6 +171,7 @@ public final class BuildMethodBodies {
 
         // A child (lambda) scope body: the inline expression when it hoists nothing (an expression lambda stays terse),
         // otherwise a {@code { <decls>; return <expr>; }} block (a block lambda).
+        @VisibleForTesting
         CodeBlock renderScopeBody(final Value root) {
             final var hoistedHere = hoistedInScope(root);
             if (hoistedHere.isEmpty()) {
@@ -183,6 +188,7 @@ public final class BuildMethodBodies {
         }
 
         // Emit one hoisted local: [final] <Type|var> <name> = <expr>; per the configured LocalStyle.
+        @VisibleForTesting
         void emitLocal(final CodeBlock.Builder builder, final Value value) {
             final var name = hoist.declare(value);
             final var rhs = renderInline(value);
@@ -190,16 +196,19 @@ public final class BuildMethodBodies {
         }
 
         // The declaration's type token: var when configured, otherwise the Value's rendered type.
+        @VisibleForTesting
         CodeBlock typeToken(final Value value) {
             return style.isUseVar() ? CodeBlock.of("var") : CodeBlock.of("$T", localType(value));
         }
 
         // An operand: a variable reference when the Value is hoisted, otherwise its inline expression.
+        @VisibleForTesting
         CodeBlock renderOperand(final Value value) {
             return hoist.isHoisted(value) ? hoist.reference(value) : renderInline(value);
         }
 
         // The inline expression for a Value: its chosen producer's rendering, or the leaf name.
+        @VisibleForTesting
         CodeBlock renderInline(final Value value) {
             final var producer = plan.chosenProducer(value);
             if (producer.isEmpty()) {
@@ -212,6 +221,7 @@ public final class BuildMethodBodies {
             return renderPlain(operation);
         }
 
+        @VisibleForTesting
         CodeBlock renderPlain(final Operation operation) {
             final var positional = new ArrayList<CodeBlock>();
             final var byName = new LinkedHashMap<String, CodeBlock>();
@@ -232,6 +242,7 @@ public final class BuildMethodBodies {
                     .render(new IncomingValuesImpl(positional, byName, members));
         }
 
+        @VisibleForTesting
         CodeBlock renderContainerMapping(final Operation operation) {
             final var sourcePort = operation.getPorts().get(0);
             final var sourceExpr = graph.portSource(operation, sourcePort.getName())
@@ -245,12 +256,14 @@ public final class BuildMethodBodies {
         }
 
         // The element param-root Value if the child plan sourced from it (lazily materialised), else empty.
+        @VisibleForTesting
         Optional<Value> materialisedElementRoot(final ChildScope child) {
             return graph.valuesIn(child)
                     .filter(value -> value.getLoc() instanceof ElementLocation)
                     .findFirst();
         }
 
+        @VisibleForTesting
         CodeBlock renderLeaf(final Value value) {
             final var bound = lambdaVars.get(value);
             if (bound != null) {
@@ -261,6 +274,7 @@ public final class BuildMethodBodies {
         }
 
         // value's first source-path segment, rendered as a bare reference, or empty when it has none.
+        @VisibleForTesting
         Optional<CodeBlock> sourceSegmentRoot(final Value value) {
             if (!(value.getLoc() instanceof SourceLocation)) {
                 return Optional.empty();
@@ -270,6 +284,7 @@ public final class BuildMethodBodies {
         }
 
         // The declared type of a hoisted local, rendered through the injected TypeNameRenderer.
+        @VisibleForTesting
         TypeName localType(final Value value) {
             return typeNameRenderer.render(value.getType()
                     .orElseThrow(() -> new IllegalStateException("hoisted Value has no type: " + value.id())));
@@ -278,6 +293,7 @@ public final class BuildMethodBodies {
         // The hoisted Values of root's scope in dependency (post-order) order, so each local precedes its first
         // reference. The walk stays within the scope — it descends a producer's port sources but never its child scope
         // — and excludes root itself (the return-root renders inline).
+        @VisibleForTesting
         List<Value> hoistedInScope(final Value root) {
             final var ordered = new ArrayList<Value>();
             // Value is identity-equal (equals/hashCode are identity), so a HashSet is effectively an identity set.
@@ -285,6 +301,7 @@ public final class BuildMethodBodies {
             return ordered;
         }
 
+        @VisibleForTesting
         void collectHoisted(final Value value, final Value root, final List<Value> ordered, final Set<Value> seen) {
             if (!seen.add(value)) {
                 return;
@@ -296,6 +313,7 @@ public final class BuildMethodBodies {
             descendAndRecord(value, root, ordered, seen, producer.get());
         }
 
+        @VisibleForTesting
         void descendAndRecord(
                 final Value value,
                 final Value root,

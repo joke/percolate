@@ -4,6 +4,7 @@ import jakarta.inject.Inject;
 import javax.lang.model.element.ElementKind;
 import javax.lang.model.element.Modifier;
 import lombok.NoArgsConstructor;
+import org.jetbrains.annotations.VisibleForTesting;
 
 import static javax.lang.model.element.ElementKind.INTERFACE;
 import static javax.lang.model.element.Modifier.FINAL;
@@ -18,16 +19,19 @@ import static javax.lang.model.element.Modifier.PUBLIC;
 final class MapperTypeDecisions {
 
     // public, plus final when the matching classes.final/methods.final switch is on.
+    @VisibleForTesting
     Modifier[] publicModifiers(final boolean makeFinal) {
         return makeFinal ? new Modifier[] {PUBLIC, FINAL} : new Modifier[] {PUBLIC};
     }
 
     // final when parameters.final is on, otherwise no modifier at all.
+    @VisibleForTesting
     Modifier[] parameterModifiers(final boolean makeFinal) {
         return makeFinal ? new Modifier[] {FINAL} : new Modifier[] {};
     }
 
     // An interface mapper is implementsed; any other kind (a class) is extendsed.
+    @VisibleForTesting
     boolean isInterface(final ElementKind kind) {
         return kind == INTERFACE;
     }

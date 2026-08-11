@@ -27,6 +27,7 @@ import java.util.stream.Stream;
 import javax.lang.model.util.Elements;
 import javax.lang.model.util.Types;
 import lombok.RequiredArgsConstructor;
+import org.jetbrains.annotations.VisibleForTesting;
 import org.jspecify.annotations.Nullable;
 
 import static java.util.stream.Collectors.toUnmodifiableList;
@@ -140,6 +141,7 @@ public final class ExpandStage implements Stage {
         }
 
         // Self-seeds one return-root demand per abstract method into the empty graph, then drains the work-list.
+        @VisibleForTesting
         void seedAndExpand(final MapperShape shape) {
             expansionLoop.seedAndExpand(shape);
         }
@@ -149,6 +151,7 @@ public final class ExpandStage implements Stage {
         // admitted spec, enqueueing every follow-up demand a landed operation's ports and child scope raise. ACCESS
         // (source-path Values produced by forward descent), LEAF (parameter/element roots), and CONSTANT are base
         // cases: nothing to expand.
+        @VisibleForTesting
         void expandValue(final Value value, final Consumer<Value> enqueue) {
             if (value.getLoc().role() != Location.Role.FREE) {
                 return;
@@ -167,6 +170,7 @@ public final class ExpandStage implements Stage {
         // sourced (PortBinder) or an admissibility Constraint refuses (design D8 of change decouple-engine-from-
         // strategy-semantics) — a pure function of its inputs, raising no follow-up demand itself (the caller
         // enqueues).
+        @VisibleForTesting
         Optional<Operation> land(final Value output, final OperationSpec spec, final @Nullable Value pinnedSource) {
             final var parentPath = ((TargetLocation) output.getLoc()).getPath().toString();
             return portBinder
@@ -178,6 +182,7 @@ public final class ExpandStage implements Stage {
         // Applies every constraint bearing on output's demand — the engine's own self-call rule plus whatever a reader
         // attached — as a conjunction, recording each refusal on output's inadmissible list (design D2). There is
         // exactly one admissibility mechanism: this method, not a second bespoke guard.
+        @VisibleForTesting
         boolean admissible(final Value output, final OperationSpec spec, final List<PortBinding> ports) {
             final var boundPorts = ports.stream()
                     .map(binding -> new BoundPort(binding.getPort(), binding.getSource()))

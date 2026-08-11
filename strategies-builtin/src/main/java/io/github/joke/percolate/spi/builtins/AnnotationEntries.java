@@ -12,6 +12,7 @@ import javax.lang.model.element.AnnotationValue;
 import javax.lang.model.element.ExecutableElement;
 import javax.lang.model.element.TypeElement;
 import lombok.experimental.UtilityClass;
+import org.jetbrains.annotations.VisibleForTesting;
 import org.jspecify.annotations.Nullable;
 
 import static java.util.Objects.requireNonNull;
@@ -38,6 +39,7 @@ public class AnnotationEntries {
                 .collect(toUnmodifiableList());
     }
 
+    @VisibleForTesting
     static Stream<AnnotationMirror> matching(
             final AnnotationMirror mirror, final String fqn, final @Nullable String containerFqn) {
         final var mirrorFqn = annotationFqn(mirror);
@@ -51,11 +53,13 @@ public class AnnotationEntries {
     }
 
     // annotationClass's @Repeatable container FQN, or null when it declares none.
+    @VisibleForTesting
     static @Nullable String containerFqn(final Class<? extends Annotation> annotationClass) {
         final var repeatable = annotationClass.getAnnotation(Repeatable.class);
         return repeatable == null ? null : repeatable.value().getCanonicalName();
     }
 
+    @VisibleForTesting
     @SuppressWarnings("unchecked")
     static Stream<AnnotationMirror> unwrapContainer(final AnnotationMirror containerMirror) {
         final var containerValue =
@@ -64,6 +68,7 @@ public class AnnotationEntries {
         return entries.stream().map(av -> (AnnotationMirror) av.getValue());
     }
 
+    @VisibleForTesting
     static String annotationFqn(final AnnotationMirror mirror) {
         final var element = mirror.getAnnotationType().asElement();
         return ((TypeElement) element).getQualifiedName().toString();

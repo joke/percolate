@@ -18,6 +18,7 @@ import javax.lang.model.element.VariableElement;
 import javax.lang.model.type.DeclaredType;
 import javax.lang.model.type.TypeMirror;
 import lombok.RequiredArgsConstructor;
+import org.jetbrains.annotations.VisibleForTesting;
 
 import static io.github.joke.percolate.processor.Diagnostic.error;
 import static java.util.stream.Collectors.groupingBy;
@@ -45,6 +46,7 @@ public final class ValidateSourceParametersStage implements Stage {
         methodDirectives.forEach(directives -> validate(directives, ctx));
     }
 
+    @VisibleForTesting
     void validate(final MethodDirectives directives, final MapperContext ctx) {
         final var overrideByParam = overridesByParameter(directives);
         final var methodSig = formatMethodSig(directives.getMethod());
@@ -54,12 +56,14 @@ public final class ValidateSourceParametersStage implements Stage {
     }
 
     // The reader-published override per parameter, if any; a parameter named twice keeps the first override.
+    @VisibleForTesting
     Map<VariableElement, ScopeInputOverride> overridesByParameter(final MethodDirectives directives) {
         return directives.getScopeInputOverrides().stream()
                 .collect(toMap(ScopeInputOverride::getParameter, override -> override, (first, second) -> first));
     }
 
     // The method's scope-input names: a parameter's own simple name, or a reader's published override.
+    @VisibleForTesting
     Set<String> scopeInputNames(
             final MethodDirectives directives, final Map<VariableElement, ScopeInputOverride> overrideByParam) {
         return directives.getMethod().getParameters().stream()
@@ -70,6 +74,7 @@ public final class ValidateSourceParametersStage implements Stage {
     // Two scope inputs of one method published under one name: every occurrence after the first is an error,
     // positioned at its own parameter. Ordinary parameters cannot collide in Java, so a collision always involves
     // at least one reader-published override.
+    @VisibleForTesting
     void checkDistinctScopeInputs(
             final MethodDirectives directives,
             final Map<VariableElement, ScopeInputOverride> overrideByParam,
@@ -80,6 +85,7 @@ public final class ValidateSourceParametersStage implements Stage {
                 .forEach((name, sharing) -> reportDuplicateScopeInputs(name, sharing, methodSig, ctx));
     }
 
+    @VisibleForTesting
     void reportDuplicateScopeInputs(
             final String name,
             final List<? extends VariableElement> sharing,
@@ -92,11 +98,13 @@ public final class ValidateSourceParametersStage implements Stage {
                                 .asPermanent()));
     }
 
+    @VisibleForTesting
     String nameOf(final VariableElement param, final Map<VariableElement, ScopeInputOverride> overrideByParam) {
         final var override = overrideByParam.get(param);
         return override == null ? param.getSimpleName().toString() : override.getName();
     }
 
+    @VisibleForTesting
     void checkBind(final Bind bind, final Set<String> names, final String methodSig, final MapperContext ctx) {
         final var source = bind.getSourcePath();
         if (source.isEmpty()) {
@@ -111,6 +119,7 @@ public final class ValidateSourceParametersStage implements Stage {
                         .asPermanent());
     }
 
+    @VisibleForTesting
     String formatMethodSig(final ExecutableElement method) {
         final var name = method.getSimpleName().toString();
         final var paramTypes = method.getParameters().stream()
@@ -119,6 +128,7 @@ public final class ValidateSourceParametersStage implements Stage {
         return name + "(" + paramTypes + ")";
     }
 
+    @VisibleForTesting
     String simpleTypeName(final TypeMirror mirror) {
         if (mirror == null) {
             return "?";
@@ -129,6 +139,7 @@ public final class ValidateSourceParametersStage implements Stage {
         return declaredSimpleName(mirror).orElseGet(mirror::toString);
     }
 
+    @VisibleForTesting
     Optional<String> declaredSimpleName(final TypeMirror mirror) {
         if (!(mirror instanceof DeclaredType)) {
             return Optional.empty();

@@ -10,6 +10,7 @@ import io.github.joke.percolate.processor.internal.graph.Value;
 import io.github.joke.percolate.spi.OperationSpec;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
+import org.jetbrains.annotations.VisibleForTesting;
 
 // Constructs and applies one AddOperation (design D6/D9 of change target-driven-engine, decomposed out of
 // ExpandStage.Driver by decompose-engine-stages): the single AddOperation-construction primitive behind both
@@ -22,6 +23,7 @@ final class OperationLander {
     private final Applier applier;
 
     // Builds and applies the AddOperation for spec bound by ports, producing output.
+    @VisibleForTesting
     Operation landOperation(final OperationSpec spec, final List<PortBinding> ports, final AddValue output) {
         return apply(new AddOperation(
                 spec.getLabel(),
@@ -41,16 +43,19 @@ final class OperationLander {
     }
 
     // Applies delta, landing its Operation vertex and port/output edges atomically.
+    @VisibleForTesting
     Operation apply(final AddOperation delta) {
         return applier.apply(graph, delta);
     }
 
     // Names value as an operation's output, by its existing identity key.
+    @VisibleForTesting
     AddValue outputOf(final Value value) {
         return new AddValue(value.getScope(), value.getLoc(), value.type(), value.nullness());
     }
 
     // Names value as a port's feeding source, by its existing identity key.
+    @VisibleForTesting
     AddValue reuse(final Value value) {
         return new AddValue(value.getScope(), value.getLoc(), value.type(), value.nullness());
     }

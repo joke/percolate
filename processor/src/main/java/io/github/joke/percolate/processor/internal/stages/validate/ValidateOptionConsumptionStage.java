@@ -17,6 +17,7 @@ import java.util.List;
 import java.util.Optional;
 import java.util.Set;
 import lombok.RequiredArgsConstructor;
+import org.jetbrains.annotations.VisibleForTesting;
 import org.jspecify.annotations.Nullable;
 
 import static io.github.joke.percolate.processor.internal.graph.ExtractedPlan.extract;
@@ -51,6 +52,7 @@ public final class ValidateOptionConsumptionStage implements Stage {
         methodDirectives.forEach(directives -> checkMethod(directives, graph, plan, ctx));
     }
 
+    @VisibleForTesting
     void checkMethod(
             final MethodDirectives directives,
             final MapperGraph graph,
@@ -65,6 +67,7 @@ public final class ValidateOptionConsumptionStage implements Stage {
                 .forEach(entry -> checkPath(entry.getKey(), entry.getValue(), scope, graph, plan, ctx));
     }
 
+    @VisibleForTesting
     void checkPath(
             final String path,
             final List<DirectiveInput> declared,
@@ -87,6 +90,7 @@ public final class ValidateOptionConsumptionStage implements Stage {
     }
 
     // The consumed-input union over every Operation the winning plan reaches from target.
+    @VisibleForTesting
     Set<DirectiveInput> consumedInputs(final MapperGraph graph, final ExtractedPlan plan, final Value target) {
         final var ops = new HashSet<Operation>();
         collectWinningOps(graph, plan, target, ops, newSeenSet());
@@ -95,6 +99,7 @@ public final class ValidateOptionConsumptionStage implements Stage {
         return inputs;
     }
 
+    @VisibleForTesting
     void collectWinningOps(
             final MapperGraph graph,
             final ExtractedPlan plan,
@@ -112,6 +117,7 @@ public final class ValidateOptionConsumptionStage implements Stage {
         });
     }
 
+    @VisibleForTesting
     @SuppressWarnings("IdentityHashMapUsage")
     Set<Value> newSeenSet() {
         return newSetFromMap(new IdentityHashMap<>());
@@ -122,6 +128,7 @@ public final class ValidateOptionConsumptionStage implements Stage {
     // over-emit a same-located conversion intermediate at the empty root TargetLocation (e.g. a String intermediate
     // en route to a format-configured target), and a location-only match could resolve to that intermediate instead
     // of the declared return type.
+    @VisibleForTesting
     @Nullable
     Value targetValue(final MapperGraph graph, final MethodScope scope, final String target) {
         var current = graph.returnRootIn(scope);
@@ -141,6 +148,7 @@ public final class ValidateOptionConsumptionStage implements Stage {
         return current;
     }
 
+    @VisibleForTesting
     List<String> splitPath(final String path) {
         if (path.isEmpty()) {
             return List.of();

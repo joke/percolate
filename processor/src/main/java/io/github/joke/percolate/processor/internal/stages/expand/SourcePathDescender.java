@@ -16,6 +16,7 @@ import io.github.joke.percolate.spi.ResolveCtx;
 import java.util.List;
 import java.util.Optional;
 import lombok.RequiredArgsConstructor;
+import org.jetbrains.annotations.VisibleForTesting;
 import org.jspecify.annotations.Nullable;
 
 import static java.util.stream.Collectors.toUnmodifiableList;
@@ -40,6 +41,7 @@ final class SourcePathDescender {
     // no accessor. Idempotent through the dedup index, so re-deriving the same source path re-lands nothing new.
     // directive is the walked binding's own configuration (design D9) — not a per-segment one — threaded into every
     // segment's DescendView.
+    @VisibleForTesting
     @Nullable
     Value pinnedSource(final Scope scope, final List<String> segments, final Optional<Directive> directive) {
         if (segments.isEmpty()) {
@@ -53,6 +55,7 @@ final class SourcePathDescender {
     }
 
     // The scope-input root LEAF for the path's first segment, or null when no input declares it.
+    @VisibleForTesting
     @Nullable
     Value materialiseRoot(final Scope scope, final String segment) {
         return scope.inputDecls()
@@ -65,6 +68,7 @@ final class SourcePathDescender {
 
     // Lands every accessor that reads path's last segment off parent, returning the produced source Value at path —
     // the deduped child shared by equal-typed accessors. null when no accessor resolves the segment.
+    @VisibleForTesting
     @Nullable
     Value descendSegment(
             final Scope scope, final Value parent, final List<String> path, final Optional<Directive> directive) {
@@ -86,6 +90,7 @@ final class SourcePathDescender {
     // Every production an accessor offers for demand. No accessor in the repo refuses today (design D9): a decline
     // is always silence, so a descend refusal — were one ever authored — is dropped here rather than anchored, for
     // want of a materialised demanded Value to record it against.
+    @VisibleForTesting
     List<OperationSpec> descend(final DescendView demand, final ResolveCtx ctx) {
         return strategies.stream()
                 .flatMap(strategy -> strategy.descend(demand, ctx))

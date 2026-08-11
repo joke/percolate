@@ -10,6 +10,7 @@ import javax.lang.model.element.TypeElement;
 import javax.lang.model.type.TypeMirror;
 import javax.lang.model.util.Elements;
 import lombok.RequiredArgsConstructor;
+import org.jetbrains.annotations.VisibleForTesting;
 import org.jspecify.annotations.Nullable;
 
 import static io.github.joke.percolate.spi.Nullability.NON_NULL;
@@ -35,6 +36,7 @@ public final class JspecifyNullabilityResolver implements NullabilityResolver {
         return fromPackage != null ? fromPackage : UNKNOWN;
     }
 
+    @VisibleForTesting
     @Nullable
     Nullability markedNullabilityOfEnclosing(final Element scope) {
         for (var current = scope; current != null; current = current.getEnclosingElement()) {
@@ -46,12 +48,14 @@ public final class JspecifyNullabilityResolver implements NullabilityResolver {
         return null;
     }
 
+    @VisibleForTesting
     @Nullable
     Nullability markedNullabilityOfPackage(final Element scope) {
         final var pkg = elements.getPackageOf(scope);
         return pkg == null ? null : markedNullability(pkg);
     }
 
+    @VisibleForTesting
     @Nullable
     Nullability markedNullability(final AnnotatedConstruct construct) {
         if (hasAny(construct, annotations.getUnmarkedFqns())) {
@@ -60,6 +64,7 @@ public final class JspecifyNullabilityResolver implements NullabilityResolver {
         return hasAny(construct, annotations.getMarkedFqns()) ? NON_NULL : null;
     }
 
+    @VisibleForTesting
     boolean hasAny(final AnnotatedConstruct construct, final Set<String> fqns) {
         for (final var mirror : construct.getAnnotationMirrors()) {
             final var fqn = annotationFqn(mirror);
@@ -70,6 +75,7 @@ public final class JspecifyNullabilityResolver implements NullabilityResolver {
         return false;
     }
 
+    @VisibleForTesting
     @Nullable
     String annotationFqn(final AnnotationMirror mirror) {
         final var annotationType = mirror.getAnnotationType();

@@ -7,6 +7,7 @@ import javax.lang.model.element.Element;
 import javax.lang.model.element.ExecutableElement;
 import javax.lang.model.element.TypeElement;
 import lombok.experimental.UtilityClass;
+import org.jetbrains.annotations.VisibleForTesting;
 
 @UtilityClass
 public class Members {
@@ -17,6 +18,7 @@ public class Members {
         return ctx.membersOf(typeElement);
     }
 
+    @VisibleForTesting
     static boolean isInObjectClass(final Element member) {
         final var enclosing = member.getEnclosingElement();
         return enclosing instanceof TypeElement
@@ -24,6 +26,7 @@ public class Members {
     }
 
     // member viewed as a declared (non-Object), zero-parameter method, else empty.
+    @VisibleForTesting
     static Optional<ExecutableElement> asNoArgMethod(final Element member, final ResolveCtx ctx) {
         if (!ctx.isMethod(member)) {
             return Optional.empty();

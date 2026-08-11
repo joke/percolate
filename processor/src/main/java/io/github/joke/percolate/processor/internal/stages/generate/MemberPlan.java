@@ -7,6 +7,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import lombok.RequiredArgsConstructor;
+import org.jetbrains.annotations.VisibleForTesting;
 
 import static java.util.stream.Collectors.toUnmodifiableList;
 import static javax.lang.model.element.Modifier.FINAL;
@@ -28,6 +29,7 @@ final class MemberPlan {
     private final Map<String, MemberRequest> requestByDedupKey;
 
     // The reference to the member registered under dedupKey.
+    @VisibleForTesting
     CodeBlock reference(final String dedupKey) {
         final var name = namesByDedupKey.get(dedupKey);
         if (name == null) {
@@ -37,6 +39,7 @@ final class MemberPlan {
     }
 
     // Every distinct requested member as a private static final field, in allocation order.
+    @VisibleForTesting
     List<FieldSpec> fields() {
         return namesByDedupKey.entrySet().stream()
                 .map(entry -> {

@@ -18,6 +18,7 @@ import javax.lang.model.element.VariableElement;
 import javax.lang.model.type.TypeKind;
 import javax.lang.model.util.Elements;
 import lombok.RequiredArgsConstructor;
+import org.jetbrains.annotations.VisibleForTesting;
 
 import static io.github.joke.percolate.lib.javapoet.MethodSpec.constructorBuilder;
 import static io.github.joke.percolate.lib.javapoet.MethodSpec.methodBuilder;
@@ -39,6 +40,7 @@ public final class AssembleMapperType {
     private final ProcessorOptions options;
     private final MapperTypeDecisions decisions;
 
+    @VisibleForTesting
     void assemble(final MapperContext ctx, final MethodBodies methodBodies) throws IOException {
         final var mapperType = ctx.getMapperType();
         final var simpleName = mapperType.getSimpleName() + "Impl";
@@ -62,16 +64,19 @@ public final class AssembleMapperType {
         JavaFile.builder(packageName, typeBuilder.build()).build().writeTo(filer);
     }
 
+    @VisibleForTesting
     AnnotationSpec generatedAnnotation() {
         return AnnotationSpec.builder(Generated.class)
                 .addMember("value", "$S", GENERATED_VALUE)
                 .build();
     }
 
+    @VisibleForTesting
     MethodSpec emptyPublicConstructor() {
         return constructorBuilder().addModifiers(PUBLIC).build();
     }
 
+    @VisibleForTesting
     MethodSpec overrideMethod(final MethodImpl impl) {
         final var method = impl.getMethod();
         final var builder = methodBuilder(method.getSimpleName().toString())
@@ -88,6 +93,7 @@ public final class AssembleMapperType {
         return builder.build();
     }
 
+    @VisibleForTesting
     ParameterSpec parameterSpec(final VariableElement parameter) {
         return ParameterSpec.builder(
                         TypeName.get(parameter.asType()),
@@ -96,6 +102,7 @@ public final class AssembleMapperType {
                 .build();
     }
 
+    @VisibleForTesting
     TypeName returnTypeName(final ExecutableElement method) {
         final var returnType = method.getReturnType();
         return returnType.getKind() == TypeKind.VOID ? TypeName.VOID : TypeName.get(returnType);

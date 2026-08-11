@@ -6,6 +6,7 @@ import io.github.joke.percolate.processor.model.MapperShape;
 import jakarta.inject.Inject;
 import javax.lang.model.element.TypeElement;
 import lombok.RequiredArgsConstructor;
+import org.jetbrains.annotations.VisibleForTesting;
 
 // Reduces a mapper TypeElement to a MapperShape of its abstract, non-Object methods — the methods the mapper
 // must implement. The genuinely compiler-backed member enumeration lives in the thin AbstractMethodReader; the
@@ -22,6 +23,7 @@ public final class DiscoverAbstractMethodsStage implements Stage {
         ctx.setShape(shape);
     }
 
+    @VisibleForTesting
     MapperShape apply(final TypeElement typeElement) {
         return new MapperShape(typeElement, filter.abstractMethods(reader.readMethods(typeElement)));
     }

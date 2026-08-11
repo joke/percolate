@@ -18,6 +18,7 @@ import java.util.function.Predicate;
 import javax.annotation.processing.Filer;
 import javax.lang.model.element.TypeElement;
 import lombok.RequiredArgsConstructor;
+import org.jetbrains.annotations.VisibleForTesting;
 import org.jgrapht.Graph;
 import org.jgrapht.graph.DirectedMultigraph;
 
@@ -57,6 +58,7 @@ public final class GraphDumpWriter {
         dump(ctx, view, include, dimUnreachable, true);
     }
 
+    @VisibleForTesting
     void dump(
             final MapperContext ctx,
             final String view,
@@ -84,16 +86,19 @@ public final class GraphDumpWriter {
     // Like GenerateStage, this stage writes through the Filer, which forbids reopening a path. The pipeline
     // re-runs every deferral round, so dump only on the round the mapper realises (empty outcome) — otherwise
     // a deferred-then-realised mapper would write each .dot twice.
+    @VisibleForTesting
     boolean skipDump(final MapperGraph graph, final MapperContext ctx) {
         return !processorOptions.isDebugGraphs() || graph.vertexCount() == 0 || ctx.hasErrors();
     }
 
+    @VisibleForTesting
     Predicate<GraphVertex> dimmedByCost(final MapperGraph graph) {
         final var plan = extract(graph);
         return vertex -> !plan.reachable(vertex);
     }
 
     // The scope's slice, rendered to DOT — refusals drawn as negative space when withRefusals is set.
+    @VisibleForTesting
     String renderScope(
             final MapperGraph graph,
             final Predicate<GraphVertex> include,
@@ -103,6 +108,7 @@ public final class GraphDumpWriter {
         return dotRenderer.render(slice(graph, scope, include), scope.encode(), dimmed, withRefusals);
     }
 
+    @VisibleForTesting
     void writeScope(
             final String dot,
             final String fileName,
@@ -121,6 +127,7 @@ public final class GraphDumpWriter {
         }
     }
 
+    @VisibleForTesting
     Graph<GraphVertex, Dep> slice(final MapperGraph graph, final Scope scope, final Predicate<GraphVertex> include) {
         final var slice = new DirectedMultigraph<GraphVertex, Dep>(Dep.class);
         graph.vertices()
@@ -136,6 +143,7 @@ public final class GraphDumpWriter {
         return slice;
     }
 
+    @VisibleForTesting
     List<Scope> orderedScopes(final MapperGraph graph, final Predicate<GraphVertex> include) {
         return graph.vertices()
                 .filter(include)
@@ -145,6 +153,7 @@ public final class GraphDumpWriter {
                 .collect(toUnmodifiableList());
     }
 
+    @VisibleForTesting
     Map<Scope, String> infixes(final List<Scope> scopes) {
         final var byBase = scopes.stream().collect(groupingBy(this::baseInfix, LinkedHashMap::new, toList()));
         final var result = new LinkedHashMap<Scope, String>();
@@ -152,6 +161,7 @@ public final class GraphDumpWriter {
         return result;
     }
 
+    @VisibleForTesting
     Map<Scope, String> infixesWithinGroup(final String base, final List<Scope> group) {
         final var disambiguate = group.size() > 1;
         final var result = new LinkedHashMap<Scope, String>();
@@ -161,6 +171,7 @@ public final class GraphDumpWriter {
         return result;
     }
 
+    @VisibleForTesting
     String baseInfix(final Scope scope) {
         if (scope instanceof MethodScope) {
             return ((MethodScope) scope).getMethod().getSimpleName().toString();
@@ -171,6 +182,7 @@ public final class GraphDumpWriter {
         return enclosingMethodInfix(scope) + "-elem";
     }
 
+    @VisibleForTesting
     String enclosingMethodInfix(final Scope scope) {
         var current = scope;
         while (!(current instanceof MethodScope)) {

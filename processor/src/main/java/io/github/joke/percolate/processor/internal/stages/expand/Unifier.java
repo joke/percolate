@@ -7,6 +7,7 @@ import java.util.List;
 import java.util.Map;
 import javax.lang.model.type.TypeMirror;
 import lombok.RequiredArgsConstructor;
+import org.jetbrains.annotations.VisibleForTesting;
 
 // Matches one PortType template against one concrete TypeMirror source, recording each variable it binds
 // (design D4 of change decompose-engine-stages). A PortType.Concrete leaf matches by isSameType; a PortType.Var
@@ -23,6 +24,7 @@ final class Unifier {
     private final ResolveCtx ctx;
 
     // Whether template matches source at depth, recording any variable it binds.
+    @VisibleForTesting
     boolean unify(
             final PortType template,
             final TypeMirror source,
@@ -44,6 +46,7 @@ final class Unifier {
 
     // Binds var's index to source (or confirms an existing binding is the same type); refuses a non-groundable
     // source, and refuses (recording why) a source var's own PortType.Bound rejects.
+    @VisibleForTesting
     boolean bindVariable(
             final PortType.Var var,
             final TypeMirror source,
@@ -62,6 +65,7 @@ final class Unifier {
     }
 
     // Whether var's own PortType.Bound rejects source, recording why to refusals.
+    @VisibleForTesting
     boolean refusedByBound(final PortType.Var var, final TypeMirror source, final List<Offer> refusals) {
         final var bound = var.getBound();
         if (bound == null) {
@@ -73,6 +77,7 @@ final class Unifier {
     }
 
     // Whether the parameterised template matches the declared source, unifying each argument in turn.
+    @VisibleForTesting
     boolean unifyApp(
             final PortType.App template,
             final TypeMirror source,
@@ -95,6 +100,7 @@ final class Unifier {
     // self-recursive unify() call, and a static call bypasses the spy's interaction recording entirely — unlike
     // an instance helper, which would show up as an extra untracked interaction under strict `0 * _` mocking.
     // Whether source is declared, erases to template's erasure, and has as many type arguments.
+    @VisibleForTesting
     boolean matchesErasure(final PortType.App template, final TypeMirror source, final ResolveCtx ctx) {
         return ctx.isDeclared(source)
                 && ctx.isSameType(
@@ -103,6 +109,7 @@ final class Unifier {
     }
 
     // Restrict-v1 policy: a variable matches only an invariant reference argument; never a wildcard/type-variable.
+    @VisibleForTesting
     boolean isGroundable(final TypeMirror source) {
         return ctx.isDeclared(source) || ctx.isArray(source);
     }

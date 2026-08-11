@@ -4,6 +4,7 @@ import java.util.Comparator;
 import java.util.IdentityHashMap;
 import java.util.Map;
 import java.util.Optional;
+import org.jetbrains.annotations.VisibleForTesting;
 
 import static io.github.joke.percolate.processor.internal.graph.Cost.INFINITE;
 import static io.github.joke.percolate.processor.internal.graph.Cost.ZERO;
@@ -68,10 +69,12 @@ public final class ExtractedPlan {
         return cost;
     }
 
+    @VisibleForTesting
     Cost costOf(final GraphVertex vertex) {
         return vertex instanceof Value ? cost((Value) vertex) : cost((Operation) vertex);
     }
 
+    @VisibleForTesting
     void walk(final Value value) {
         if (chosen.containsKey(value)) {
             return;
@@ -89,6 +92,7 @@ public final class ExtractedPlan {
     // order), with Operation.getSeq() the deterministic, numeric tie-break. Empty when the value has no reachable
     // producer (so an all-unreachable Value falls back to its base case in .cost).
     // Comparator.comparing needs an explicit type witness here, which a static import cannot carry.
+    @VisibleForTesting
     @SuppressWarnings("PMD.UseStaticImports")
     Optional<Operation> cheapestProducer(final Value value) {
         return graph.producersOf(value)
@@ -96,6 +100,7 @@ public final class ExtractedPlan {
                 .min(Comparator.<Operation, Cost>comparing(this::cost).thenComparingInt(Operation::getSeq));
     }
 
+    @VisibleForTesting
     Cost cost(final Operation operation) {
         final var memo = operationCost.get(operation);
         if (memo != null) {
@@ -116,6 +121,7 @@ public final class ExtractedPlan {
     // A producerless Value is a base case (cost ZERO) only when it is a LEAF — a parameter root or a container
     // element root. Every other producerless Value is unreachable (INFINITE), including a multi-segment ACCESS
     // source demand whose accessor never matched.
+    @VisibleForTesting
     boolean isBaseCase(final Value value) {
         return value.getLoc().role() == LEAF;
     }

@@ -15,6 +15,7 @@ import java.util.Set;
 import java.util.stream.Stream;
 import javax.lang.model.type.TypeMirror;
 import lombok.NoArgsConstructor;
+import org.jetbrains.annotations.VisibleForTesting;
 
 import static io.github.joke.percolate.spi.Nullability.NON_NULL;
 import static io.github.joke.percolate.spi.Weights.STEP;
@@ -43,6 +44,7 @@ public final class ConstantValue implements ExpansionStrategy {
                 .orElseGet(Stream::empty);
     }
 
+    @VisibleForTesting
     Offer offerFor(final DirectiveInput input, final String raw, final TypeMirror target, final ResolveCtx ctx) {
         return LiteralCoercion.coerce(raw, target)
                 .<Offer>map(literal -> Offer.of(constantSpec(target, literal, input)))
@@ -50,6 +52,7 @@ public final class ConstantValue implements ExpansionStrategy {
                         Offer.refusal(input.getSubject(), "cannot coerce '" + raw + "' to " + ctx.simpleName(target)));
     }
 
+    @VisibleForTesting
     OperationSpec constantSpec(final TypeMirror target, final CodeBlock literal, final DirectiveInput input) {
         final OperationCodegen codegen = inputs -> literal;
         return OperationSpec.of(literal.toString(), codegen, STEP, List.of(), target, NON_NULL)

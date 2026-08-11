@@ -10,6 +10,7 @@ import java.util.Set;
 import java.util.stream.Stream;
 import javax.lang.model.type.TypeMirror;
 import lombok.NoArgsConstructor;
+import org.jetbrains.annotations.VisibleForTesting;
 import org.jgrapht.Graph;
 import org.jgrapht.graph.AsUnmodifiableGraph;
 import org.jgrapht.graph.DirectedMultigraph;
@@ -103,6 +104,7 @@ public final class MapperGraph {
     // Initialises a freshly-landed scope-owning Operation's ChildScope: mints the return-root Value eagerly (the
     // child plan's demand) and records the element InputDecl. The element's LEAF Value is not minted here — it is
     // materialised lazily only if the child plan sources from it.
+    @VisibleForTesting
     void initChildScope(final Operation operation, final ChildScopeDecl decl) {
         final var child = operation.getChildScope().orElseThrow();
         final var returnRoot = valueFor(
@@ -113,6 +115,7 @@ public final class MapperGraph {
     }
 
     // The single dependency-edge mutation site: enforces the no-Dep-crosses-scope invariant.
+    @VisibleForTesting
     void addDep(final GraphVertex from, final GraphVertex to, final Dep dep) {
         if (!from.getScope().equals(to.getScope())) {
             throw new IllegalStateException(
@@ -230,6 +233,7 @@ public final class MapperGraph {
         return bipartite.vertexSet().size();
     }
 
+    @VisibleForTesting
     String valueKey(final Scope scope, final Location location, final TypeMirror type, final Nullability nullness) {
         return scope.encode() + "::" + location.segment() + "::" + type + "::" + nullness.name();
     }

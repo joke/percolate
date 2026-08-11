@@ -9,6 +9,7 @@ import java.util.List;
 import java.util.Map;
 import javax.lang.model.type.TypeMirror;
 import lombok.RequiredArgsConstructor;
+import org.jetbrains.annotations.VisibleForTesting;
 
 import static java.util.Objects.requireNonNull;
 
@@ -25,6 +26,7 @@ final class BindingEnumerator {
 
     // Every consistent binding map assigning each of ports' templates to a unifying source in sources; every bound
     // refusal along the way is recorded to refusals.
+    @VisibleForTesting
     List<Map<Integer, TypeMirror>> enumerate(
             final List<Port> ports, final List<TypeMirror> sources, final List<Offer> refusals) {
         final var out = new ArrayList<Map<Integer, TypeMirror>>();
@@ -34,6 +36,7 @@ final class BindingEnumerator {
 
     // Assigns ports.get(index) to each unifying source, recording each consistent binding map once all ports are
     // assigned.
+    @VisibleForTesting
     void assign(
             final List<Port> ports,
             final int index,
@@ -51,6 +54,7 @@ final class BindingEnumerator {
         }
     }
 
+    @VisibleForTesting
     void tryAssign(
             final List<Port> ports,
             final int index,

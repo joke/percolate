@@ -15,6 +15,7 @@ import java.util.List;
 import java.util.Optional;
 import java.util.Set;
 import javax.lang.model.element.ExecutableElement;
+import org.jetbrains.annotations.VisibleForTesting;
 
 import static io.github.joke.percolate.spi.Subjects.none;
 import static java.util.stream.Collectors.toUnmodifiableSet;
@@ -63,6 +64,7 @@ final class SelfCallConstraint implements Constraint {
                         + " self-call"));
     }
 
+    @VisibleForTesting
     boolean isSameShapedAbstractSelfCallTarget(final OperationSpec spec) {
         if (!(scope instanceof MethodScope) || spec.getCallTarget().isEmpty()) {
             return false;
@@ -73,6 +75,7 @@ final class SelfCallConstraint implements Constraint {
     }
 
     // The whole-parameter source locations of method: a LEAF SourceLocation per parameter.
+    @VisibleForTesting
     Set<Location> parameterRootLocations(final ExecutableElement method) {
         return method.getParameters().stream()
                 .map(parameter -> (Location) new SourceLocation(
@@ -81,6 +84,7 @@ final class SelfCallConstraint implements Constraint {
     }
 
     // Whether a and b declare the same parameter types and return type, ignoring method name.
+    @VisibleForTesting
     boolean sameShape(final ExecutableElement a, final ExecutableElement b) {
         final var paramsA = a.getParameters();
         final var paramsB = b.getParameters();

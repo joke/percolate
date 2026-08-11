@@ -17,6 +17,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import lombok.RequiredArgsConstructor;
+import org.jetbrains.annotations.VisibleForTesting;
 
 import static java.util.stream.Collectors.toUnmodifiableList;
 
@@ -37,6 +38,7 @@ final class TargetProducer {
     private final SpecDeduplicator deduplicator;
 
     // Every concrete, deduplicated spec the strategy set + grounding admit for the FREE demand value.
+    @VisibleForTesting
     List<OperationSpec> produce(final Value value) {
         final var scope = value.getScope();
         final var path = ((TargetLocation) value.getLoc()).getPath().toString();
@@ -60,6 +62,7 @@ final class TargetProducer {
     }
 
     // Records every bound refusal Grounding collected on value's inadmissible list.
+    @VisibleForTesting
     void recordRefusals(final List<Offer> refusals, final Value value) {
         for (final var refusal : refusals) {
             if (refusal instanceof Offer.Refusal) {
@@ -70,6 +73,7 @@ final class TargetProducer {
     }
 
     // The walked binding's own Directive for value's target path (design D9) — never per-segment.
+    @VisibleForTesting
     Optional<Directive> pinnedDirective(final Value value) {
         final var scope = value.getScope();
         final var path = ((TargetLocation) value.getLoc()).getPath().toString();
@@ -78,6 +82,7 @@ final class TargetProducer {
     }
 
     // The demand-scoped constraints a reader attached to value's target path (design D8).
+    @VisibleForTesting
     List<Constraint> constraintsFor(final Value value) {
         final var scope = value.getScope();
         final var path = ((TargetLocation) value.getLoc()).getPath().toString();
@@ -86,6 +91,7 @@ final class TargetProducer {
 
     // Splits offers into their productions, recording every refusal on value's inadmissible list (design D2 of
     // change decouple-engine-from-strategy-semantics) — a refusal never becomes an Operation vertex.
+    @VisibleForTesting
     List<OperationSpec> productionsOf(final List<Offer> offers, final Value value) {
         final var productions = new ArrayList<OperationSpec>();
         for (final var offer : offers) {
@@ -100,6 +106,7 @@ final class TargetProducer {
     }
 
     // The directive-pinned source path of the FREE demand value's binding, or none.
+    @VisibleForTesting
     List<String> pinnedSourcePath(final Value value) {
         final var scope = value.getScope();
         final var path = ((TargetLocation) value.getLoc()).getPath().toString();
@@ -108,6 +115,7 @@ final class TargetProducer {
     }
 
     // Every offer the strategy set makes for demand.
+    @VisibleForTesting
     List<Offer> run(final DemandView demand, final ResolveCtx ctx) {
         return strategies.stream()
                 .flatMap(strategy -> strategy.expand(demand, ctx))

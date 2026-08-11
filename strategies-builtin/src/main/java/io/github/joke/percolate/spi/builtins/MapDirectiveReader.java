@@ -14,6 +14,7 @@ import javax.lang.model.element.AnnotationValue;
 import javax.lang.model.element.ExecutableElement;
 import lombok.NoArgsConstructor;
 import lombok.RequiredArgsConstructor;
+import org.jetbrains.annotations.VisibleForTesting;
 
 import static io.github.joke.percolate.spi.DirectiveInput.scalar;
 import static java.util.Objects.requireNonNull;
@@ -48,6 +49,7 @@ public final class MapDirectiveReader implements DirectiveReader {
         AnnotationEntries.entriesOf(Map.class, method).forEach(mirror -> readEntry(method, mirror, sink));
     }
 
+    @VisibleForTesting
     void readEntry(final ExecutableElement method, final AnnotationMirror mirror, final DirectiveSink sink) {
         final var written = AnnotationEntries.writtenMembers(mirror);
         final var targetValue = requireNonNull(written.get(TARGET));
@@ -68,6 +70,7 @@ public final class MapDirectiveReader implements DirectiveReader {
     }
 
     // Enforces @Map's own shape rules, refusing the target path outright when violated.
+    @VisibleForTesting
     boolean declinesShape(
             final ExecutableElement method,
             final AnnotationMirror mirror,
@@ -87,6 +90,7 @@ public final class MapDirectiveReader implements DirectiveReader {
         private final java.util.Map<String, AnnotationValue> written;
         private final DirectiveSink sink;
 
+        @VisibleForTesting
         boolean declinesBothSourceAndConstant() {
             if (!(hasSource() && hasConstant())) {
                 return false;
@@ -97,6 +101,7 @@ public final class MapDirectiveReader implements DirectiveReader {
             return true;
         }
 
+        @VisibleForTesting
         boolean declinesNeitherSourceNorConstant() {
             if (hasSource() || hasConstant()) {
                 return false;
@@ -107,6 +112,7 @@ public final class MapDirectiveReader implements DirectiveReader {
             return true;
         }
 
+        @VisibleForTesting
         boolean declinesDefaultValueWithoutSource() {
             if (!written.containsKey(DEFAULT_VALUE) || hasSource()) {
                 return false;
@@ -115,20 +121,24 @@ public final class MapDirectiveReader implements DirectiveReader {
             return true;
         }
 
+        @VisibleForTesting
         boolean hasSource() {
             return written.containsKey(SOURCE);
         }
 
+        @VisibleForTesting
         boolean hasConstant() {
             return written.containsKey(CONSTANT);
         }
 
         // Rejects the declaration outright, so the reason is reported whether or not anything demands the path.
+        @VisibleForTesting
         void refuse(final Subject subject, final String message) {
             sink.reject(subject, message);
         }
     }
 
+    @VisibleForTesting
     DirectiveInput toInput(
             final ExecutableElement method,
             final AnnotationMirror mirror,
@@ -137,6 +147,7 @@ public final class MapDirectiveReader implements DirectiveReader {
         return scalar(key, value.getValue().toString(), Subjects.of(method, mirror, value));
     }
 
+    @VisibleForTesting
     List<String> splitDotted(final String path) {
         if (path.isEmpty()) {
             return List.of();

@@ -13,6 +13,7 @@ import java.util.Map;
 import javax.lang.model.element.AnnotationMirror;
 import javax.lang.model.element.ExecutableElement;
 import lombok.NoArgsConstructor;
+import org.jetbrains.annotations.VisibleForTesting;
 
 import static io.github.joke.percolate.spi.DirectiveInput.structured;
 import static java.util.Objects.requireNonNull;
@@ -37,6 +38,7 @@ public final class MapEnumDirectiveReader implements DirectiveReader {
                 .forEach(mirror -> sink.input(ROOT_PATH, toInput(method, mirror)));
     }
 
+    @VisibleForTesting
     DirectiveInput toInput(final ExecutableElement method, final AnnotationMirror mirror) {
         final var written = AnnotationEntries.writtenMembers(mirror);
         final var sourceValue = requireNonNull(written.get(SOURCE));

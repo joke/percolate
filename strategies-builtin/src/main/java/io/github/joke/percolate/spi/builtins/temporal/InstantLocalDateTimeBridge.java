@@ -18,6 +18,7 @@ import java.util.Set;
 import java.util.stream.Stream;
 import javax.lang.model.type.TypeMirror;
 import lombok.NoArgsConstructor;
+import org.jetbrains.annotations.VisibleForTesting;
 
 import static io.github.joke.percolate.spi.Nullability.NON_NULL;
 import static io.github.joke.percolate.spi.Weights.STEP;
@@ -54,6 +55,7 @@ public final class InstantLocalDateTimeBridge implements ExpansionStrategy {
     }
 
     // Instant -> LocalDateTime via instant.atZone(zone).toLocalDateTime().
+    @VisibleForTesting
     Optional<OperationSpec> toLocalDateTimeSpec(
             final ProduceDemand demand, final TypeMirror target, final ResolveCtx ctx) {
         final var instantElement = ctx.typeElementNamed(INSTANT);
@@ -79,6 +81,7 @@ public final class InstantLocalDateTimeBridge implements ExpansionStrategy {
     }
 
     // LocalDateTime -> Instant via localDateTime.atZone(zone).toInstant().
+    @VisibleForTesting
     Optional<OperationSpec> toInstantSpec(final ProduceDemand demand, final TypeMirror target, final ResolveCtx ctx) {
         final var instantElement = ctx.typeElementNamed(INSTANT);
         final var localDateTimeElement = ctx.typeElementNamed(LOCAL_DATE_TIME);
@@ -101,11 +104,13 @@ public final class InstantLocalDateTimeBridge implements ExpansionStrategy {
                 .withConsumed(consumed(zoneInput)));
     }
 
+    @VisibleForTesting
     Set<DirectiveInput> consumed(final Optional<DirectiveInput> zoneInput) {
         return zoneInput.map(Set::of).orElseGet(Set::of);
     }
 
     // Zone precedence (D4): directive → processor option → generated ZoneId.systemDefault().
+    @VisibleForTesting
     CodeBlock resolveZone(final Optional<DirectiveInput> zoneInput, final ResolveCtx ctx) {
         final var directiveZone = zoneInput.flatMap(DirectiveInput::getValue);
         if (directiveZone.isPresent()) {

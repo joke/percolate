@@ -9,6 +9,7 @@ import java.util.Set;
 import javax.lang.model.type.DeclaredType;
 import javax.lang.model.type.TypeMirror;
 import lombok.RequiredArgsConstructor;
+import org.jetbrains.annotations.VisibleForTesting;
 
 import static java.lang.Character.toLowerCase;
 
@@ -36,11 +37,13 @@ final class HoistPlan {
 
     private final Map<Value, CodeBlock> references = new IdentityHashMap<>();
 
+    @VisibleForTesting
     boolean isHoisted(final Value value) {
         return hoisted.contains(value);
     }
 
     // Allocates a unique name for a hoisted value from its slot name, records its reference, returns it.
+    @VisibleForTesting
     String declare(final Value value) {
         final var name = names.newName(slotBase(value));
         references.put(value, CodeBlock.of("$N", name));
@@ -48,6 +51,7 @@ final class HoistPlan {
     }
 
     // The variable reference of a hoisted, already-declared value.
+    @VisibleForTesting
     CodeBlock reference(final Value value) {
         final var ref = references.get(value);
         if (ref == null) {
@@ -57,20 +61,24 @@ final class HoistPlan {
     }
 
     // Allocates a unique lambda-parameter name for an element of elementType (from the child input decl).
+    @VisibleForTesting
     String lambdaName(final TypeMirror elementType) {
         return names.newName(typeBase(elementType));
     }
 
+    @VisibleForTesting
     String slotBase(final Value value) {
         final var slot = value.getLoc().slotName();
         return slot.isEmpty() ? "value" : slot;
     }
 
+    @VisibleForTesting
     String typeBase(final TypeMirror type) {
         final var simple = declaredSimpleName(type);
         return simple.isEmpty() ? "element" : toLowerCase(simple.charAt(0)) + simple.substring(1);
     }
 
+    @VisibleForTesting
     String declaredSimpleName(final TypeMirror type) {
         return type instanceof DeclaredType
                 ? ((DeclaredType) type).asElement().getSimpleName().toString()

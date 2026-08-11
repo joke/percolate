@@ -33,11 +33,13 @@ public final class MethodPathResolver extends Accessor {
                 .map(method -> step(method, segment));
     }
 
+    @VisibleForTesting
     Step step(final ExecutableElement method, final String segment) {
         final OperationCodegen codegen = inputs -> CodeBlock.of("$L$Z.$N()", inputs.single(), segment);
         return new Step(method.getReturnType(), method, segment + "()", STEP_METHOD, codegen);
     }
 
+    @VisibleForTesting
     Optional<ExecutableElement> matchAccessor(final Element member, final String segment, final ResolveCtx ctx) {
         return Members.noArgMethodNamed(member, segment, ctx);
     }

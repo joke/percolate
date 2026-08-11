@@ -19,6 +19,7 @@ import java.util.Set;
 import java.util.stream.Stream;
 import javax.lang.model.type.TypeMirror;
 import lombok.NoArgsConstructor;
+import org.jetbrains.annotations.VisibleForTesting;
 
 import static io.github.joke.percolate.spi.Nullability.NON_NULL;
 import static io.github.joke.percolate.spi.Weights.STEP;
@@ -65,6 +66,7 @@ public final class TemporalFormat implements ExpansionStrategy {
                 .orElseGet(Stream::empty);
     }
 
+    @VisibleForTesting
     MemberRequest formatterRequest(final String pattern) {
         return new MemberRequest(
                 DATE_TIME_FORMATTER,
@@ -73,6 +75,7 @@ public final class TemporalFormat implements ExpansionStrategy {
     }
 
     // sourceFqn.format(formatter) — one over-emitted candidate per roster java.time source type.
+    @VisibleForTesting
     Optional<OperationSpec> formatStep(
             final String sourceFqn,
             final TypeMirror target,
@@ -94,6 +97,7 @@ public final class TemporalFormat implements ExpansionStrategy {
     }
 
     // Target.parse(str, formatter) — the demanded java.time target, parsed from a String.
+    @VisibleForTesting
     Optional<OperationSpec> parseStep(
             final TypeMirror target,
             final MemberRequest memberRequest,

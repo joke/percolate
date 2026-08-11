@@ -10,6 +10,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import lombok.RequiredArgsConstructor;
+import org.jetbrains.annotations.VisibleForTesting;
 
 import static java.util.stream.Collectors.groupingBy;
 import static java.util.stream.Collectors.toUnmodifiableList;
@@ -29,18 +30,21 @@ public final class ValidateNoDuplicateTargetsStage implements Stage {
         methodDirectives.forEach(directives -> validate(directives, ctx));
     }
 
+    @VisibleForTesting
     void validate(final MethodDirectives directives, final MapperContext ctx) {
         groupByTarget(directives.getBinds()).values().stream()
                 .filter(binds -> binds.size() > 1)
                 .forEach(binds -> reportDuplicates(binds, ctx));
     }
 
+    @VisibleForTesting
     Map<String, List<Bind>> groupByTarget(final List<Bind> binds) {
         return binds.stream()
                 .collect(
                         groupingBy(bind -> String.join(".", bind.getTargetPath()), HashMap::new, toUnmodifiableList()));
     }
 
+    @VisibleForTesting
     void reportDuplicates(final List<Bind> binds, final MapperContext ctx) {
         binds.stream()
                 .skip(1)

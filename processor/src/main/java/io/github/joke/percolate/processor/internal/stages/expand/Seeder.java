@@ -19,6 +19,7 @@ import java.util.Map;
 import javax.lang.model.element.ExecutableElement;
 import javax.lang.model.element.VariableElement;
 import lombok.RequiredArgsConstructor;
+import org.jetbrains.annotations.VisibleForTesting;
 
 import static io.github.joke.percolate.processor.internal.graph.Visibility.LOCAL;
 import static io.github.joke.percolate.spi.Visibility.INHERITED;
@@ -43,6 +44,7 @@ final class Seeder {
     private final Map<Scope, GoalSpec> goalSpecs;
 
     // Mints and marks the return-root Value for method.
+    @VisibleForTesting
     Value seed(final ExecutableElement method) {
         final var scope = new MethodScope(method, declarationsFor(method));
         final var returnType = method.getReturnType();
@@ -54,6 +56,7 @@ final class Seeder {
     }
 
     // One resolved InputDecl per parameter, named and visibility-marked per any published override.
+    @VisibleForTesting
     List<InputDecl> declarationsFor(final ExecutableElement method) {
         final var overrideByParam = scopeInputOverridesFor(method);
         return method.getParameters().stream()
@@ -66,6 +69,7 @@ final class Seeder {
                 .collect(toUnmodifiableList());
     }
 
+    @VisibleForTesting
     Map<VariableElement, ScopeInputOverride> scopeInputOverridesFor(final ExecutableElement method) {
         final var goalSpec = goalSpecs.get(new MethodScope(method));
         if (goalSpec == null) {
@@ -75,6 +79,7 @@ final class Seeder {
                 .collect(toMap(ScopeInputOverride::getParameter, identity(), (first, second) -> first));
     }
 
+    @VisibleForTesting
     String nameOf(final VariableElement param, final Map<VariableElement, ScopeInputOverride> overrideByParam) {
         final var override = overrideByParam.get(param);
         return override == null ? param.getSimpleName().toString() : override.getName();
@@ -82,6 +87,7 @@ final class Seeder {
 
     // Two different Visibility enums are in play — the spi one on the override and the graph one this returns —
     // and both declare INHERITED, so only one of the two can be static-imported.
+    @VisibleForTesting
     @SuppressWarnings("PMD.UseStaticImports")
     Visibility visibilityOf(
             final VariableElement param, final Map<VariableElement, ScopeInputOverride> overrideByParam) {

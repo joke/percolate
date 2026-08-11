@@ -16,6 +16,9 @@ dependencies {
     testAnnotationProcessor platform(project(':dependencies'))
     testAnnotationProcessor 'io.github.joke.jspecify:processor'
 
+    testCompileOnly platform(project(':dependencies'))
+    testCompileOnly 'org.jetbrains:annotations'
+
     testImplementation platform(project(':dependencies'))
     testImplementation 'org.spockframework:spock-core'
     testImplementation 'org.apache.groovy:groovy'

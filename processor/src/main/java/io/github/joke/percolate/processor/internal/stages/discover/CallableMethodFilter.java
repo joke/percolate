@@ -5,6 +5,7 @@ import jakarta.inject.Inject;
 import java.util.List;
 import javax.lang.model.util.Types;
 import lombok.RequiredArgsConstructor;
+import org.jetbrains.annotations.VisibleForTesting;
 
 import static java.util.stream.Collectors.toUnmodifiableList;
 import static javax.lang.model.element.ElementKind.METHOD;
@@ -20,12 +21,14 @@ final class CallableMethodFilter {
 
     private final Types types;
 
+    @VisibleForTesting
     CallableMethods filter(final List<CandidateDescriptor> descriptors) {
         final var callable =
                 descriptors.stream().filter(this::isCallable).distinct().collect(toUnmodifiableList());
         return new IndexCallableMethods(callable, types);
     }
 
+    @VisibleForTesting
     boolean isCallable(final CandidateDescriptor descriptor) {
         return descriptor.getKind() == METHOD && !descriptor.isEnclosingIsObject();
     }

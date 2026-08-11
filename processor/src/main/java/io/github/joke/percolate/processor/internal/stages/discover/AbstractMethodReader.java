@@ -8,6 +8,7 @@ import javax.lang.model.element.TypeElement;
 import javax.lang.model.util.Elements;
 import javax.lang.model.util.Types;
 import lombok.RequiredArgsConstructor;
+import org.jetbrains.annotations.VisibleForTesting;
 
 import static com.google.auto.common.MoreElements.getLocalAndInheritedMethods;
 import static java.util.stream.Collectors.toUnmodifiableList;
@@ -24,6 +25,7 @@ final class AbstractMethodReader {
     private final Elements elements;
     private final Types types;
 
+    @VisibleForTesting
     List<AbstractMethodDescriptor> readMethods(final TypeElement typeElement) {
         final var objectElement = elements.getTypeElement("java.lang.Object");
         return getLocalAndInheritedMethods(typeElement, types, elements).stream()
@@ -31,10 +33,12 @@ final class AbstractMethodReader {
                 .collect(toUnmodifiableList());
     }
 
+    @VisibleForTesting
     AbstractMethodDescriptor describe(final ExecutableElement method, final TypeElement objectElement) {
         return new AbstractMethodDescriptor(method.getModifiers(), enclosingIsObject(method, objectElement), method);
     }
 
+    @VisibleForTesting
     boolean enclosingIsObject(final ExecutableElement method, final TypeElement objectElement) {
         final var enclosing = method.getEnclosingElement();
         return enclosing != null && enclosing.equals(objectElement);

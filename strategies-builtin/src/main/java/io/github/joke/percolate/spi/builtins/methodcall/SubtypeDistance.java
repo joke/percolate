@@ -7,6 +7,7 @@ import java.util.HashSet;
 import java.util.Optional;
 import java.util.Set;
 import javax.lang.model.type.TypeMirror;
+import org.jetbrains.annotations.VisibleForTesting;
 
 // The subtype-distance walk MethodCallBridge uses to weight a candidate return type: a breadth-first count of
 // superclass hops from from up to to. Extracted so the walk is testable in isolation over the mocked ResolveCtx
@@ -16,6 +17,7 @@ import javax.lang.model.type.TypeMirror;
 // replaces.
 final class SubtypeDistance {
 
+    @VisibleForTesting
     int between(final TypeMirror from, final TypeMirror to, final ResolveCtx ctx) {
         // No same-type short-circuit here: bfsDistance opens with exactly that question and answers 0 itself.
         if (!ctx.isAssignable(from, to)) {
@@ -27,6 +29,7 @@ final class SubtypeDistance {
         return bfsDistance(from, to, ctx);
     }
 
+    @VisibleForTesting
     int bfsDistance(final TypeMirror start, final TypeMirror target, final ResolveCtx ctx) {
         if (ctx.isSameType(start, target)) {
             return 0;
@@ -46,6 +49,7 @@ final class SubtypeDistance {
 
     // One BFS step from current: the distance to target when its unvisited direct supertype is a match, else empty
     // — enqueueing that supertype as the next hop when it is not.
+    @VisibleForTesting
     Optional<Integer> advance(
             final Hop current,
             final TypeMirror target,
@@ -64,6 +68,7 @@ final class SubtypeDistance {
     }
 
     // The unvisited direct supertype hop of current, or empty when there is none left to walk.
+    @VisibleForTesting
     Optional<Hop> nextHop(final Hop current, final Set<String> visited, final ResolveCtx ctx) {
         if (!ctx.isDeclared(current.type)) {
             return Optional.empty();

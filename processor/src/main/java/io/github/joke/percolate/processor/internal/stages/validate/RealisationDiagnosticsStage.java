@@ -13,6 +13,7 @@ import java.util.LinkedHashSet;
 import java.util.Optional;
 import javax.lang.model.type.TypeMirror;
 import lombok.RequiredArgsConstructor;
+import org.jetbrains.annotations.VisibleForTesting;
 
 import static io.github.joke.percolate.processor.Diagnostic.error;
 import static io.github.joke.percolate.processor.internal.graph.ExtractedPlan.extract;
@@ -40,6 +41,7 @@ public final class RealisationDiagnosticsStage implements Stage {
         graph.returnRoots().filter(root -> !plan.reachable(root)).forEach(root -> report(ctx, graph, plan, root));
     }
 
+    @VisibleForTesting
     void report(final MapperContext ctx, final MapperGraph graph, final ExtractedPlan plan, final Value root) {
         final var miss = deepestMiss(graph, plan, root);
         final var refusals = miss.getInadmissible();
@@ -53,6 +55,7 @@ public final class RealisationDiagnosticsStage implements Stage {
                 .forEach(refusal -> ctx.report(error(refusal.getSubject(), refusal.getMessage())));
     }
 
+    @VisibleForTesting
     String genericMessage(final Value root, final Value miss) {
         return format(
                 "no plan for %s: %s has no producer in the graph. Likely missing: a @Map-annotated method whose source produces %s",
@@ -60,6 +63,7 @@ public final class RealisationDiagnosticsStage implements Stage {
     }
 
     // Descends the first unreachable port chain from value to the demand with no reachable producer.
+    @VisibleForTesting
     Value deepestMiss(final MapperGraph graph, final ExtractedPlan plan, final Value value) {
         final var visited = new HashSet<Value>();
         var current = value;
@@ -74,18 +78,21 @@ public final class RealisationDiagnosticsStage implements Stage {
     }
 
     // The unsatisfied port feeding current's unreachable producer, or empty when current is the miss.
+    @VisibleForTesting
     Optional<Value> nextUnsatisfied(final MapperGraph graph, final ExtractedPlan plan, final Value current) {
         final var producer =
                 graph.producersOf(current).filter(op -> !plan.reachable(op)).findFirst();
         return producer.isEmpty() ? Optional.empty() : firstUnsatisfiedPort(graph, plan, producer.get());
     }
 
+    @VisibleForTesting
     Optional<Value> firstUnsatisfiedPort(final MapperGraph graph, final ExtractedPlan plan, final Operation operation) {
         return graph.portSourcesOf(operation)
                 .filter(source -> !plan.reachable(source))
                 .findFirst();
     }
 
+    @VisibleForTesting
     String label(final Value value) {
         if (value.getLoc() instanceof TargetLocation) {
             return "tgt[" + ((TargetLocation) value.getLoc()).getPath() + "]";
@@ -93,6 +100,7 @@ public final class RealisationDiagnosticsStage implements Stage {
         return value.id();
     }
 
+    @VisibleForTesting
     String typeName(final Value value) {
         return value.getType().map(TypeMirror::toString).orElse("?");
     }

@@ -18,6 +18,7 @@ import java.util.Set;
 import java.util.stream.Stream;
 import javax.lang.model.type.TypeMirror;
 import lombok.NoArgsConstructor;
+import org.jetbrains.annotations.VisibleForTesting;
 
 import static io.github.joke.percolate.spi.Nullability.NON_NULL;
 import static io.github.joke.percolate.spi.Weights.STEP;
@@ -64,6 +65,7 @@ public final class LegacyTemporalFormat implements ExpansionStrategy {
     }
 
     // new SimpleDateFormat(pattern).format($L) — a fresh formatter per call, never shared.
+    @VisibleForTesting
     Optional<OperationSpec> formatStep(
             final String sourceFqn,
             final TypeMirror target,
@@ -84,6 +86,7 @@ public final class LegacyTemporalFormat implements ExpansionStrategy {
     }
 
     // String -> Date/Timestamp via a fresh SimpleDateFormat, its checked ParseException rethrown.
+    @VisibleForTesting
     Optional<OperationSpec> parseStep(
             final TypeMirror target, final String pattern, final DirectiveInput formatInput, final ResolveCtx ctx) {
         final var isTimestamp = legacyTargetKind(target, ctx);
@@ -103,6 +106,7 @@ public final class LegacyTemporalFormat implements ExpansionStrategy {
     }
 
     // Empty when target is neither legacy type; else true for Timestamp, false for Date.
+    @VisibleForTesting
     Optional<Boolean> legacyTargetKind(final TypeMirror target, final ResolveCtx ctx) {
         if (ctx.isType(target, "java.util.Date")) {
             return Optional.of(false);
@@ -113,14 +117,17 @@ public final class LegacyTemporalFormat implements ExpansionStrategy {
         return Optional.empty();
     }
 
+    @VisibleForTesting
     OperationCodegen dateParseCodegen(final String pattern) {
         return inputs -> parseAsDate(pattern, inputs.single());
     }
 
+    @VisibleForTesting
     OperationCodegen timestampParseCodegen(final String pattern) {
         return inputs -> CodeBlock.of("new $T($L.getTime())", TIMESTAMP, parseAsDate(pattern, inputs.single()));
     }
 
+    @VisibleForTesting
     CodeBlock parseAsDate(final String pattern, final CodeBlock source) {
         return CodeBlock.of(
                 "(($T<$T>) () -> { try { return new $T($S).parse($L); } catch ($T e) { throw new $T(e); } }).get()",
