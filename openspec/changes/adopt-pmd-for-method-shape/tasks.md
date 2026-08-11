@@ -55,17 +55,17 @@ verified live (`NullabilityAnnotations#jspecifyDefaults` no longer flagged).
 
 ## 6. StaticMethodsModifyStaticState — the residue
 
-- [ ] 6.1 Re-run and list what survives the upstream exemptions; expect only the 5 Dagger `@Provides` statics in `ProcessorModule`
-- [ ] 6.2 Suppress those at the site with a comment, per the rule's own documented guidance for framework-mandated statics
-- [ ] 6.3 Confirm no `@UtilityClass` or named-constructor site needed a suppression — if one did, the upstream exemption is wrong and belongs back in group 1
+- [x] 6.1 Re-run and list what survives the upstream exemptions; expect only the 5 Dagger `@Provides` statics in `ProcessorModule`
+- [x] 6.2 Suppress those at the site with a comment, per the rule's own documented guidance for framework-mandated statics
+- [x] 6.3 Confirm no `@UtilityClass` or named-constructor site needed a suppression — if one did, the upstream exemption is wrong and belongs back in group 1
 
 ## 7. UseStaticImports (308 at baseline)
 
-- [ ] 7.1 `processor`
-- [ ] 7.2 `strategies-builtin`
-- [ ] 7.3 `spi`
-- [ ] 7.4 `reactor`, `reactor-blocking`, and the remaining modules
-- [ ] 7.5 Confirm no import-order churn against spotless — run `./gradlew spotlessApply` and re-check
+- [x] 7.1 `processor`
+- [x] 7.2 `strategies-builtin`
+- [x] 7.3 `spi`
+- [x] 7.4 `reactor`, `reactor-blocking`, and the remaining modules
+- [x] 7.5 Confirm no import-order churn against spotless — run `./gradlew spotlessApply` and re-check. **33 sites remain and are blocked** — see the note below group 7
 
 ## 8. UseVisibleForTestingAnnotation (334 at baseline)
 
@@ -78,10 +78,10 @@ verified live (`NullabilityAnnotations#jspecifyDefaults` no longer flagged).
 
 ## 9. The remaining rules
 
-- [ ] 9.1 `UseVarForLocalVariables` (65) — respect the declared exemptions: no initializer, `null`, array shorthand, lambda or method reference, multiple declarators
+- [x] 9.1 `UseVarForLocalVariables` (65) — respect the declared exemptions: no initializer, `null`, array shorthand, lambda or method reference, multiple declarators
 - [ ] 9.2 `AvoidLambdaBlockBodies` (20) — extract to a named method; an expression body suffices, a method reference is not required
-- [ ] 9.3 `AvoidAnonymousClasses` (4)
-- [ ] 9.4 `UseTypeImports` (8)
+- [x] 9.3 `AvoidAnonymousClasses` (4)
+- [x] 9.4 `UseTypeImports` (8)
 
 ## 10. Verify and land
 
