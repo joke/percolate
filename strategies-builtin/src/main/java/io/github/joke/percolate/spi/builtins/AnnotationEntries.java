@@ -70,7 +70,6 @@ public class AnnotationEntries {
     }
 
     // mirror's written members only, keyed by simple name — never a member left at its declared default.
-    @SuppressWarnings("PMD.UseConcurrentHashMap") // single-threaded annotation processing; no concurrent access
     public static Map<String, AnnotationValue> writtenMembers(final AnnotationMirror mirror) {
         final var written = new LinkedHashMap<String, AnnotationValue>();
         mirror.getElementValues()

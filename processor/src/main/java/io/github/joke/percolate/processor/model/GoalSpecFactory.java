@@ -11,6 +11,8 @@ import java.util.Map;
 import java.util.Set;
 import lombok.NoArgsConstructor;
 
+import static java.lang.String.join;
+
 // Derives a GoalSpec from one method's sink-recorded facts. Split from GoalSpec by change tighten-testability-
 // conventions (design D2): the derivation rules — every path segment declaring a child at its parent level,
 // first-bind-wins on a duplicate target, a directive existing for an input-only path no bind ever touched — are
@@ -28,8 +30,8 @@ public class GoalSpecFactory {
             final Map<String, List<DirectiveInput>> inputsByTarget,
             final Map<String, List<Constraint>> constraintsByTarget,
             final List<ScopeInputOverride> scopeInputOverrides) {
-        final Map<String, Set<String>> levels = childLevels(binds);
-        final Map<String, List<String>> sourceByTarget = sourcePathByTarget(binds);
+        final var levels = childLevels(binds);
+        final var sourceByTarget = sourcePathByTarget(binds);
         return new GoalSpec(
                 Map.copyOf(levels),
                 Map.copyOf(directivesByTarget(sourceByTarget, inputsByTarget)),
@@ -38,13 +40,12 @@ public class GoalSpecFactory {
     }
 
     // Parent dotted path -> declared child names at that level, derived from every bind's target path segments.
-    @SuppressWarnings("PMD.UseConcurrentHashMap") // single-threaded per-method derivation; insertion order matters
     Map<String, Set<String>> childLevels(final List<Bind> binds) {
-        final Map<String, Set<String>> levels = new LinkedHashMap<>();
+        final var levels = new LinkedHashMap<String, Set<String>>();
         for (final var bind : binds) {
             final var segments = bind.getTargetPath();
             for (var i = 0; i < segments.size(); i++) {
-                final var parent = String.join(".", segments.subList(0, i));
+                final var parent = join(".", segments.subList(0, i));
                 levels.computeIfAbsent(parent, key -> new LinkedHashSet<>()).add(segments.get(i));
             }
         }
@@ -52,21 +53,19 @@ public class GoalSpecFactory {
     }
 
     // Exact dotted target path -> the first bind's source path declared there (first bind wins on a duplicate).
-    @SuppressWarnings("PMD.UseConcurrentHashMap") // single-threaded per-method derivation; insertion order matters
     Map<String, List<String>> sourcePathByTarget(final List<Bind> binds) {
-        final Map<String, List<String>> sourceByTarget = new LinkedHashMap<>();
+        final var sourceByTarget = new LinkedHashMap<String, List<String>>();
         for (final var bind : binds) {
-            sourceByTarget.putIfAbsent(String.join(".", bind.getTargetPath()), bind.getSourcePath());
+            sourceByTarget.putIfAbsent(join(".", bind.getTargetPath()), bind.getSourcePath());
         }
         return sourceByTarget;
     }
 
     // A Directive per path either bound or input-only, merging both sets of dotted target paths.
-    @SuppressWarnings("PMD.UseConcurrentHashMap") // single-threaded per-method derivation; insertion order matters
     Map<String, Directive> directivesByTarget(
             final Map<String, List<String>> sourceByTarget, final Map<String, List<DirectiveInput>> inputsByTarget) {
-        final Map<String, Directive> directives = new LinkedHashMap<>();
-        final Set<String> paths = new LinkedHashSet<>(sourceByTarget.keySet());
+        final var directives = new LinkedHashMap<String, Directive>();
+        final var paths = new LinkedHashSet<String>(sourceByTarget.keySet());
         paths.addAll(inputsByTarget.keySet());
         for (final var path : paths) {
             directives.put(

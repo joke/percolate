@@ -7,18 +7,19 @@ import io.github.joke.percolate.processor.internal.graph.Operation;
 import io.github.joke.percolate.processor.internal.graph.Value;
 import jakarta.inject.Inject;
 import java.util.Collection;
-import java.util.Collections;
 import java.util.IdentityHashMap;
 import java.util.Map;
 import java.util.Set;
 import lombok.NoArgsConstructor;
+
+import static java.util.Collections.newSetFromMap;
 
 // Builds a HoistPlan — the reachability walk, the port-consumer tally, and the hoist predicate itself. Split
 // from HoistPlan by change tighten-testability-conventions (design D2): the decision of which Values
 // materialise as named locals is the logic worth testing, and as statics on the plan it could not be
 // intercepted. HoistPlan keeps only what a built plan answers — isHoisted, naming, references.
 // IdentityHashMap is the point: every memo here is keyed by Value/Operation instance identity, not value equality.
-@SuppressWarnings({"PMD.UseConcurrentHashMap", "IdentityHashMapUsage"})
+@SuppressWarnings("IdentityHashMapUsage")
 @NoArgsConstructor(onConstructor_ = @Inject)
 final class HoistPlanFactory {
 
@@ -31,12 +32,12 @@ final class HoistPlanFactory {
             final ExtractedPlan plan,
             final Value root,
             final Collection<String> reservedNames) {
-        final Set<Operation> inPlanOps = Collections.newSetFromMap(new IdentityHashMap<>());
-        collectOps(graph, plan, root, inPlanOps, Collections.newSetFromMap(new IdentityHashMap<>()));
+        final var inPlanOps = newSetFromMap(new IdentityHashMap<Operation, Boolean>());
+        collectOps(graph, plan, root, inPlanOps, newSetFromMap(new IdentityHashMap<>()));
 
-        final Map<Value, Integer> portConsumers = new IdentityHashMap<>();
-        final Set<Value> feedsNary = collectPortConsumers(graph, inPlanOps, portConsumers);
-        final Set<Value> hoisted = hoistedValues(plan, portConsumers, feedsNary);
+        final var portConsumers = new IdentityHashMap<Value, Integer>();
+        final var feedsNary = collectPortConsumers(graph, inPlanOps, portConsumers);
+        final var hoisted = hoistedValues(plan, portConsumers, feedsNary);
 
         final var names = new NameAllocator();
         reservedNames.forEach(names::newName);
@@ -46,7 +47,7 @@ final class HoistPlanFactory {
     // Tallies how many in-plan ports consume each source, returning the subset feeding an n-ary operation.
     Set<Value> collectPortConsumers(
             final MapperGraph graph, final Set<Operation> inPlanOps, final Map<Value, Integer> portConsumers) {
-        final Set<Value> feedsNary = Collections.newSetFromMap(new IdentityHashMap<>());
+        final var feedsNary = newSetFromMap(new IdentityHashMap<Value, Boolean>());
         for (final var operation : inPlanOps) {
             final var nary = operation.getPorts().size() >= NARY;
             graph.portSourcesOf(operation).forEach(source -> {
@@ -62,7 +63,7 @@ final class HoistPlanFactory {
     // The Values that materialise as named locals: a chosen producer feeding an n-ary op or more than one port.
     Set<Value> hoistedValues(
             final ExtractedPlan plan, final Map<Value, Integer> portConsumers, final Set<Value> feedsNary) {
-        final Set<Value> hoisted = Collections.newSetFromMap(new IdentityHashMap<>());
+        final var hoisted = newSetFromMap(new IdentityHashMap<Value, Boolean>());
         portConsumers.forEach((value, count) -> {
             if (isHoistCandidate(plan, feedsNary, value, count)) {
                 hoisted.add(value);

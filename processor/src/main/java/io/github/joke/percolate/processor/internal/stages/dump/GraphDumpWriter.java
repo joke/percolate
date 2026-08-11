@@ -1,35 +1,35 @@
 package io.github.joke.percolate.processor.internal.stages.dump;
 
-import io.github.joke.percolate.processor.Diagnostic;
 import io.github.joke.percolate.processor.MapperContext;
 import io.github.joke.percolate.processor.ProcessorOptions;
 import io.github.joke.percolate.processor.internal.graph.Dep;
 import io.github.joke.percolate.processor.internal.graph.DotRenderer;
-import io.github.joke.percolate.processor.internal.graph.ExtractedPlan;
 import io.github.joke.percolate.processor.internal.graph.GraphVertex;
 import io.github.joke.percolate.processor.internal.graph.MapperGraph;
 import io.github.joke.percolate.processor.internal.graph.MethodScope;
 import io.github.joke.percolate.processor.internal.graph.Scope;
-import io.github.joke.percolate.spi.Subjects;
 import jakarta.inject.Inject;
 import java.io.IOException;
 import java.io.OutputStreamWriter;
-import java.nio.charset.StandardCharsets;
-import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Predicate;
 import javax.annotation.processing.Filer;
 import javax.lang.model.element.TypeElement;
-import javax.tools.StandardLocation;
 import lombok.RequiredArgsConstructor;
 import org.jgrapht.Graph;
 import org.jgrapht.graph.DirectedMultigraph;
 
+import static io.github.joke.percolate.processor.Diagnostic.warning;
+import static io.github.joke.percolate.processor.internal.graph.ExtractedPlan.extract;
+import static io.github.joke.percolate.spi.Subjects.none;
+import static java.nio.charset.StandardCharsets.UTF_8;
+import static java.util.Comparator.comparing;
 import static java.util.stream.Collectors.groupingBy;
 import static java.util.stream.Collectors.toList;
 import static java.util.stream.Collectors.toUnmodifiableList;
+import static javax.tools.StandardLocation.SOURCE_OUTPUT;
 
 // Owns the debug-graph IO shared by the Dump* stages: the debugGraphs gate, the empty-graph skip, the per-scope
 // partition, the DotRenderer pass, and the Filer write. Each stage supplies a vertex-inclusion predicate and a
@@ -67,6 +67,8 @@ public final class GraphDumpWriter {
         if (graph == null || skipDump(graph, ctx)) {
             return;
         }
+        // var cannot infer a conditional whose branches are a method call and a lambda.
+        @SuppressWarnings("PMD.UseVarForLocalVariables")
         final Predicate<GraphVertex> dimmed = dimUnreachable ? dimmedByCost(graph) : vertex -> false;
         final var mapperType = ctx.getMapperType();
         final var fqn = mapperType.getQualifiedName().toString();
@@ -87,7 +89,7 @@ public final class GraphDumpWriter {
     }
 
     Predicate<GraphVertex> dimmedByCost(final MapperGraph graph) {
-        final var plan = ExtractedPlan.extract(graph);
+        final var plan = extract(graph);
         return vertex -> !plan.reachable(vertex);
     }
 
@@ -108,15 +110,14 @@ public final class GraphDumpWriter {
             final TypeElement mapperType,
             final MapperContext ctx) {
         try {
-            final var resource = filer.createResource(StandardLocation.SOURCE_OUTPUT, "", fileName, mapperType);
+            final var resource = filer.createResource(SOURCE_OUTPUT, "", fileName, mapperType);
             try (var os = resource.openOutputStream();
-                    var writer = new OutputStreamWriter(os, StandardCharsets.UTF_8)) {
+                    var writer = new OutputStreamWriter(os, UTF_8)) {
                 writer.write(dot);
                 writer.flush();
             }
         } catch (final IOException e) {
-            ctx.report(
-                    Diagnostic.warning(Subjects.none(), "Failed to write " + view + " debug graph: " + e.getMessage()));
+            ctx.report(warning(none(), "Failed to write " + view + " debug graph: " + e.getMessage()));
         }
     }
 
@@ -140,7 +141,7 @@ public final class GraphDumpWriter {
                 .filter(include)
                 .map(GraphVertex::getScope)
                 .distinct()
-                .sorted(Comparator.comparing(Scope::encode))
+                .sorted(comparing(Scope::encode))
                 .collect(toUnmodifiableList());
     }
 

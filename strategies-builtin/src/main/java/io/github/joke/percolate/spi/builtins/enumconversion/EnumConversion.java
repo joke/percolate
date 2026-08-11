@@ -139,7 +139,6 @@ public final class EnumConversion implements ExpansionStrategy {
     }
 
     // Same-name matches first, then @MapEnum overrides — which take precedence over a coincidental match.
-    @SuppressWarnings("PMD.UseConcurrentHashMap") // single-threaded render; insertion order matters
     Map<String, String> buildMapping(
             final List<String> sourceConstants,
             final List<String> targetConstants,

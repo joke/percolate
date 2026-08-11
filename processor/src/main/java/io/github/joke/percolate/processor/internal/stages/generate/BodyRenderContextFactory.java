@@ -11,8 +11,6 @@ import io.github.joke.percolate.spi.SwitchStyle;
 import jakarta.inject.Inject;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
-import java.util.List;
-import java.util.Map;
 import java.util.Optional;
 import java.util.function.Function;
 import javax.lang.model.SourceVersion;
@@ -51,7 +49,6 @@ final class BodyRenderContextFactory {
     }
 
     // Builds the render context for operation's BodyCodegen, rendering each port via operandRenderer.
-    @SuppressWarnings("PMD.UseConcurrentHashMap") // single-threaded render; insertion order matters
     BodyRenderContext buildFor(
             final MapperGraph graph,
             final Operation operation,
@@ -60,9 +57,9 @@ final class BodyRenderContextFactory {
             final ResolveCtx resolveCtx,
             final SwitchStyle switchStyle,
             final SourceVersion sourceVersion) {
-        final List<CodeBlock> positional = new ArrayList<>();
-        final Map<String, CodeBlock> byName = new LinkedHashMap<>();
-        final Map<String, TypeMirror> portTypes = new LinkedHashMap<>();
+        final var positional = new ArrayList<CodeBlock>();
+        final var byName = new LinkedHashMap<String, CodeBlock>();
+        final var portTypes = new LinkedHashMap<String, TypeMirror>();
         for (final var port : operation.getPorts()) {
             final var source = graph.portSource(operation, port.getName())
                     .orElseThrow(() -> new IllegalStateException("operation port has no source: " + port.getName()));
@@ -75,7 +72,7 @@ final class BodyRenderContextFactory {
                             .orElseThrow(
                                     () -> new IllegalStateException("port source has no type: " + port.getName())));
         }
-        final Map<String, CodeBlock> members = new LinkedHashMap<>();
+        final var members = new LinkedHashMap<String, CodeBlock>();
         operation
                 .getMemberRequests()
                 .forEach(request -> members.put(request.getDedupKey(), memberPlan.reference(request.getDedupKey())));

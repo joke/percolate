@@ -3,26 +3,25 @@ package io.github.joke.percolate.processor.internal.stages.generate;
 import io.github.joke.percolate.lib.javapoet.ClassName;
 import io.github.joke.percolate.lib.javapoet.NameAllocator;
 import io.github.joke.percolate.lib.javapoet.TypeName;
-import io.github.joke.percolate.processor.Diagnostic;
 import io.github.joke.percolate.processor.MapperContext;
 import io.github.joke.percolate.processor.internal.graph.ExtractedPlan;
 import io.github.joke.percolate.processor.internal.graph.MapperGraph;
 import io.github.joke.percolate.processor.internal.graph.Operation;
 import io.github.joke.percolate.processor.internal.graph.Value;
 import io.github.joke.percolate.spi.MemberRequest;
-import io.github.joke.percolate.spi.Subjects;
 import jakarta.inject.Inject;
 import java.util.ArrayList;
-import java.util.Collections;
-import java.util.Comparator;
 import java.util.IdentityHashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Map;
-import java.util.Set;
-import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
 
+import static io.github.joke.percolate.processor.Diagnostic.error;
+import static io.github.joke.percolate.spi.Subjects.none;
+import static java.lang.Character.toLowerCase;
+import static java.util.Collections.newSetFromMap;
+import static java.util.Comparator.comparing;
+import static java.util.stream.Collectors.joining;
 import static java.util.stream.Collectors.toUnmodifiableList;
 
 // Builds a MemberPlan — the class-wide MemberRequest walk, the dedup-key conflict report, and member naming.
@@ -32,7 +31,7 @@ import static java.util.stream.Collectors.toUnmodifiableList;
 // HoistPlanFactory's reachability walk rather than owning a second copy.
 // IdentityHashMap for the reachability walk; LinkedHashMap for deterministic class-scope field-emission order —
 // both single-threaded, no concurrent access.
-@SuppressWarnings({"PMD.UseConcurrentHashMap", "IdentityHashMapUsage"})
+@SuppressWarnings("IdentityHashMapUsage")
 @RequiredArgsConstructor(onConstructor_ = @Inject)
 final class MemberPlanFactory {
 
@@ -44,12 +43,12 @@ final class MemberPlanFactory {
     // dedup key must agree on (fieldType, initializer) (design D11 of change decouple-engine-from-strategy-
     // semantics); a disagreement is reported at the mapper type and the first-seen request wins the field.
     MemberPlan forMapper(final MapperGraph graph, final ExtractedPlan plan, final MapperContext ctx) {
-        final Set<Operation> ops = Collections.newSetFromMap(new IdentityHashMap<>());
-        final Set<Value> seen = Collections.newSetFromMap(new IdentityHashMap<>());
+        final var ops = newSetFromMap(new IdentityHashMap<Operation, Boolean>());
+        final var seen = newSetFromMap(new IdentityHashMap<Value, Boolean>());
         graph.returnRoots().forEach(root -> hoistPlanFactory.collectOps(graph, plan, root, ops, seen));
 
-        final Map<String, List<Attribution>> byDedupKey = new LinkedHashMap<>();
-        ops.stream().sorted(Comparator.comparing(Operation::id)).forEach(op -> op.getMemberRequests()
+        final var byDedupKey = new LinkedHashMap<String, List<Attribution>>();
+        ops.stream().sorted(comparing(Operation::id)).forEach(op -> op.getMemberRequests()
                 .forEach(request -> byDedupKey
                         .computeIfAbsent(request.getDedupKey(), key -> new ArrayList<>())
                         .add(new Attribution(op.getLabel(), request))));
@@ -57,8 +56,8 @@ final class MemberPlanFactory {
         byDedupKey.forEach((key, attributions) -> reportConflict(ctx, key, attributions));
 
         final var names = new NameAllocator();
-        final Map<String, String> namesByDedupKey = new LinkedHashMap<>();
-        final Map<String, MemberRequest> requestByDedupKey = new LinkedHashMap<>();
+        final var namesByDedupKey = new LinkedHashMap<String, String>();
+        final var requestByDedupKey = new LinkedHashMap<String, MemberRequest>();
         byDedupKey.forEach((key, attributions) -> {
             final var winner = attributions.get(0).getRequest();
             requestByDedupKey.put(key, winner);
@@ -76,13 +75,13 @@ final class MemberPlanFactory {
         }
         final var definitions = distinctRequests.stream()
                 .map(request -> request.getFieldType() + " = " + request.getInitializer())
-                .collect(Collectors.joining("; "));
+                .collect(joining("; "));
         final var operationLabels = attributions.stream()
                 .map(Attribution::getOperationLabel)
                 .distinct()
-                .collect(Collectors.joining(", "));
-        ctx.report(Diagnostic.error(
-                        Subjects.none(),
+                .collect(joining(", "));
+        ctx.report(error(
+                        none(),
                         "conflicting member definitions for '" + key + "': " + definitions + " (requested by "
                                 + operationLabels + ")")
                 .asPermanent());
@@ -94,7 +93,7 @@ final class MemberPlanFactory {
             return "member";
         }
         final var simple = ((ClassName) fieldType).simpleName();
-        return Character.toLowerCase(simple.charAt(0)) + simple.substring(1);
+        return toLowerCase(simple.charAt(0)) + simple.substring(1);
     }
 
     // Pairs a MemberRequest with the label of the Operation that requested it.

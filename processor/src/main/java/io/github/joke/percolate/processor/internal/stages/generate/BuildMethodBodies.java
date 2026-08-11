@@ -212,7 +212,6 @@ public final class BuildMethodBodies {
             return renderPlain(operation);
         }
 
-        @SuppressWarnings("PMD.UseConcurrentHashMap") // single-threaded render; insertion order is the port order
         CodeBlock renderPlain(final Operation operation) {
             final var positional = new ArrayList<CodeBlock>();
             final var byName = new LinkedHashMap<String, CodeBlock>();
