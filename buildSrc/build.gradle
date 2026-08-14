@@ -8,7 +8,7 @@ repositories {
 }
 
 dependencies {
-    implementation 'com.diffplug.spotless:spotless-plugin-gradle:8.8.0'
+    implementation 'com.diffplug.spotless:spotless-plugin-gradle:8.9.0'
     implementation 'net.ltgt.gradle:gradle-errorprone-plugin:5.1.0'
     implementation 'net.ltgt.gradle:gradle-nullaway-plugin:3.0.0'
     implementation 'io.github.sgtsilvio.gradle:gradle-metadata:0.7.0'
