@@ -7,7 +7,6 @@ import io.github.joke.percolate.spi.Conversion;
 import io.github.joke.percolate.spi.ExpansionStrategy;
 import io.github.joke.percolate.spi.OperationCodegen;
 import io.github.joke.percolate.spi.ResolveCtx;
-import io.github.joke.percolate.spi.builtins.Labels;
 import java.util.List;
 import java.util.Optional;
 import java.util.stream.Stream;
@@ -16,6 +15,7 @@ import lombok.NoArgsConstructor;
 import org.jetbrains.annotations.VisibleForTesting;
 
 import static io.github.joke.percolate.spi.Weights.STEP;
+import static io.github.joke.percolate.spi.builtins.Labels.conversion;
 import static java.util.stream.Stream.concat;
 
 // The absolute (instant-based) temporal family's single-hop spoke conversions to and from the Instant hub
@@ -69,7 +69,7 @@ public final class AbsoluteTemporalConversion extends Conversion {
         final var spokeType = spokeElement.asType();
         final var instantType = instantElement.asType();
         final OperationCodegen codegen = inputs -> CodeBlock.of("$L.toInstant()", inputs.single());
-        return Optional.of(new Step(spokeType, Labels.conversion(spokeType, instantType), STEP, codegen));
+        return Optional.of(new Step(spokeType, conversion(spokeType, instantType), STEP, codegen));
     }
 
     @VisibleForTesting
@@ -106,7 +106,7 @@ public final class AbsoluteTemporalConversion extends Conversion {
         }
         final var instantType = instantElement.asType();
         final OperationCodegen codegen = inputs -> CodeBlock.of("$T.from($L)", target, inputs.single());
-        return Optional.of(new Step(instantType, Labels.conversion(instantType, target), STEP, codegen));
+        return Optional.of(new Step(instantType, conversion(instantType, target), STEP, codegen));
     }
 
     // Instant.atOffset/.atZone fixed at the literal ZoneOffset.UTC — zone-free, no truncation.
@@ -118,6 +118,6 @@ public final class AbsoluteTemporalConversion extends Conversion {
         }
         final var instantType = instantElement.asType();
         final OperationCodegen codegen = inputs -> CodeBlock.of("$L.$N($T.UTC)", inputs.single(), method, ZONE_OFFSET);
-        return Optional.of(new Step(instantType, Labels.conversion(instantType, target), STEP, codegen));
+        return Optional.of(new Step(instantType, conversion(instantType, target), STEP, codegen));
     }
 }

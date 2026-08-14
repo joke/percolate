@@ -17,6 +17,7 @@ import lombok.NoArgsConstructor;
 
 import static io.github.joke.percolate.reactor.Reactors.FLUX;
 import static io.github.joke.percolate.reactor.Reactors.MONO;
+import static io.github.joke.percolate.reactor.Reactors.declared;
 
 // Same-paradigm reduction Flux<T> → Mono<List<T>> via flux.collectList() (design D4): a target-driven
 // conversion keyed on a concrete Mono<List<T>>, sourcing a concrete Flux<T> port. The result stays in the
@@ -36,7 +37,7 @@ public final class CollectList implements ExpansionStrategy {
         if (!ctx.isList(inner)) {
             return Stream.empty();
         }
-        return Reactors.declared(ctx, FLUX, ctx.typeArgument(inner, 0))
+        return declared(ctx, FLUX, ctx.typeArgument(inner, 0))
                 .map(flux -> OperationSpec.of(
                         "collectList",
                         (OperationCodegen) inputs -> CodeBlock.of("$L$Z.collectList()", inputs.single()),

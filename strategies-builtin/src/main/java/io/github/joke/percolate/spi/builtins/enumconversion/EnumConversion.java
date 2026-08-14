@@ -33,6 +33,7 @@ import static io.github.joke.percolate.spi.Subjects.none;
 import static io.github.joke.percolate.spi.SwitchStyle.AUTO;
 import static io.github.joke.percolate.spi.SwitchStyle.CLASSIC;
 import static io.github.joke.percolate.spi.Weights.EXPENSIVE;
+import static io.github.joke.percolate.spi.builtins.Labels.simple;
 import static java.lang.String.join;
 import static java.util.stream.Collectors.toUnmodifiableList;
 import static java.util.stream.Collectors.toUnmodifiableSet;
@@ -74,12 +75,7 @@ public final class EnumConversion implements ExpansionStrategy {
         final var port = new Port(VALUE_ROLE, target, NON_NULL, variable(0, sourceBound(target, overrides)));
         final BodyCodegen codegen = context -> render(context, target, overrides);
         return Stream.of(Offer.of(OperationSpec.of(
-                        "enum" + Labels.ARROW + Labels.simple(target),
-                        codegen,
-                        EXPENSIVE,
-                        List.of(port),
-                        target,
-                        NON_NULL)
+                        "enum" + Labels.ARROW + simple(target), codegen, EXPENSIVE, List.of(port), target, NON_NULL)
                 .withConsumed(effectiveOverrides(target, overrides, ctx))));
     }
 

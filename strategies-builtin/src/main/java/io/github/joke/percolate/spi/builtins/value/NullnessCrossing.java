@@ -4,7 +4,6 @@ import com.google.auto.service.AutoService;
 import io.github.joke.percolate.lib.javapoet.CodeBlock;
 import io.github.joke.percolate.spi.DirectiveInput;
 import io.github.joke.percolate.spi.ExpansionStrategy;
-import io.github.joke.percolate.spi.LiteralCoercion;
 import io.github.joke.percolate.spi.Nullability;
 import io.github.joke.percolate.spi.Offer;
 import io.github.joke.percolate.spi.OperationCodegen;
@@ -20,6 +19,7 @@ import javax.lang.model.type.TypeMirror;
 import lombok.NoArgsConstructor;
 import org.jetbrains.annotations.VisibleForTesting;
 
+import static io.github.joke.percolate.spi.LiteralCoercion.coerce;
 import static io.github.joke.percolate.spi.Nullability.NON_NULL;
 import static io.github.joke.percolate.spi.Nullability.NULLABLE;
 import static io.github.joke.percolate.spi.Offer.refusal;
@@ -72,7 +72,7 @@ public final class NullnessCrossing implements ExpansionStrategy {
             return guardOnly(target, demand.bindingName(), guardsNullness, ctx);
         }
         final var input = defaultInput.orElseThrow();
-        final var coerced = LiteralCoercion.coerce(raw.get(), target);
+        final var coerced = coerce(raw.get(), target);
         if (coerced.isEmpty()) {
             return Stream.of(
                     refusal(input.getSubject(), "cannot coerce '" + raw.get() + "' to " + ctx.simpleName(target)));

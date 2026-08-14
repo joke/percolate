@@ -17,6 +17,8 @@ import lombok.RequiredArgsConstructor;
 import org.jetbrains.annotations.VisibleForTesting;
 
 import static io.github.joke.percolate.spi.DirectiveInput.scalar;
+import static io.github.joke.percolate.spi.builtins.AnnotationEntries.entriesOf;
+import static io.github.joke.percolate.spi.builtins.AnnotationEntries.writtenMembers;
 import static java.util.Objects.requireNonNull;
 
 // Reads a method's @Map/@MapList declarations into DirectiveSink calls (design D4/D7 of change decouple-engine-
@@ -46,12 +48,12 @@ public final class MapDirectiveReader implements DirectiveReader {
 
     @Override
     public void read(final ExecutableElement method, final DirectiveSink sink) {
-        AnnotationEntries.entriesOf(Map.class, method).forEach(mirror -> readEntry(method, mirror, sink));
+        entriesOf(Map.class, method).forEach(mirror -> readEntry(method, mirror, sink));
     }
 
     @VisibleForTesting
     void readEntry(final ExecutableElement method, final AnnotationMirror mirror, final DirectiveSink sink) {
-        final var written = AnnotationEntries.writtenMembers(mirror);
+        final var written = writtenMembers(mirror);
         final var targetValue = requireNonNull(written.get(TARGET));
         final var targetPath = splitDotted(targetValue.getValue().toString());
         final var targetSubject = Subjects.of(method, mirror, targetValue);

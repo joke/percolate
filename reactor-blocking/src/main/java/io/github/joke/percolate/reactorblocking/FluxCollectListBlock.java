@@ -15,6 +15,7 @@ import java.util.stream.Stream;
 import lombok.NoArgsConstructor;
 
 import static io.github.joke.percolate.reactorblocking.Blockings.FLUX;
+import static io.github.joke.percolate.reactorblocking.Blockings.declared;
 
 // Upward async-to-sync crossing Flux<T> → List<T> via flux.collectList().block(): the buffering blocking
 // reduction, keyed on a target List<T> and sourcing a Flux<T> through a reuse-only port. Weighted strictly
@@ -29,7 +30,7 @@ public final class FluxCollectListBlock implements ExpansionStrategy {
         if (!ctx.isList(to)) {
             return Stream.empty();
         }
-        return Blockings.declared(ctx, FLUX, ctx.typeArgument(to, 0))
+        return declared(ctx, FLUX, ctx.typeArgument(to, 0))
                 .map(flux -> OperationSpec.of(
                         "collectList().block",
                         (OperationCodegen) inputs -> CodeBlock.of("$L$Z.collectList()$Z.block()", inputs.single()),

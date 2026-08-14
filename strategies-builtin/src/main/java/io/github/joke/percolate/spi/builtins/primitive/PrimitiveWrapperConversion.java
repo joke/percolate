@@ -6,7 +6,6 @@ import io.github.joke.percolate.spi.Conversion;
 import io.github.joke.percolate.spi.ExpansionStrategy;
 import io.github.joke.percolate.spi.OperationCodegen;
 import io.github.joke.percolate.spi.ResolveCtx;
-import io.github.joke.percolate.spi.builtins.Labels;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Stream;
@@ -17,6 +16,7 @@ import org.jetbrains.annotations.VisibleForTesting;
 import org.jspecify.annotations.Nullable;
 
 import static io.github.joke.percolate.spi.Weights.STEP;
+import static io.github.joke.percolate.spi.builtins.Labels.conversion;
 import static java.util.Objects.requireNonNull;
 import static javax.lang.model.type.TypeKind.BOOLEAN;
 import static javax.lang.model.type.TypeKind.BYTE;
@@ -75,7 +75,7 @@ public final class PrimitiveWrapperConversion extends Conversion {
     @VisibleForTesting
     Step box(final TypeMirror wrapperTarget, final TypeMirror primitive) {
         final OperationCodegen codegen = inputs -> CodeBlock.of("$T.valueOf($L)", wrapperTarget, inputs.single());
-        return new Step(primitive, Labels.conversion(primitive, wrapperTarget), STEP, codegen);
+        return new Step(primitive, conversion(primitive, wrapperTarget), STEP, codegen);
     }
 
     @VisibleForTesting
@@ -83,7 +83,7 @@ public final class PrimitiveWrapperConversion extends Conversion {
         final var wrapper = ctx.boxed(primitiveTarget);
         final var accessor = requireNonNull(UNBOX_ACCESSOR.get(ctx.kind(primitiveTarget)));
         final OperationCodegen codegen = inputs -> CodeBlock.of("$L$Z.$N()", inputs.single(), accessor);
-        return new Step(wrapper, Labels.conversion(wrapper, primitiveTarget), STEP, codegen);
+        return new Step(wrapper, conversion(wrapper, primitiveTarget), STEP, codegen);
     }
 
     // The primitive a declared wrapper target unboxes to, or null when the target is not a wrapper.

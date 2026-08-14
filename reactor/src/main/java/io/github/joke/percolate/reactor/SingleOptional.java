@@ -16,6 +16,7 @@ import java.util.stream.Stream;
 import lombok.NoArgsConstructor;
 
 import static io.github.joke.percolate.reactor.Reactors.MONO;
+import static io.github.joke.percolate.reactor.Reactors.declared;
 
 // Same-paradigm reduction Mono<T> → Mono<Optional<T>> via mono.singleOptional() (design D4): a target-driven
 // conversion keyed on a concrete Mono<Optional<T>>, sourcing a concrete Mono<T> port. It surfaces emptiness as
@@ -34,7 +35,7 @@ public final class SingleOptional implements ExpansionStrategy {
         if (!ctx.isOptional(inner)) {
             return Stream.empty();
         }
-        return Reactors.declared(ctx, MONO, ctx.typeArgument(inner, 0))
+        return declared(ctx, MONO, ctx.typeArgument(inner, 0))
                 .map(mono -> OperationSpec.of(
                         "singleOptional",
                         (OperationCodegen) inputs -> CodeBlock.of("$L$Z.singleOptional()", inputs.single()),

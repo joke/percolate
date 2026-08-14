@@ -7,7 +7,6 @@ import io.github.joke.percolate.spi.DirectiveInput;
 import io.github.joke.percolate.spi.DirectiveReader;
 import io.github.joke.percolate.spi.DirectiveSink;
 import io.github.joke.percolate.spi.Subjects;
-import io.github.joke.percolate.spi.builtins.AnnotationEntries;
 import java.util.List;
 import java.util.Map;
 import javax.lang.model.element.AnnotationMirror;
@@ -16,6 +15,8 @@ import lombok.NoArgsConstructor;
 import org.jetbrains.annotations.VisibleForTesting;
 
 import static io.github.joke.percolate.spi.DirectiveInput.structured;
+import static io.github.joke.percolate.spi.builtins.AnnotationEntries.entriesOf;
+import static io.github.joke.percolate.spi.builtins.AnnotationEntries.writtenMembers;
 import static java.util.Objects.requireNonNull;
 
 // Reads a method's @MapEnum/@MapEnumList declarations into one repeated, structured "enum" input per entry,
@@ -34,13 +35,12 @@ public final class MapEnumDirectiveReader implements DirectiveReader {
 
     @Override
     public void read(final ExecutableElement method, final DirectiveSink sink) {
-        AnnotationEntries.entriesOf(MapEnum.class, method)
-                .forEach(mirror -> sink.input(ROOT_PATH, toInput(method, mirror)));
+        entriesOf(MapEnum.class, method).forEach(mirror -> sink.input(ROOT_PATH, toInput(method, mirror)));
     }
 
     @VisibleForTesting
     DirectiveInput toInput(final ExecutableElement method, final AnnotationMirror mirror) {
-        final var written = AnnotationEntries.writtenMembers(mirror);
+        final var written = writtenMembers(mirror);
         final var sourceValue = requireNonNull(written.get(SOURCE));
         final var targetValue = requireNonNull(written.get(TARGET));
         return structured(

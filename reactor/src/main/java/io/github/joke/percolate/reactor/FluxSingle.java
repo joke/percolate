@@ -17,6 +17,7 @@ import lombok.NoArgsConstructor;
 
 import static io.github.joke.percolate.reactor.Reactors.FLUX;
 import static io.github.joke.percolate.reactor.Reactors.MONO;
+import static io.github.joke.percolate.reactor.Reactors.declared;
 
 // Same-paradigm reduction Flux<T> → Mono<T> via flux.single() (design D4): the canonical single-element
 // reduction. A developer reducing a stream to one value means exactly one element; next/ last/positional
@@ -32,7 +33,7 @@ public final class FluxSingle implements ExpansionStrategy {
         if (!ctx.isType(to, MONO)) {
             return Stream.empty();
         }
-        return Reactors.declared(ctx, FLUX, ctx.typeArgument(to, 0))
+        return declared(ctx, FLUX, ctx.typeArgument(to, 0))
                 .map(flux -> OperationSpec.of(
                         "single",
                         (OperationCodegen) inputs -> CodeBlock.of("$L$Z.single()", inputs.single()),

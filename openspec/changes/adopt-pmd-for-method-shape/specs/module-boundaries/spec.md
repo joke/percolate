@@ -32,14 +32,14 @@ are now marked rather than exempted.
 ### Requirement: Engine internal classes stay within a size ceiling
 
 **Reason**: The ceiling is a package list plus a number — configuration wearing a rule's clothes — and
-`ArchRulesService` offers no property injection to express it as anything else. Its purpose, co-enforcing the
-no-private rule so a monolith cannot satisfy it by exposing its internals, is unchanged and moves with the
-rest of the family.
+`ArchRulesService` offers no property injection to express it as anything else. It is removed here without a
+replacement gate: a method count is a blunt proxy that a class of many tidy methods breaches and a class of
+few fat ones satisfies, so it pulls against the small-testable-method shape the rest of this family enforces.
 
-**Migration**: Enforced by PMD's `TooManyMethods`, re-enabled in percolate's local ruleset composition with
-an explicit measured `maxmethods`. It applies repo-wide rather than only to the decomposed packages, which is
-a widening, not a loss. See the `method-shape-analysis` requirement *Class size is capped so the no-private
-rule cannot be satisfied by exposure*, including the recorded fallback if no useful threshold can be measured.
+**Migration**: None — the ceiling is dropped rather than ported, taking the fallback design D4 recorded. The
+loophole it guarded is instead pressed on at method level by the surviving rules, and the residue is a
+review-caught convention. See the `method-shape-analysis` requirement *Class size carries no automated
+ceiling; method shape carries the load*.
 
 ### Requirement: Methods are static only in a genuine static context
 

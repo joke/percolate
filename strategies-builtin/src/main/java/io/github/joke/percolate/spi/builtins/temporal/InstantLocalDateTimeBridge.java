@@ -11,7 +11,6 @@ import io.github.joke.percolate.spi.OperationSpec;
 import io.github.joke.percolate.spi.Port;
 import io.github.joke.percolate.spi.ProduceDemand;
 import io.github.joke.percolate.spi.ResolveCtx;
-import io.github.joke.percolate.spi.builtins.Labels;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
@@ -22,6 +21,7 @@ import org.jetbrains.annotations.VisibleForTesting;
 
 import static io.github.joke.percolate.spi.Nullability.NON_NULL;
 import static io.github.joke.percolate.spi.Weights.STEP;
+import static io.github.joke.percolate.spi.builtins.Labels.conversion;
 
 // The single zone-consuming hop between the two temporal hubs (design D1/D3/D4 of change add-temporal-type-
 // mapping): Instant ⇄ LocalDateTime. Unlike every spoke conversion, this strategy implements ExpansionStrategy
@@ -71,12 +71,7 @@ public final class InstantLocalDateTimeBridge implements ExpansionStrategy {
                 inputs -> CodeBlock.of("$L.atZone($L).toLocalDateTime()", inputs.single(), zoneExpr);
         final var port = new Port(VALUE_ROLE, instantType, NON_NULL);
         return Optional.of(OperationSpec.of(
-                        Labels.conversion(instantType, localDateTimeType),
-                        codegen,
-                        STEP,
-                        List.of(port),
-                        target,
-                        NON_NULL)
+                        conversion(instantType, localDateTimeType), codegen, STEP, List.of(port), target, NON_NULL)
                 .withConsumed(consumed(zoneInput)));
     }
 
@@ -95,12 +90,7 @@ public final class InstantLocalDateTimeBridge implements ExpansionStrategy {
         final OperationCodegen codegen = inputs -> CodeBlock.of("$L.atZone($L).toInstant()", inputs.single(), zoneExpr);
         final var port = new Port(VALUE_ROLE, localDateTimeType, NON_NULL);
         return Optional.of(OperationSpec.of(
-                        Labels.conversion(localDateTimeType, instantType),
-                        codegen,
-                        STEP,
-                        List.of(port),
-                        target,
-                        NON_NULL)
+                        conversion(localDateTimeType, instantType), codegen, STEP, List.of(port), target, NON_NULL)
                 .withConsumed(consumed(zoneInput)));
     }
 

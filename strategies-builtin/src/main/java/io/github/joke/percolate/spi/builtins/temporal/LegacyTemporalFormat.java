@@ -11,7 +11,6 @@ import io.github.joke.percolate.spi.OperationSpec;
 import io.github.joke.percolate.spi.Port;
 import io.github.joke.percolate.spi.ProduceDemand;
 import io.github.joke.percolate.spi.ResolveCtx;
-import io.github.joke.percolate.spi.builtins.Labels;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
@@ -22,6 +21,7 @@ import org.jetbrains.annotations.VisibleForTesting;
 
 import static io.github.joke.percolate.spi.Nullability.NON_NULL;
 import static io.github.joke.percolate.spi.Weights.STEP;
+import static io.github.joke.percolate.spi.builtins.Labels.conversion;
 
 // @Map(format = "…") for String ⇄ java.util.Date/java.sql.Timestamp (design D6 of change add-temporal-type-
 // mapping): unlike TemporalFormat, this uses a fresh, per-call new java.text.SimpleDateFormat(pattern) — it is
@@ -81,7 +81,7 @@ public final class LegacyTemporalFormat implements ExpansionStrategy {
                 inputs -> CodeBlock.of("new $T($S).format($L)", SIMPLE_DATE_FORMAT, pattern, inputs.single());
         final var port = new Port(VALUE_ROLE, sourceType, NON_NULL);
         return Optional.of(
-                OperationSpec.of(Labels.conversion(sourceType, target), codegen, STEP, List.of(port), target, NON_NULL)
+                OperationSpec.of(conversion(sourceType, target), codegen, STEP, List.of(port), target, NON_NULL)
                         .withConsumed(Set.of(formatInput)));
     }
 
@@ -100,9 +100,9 @@ public final class LegacyTemporalFormat implements ExpansionStrategy {
         final var stringType = stringElement.asType();
         final var codegen = isTimestamp.get() ? timestampParseCodegen(pattern) : dateParseCodegen(pattern);
         final var port = new Port(VALUE_ROLE, stringType, NON_NULL);
-        return Optional.of(OperationSpec.ofPartial(
-                        Labels.conversion(stringType, target), codegen, STEP, List.of(port), target, NON_NULL)
-                .withConsumed(Set.of(formatInput)));
+        return Optional.of(
+                OperationSpec.ofPartial(conversion(stringType, target), codegen, STEP, List.of(port), target, NON_NULL)
+                        .withConsumed(Set.of(formatInput)));
     }
 
     // Empty when target is neither legacy type; else true for Timestamp, false for Date.

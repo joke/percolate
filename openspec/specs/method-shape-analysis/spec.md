@@ -155,28 +155,32 @@ discriminating, because both of its markers remain deliberate choices between tw
 - **THEN** no violation is reported, because its visibility is not the author's to choose or the annotation
   would be nonsense
 
-### Requirement: Class size is capped so the no-private rule cannot be satisfied by exposure
+### Requirement: Class size carries no automated ceiling; method shape carries the load
 
-A ceiling on methods per class SHALL be enforced, because the no-private rule is otherwise satisfied by
-exposing a monolith's internals as package-private members rather than by extracting a collaborator. The
-ceiling SHALL be enforced by PMD's `TooManyMethods` and SHALL be set from the largest legitimate class
-measured at adoption, never at a round number above it, so that it acts as a ratchet: a regression fails the
-build, and recovered ground is nailed down by lowering the number.
+No ceiling on methods per class SHALL be enforced. `TooManyMethods` SHALL remain excluded, as
+`joke-strict.xml` leaves it, and no percolate-local re-enable SHALL exist.
 
-If no threshold can be measured that both admits today's classes and rejects a regression, the ceiling SHALL
-be dropped outright and recorded as a review-caught convention rather than retained as a rule that enforces
-nothing.
+The rule the ceiling was meant to co-enforce is not abandoned; the goal is pursued through a different and
+stronger lever. A method count is a blunt proxy: it counts declarations without regard to what they contain,
+so it is equally satisfied by a class of many tidy methods — exactly the shape this repository wants — and
+breached by one that has simply grown honest seams. What actually resists the "expose the monolith as
+package-private members" loophole is pressure on *method* shape, not class arity: the rules of this
+capability push toward small, tidy, individually testable methods, and a class whose methods are each small
+and named is decomposable by inspection whether it has twelve of them or thirty. A cap on the count would
+work against that, penalising the very extraction it was introduced to encourage.
 
-#### Scenario: A class over the ceiling fails the build
+The residual risk — a class accreting responsibilities without any single method growing — SHALL be a
+review-caught convention rather than an automated gate.
 
-- **WHEN** a class declares more methods than the configured `maxmethods`
-- **THEN** PMD reports it and `check` fails
-
-#### Scenario: The threshold is a measured ratchet
+#### Scenario: No class-size rule is configured
 
 - **WHEN** the PMD configuration is inspected
-- **THEN** `TooManyMethods` carries an explicit `maxmethods` property with a comment naming the class it was
-  measured from
+- **THEN** `TooManyMethods` is not enabled, and no `maxmethods` property is set anywhere
+
+#### Scenario: A large class of tidy methods passes
+
+- **WHEN** a class declares many methods, each small and individually testable
+- **THEN** no violation is reported on the ground of method count alone
 
 ### Requirement: The ruleset is consumed as a versioned artifact, composed locally
 
@@ -195,11 +199,10 @@ local composition is required, the file SHALL NOT exist.
 - **THEN** the `pmd` configuration declares `io.github.joke.pmd:rules` at a released version, and no
   `-SNAPSHOT` coordinate appears
 
-#### Scenario: Local composition is confined to one file
+#### Scenario: No local composition, no local file
 
-- **WHEN** the PMD configuration is inspected
-- **THEN** `ruleSets` names exactly one file, which references the published ruleset and adds only
-  exclusions and property overrides
+- **WHEN** the PMD configuration is inspected and percolate requires no exclusion or property override
+- **THEN** `ruleSets` names the published ruleset resource directly and no local ruleset file exists
 
 #### Scenario: Configuration stays central
 

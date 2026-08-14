@@ -163,6 +163,16 @@ local ruleset (D8) and costs the package-scoping Rule B had — it would apply r
 it acts as a ratchet in the same spirit as the `processor` pitest thresholds. Option 2 is the fallback if the
 measured threshold turns out so high it enforces nothing.
 
+**Revised 2026-08-14 to option 2 — the ceiling is dropped.** The measurement did succeed (`maxmethods = 22`
+from `ResolveCtx`, `MapperGraph` next at 21), so the fallback was not forced by an unmeasurable threshold. It
+was taken on the merits: a method count is a blunt proxy that counts declarations without regard to what is
+in them, so it is equally breached by a class of many small tidy methods — the shape this repository is
+trying to produce — and satisfied by one of a few fat ones. Every other rule adopted here pushes toward
+small, individually testable methods, and extraction is precisely what raises the count; a cap penalises the
+remedy. The loophole the ceiling guarded is pressed on at method level instead, and the residue is a
+review-caught convention. `.pmd.xml` is deleted accordingly, which per D5 also removes the last reason for a
+local ruleset file: `ruleSets` names `rulesets/java/joke-strict.xml` directly.
+
 ### D5 — Ruleset composition lives in a local file that references `joke-strict`
 
 `joke-strict.xml` states that Gradle's `ruleSets` cannot subtract, so any exclusion or property override
@@ -170,6 +180,11 @@ requires a local ruleset referencing it. D4 needs exactly that. The orphaned roo
 **repurposed rather than deleted** — same path, new content: a thin file referencing
 `rulesets/java/joke-strict.xml` and carrying only percolate-local composition. If D4 falls back to option 2
 and no local composition remains, `.pmd.xml` is deleted instead.
+
+**Outcome: the second branch.** D4's revision left `TooManyMethods` as the only local composition, so
+`.pmd.xml` was deleted and `ruleSets` points at `rulesets/java/joke-strict.xml` directly. The rule above
+still stands for the next override that needs one — a local file, referencing the published ruleset,
+carrying composition only.
 
 ### D6 — The rule fixes are upstream, and this change is blocked on them
 
@@ -217,10 +232,11 @@ per module, rather than by hand.
   *after* the pin and after the fixes that make PMD's equivalents pass, never before. Ordering is
   load-bearing; `check` must be green at each group boundary.
 - **`@VisibleForTesting` is diluted across 334 methods** (D8) → accepted, with the reasoning recorded above.
-  If it later proves to have destroyed a signal worth keeping, the rule is one exclusion away in `.pmd.xml`.
-- **The size ceiling silently weakens** (D4) → mitigated by setting `maxmethods` from the measured worst
-  class so it ratchets. If the measurement shows the ceiling would be vacuous, D4 falls back to option 2 and
-  the loss is recorded explicitly rather than assumed away.
+  If it later proves to have destroyed a signal worth keeping, the rule is one exclusion away — in a local
+  ruleset file reintroduced per D5, since `.pmd.xml` no longer exists.
+- **The size ceiling is gone** (D4, revised) → accepted deliberately, not weakened by accident: the count was
+  judged to pull against the small-method shape every surviving rule enforces. The loss is real and recorded
+  — a class can accrete responsibilities without any one method growing — and is now review-caught.
 - **Rule C's cross-module coverage is not "restored" but replaced** → a reviewer must now confirm the marker
   is *truthful*, where before the build inferred it. This is a genuine transfer of work from machine to
   review, and the compensation is that the check finally holds for third-party subclasses, which it never did.

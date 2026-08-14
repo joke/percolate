@@ -14,6 +14,7 @@ import lombok.NoArgsConstructor;
 import org.jetbrains.annotations.VisibleForTesting;
 
 import static io.github.joke.percolate.spi.Weights.STEP_FIELD;
+import static io.github.joke.percolate.spi.builtins.accessor.Members.declaredMembersOf;
 
 // Resolves one source-path segment to a visible (non-private, non-static) field on the parent type, on the
 // Accessor archetype base: candidate-free, the base pins the parent and the segment and wires the one-port
@@ -26,7 +27,7 @@ public final class FieldPathResolver extends Accessor {
     @Override
     @VisibleForTesting
     protected Optional<Step> accessor(final TypeElement parent, final String segment, final ResolveCtx ctx) {
-        return Members.declaredMembersOf(parent, ctx)
+        return declaredMembersOf(parent, ctx)
                 .flatMap(member -> matchField(member, segment, ctx).stream())
                 .findFirst()
                 .map(field -> step(field, segment));

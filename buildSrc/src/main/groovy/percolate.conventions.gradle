@@ -5,13 +5,6 @@ plugins {
 group = 'io.github.joke.percolate'
 
 repositories {
-    maven {
-        name = 'Central Portal Snapshots'
-        url = 'https://central.sonatype.com/repository/maven-snapshots/'
-        content {
-            includeGroupAndSubgroups('io.github.joke')
-        }
-    }
     mavenCentral()
 }
 
@@ -164,12 +157,11 @@ pluginManager.withPlugin('pmd') {
     pmd {
         consoleOutput = true
         rulesMinimumPriority = 5
-        // The local ruleset references joke-strict and adds percolate's own composition on top.
-        ruleSets = ["$rootDir/.pmd.xml"]
+        ruleSets = ['rulesets/java/joke-strict.xml']
     }
     dependencies {
         pmd 'net.sourceforge.pmd:pmd-dist:7.26.0'
-        pmd 'io.github.joke.pmd:rules:0.1.0-SNAPSHOT'
+        pmd 'io.github.joke.pmd:rules:0.1.0'
     }
 }
 

@@ -14,6 +14,8 @@ import lombok.NoArgsConstructor;
 import org.jetbrains.annotations.VisibleForTesting;
 
 import static io.github.joke.percolate.spi.Weights.STEP_GETTER;
+import static io.github.joke.percolate.spi.builtins.accessor.Members.declaredMembersOf;
+import static io.github.joke.percolate.spi.builtins.accessor.Members.noArgMethodNamed;
 import static java.lang.Character.toUpperCase;
 import static javax.lang.model.type.TypeKind.BOOLEAN;
 
@@ -31,7 +33,7 @@ public final class GetterPathResolver extends Accessor {
     protected Optional<Step> accessor(final TypeElement parent, final String segment, final ResolveCtx ctx) {
         final var getterName = "get" + capitalize(segment);
         final var isName = "is" + capitalize(segment);
-        return Members.declaredMembersOf(parent, ctx)
+        return declaredMembersOf(parent, ctx)
                 .flatMap(member ->
                         matchGetter(member, getterName, ctx).or(() -> matchBooleanIs(member, isName, ctx)).stream())
                 .findFirst()
@@ -47,12 +49,12 @@ public final class GetterPathResolver extends Accessor {
 
     @VisibleForTesting
     Optional<ExecutableElement> matchGetter(final Element member, final String getterName, final ResolveCtx ctx) {
-        return Members.noArgMethodNamed(member, getterName, ctx);
+        return noArgMethodNamed(member, getterName, ctx);
     }
 
     @VisibleForTesting
     Optional<ExecutableElement> matchBooleanIs(final Element member, final String isName, final ResolveCtx ctx) {
-        return Members.noArgMethodNamed(member, isName, ctx).filter(method -> isBooleanReturn(method, ctx));
+        return noArgMethodNamed(member, isName, ctx).filter(method -> isBooleanReturn(method, ctx));
     }
 
     @VisibleForTesting

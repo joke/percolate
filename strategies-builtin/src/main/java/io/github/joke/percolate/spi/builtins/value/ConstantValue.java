@@ -4,7 +4,6 @@ import com.google.auto.service.AutoService;
 import io.github.joke.percolate.lib.javapoet.CodeBlock;
 import io.github.joke.percolate.spi.DirectiveInput;
 import io.github.joke.percolate.spi.ExpansionStrategy;
-import io.github.joke.percolate.spi.LiteralCoercion;
 import io.github.joke.percolate.spi.Offer;
 import io.github.joke.percolate.spi.OperationCodegen;
 import io.github.joke.percolate.spi.OperationSpec;
@@ -17,6 +16,7 @@ import javax.lang.model.type.TypeMirror;
 import lombok.NoArgsConstructor;
 import org.jetbrains.annotations.VisibleForTesting;
 
+import static io.github.joke.percolate.spi.LiteralCoercion.coerce;
 import static io.github.joke.percolate.spi.Nullability.NON_NULL;
 import static io.github.joke.percolate.spi.Weights.STEP;
 
@@ -46,7 +46,7 @@ public final class ConstantValue implements ExpansionStrategy {
 
     @VisibleForTesting
     Offer offerFor(final DirectiveInput input, final String raw, final TypeMirror target, final ResolveCtx ctx) {
-        return LiteralCoercion.coerce(raw, target)
+        return coerce(raw, target)
                 .<Offer>map(literal -> Offer.of(constantSpec(target, literal, input)))
                 .orElseGet(() ->
                         Offer.refusal(input.getSubject(), "cannot coerce '" + raw + "' to " + ctx.simpleName(target)));

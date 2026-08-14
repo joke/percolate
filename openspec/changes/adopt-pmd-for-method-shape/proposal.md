@@ -48,7 +48,10 @@ PMD alike.
 - `module-boundaries`: removes the four method-shape requirements it currently carries — *Engine internal
   methods are never private*, *Protected methods unused by any subclass are marked for testing*, *Engine
   internal classes stay within a size ceiling*, and *Methods are static only in a genuine static context* —
-  which move wholesale to `method-shape-analysis`. The module-edge requirements are unchanged.
+  which move wholesale to `method-shape-analysis`. The size ceiling moves there only to be **retired**: design
+  D4 was revised to its recorded fallback and `TooManyMethods` stays excluded, because a method count pulls
+  against the small-testable-method shape the other three rules enforce. The module-edge requirements are
+  unchanged.
 - `architecture-rule-distribution`: the *rules are grouped by subject* scenario currently names four subjects
   including "method shape"; it drops to three.
 
@@ -57,14 +60,14 @@ PMD alike.
 - **Depends on** a released `io.github.joke.pmd:rules` carrying three rule fixes, delivered by a separate
   change in that repository: a named-constructor exemption and Lombok `@UtilityClass` recognition for
   `StaticMethodsModifyStaticState`, and `@ApiStatus.OverrideOnly` acceptance in
-  `AvoidPrivateAndProtectedMethods`. This change pins that version first and is blocked until it exists.
+  `AvoidPrivateAndProtectedMethods`. Released as `0.1.0` on 2026-08-12 and pinned here.
 - `architecture-tests`: `MethodShapeRules.java` and `MethodShapeRulesSpec.groovy` deleted, along with the
   fixtures `violators/HasPrivateMethod`, `HasStaticMethod`, `HasUnusedProtectedMethod`, `spi/PublishedHook`,
   `spi/builtins/violators/BuiltinsUnusedProtected`, and
   `processor/internal/stages/expand/violators/OversizedClass`. `Packages` loses any coordinate no surviving
   rule reads.
 - `buildSrc/src/main/groovy/percolate.conventions.gradle`: the PMD block, already mid-edit on the working
-  tree, is finalised — external ruleset, tool version, and the snapshot coordinate.
+  tree, is finalised — external ruleset, tool version, and the pinned release coordinate.
 - `spi`: `@ApiStatus.OverrideOnly` added to the published extension points; no signature or behaviour change,
   so no consumer break.
 - All seven analysed modules take source edits from the 743 fixes — `processor` (415), `strategies-builtin`

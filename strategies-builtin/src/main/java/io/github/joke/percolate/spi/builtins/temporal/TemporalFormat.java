@@ -12,7 +12,6 @@ import io.github.joke.percolate.spi.OperationSpec;
 import io.github.joke.percolate.spi.Port;
 import io.github.joke.percolate.spi.ProduceDemand;
 import io.github.joke.percolate.spi.ResolveCtx;
-import io.github.joke.percolate.spi.builtins.Labels;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
@@ -23,6 +22,7 @@ import org.jetbrains.annotations.VisibleForTesting;
 
 import static io.github.joke.percolate.spi.Nullability.NON_NULL;
 import static io.github.joke.percolate.spi.Weights.STEP;
+import static io.github.joke.percolate.spi.builtins.Labels.conversion;
 
 // @Map(format = "…") for String ⇄ java.time types (design D6 of change add-temporal-type-mapping): parses a
 // String source into, and renders a String from, LocalDate, LocalDateTime, OffsetDateTime, or ZonedDateTime,
@@ -91,7 +91,7 @@ public final class TemporalFormat implements ExpansionStrategy {
                 inputs -> CodeBlock.of("$L.format($L)", inputs.single(), inputs.member(memberRequest.getDedupKey()));
         final var port = new Port(VALUE_ROLE, sourceType, NON_NULL);
         return Optional.of(
-                OperationSpec.of(Labels.conversion(sourceType, target), codegen, STEP, List.of(port), target, NON_NULL)
+                OperationSpec.of(conversion(sourceType, target), codegen, STEP, List.of(port), target, NON_NULL)
                         .withConsumed(Set.of(formatInput))
                         .withMemberRequests(List.of(memberRequest)));
     }
@@ -115,9 +115,9 @@ public final class TemporalFormat implements ExpansionStrategy {
         final OperationCodegen codegen = inputs ->
                 CodeBlock.of("$T.parse($L, $L)", target, inputs.single(), inputs.member(memberRequest.getDedupKey()));
         final var port = new Port(VALUE_ROLE, stringType, NON_NULL);
-        return Optional.of(OperationSpec.ofPartial(
-                        Labels.conversion(stringType, target), codegen, STEP, List.of(port), target, NON_NULL)
-                .withConsumed(Set.of(formatInput))
-                .withMemberRequests(List.of(memberRequest)));
+        return Optional.of(
+                OperationSpec.ofPartial(conversion(stringType, target), codegen, STEP, List.of(port), target, NON_NULL)
+                        .withConsumed(Set.of(formatInput))
+                        .withMemberRequests(List.of(memberRequest)));
     }
 }

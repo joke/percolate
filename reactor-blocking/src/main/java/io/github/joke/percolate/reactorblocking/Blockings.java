@@ -25,7 +25,7 @@ class Blockings {
 
     // fqn<arg> as a concrete declared type, or empty when fqn is not on the compile classpath.
     @VisibleForTesting
-    Optional<TypeMirror> declared(final ResolveCtx ctx, final String fqn, final TypeMirror arg) {
+    static Optional<TypeMirror> declared(final ResolveCtx ctx, final String fqn, final TypeMirror arg) {
         final var element = ctx.typeElementNamed(fqn);
         return element == null ? Optional.empty() : Optional.of(ctx.declaredType(element, arg));
     }
@@ -36,7 +36,7 @@ class Blockings {
     // produced target-driven by the weighted reuse-only blocking bridge, so no eager block is invented. Returns
     // empty for any unrecognised source and names no kind beyond the two requested.
     @VisibleForTesting
-    Stream<TypeMirror> view(
+    static Stream<TypeMirror> view(
             final TypeMirror source, final String kindFqn, final String targetFqn, final ResolveCtx ctx) {
         if (!isSingleReferenceArgKind(source, kindFqn, ctx)) {
             return Stream.empty();
@@ -47,7 +47,7 @@ class Blockings {
 
     // source is a declared kindFqn<X> with exactly one reference type argument X.
     @VisibleForTesting
-    boolean isSingleReferenceArgKind(final TypeMirror source, final String kindFqn, final ResolveCtx ctx) {
+    static boolean isSingleReferenceArgKind(final TypeMirror source, final String kindFqn, final ResolveCtx ctx) {
         if (!ctx.isDeclared(source) || !ctx.isType(source, kindFqn)) {
             return false;
         }
@@ -56,7 +56,7 @@ class Blockings {
 
     // A target eligible for block()/single().block(): a plain reference type, never itself reactive.
     @VisibleForTesting
-    boolean isBlockableScalar(final TypeMirror type, final ResolveCtx ctx) {
+    static boolean isBlockableScalar(final TypeMirror type, final ResolveCtx ctx) {
         return ctx.isDeclared(type) && !ctx.isType(type, MONO) && !ctx.isType(type, FLUX);
     }
 }

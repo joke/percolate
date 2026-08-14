@@ -6,7 +6,6 @@ import io.github.joke.percolate.spi.Conversion;
 import io.github.joke.percolate.spi.ExpansionStrategy;
 import io.github.joke.percolate.spi.OperationCodegen;
 import io.github.joke.percolate.spi.ResolveCtx;
-import io.github.joke.percolate.spi.builtins.Labels;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Stream;
@@ -16,6 +15,7 @@ import lombok.NoArgsConstructor;
 import org.jetbrains.annotations.VisibleForTesting;
 
 import static io.github.joke.percolate.spi.Weights.STEP;
+import static io.github.joke.percolate.spi.builtins.Labels.conversion;
 import static javax.lang.model.type.TypeKind.BYTE;
 import static javax.lang.model.type.TypeKind.CHAR;
 import static javax.lang.model.type.TypeKind.DOUBLE;
@@ -59,6 +59,6 @@ public final class WidenPrimitive extends Conversion {
     Step wideningStep(final TypeKind from, final TypeMirror target, final ResolveCtx ctx) {
         final var inputType = ctx.primitiveType(from);
         final OperationCodegen codegen = inputs -> CodeBlock.of("($T) $L", target, inputs.single());
-        return new Step(inputType, Labels.conversion(inputType, target), STEP, codegen);
+        return new Step(inputType, conversion(inputType, target), STEP, codegen);
     }
 }

@@ -14,6 +14,8 @@ import lombok.NoArgsConstructor;
 import org.jetbrains.annotations.VisibleForTesting;
 
 import static io.github.joke.percolate.spi.Weights.STEP_METHOD;
+import static io.github.joke.percolate.spi.builtins.accessor.Members.declaredMembersOf;
+import static io.github.joke.percolate.spi.builtins.accessor.Members.noArgMethodNamed;
 
 // Resolves one source-path segment to a no-arg accessor method whose name equals the segment (a fluent
 // accessor, e.g. value()) on the parent type, on the Accessor archetype base: candidate-free, the base pins the
@@ -27,7 +29,7 @@ public final class MethodPathResolver extends Accessor {
     @Override
     @VisibleForTesting
     protected Optional<Step> accessor(final TypeElement parent, final String segment, final ResolveCtx ctx) {
-        return Members.declaredMembersOf(parent, ctx)
+        return declaredMembersOf(parent, ctx)
                 .flatMap(member -> matchAccessor(member, segment, ctx).stream())
                 .findFirst()
                 .map(method -> step(method, segment));
@@ -41,6 +43,6 @@ public final class MethodPathResolver extends Accessor {
 
     @VisibleForTesting
     Optional<ExecutableElement> matchAccessor(final Element member, final String segment, final ResolveCtx ctx) {
-        return Members.noArgMethodNamed(member, segment, ctx);
+        return noArgMethodNamed(member, segment, ctx);
     }
 }
