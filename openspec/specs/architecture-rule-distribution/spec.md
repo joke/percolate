@@ -16,8 +16,9 @@ replaces the copies.
 
 The library's scope is bounded by what a whole-source-set bytecode view can see that a single compilation
 unit cannot: **edges between types and packages**. Properties of one declaration — a method's visibility,
-its `static` modifier, a class's method count — are owned by PMD under `method-shape-analysis` and are not
-authored here. That line is not a preference: per-source-set evaluation cannot resolve a subclass across a
+its `static` modifier, the markers it carries — are owned by PMD under `method-shape-analysis` and are not
+authored here. Class method count is not authored in either place: `method-shape-analysis` records why the
+ceiling was retired rather than relocated. That line is not a preference: per-source-set evaluation cannot resolve a subclass across a
 module boundary, and `spi` is a published contract whose implementors sit outside the build entirely, so a
 rule phrased over the set of subclasses has no answer available to it here.
 
