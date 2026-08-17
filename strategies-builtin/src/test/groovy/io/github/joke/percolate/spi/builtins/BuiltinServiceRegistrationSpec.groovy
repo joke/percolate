@@ -19,6 +19,10 @@ class BuiltinServiceRegistrationSpec extends Specification {
         discovered.contains('io.github.joke.percolate.spi.builtins.assembly.DirectAssign')
         discovered.contains('io.github.joke.percolate.spi.builtins.methodcall.MethodCallBridge')
         discovered.contains('io.github.joke.percolate.spi.builtins.assembly.ConstructorCall')
+        discovered.contains('io.github.joke.percolate.spi.builtins.assembly.FluentBuilder')
+        discovered.contains('io.github.joke.percolate.spi.builtins.assembly.ProtobufBuilder')
+        discovered.contains('io.github.joke.percolate.spi.builtins.assembly.WithBuilder')
+        discovered.contains('io.github.joke.percolate.spi.builtins.assembly.SideLocatedBuilder')
         discovered.contains('io.github.joke.percolate.spi.builtins.primitive.WidenPrimitive')
         discovered.contains('io.github.joke.percolate.spi.builtins.primitive.PrimitiveWrapperConversion')
 

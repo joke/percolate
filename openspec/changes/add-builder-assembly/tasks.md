@@ -26,26 +26,26 @@
 
 ## 4. FluentBuilder — the baseline convention
 
-- [ ] 4.1 Add `FluentBuilder` to the assembly feature package: discover a static no-arg `builder()` on the target, a builder type with a no-arg `build()` returning the target, and single-argument setters named exactly after each declared child
-- [ ] 4.2 Implement the containment gate (`declaredChildren ⊆ setterNames`) plus the empty-declaration bail, declining when the builder type, entry point, matched setters, or `build()` is private
-- [ ] 4.3 Emit one `OperationSpec` with a `Port.subTarget` per declared child, typed from the setter parameter and nulled through `demand.nullnessOf(...)`, in declared-children iteration order
-- [ ] 4.4 Render the chained expression with a `$Z` wrap marker before each setter call and before `build()`
-- [ ] 4.5 Price the strategy from `option("percolate.construction.preference")`, inverse to `ConstructorCall`
-- [ ] 4.6 Write `FluentBuilderSpec` over the mocked seam covering positive discovery, private/absent members, an unmatched declared child, a strict-subset match, the empty declaration, and both pricing cases
+- [x] 4.1 Add `FluentBuilder` to the assembly feature package: discover a static no-arg `builder()` on the target, a builder type with a no-arg `build()` returning the target, and single-argument setters named exactly after each declared child
+- [x] 4.2 Implement the containment gate (`declaredChildren ⊆ setterNames`) plus the empty-declaration bail, declining when the builder type, entry point, matched setters, or `build()` is private
+- [x] 4.3 Emit one `OperationSpec` with a `Port.subTarget` per declared child, typed from the setter parameter and nulled through `demand.nullnessOf(...)`, in declared-children iteration order
+- [x] 4.4 Render the chained expression with a `$Z` wrap marker before each setter call and before `build()`
+- [x] 4.5 Price the strategy from `option("percolate.construction.preference")`, inverse to `ConstructorCall`
+- [x] 4.6 Write `FluentBuilderSpec` over the mocked seam covering positive discovery, private/absent members, an unmatched declared child, a strict-subset match, the empty declaration, and both pricing cases
 
 ## 5. The three remaining conventions
 
-- [ ] 5.1 Add `ProtobufBuilder` (`newBuilder()` entry, `setName(v)` setters) and `ProtobufBuilderSpec`
-- [ ] 5.2 Add `WithBuilder` (`builder()` entry, `withName(v)` setters) and `WithBuilderSpec`
-- [ ] 5.3 Add `SideLocatedBuilder` (`<Target>Builder` type beside the target, public no-arg constructor, `name(v)` setters) and `SideLocatedBuilderSpec`, narrowing the name match by structure so a same-named type that lacks `build()` does not match
-- [ ] 5.4 Review the four implementations for shared plumbing and extract a common base **inside `percolate-strategies-builtin`** only if the duplication is real; add nothing to `percolate-spi`
-- [ ] 5.5 Confirm `percolate-spi` gained no builder-named type and that the four strategies ask every question through `ResolveCtx`
+- [x] 5.1 Add `ProtobufBuilder` (`newBuilder()` entry, `setName(v)` setters) and `ProtobufBuilderSpec`
+- [x] 5.2 Add `WithBuilder` (`builder()` entry, `withName(v)` setters) and `WithBuilderSpec`
+- [x] 5.3 Add `SideLocatedBuilder` (`<Target>Builder` type beside the target, public no-arg constructor, `name(v)` setters) and `SideLocatedBuilderSpec`, narrowing the name match by structure so a same-named type that lacks `build()` does not match
+- [x] 5.4 Review the four implementations for shared plumbing and extract a common base **inside `percolate-strategies-builtin`** only if the duplication is real; add nothing to `percolate-spi`
+- [x] 5.5 Confirm `percolate-spi` gained no builder-named type and that the four strategies ask every question through `ResolveCtx`
 
 ## 6. Registration and engine-neutrality checks
 
-- [ ] 6.1 Add the four strategies to `BuiltinServiceRegistrationSpec`'s expected `ServiceLoader` set
-- [ ] 6.2 Confirm the assembly feature package holds its strategies together and its specs mirror the package structure
-- [ ] 6.3 Assert no `processor`-module class references a builder type, a builder convention, or `percolate.construction.preference`
+- [x] 6.1 Add the four strategies to `BuiltinServiceRegistrationSpec`'s expected `ServiceLoader` set
+- [x] 6.2 Confirm the assembly feature package holds its strategies together and its specs mirror the package structure
+- [x] 6.3 Assert no `processor`-module class references a builder type, a builder convention, or `percolate.construction.preference`
 
 ## 7. End-to-end coverage
 
