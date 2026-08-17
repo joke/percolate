@@ -13,6 +13,7 @@ import org.jspecify.annotations.Nullable;
 
 import static io.github.joke.percolate.processor.DaggerProcessorComponent.factory;
 import static io.github.joke.percolate.processor.ProcessorOptions.CLASSES_FINAL;
+import static io.github.joke.percolate.processor.ProcessorOptions.CONSTRUCTION_PREFERENCE;
 import static io.github.joke.percolate.processor.ProcessorOptions.DEBUG_GRAPHS;
 import static io.github.joke.percolate.processor.ProcessorOptions.DOC_TAGS;
 import static io.github.joke.percolate.processor.ProcessorOptions.LOCALS_FINAL;
@@ -48,7 +49,8 @@ public final class PercolateProcessor extends BasicAnnotationProcessor {
                 CLASSES_FINAL,
                 DOC_TAGS,
                 TIME_ZONE,
-                SWITCH_STYLE);
+                SWITCH_STYLE,
+                CONSTRUCTION_PREFERENCE);
     }
 
     @Override

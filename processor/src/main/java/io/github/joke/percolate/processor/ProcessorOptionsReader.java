@@ -1,9 +1,7 @@
 package io.github.joke.percolate.processor;
 
-import io.github.joke.percolate.spi.SwitchStyle;
 import jakarta.inject.Inject;
 import java.util.Map;
-import java.util.Optional;
 import java.util.Set;
 import lombok.NoArgsConstructor;
 import org.jetbrains.annotations.VisibleForTesting;
@@ -16,18 +14,17 @@ import static io.github.joke.percolate.processor.ProcessorOptions.LOCALS_VAR;
 import static io.github.joke.percolate.processor.ProcessorOptions.METHODS_FINAL;
 import static io.github.joke.percolate.processor.ProcessorOptions.NULLABLE_ANNOTATIONS;
 import static io.github.joke.percolate.processor.ProcessorOptions.PARAMETERS_FINAL;
-import static io.github.joke.percolate.processor.ProcessorOptions.SWITCH_STYLE;
-import static io.github.joke.percolate.processor.ProcessorOptions.TIME_ZONE;
-import static io.github.joke.percolate.spi.SwitchStyle.AUTO;
 import static java.util.Arrays.stream;
-import static java.util.Locale.ROOT;
 import static java.util.stream.Collectors.toUnmodifiableSet;
 
 // Reads the raw -A option map into a ProcessorOptions. Split out of that value type by change tighten-
-// testability-conventions (design D2): the parsing decisions — a missing flag defaulting to false, an
-// unparseable switch.style degrading to AUTO rather than failing the round, an empty nullable.annotations
-// meaning "none declared" rather than one empty name — are the part worth testing, and as statics on the value
-// type they could not be intercepted. ProcessorOptions is left as plain data.
+// testability-conventions (design D2): the parsing decisions — a missing flag defaulting to false, an empty
+// nullable.annotations meaning "none declared" rather than one empty name — are the part worth testing, and as
+// statics on the value type they could not be intercepted. ProcessorOptions is left as plain data.
+//
+// It parses only the options an engine-internal consumer reads (change add-builder-assembly). A strategy-consumed
+// option — time.zone, switch.style, construction.preference — gets no typed field: it travels in the raw map and
+// is parsed once, by the strategy that owns its meaning, reached through ResolveCtx.option(key).
 @NoArgsConstructor(onConstructor_ = @Inject)
 public class ProcessorOptionsReader {
 
@@ -41,8 +38,6 @@ public class ProcessorOptionsReader {
                 .methodsFinal(flag(options, METHODS_FINAL))
                 .classesFinal(flag(options, CLASSES_FINAL))
                 .docTags(flag(options, DOC_TAGS))
-                .timeZone(Optional.ofNullable(options.get(TIME_ZONE)))
-                .switchStyle(parseSwitchStyle(options))
                 .raw(options)
                 .build();
     }
@@ -60,19 +55,5 @@ public class ProcessorOptionsReader {
     @VisibleForTesting
     boolean flag(final Map<String, String> options, final String key) {
         return "true".equalsIgnoreCase(options.getOrDefault(key, "false"));
-    }
-
-    // An unrecognised or absent switch.style degrades to AUTO — never fails the round.
-    @VisibleForTesting
-    SwitchStyle parseSwitchStyle(final Map<String, String> options) {
-        final var raw = options.get(SWITCH_STYLE);
-        if (raw == null) {
-            return AUTO;
-        }
-        try {
-            return SwitchStyle.valueOf(raw.toUpperCase(ROOT));
-        } catch (final IllegalArgumentException e) {
-            return AUTO;
-        }
     }
 }

@@ -15,7 +15,6 @@ import io.github.joke.percolate.processor.internal.stages.validate.ValidateOptio
 import io.github.joke.percolate.processor.internal.stages.validate.ValidateSourceParametersStage
 import io.github.joke.percolate.processor.nullability.JspecifyNullabilityResolver
 import io.github.joke.percolate.processor.nullability.NullabilityResolver
-import io.github.joke.percolate.spi.SwitchStyle
 import spock.lang.Specification
 import spock.lang.Subject
 import spock.lang.Tag
@@ -196,8 +195,6 @@ class ProcessorModuleSpec extends Specification {
                 .methodsFinal(false)
                 .classesFinal(false)
                 .docTags(false)
-                .timeZone(Optional.empty())
-                .switchStyle(SwitchStyle.AUTO)
                 .raw([:])
                 .build()
     }

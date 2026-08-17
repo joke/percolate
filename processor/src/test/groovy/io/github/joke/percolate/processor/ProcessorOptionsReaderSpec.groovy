@@ -1,6 +1,5 @@
 package io.github.joke.percolate.processor
 
-import io.github.joke.percolate.spi.SwitchStyle
 import spock.lang.Specification
 import spock.lang.Tag
 
@@ -67,8 +66,6 @@ class ProcessorOptionsReaderSpec extends Specification {
                 .methodsFinal(false)
                 .classesFinal(false)
                 .docTags(false)
-                .timeZone(Optional.empty())
-                .switchStyle(SwitchStyle.AUTO)
                 .raw([:])
                 .build()
 
@@ -138,7 +135,7 @@ class ProcessorOptionsReaderSpec extends Specification {
         options.localsVar
     }
 
-    def 'PercolateProcessor advertises exactly the ten recognised options'() {
+    def 'PercolateProcessor advertises exactly the eleven recognised options'() {
         expect:
         new PercolateProcessor().supportedOptions == [
                 'percolate.debug.graphs',
@@ -150,28 +147,17 @@ class ProcessorOptionsReaderSpec extends Specification {
                 'percolate.classes.final',
                 'percolate.docTags',
                 'percolate.time.zone',
-                'percolate.switch.style'
+                'percolate.switch.style',
+                'percolate.construction.preference'
         ] as Set
     }
 
-    def 'absent percolate.switch.style yields AUTO'() {
-        when:
-        def options = reader.from([:])
+    def 'a strategy-consumed option is carried raw rather than parsed into a field'() {
+        def options = reader.from(['percolate.switch.style': 'classic', 'percolate.time.zone': 'Europe/Berlin'])
 
-        then:
-        options.switchStyle == SwitchStyle.AUTO
-    }
-
-    def 'percolate.switch.style parses a recognised value case-insensitively'() {
         expect:
-        reader.from(['percolate.switch.style': 'classic']).switchStyle == SwitchStyle.CLASSIC
-        reader.from(['percolate.switch.style': 'ARROW']).switchStyle == SwitchStyle.ARROW
-        reader.from(['percolate.switch.style': 'Auto']).switchStyle == SwitchStyle.AUTO
-    }
-
-    def 'an unrecognised percolate.switch.style value falls back to AUTO'() {
-        expect:
-        reader.from(['percolate.switch.style': 'nonsense']).switchStyle == SwitchStyle.AUTO
+        options.raw['percolate.switch.style'] == 'classic'
+        options.raw['percolate.time.zone'] == 'Europe/Berlin'
     }
 
     def 'parameters.final, methods.final and classes.final default to false when absent'() {
@@ -198,20 +184,11 @@ class ProcessorOptionsReaderSpec extends Specification {
         options.classesFinal
     }
 
-    def 'absent percolate.time.zone yields an empty timeZone'() {
-        when:
+    def 'an absent strategy-consumed option is simply missing from the raw map'() {
         def options = reader.from([:])
 
-        then:
-        options.timeZone == Optional.empty()
-    }
-
-    def 'percolate.time.zone carries the configured zone id'() {
-        when:
-        def options = reader.from(['percolate.time.zone': 'Europe/Berlin'])
-
-        then:
-        options.timeZone == Optional.of('Europe/Berlin')
+        expect:
+        !options.raw.containsKey('percolate.time.zone')
     }
 
     def 'PercolateProcessor supports the latest source version the compiler offers'() {
@@ -246,16 +223,5 @@ class ProcessorOptionsReaderSpec extends Specification {
     def 'flag defaults to false for an absent key'() {
         expect:
         !reader.flag([:], 'k')
-    }
-
-    def 'parseSwitchStyle degrades an absent or unrecognised value to AUTO'() {
-        expect:
-        reader.parseSwitchStyle([:]) == SwitchStyle.AUTO
-        reader.parseSwitchStyle(['percolate.switch.style': 'sideways']) == SwitchStyle.AUTO
-    }
-
-    def 'parseSwitchStyle reads a recognised value case-insensitively'() {
-        expect:
-        reader.parseSwitchStyle(['percolate.switch.style': 'classic']) == SwitchStyle.CLASSIC
     }
 }

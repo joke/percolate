@@ -65,6 +65,7 @@ class ConstructorCallSpec extends Specification {
         enclosing.accept({ it instanceof ElementVisitor }, null) >> ClassName.get('com.example', 'Address')
         typeElement.simpleName >> nameOf('Address')
         typeElement.enclosingElement >> enclosing
+        ctx.option('percolate.construction.preference') >> Optional.empty()
 
         when:
         def declared = ['number', 'street'] as Set
@@ -102,6 +103,7 @@ class ConstructorCallSpec extends Specification {
         ctor.parameters >> [numberParam, streetParam]
         numberParam.simpleName >> nameOf('number')
         streetParam.simpleName >> nameOf('street')
+        ctx.option('percolate.construction.preference') >> Optional.empty()
 
         expect:
         constructorCall.expand(Demands.assembling(targetType, ['nonexistent'] as Set), ctx).toList().empty
@@ -113,6 +115,7 @@ class ConstructorCallSpec extends Specification {
         ctx.membersOf(typeElement) >> Stream.of(ctor)
         ctx.isConstructor(ctor) >> true
         ctx.isPrivate(ctor) >> true
+        ctx.option('percolate.construction.preference') >> Optional.empty()
 
         expect:
         constructorCall.expand(Demands.assembling(targetType, ['x'] as Set), ctx).toList().empty
@@ -130,6 +133,7 @@ class ConstructorCallSpec extends Specification {
         ctx.asTypeElement(targetType) >> Optional.of(typeElement)
         ctx.membersOf(typeElement) >> Stream.of(method)
         ctx.isConstructor(method) >> false
+        ctx.option('percolate.construction.preference') >> Optional.empty()
 
         expect:
         constructorCall.expand(Demands.assembling(targetType, ['x'] as Set), ctx).toList().empty
@@ -216,6 +220,7 @@ class ConstructorCallSpec extends Specification {
         ctx.membersOf(typeElement) >> Stream.of(member)
         ctx.isConstructor(member) >> true
         ctx.isPrivate(member) >> true
+        ctx.option('percolate.construction.preference') >> Optional.empty()
 
         when:
         constructorCall.expand(Demands.assembling(targetType, ['x'] as Set), ctx).toList()
@@ -237,7 +242,7 @@ class ConstructorCallSpec extends Specification {
         element.simpleName >> nameOf('Address')
 
         when:
-        def spec = constructorCall.buildSpec(ctor, element, targetType, demand)
+        def spec = constructorCall.buildSpec(ctor, element, targetType, demand, Weights.STEP)
 
         then:
         1 * demand.nullnessOf(numberType, numberParam) >> Nullability.NULLABLE
@@ -245,6 +250,44 @@ class ConstructorCallSpec extends Specification {
 
         expect:
         spec.ports[0].nullness == Nullability.NULLABLE
+    }
+
+    // ---- weight: the strategy prices itself from percolate.construction.preference (design D4) --------------
+
+    def 'weight is STEP when the preference is absent, so the constructor is preferred by default'() {
+        when:
+        def weight = constructorCall.weight(ctx)
+
+        then:
+        1 * ctx.option('percolate.construction.preference') >> Optional.empty()
+        0 * _
+
+        expect:
+        weight == Weights.STEP
+    }
+
+    def 'weight is STEP when the preference names the constructor'() {
+        when:
+        def weight = constructorCall.weight(ctx)
+
+        then:
+        1 * ctx.option('percolate.construction.preference') >> Optional.of('constructor')
+        0 * _
+
+        expect:
+        weight == Weights.STEP
+    }
+
+    def 'weight is EXPENSIVE when the preference names the builder, so a builder outbids it'() {
+        when:
+        def weight = constructorCall.weight(ctx)
+
+        then:
+        1 * ctx.option('percolate.construction.preference') >> Optional.of('builder')
+        0 * _
+
+        expect:
+        weight == Weights.EXPENSIVE
     }
 
     /** An {@link IncomingValues} resolving each port by its slot name, as an assembly operation does. */

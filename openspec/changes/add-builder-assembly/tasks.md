@@ -12,17 +12,17 @@
 
 ## 2. Declare the construction.preference option
 
-- [ ] 2.1 Add a `ConstructionPreference` enum with `CONSTRUCTOR` and `BUILDER` in the module that owns the option's meaning
-- [ ] 2.2 Add the `constructionPreference` field and the `CONSTRUCTION_PREFERENCE` key constant to `ProcessorOptions`
-- [ ] 2.3 Parse the option in `ProcessorOptionsReader`, case-insensitively, defaulting to `CONSTRUCTOR` when absent or unrecognised
-- [ ] 2.4 Add `"percolate.construction.preference"` to `PercolateProcessor.getSupportedOptions()`
-- [ ] 2.5 Extend `ProcessorOptionsReaderSpec` with absent, `builder`, `BUILDER`, and unrecognised-value cases
+- [x] 2.1 Add a `ConstructionPreference` enum (`CONSTRUCTOR`, `BUILDER`) with a case-insensitive parse degrading to `CONSTRUCTOR`, in the `strategies-builtin` assembly package that owns the option's meaning — not in `percolate-spi`, which gains no builder-named type
+- [x] 2.2 Add the `CONSTRUCTION_PREFERENCE` key constant to `ProcessorOptions` and add `"percolate.construction.preference"` to `PercolateProcessor.getSupportedOptions()`
+- [x] 2.3 Delete the now-unread `timeZone` and `switchStyle` fields from `ProcessorOptions` and `parseSwitchStyle` from `ProcessorOptionsReader` — strategy-consumed options carry no typed field and are parsed once, in the strategy that owns them
+- [x] 2.4 Update the `ProcessorOptions.builder()` call sites in `ProcessorOptionsReaderSpec`, `ProcessorModuleSpec`, `ExpandStageSpec`, and `BuildMethodBodiesSpec` for the dropped fields
+- [x] 2.5 Extend `ConstructionPreferenceSpec` with absent, `builder`, `BUILDER`, and unrecognised-value cases, and drop `ProcessorOptionsReaderSpec`'s `parseSwitchStyle` features
 
 ## 3. Price constructor assembly from the option
 
-- [ ] 3.1 Make `ConstructorCall` read `option("percolate.construction.preference")` and emit `Weights.STEP` when it resolves to `constructor` (including unset) and `Weights.EXPENSIVE` otherwise
-- [ ] 3.2 Verify `ConstructorCall` references no builder strategy and keeps its `declared.isEmpty()` bail unchanged
-- [ ] 3.3 Extend `ConstructorCallSpec` with the three pricing cases, stubbing the mocked seam's `option(String)`
+- [x] 3.1 Make `ConstructorCall` read `option("percolate.construction.preference")` and emit `Weights.STEP` when it resolves to `constructor` (including unset) and `Weights.EXPENSIVE` otherwise
+- [x] 3.2 Verify `ConstructorCall` references no builder strategy and keeps its `declared.isEmpty()` bail unchanged
+- [x] 3.3 Extend `ConstructorCallSpec` with the three pricing cases, stubbing the mocked seam's `option(String)`
 
 ## 4. FluentBuilder — the baseline convention
 

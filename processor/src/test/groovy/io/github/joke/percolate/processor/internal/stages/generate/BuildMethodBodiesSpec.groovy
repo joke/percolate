@@ -27,7 +27,6 @@ import io.github.joke.percolate.spi.OperationCodegen
 import io.github.joke.percolate.spi.Port
 import io.github.joke.percolate.spi.ResolveCtx
 import io.github.joke.percolate.spi.ScopeCodegen
-import io.github.joke.percolate.spi.SwitchStyle
 import spock.lang.Specification
 import spock.lang.Tag
 
@@ -113,8 +112,6 @@ class BuildMethodBodiesSpec extends Specification {
                 .methodsFinal(false)
                 .classesFinal(false)
                 .docTags(false)
-                .timeZone(Optional.empty())
-                .switchStyle(SwitchStyle.AUTO)
                 .raw([:])
                 .build(), SourceVersion.RELEASE_11, new HoistPlanFactory(),
                 new MemberPlanFactory(new HoistPlanFactory()), new BodyRenderContextFactory())

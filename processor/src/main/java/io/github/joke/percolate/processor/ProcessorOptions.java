@@ -1,8 +1,6 @@
 package io.github.joke.percolate.processor;
 
-import io.github.joke.percolate.spi.SwitchStyle;
 import java.util.Map;
-import java.util.Optional;
 import java.util.Set;
 import lombok.Builder;
 import lombok.Value;
@@ -23,6 +21,7 @@ public class ProcessorOptions {
     public static final String DOC_TAGS = "percolate.docTags";
     public static final String TIME_ZONE = "percolate.time.zone";
     public static final String SWITCH_STYLE = "percolate.switch.style";
+    public static final String CONSTRUCTION_PREFERENCE = "percolate.construction.preference";
 
     boolean debugGraphs;
     Set<String> customNullableAnnotations;
@@ -32,17 +31,14 @@ public class ProcessorOptions {
     boolean methodsFinal;
     boolean classesFinal;
     boolean docTags;
-    Optional<String> timeZone;
-    SwitchStyle switchStyle;
 
     // The raw -A option map, carried verbatim so the per-mapper ResolveCtx can answer ResolveCtx.option(key) for
-    // any declared key without a per-feature field (change add-builder-assembly). Strategy-consumed options are
-    // read from here and parsed by the strategy that owns their meaning; the typed fields above serve the
-    // engine-internal consumers.
+    // any declared key without a per-feature field (change add-builder-assembly). The typed fields above exist
+    // only for the engine-internal consumers; a strategy-consumed option — time.zone, switch.style,
+    // construction.preference — has no field here and is parsed once, by the strategy that owns its meaning.
     Map<String, String> raw;
 
     @Builder
-    @SuppressWarnings("PMD.ExcessiveParameterList")
     public ProcessorOptions(
             final boolean debugGraphs,
             final Set<String> customNullableAnnotations,
@@ -52,8 +48,6 @@ public class ProcessorOptions {
             final boolean methodsFinal,
             final boolean classesFinal,
             final boolean docTags,
-            final Optional<String> timeZone,
-            final SwitchStyle switchStyle,
             final Map<String, String> raw) {
         this.debugGraphs = debugGraphs;
         this.customNullableAnnotations = Set.copyOf(customNullableAnnotations);
@@ -63,8 +57,6 @@ public class ProcessorOptions {
         this.methodsFinal = methodsFinal;
         this.classesFinal = classesFinal;
         this.docTags = docTags;
-        this.timeZone = timeZone;
-        this.switchStyle = switchStyle;
         this.raw = Map.copyOf(raw);
     }
 }

@@ -23,7 +23,9 @@ import lombok.NoArgsConstructor;
 import org.jetbrains.annotations.VisibleForTesting;
 
 import static io.github.joke.percolate.spi.Nullability.NON_NULL;
+import static io.github.joke.percolate.spi.Weights.EXPENSIVE;
 import static io.github.joke.percolate.spi.Weights.STEP;
+import static io.github.joke.percolate.spi.builtins.assembly.ConstructionPreference.BUILDER;
 import static java.util.stream.Collectors.joining;
 import static java.util.stream.Collectors.toUnmodifiableList;
 import static java.util.stream.Collectors.toUnmodifiableSet;
@@ -52,10 +54,19 @@ public final class ConstructorCall implements ExpansionStrategy {
             // satisfy it (no silent sourcing). Assembly fires only for a target level with declared children.
             return Stream.empty();
         }
+        final var weight = weight(ctx);
         return ctx.membersOf(typeElement)
                 .flatMap(member -> candidateConstructor(member, declared, ctx))
-                .map(ctor -> buildSpec(ctor, typeElement, targetType, demand))
+                .map(ctor -> buildSpec(ctor, typeElement, targetType, demand, weight))
                 .map(Offer::of);
+    }
+
+    // Prices this strategy against the author's declared construction preference (design D4 of change
+    // add-builder-assembly). The plan fold is minimum-cost, so the preferred form takes the lower weight. This
+    // strategy reads only the option and never inspects another strategy — myopia holds.
+    @VisibleForTesting
+    int weight(final ResolveCtx ctx) {
+        return ConstructionPreference.from(ctx.option(ConstructionPreference.KEY)) == BUILDER ? EXPENSIVE : STEP;
     }
 
     // member as the constructor this demand can call — non-private, its parameter names exactly the declared
@@ -83,7 +94,8 @@ public final class ConstructorCall implements ExpansionStrategy {
             final ExecutableElement ctor,
             final TypeElement typeElement,
             final TypeMirror targetType,
-            final ProduceDemand demand) {
+            final ProduceDemand demand,
+            final int weight) {
         final var ports = ctor.getParameters().stream()
                 .map(param -> Port.subTarget(
                         param.getSimpleName().toString(), param.asType(), demand.nullnessOf(param.asType(), param)))
@@ -92,7 +104,7 @@ public final class ConstructorCall implements ExpansionStrategy {
         return OperationSpec.of(
                 constructorLabel(typeElement, ports),
                 buildCodegen(typeElement, portNames),
-                STEP,
+                weight,
                 ports,
                 targetType,
                 NON_NULL);
