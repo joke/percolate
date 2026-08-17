@@ -70,7 +70,7 @@ public final class ExpandStage implements Stage {
         }
         final var graph = new MapperGraph();
         ctx.setGraph(graph);
-        final var resolveCtx = new CompileResolveCtx(elements, types, ctx.getCallableMethods(), options.getTimeZone());
+        final var resolveCtx = new CompileResolveCtx(elements, types, ctx.getCallableMethods(), options.getRaw());
         ctx.setResolveCtx(resolveCtx);
         new Driver(strategies, projections, resolver, graph, ctx.getGoalSpecs(), resolveCtx).seedAndExpand(shape);
     }

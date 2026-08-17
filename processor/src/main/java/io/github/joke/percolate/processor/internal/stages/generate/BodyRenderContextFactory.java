@@ -7,7 +7,6 @@ import io.github.joke.percolate.processor.internal.graph.Value;
 import io.github.joke.percolate.spi.BodyCodegen;
 import io.github.joke.percolate.spi.BodyRenderContext;
 import io.github.joke.percolate.spi.ResolveCtx;
-import io.github.joke.percolate.spi.SwitchStyle;
 import jakarta.inject.Inject;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -35,7 +34,6 @@ final class BodyRenderContextFactory {
             final Function<Value, CodeBlock> operandRenderer,
             final MemberPlan memberPlan,
             final ResolveCtx resolveCtx,
-            final SwitchStyle switchStyle,
             final SourceVersion sourceVersion) {
         if (producer.isEmpty()) {
             return Optional.empty();
@@ -45,8 +43,7 @@ final class BodyRenderContextFactory {
         if (!(codegen instanceof BodyCodegen)) {
             return Optional.empty();
         }
-        final var context =
-                buildFor(graph, operation, operandRenderer, memberPlan, resolveCtx, switchStyle, sourceVersion);
+        final var context = buildFor(graph, operation, operandRenderer, memberPlan, resolveCtx, sourceVersion);
         return Optional.of(((BodyCodegen) codegen).render(context));
     }
 
@@ -58,7 +55,6 @@ final class BodyRenderContextFactory {
             final Function<Value, CodeBlock> operandRenderer,
             final MemberPlan memberPlan,
             final ResolveCtx resolveCtx,
-            final SwitchStyle switchStyle,
             final SourceVersion sourceVersion) {
         final var positional = new ArrayList<CodeBlock>();
         final var byName = new LinkedHashMap<String, CodeBlock>();
@@ -80,6 +76,6 @@ final class BodyRenderContextFactory {
                 .getMemberRequests()
                 .forEach(request -> members.put(request.getDedupKey(), memberPlan.reference(request.getDedupKey())));
         final var incoming = new IncomingValuesImpl(positional, byName, members);
-        return new BodyRenderContextImpl(incoming, portTypes, resolveCtx, switchStyle, sourceVersion);
+        return new BodyRenderContextImpl(incoming, portTypes, resolveCtx, sourceVersion);
     }
 }

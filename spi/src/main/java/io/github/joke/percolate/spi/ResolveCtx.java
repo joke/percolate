@@ -39,8 +39,14 @@ public interface ResolveCtx {
     @Nullable
     CallableMethods callableMethods();
 
-    /** The project-wide default zone id from {@code -Apercolate.time.zone=…}, else empty when the option is unset. */
-    Optional<String> configuredTimeZone();
+    /**
+     * The raw value declared for the {@code -A}-supplied processor option {@code key}, else empty when the option is
+     * unset. This is the <b>only</b> processor-option accessor on the seam: a strategy reads its own option by full
+     * {@code percolate.*} key and parses the raw value itself, so adding a feature that consumes an option never
+     * widens this interface. The engine reads no option through here and makes no code-generation or selection
+     * choice from one.
+     */
+    Optional<String> option(String key);
 
     // ---- type algebra --------------------------------------------------------------------------------------
 

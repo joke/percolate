@@ -67,6 +67,7 @@ class ExpandStageSpec extends Specification {
                         .docTags(false)
                         .timeZone(Optional.empty())
                         .switchStyle(SwitchStyle.AUTO)
+                .raw([:])
                         .build())
     }
 }

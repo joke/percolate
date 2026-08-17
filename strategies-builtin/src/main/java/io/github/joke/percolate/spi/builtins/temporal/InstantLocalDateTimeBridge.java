@@ -42,6 +42,10 @@ public final class InstantLocalDateTimeBridge implements ExpansionStrategy {
     private static final String VALUE_ROLE = "value";
     private static final String ZONE_KEY = "zone";
 
+    // The processor-option key this strategy reads through the generic ResolveCtx.option(…) seam. Declared here,
+    // in the feature that owns the option's meaning, rather than in a core class.
+    private static final String TIME_ZONE_OPTION = "percolate.time.zone";
+
     @Override
     public Stream<Offer> expand(final ProduceDemand demand, final ResolveCtx ctx) {
         final var target = demand.targetType();
@@ -106,7 +110,7 @@ public final class InstantLocalDateTimeBridge implements ExpansionStrategy {
         if (directiveZone.isPresent()) {
             return CodeBlock.of("$T.of($S)", ZONE_ID, directiveZone.get());
         }
-        final var configured = ctx.configuredTimeZone();
+        final var configured = ctx.option(TIME_ZONE_OPTION);
         if (configured.isPresent()) {
             return CodeBlock.of("$T.of($S)", ZONE_ID, configured.get());
         }

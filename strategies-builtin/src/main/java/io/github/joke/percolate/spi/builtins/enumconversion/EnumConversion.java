@@ -35,6 +35,7 @@ import static io.github.joke.percolate.spi.SwitchStyle.CLASSIC;
 import static io.github.joke.percolate.spi.Weights.EXPENSIVE;
 import static io.github.joke.percolate.spi.builtins.Labels.simple;
 import static java.lang.String.join;
+import static java.util.Locale.ROOT;
 import static java.util.stream.Collectors.toUnmodifiableList;
 import static java.util.stream.Collectors.toUnmodifiableSet;
 
@@ -59,6 +60,10 @@ public final class EnumConversion implements ExpansionStrategy {
     static final String ENUM_KEY = "enum";
     private static final String SOURCE_PART = "source";
     private static final String TARGET_PART = "target";
+
+    // The processor-option key this strategy reads through the generic ResolveCtx.option(…) seam. Declared here,
+    // in the feature that owns the option's meaning, rather than in a core class.
+    private static final String SWITCH_STYLE_OPTION = "percolate.switch.style";
 
     // SourceVersion.RELEASE_14 cannot be referenced as a compile-time symbol under this module's --release 11
     // target (it postdates the JDK 11 platform API `--release` restricts compilation to); the toolchain JDK the
@@ -130,19 +135,36 @@ public final class EnumConversion implements ExpansionStrategy {
         final var source = context.portType(VALUE_ROLE);
         final var sourceConstants = enumConstantNames(resolveCtx, source);
         final var mapping = buildMapping(sourceConstants, enumConstantNames(resolveCtx, target), overrides);
-        final var style = resolveStyle(context.switchStyle(), context.sourceVersion());
+        final var style = resolveStyle(resolveCtx.option(SWITCH_STYLE_OPTION), context.sourceVersion());
         return style == SwitchStyle.ARROW
                 ? renderArrow(context.single(), target, sourceConstants, mapping)
                 : renderClassic(context.single(), target, sourceConstants, mapping);
     }
 
-    // AUTO resolves against the target SourceVersion: arrow for Java 14+, else classic.
+    // AUTO resolves against the target SourceVersion: arrow for Java 14+, else classic. The raw option value is
+    // parsed here, in the strategy that owns the option's meaning — the seam hands over a plain String.
     @VisibleForTesting
-    SwitchStyle resolveStyle(final SwitchStyle configured, final SourceVersion sourceVersion) {
-        if (configured != AUTO) {
-            return configured;
+    SwitchStyle resolveStyle(final Optional<String> configured, final SourceVersion sourceVersion) {
+        final var style = parseStyle(configured);
+        if (style != AUTO) {
+            return style;
         }
         return sourceVersion.compareTo(JAVA_14) >= 0 ? SwitchStyle.ARROW : CLASSIC;
+    }
+
+    // An absent or unrecognised switch.style degrades to AUTO — never fails the round.
+    @VisibleForTesting
+    SwitchStyle parseStyle(final Optional<String> configured) {
+        return configured.map(this::toStyle).orElse(AUTO);
+    }
+
+    @VisibleForTesting
+    SwitchStyle toStyle(final String raw) {
+        try {
+            return SwitchStyle.valueOf(raw.toUpperCase(ROOT));
+        } catch (final IllegalArgumentException e) {
+            return AUTO;
+        }
     }
 
     // Same-name matches first, then @MapEnum overrides — which take precedence over a coincidental match.

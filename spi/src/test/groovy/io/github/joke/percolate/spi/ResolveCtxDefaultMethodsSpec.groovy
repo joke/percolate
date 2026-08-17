@@ -21,7 +21,7 @@ import javax.lang.model.util.Types
  * {@link io.github.joke.percolate.spi.test.FakeResolveCtx} that overrides every leaf type-algebra/member-reflection
  * method structurally — so those leaf methods' own bodies (the ones that actually call {@link ResolveCtx#types()} /
  * {@link ResolveCtx#elements()}) never run there. This spec closes that gap: {@link LeafDefaultsCtx} implements only
- * the four abstract members ({@code types}/{@code elements}/{@code callableMethods}/{@code configuredTimeZone}),
+ * the four abstract members ({@code types}/{@code elements}/{@code callableMethods}/{@code option}),
  * leaving every other {@link ResolveCtx} method as the interface's own default body, so each leaf default is
  * exercised for real against a mocked {@link Types}/{@link Elements} pair. No javac.
  */
@@ -640,7 +640,7 @@ class ResolveCtxDefaultMethodsSpec extends Specification {
         }
 
         @Override
-        Optional<String> configuredTimeZone() {
+        Optional<String> option(final String key) {
             Optional.empty()
         }
     }

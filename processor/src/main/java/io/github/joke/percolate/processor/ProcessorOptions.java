@@ -1,6 +1,7 @@
 package io.github.joke.percolate.processor;
 
 import io.github.joke.percolate.spi.SwitchStyle;
+import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import lombok.Builder;
@@ -34,6 +35,12 @@ public class ProcessorOptions {
     Optional<String> timeZone;
     SwitchStyle switchStyle;
 
+    // The raw -A option map, carried verbatim so the per-mapper ResolveCtx can answer ResolveCtx.option(key) for
+    // any declared key without a per-feature field (change add-builder-assembly). Strategy-consumed options are
+    // read from here and parsed by the strategy that owns their meaning; the typed fields above serve the
+    // engine-internal consumers.
+    Map<String, String> raw;
+
     @Builder
     @SuppressWarnings("PMD.ExcessiveParameterList")
     public ProcessorOptions(
@@ -46,7 +53,8 @@ public class ProcessorOptions {
             final boolean classesFinal,
             final boolean docTags,
             final Optional<String> timeZone,
-            final SwitchStyle switchStyle) {
+            final SwitchStyle switchStyle,
+            final Map<String, String> raw) {
         this.debugGraphs = debugGraphs;
         this.customNullableAnnotations = Set.copyOf(customNullableAnnotations);
         this.localsFinal = localsFinal;
@@ -57,5 +65,6 @@ public class ProcessorOptions {
         this.docTags = docTags;
         this.timeZone = timeZone;
         this.switchStyle = switchStyle;
+        this.raw = Map.copyOf(raw);
     }
 }

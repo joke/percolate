@@ -43,6 +43,7 @@ public class ProcessorOptionsReader {
                 .docTags(flag(options, DOC_TAGS))
                 .timeZone(Optional.ofNullable(options.get(TIME_ZONE)))
                 .switchStyle(parseSwitchStyle(options))
+                .raw(options)
                 .build();
     }
 

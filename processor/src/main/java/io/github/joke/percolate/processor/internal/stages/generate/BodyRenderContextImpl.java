@@ -4,7 +4,6 @@ import io.github.joke.percolate.lib.javapoet.CodeBlock;
 import io.github.joke.percolate.spi.BodyRenderContext;
 import io.github.joke.percolate.spi.IncomingValues;
 import io.github.joke.percolate.spi.ResolveCtx;
-import io.github.joke.percolate.spi.SwitchStyle;
 import java.util.Map;
 import javax.lang.model.SourceVersion;
 import javax.lang.model.type.TypeMirror;
@@ -12,7 +11,7 @@ import lombok.RequiredArgsConstructor;
 
 // The BodyRenderContext runtime implementation: a superset of IncomingValues (delegated to a composed
 // IncomingValuesImpl) that additionally exposes, per port, the grounded concrete TypeMirror bound to that port,
-// the per-mapper ResolveCtx, the effective SwitchStyle, and the target SourceVersion.
+// the per-mapper ResolveCtx, and the target SourceVersion.
 // BodyRenderContextFactory.buildFor gathers a BodyCodegen operation's port operands/types the same way
 // BuildMethodBodies.Walk.renderPlain gathers an OperationCodegen's, so the two codegen shapes see consistent
 // port data.
@@ -24,7 +23,6 @@ final class BodyRenderContextImpl implements BodyRenderContext {
     private final IncomingValues incomingValues;
     private final Map<String, TypeMirror> portTypes;
     private final ResolveCtx resolveCtx;
-    private final SwitchStyle switchStyle;
     private final SourceVersion sourceVersion;
 
     @Override
@@ -59,11 +57,6 @@ final class BodyRenderContextImpl implements BodyRenderContext {
     @Override
     public ResolveCtx resolveCtx() {
         return resolveCtx;
-    }
-
-    @Override
-    public SwitchStyle switchStyle() {
-        return switchStyle;
     }
 
     @Override

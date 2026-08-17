@@ -65,7 +65,7 @@ class InstantLocalDateTimeBridgeSpec extends Specification {
 
     def 'absent directive zone falls back to the configured processor option, frozen, not stamped'() {
         ctx.isType(localDateTimeType, 'java.time.LocalDateTime') >> true
-        ctx.configuredTimeZone() >> Optional.of('UTC')
+        ctx.option('percolate.time.zone') >> Optional.of('UTC')
 
         when:
         def specs = instantLocalDateTimeBridge.expand(Demands.forTarget(localDateTimeType), ctx)*.spec
@@ -79,7 +79,7 @@ class InstantLocalDateTimeBridgeSpec extends Specification {
 
     def 'absent directive zone and absent processor option defers to generated systemDefault()'() {
         ctx.isType(localDateTimeType, 'java.time.LocalDateTime') >> true
-        ctx.configuredTimeZone() >> Optional.empty()
+        ctx.option('percolate.time.zone') >> Optional.empty()
 
         when:
         def specs = instantLocalDateTimeBridge.expand(Demands.forTarget(localDateTimeType), ctx)*.spec
@@ -94,7 +94,7 @@ class InstantLocalDateTimeBridgeSpec extends Specification {
     def 'demanding Instant from LocalDateTime crosses the bridge the other way'() {
         ctx.isType(instantType, 'java.time.LocalDateTime') >> false
         ctx.isType(instantType, 'java.time.Instant') >> true
-        ctx.configuredTimeZone() >> Optional.empty()
+        ctx.option('percolate.time.zone') >> Optional.empty()
 
         when:
         def specs = instantLocalDateTimeBridge.expand(Demands.forTarget(instantType), ctx)*.spec
@@ -181,14 +181,14 @@ class InstantLocalDateTimeBridgeSpec extends Specification {
     }
 
     def 'resolveZone falls back to the configured processor option when no directive zone is present'() {
-        ctx.configuredTimeZone() >> Optional.of('UTC')
+        ctx.option('percolate.time.zone') >> Optional.of('UTC')
 
         expect:
         instantLocalDateTimeBridge.resolveZone(Optional.empty(), ctx).toString() == 'java.time.ZoneId.of("UTC")'
     }
 
     def 'resolveZone defers to generated systemDefault() when neither directive nor configured zone is present'() {
-        ctx.configuredTimeZone() >> Optional.empty()
+        ctx.option('percolate.time.zone') >> Optional.empty()
 
         expect:
         instantLocalDateTimeBridge.resolveZone(Optional.empty(), ctx).toString() == 'java.time.ZoneId.systemDefault()'

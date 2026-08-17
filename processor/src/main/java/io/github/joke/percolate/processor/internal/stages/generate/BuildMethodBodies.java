@@ -15,7 +15,6 @@ import io.github.joke.percolate.processor.internal.graph.Value;
 import io.github.joke.percolate.spi.OperationCodegen;
 import io.github.joke.percolate.spi.ResolveCtx;
 import io.github.joke.percolate.spi.ScopeCodegen;
-import io.github.joke.percolate.spi.SwitchStyle;
 import jakarta.inject.Inject;
 import java.util.ArrayList;
 import java.util.HashSet;
@@ -89,7 +88,6 @@ public final class BuildMethodBodies {
                         style,
                         new TypeNameRenderer(),
                         resolveCtx,
-                        options.getSwitchStyle(),
                         sourceVersion,
                         bodyRenderContextFactory)
                 .renderMethodBody(root);
@@ -112,16 +110,14 @@ public final class BuildMethodBodies {
         private final LocalStyle style;
         private final TypeNameRenderer typeNameRenderer;
         private final ResolveCtx resolveCtx;
-        private final SwitchStyle switchStyle;
         private final SourceVersion sourceVersion;
         private final BodyRenderContextFactory bodyRenderContextFactory;
 
         @SuppressWarnings({"PMD.UseConcurrentHashMap", "IdentityHashMapUsage"})
         private final Map<Value, CodeBlock> lambdaVars = new IdentityHashMap<>();
 
-        // One more than PMD's ceiling, and every one of them is per-render state the Walk reads directly; the
-        // alternative is a parameter-object that exists only to satisfy the count.
-        @SuppressWarnings("PMD.ExcessiveParameterList")
+        // Every parameter is per-render state the Walk reads directly. It sat one over PMD's ceiling until the
+        // switch.style option moved onto the generic ResolveCtx.option(…) seam and took a parameter with it.
         Walk(
                 final MapperGraph graph,
                 final ExtractedPlan plan,
@@ -130,7 +126,6 @@ public final class BuildMethodBodies {
                 final LocalStyle style,
                 final TypeNameRenderer typeNameRenderer,
                 final ResolveCtx resolveCtx,
-                final SwitchStyle switchStyle,
                 final SourceVersion sourceVersion,
                 final BodyRenderContextFactory bodyRenderContextFactory) {
             this.graph = graph;
@@ -140,7 +135,6 @@ public final class BuildMethodBodies {
             this.style = style;
             this.typeNameRenderer = typeNameRenderer;
             this.resolveCtx = resolveCtx;
-            this.switchStyle = switchStyle;
             this.sourceVersion = sourceVersion;
             this.bodyRenderContextFactory = bodyRenderContextFactory;
         }
@@ -152,13 +146,7 @@ public final class BuildMethodBodies {
         @VisibleForTesting
         CodeBlock renderMethodBody(final Value root) {
             final var bodyRendered = bodyRenderContextFactory.renderIfBodyCodegen(
-                    graph,
-                    plan.chosenProducer(root),
-                    this::renderOperand,
-                    memberPlan,
-                    resolveCtx,
-                    switchStyle,
-                    sourceVersion);
+                    graph, plan.chosenProducer(root), this::renderOperand, memberPlan, resolveCtx, sourceVersion);
             if (bodyRendered.isPresent()) {
                 return bodyRendered.get();
             }

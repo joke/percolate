@@ -8,7 +8,6 @@ import io.github.joke.percolate.spi.MemberRequest
 import io.github.joke.percolate.spi.Nullability
 import io.github.joke.percolate.spi.Port
 import io.github.joke.percolate.spi.ResolveCtx
-import io.github.joke.percolate.spi.SwitchStyle
 import spock.lang.Specification
 import spock.lang.Tag
 
@@ -18,7 +17,7 @@ import javax.lang.model.type.TypeMirror
 /**
  * {@link BodyRenderContextImpl} unit-tested directly: {@code buildFor} gathers a {@code BodyCodegen} operation's
  * port operands and grounded types the same way {@code Walk#renderPlain} gathers an {@code OperationCodegen}'s, and
- * the instance otherwise exposes the {@link ResolveCtx}/{@link SwitchStyle}/{@link SourceVersion} it was built with.
+ * the instance otherwise exposes the {@link ResolveCtx}/{@link SourceVersion} it was built with.
  */
 @Tag('unit')
 class BodyRenderContextImplSpec extends Specification {
@@ -28,7 +27,6 @@ class BodyRenderContextImplSpec extends Specification {
     MapperGraph graph = Mock()
     MemberPlan memberPlan = Mock()
     ResolveCtx resolveCtx = Mock()
-    SwitchStyle switchStyle = SwitchStyle.CLASSIC
     SourceVersion sourceVersion = SourceVersion.RELEASE_17
 
     def 'buildFor gathers one port operand and grounded type per port, positional and by name'() {
@@ -43,7 +41,7 @@ class BodyRenderContextImplSpec extends Specification {
         when:
         def context = bodyRenderContextFactory.buildFor(graph, operation,
                 { Value v -> v.is(source0) ? CodeBlock.of('x') : CodeBlock.of('y') }, memberPlan, resolveCtx,
-                switchStyle, sourceVersion)
+                sourceVersion)
 
         then:
         1 * operation.ports >> [port0, port1]
@@ -69,7 +67,7 @@ class BodyRenderContextImplSpec extends Specification {
 
         when:
         def context = bodyRenderContextFactory.buildFor(graph, operation, { Value v -> CodeBlock.of('x') }, memberPlan,
-                resolveCtx, switchStyle, sourceVersion)
+                resolveCtx, sourceVersion)
 
         then:
         1 * operation.ports >> []
@@ -87,7 +85,7 @@ class BodyRenderContextImplSpec extends Specification {
 
         when:
         bodyRenderContextFactory.buildFor(graph, operation, { Value v -> CodeBlock.of('x') }, memberPlan, resolveCtx,
-                switchStyle, sourceVersion)
+                sourceVersion)
 
         then:
         1 * operation.ports >> [port]
@@ -106,7 +104,7 @@ class BodyRenderContextImplSpec extends Specification {
 
         when:
         bodyRenderContextFactory.buildFor(graph, operation, { Value v -> CodeBlock.of('x') }, memberPlan, resolveCtx,
-                switchStyle, sourceVersion)
+                sourceVersion)
 
         then:
         1 * operation.ports >> [port]
@@ -124,7 +122,7 @@ class BodyRenderContextImplSpec extends Specification {
 
         when:
         def context = bodyRenderContextFactory.buildFor(graph, operation, { Value v -> CodeBlock.of('x') }, memberPlan,
-                resolveCtx, switchStyle, sourceVersion)
+                resolveCtx, sourceVersion)
 
         then:
         1 * operation.ports >> []
@@ -139,12 +137,12 @@ class BodyRenderContextImplSpec extends Specification {
         error.message.contains('ghost')
     }
 
-    def 'exposes the resolveCtx, switchStyle, and sourceVersion it was built with'() {
+    def 'exposes the resolveCtx and sourceVersion it was built with'() {
         Operation operation = Mock()
 
         when:
         def context = bodyRenderContextFactory.buildFor(graph, operation, { Value v -> CodeBlock.of('x') }, memberPlan,
-                resolveCtx, switchStyle, sourceVersion)
+                resolveCtx, sourceVersion)
 
         then:
         1 * operation.ports >> []
@@ -153,7 +151,6 @@ class BodyRenderContextImplSpec extends Specification {
 
         expect:
         context.resolveCtx().is(resolveCtx)
-        context.switchStyle() == SwitchStyle.CLASSIC
         context.sourceVersion() == SourceVersion.RELEASE_17
     }
 
@@ -165,7 +162,7 @@ class BodyRenderContextImplSpec extends Specification {
 
         when:
         def context = bodyRenderContextFactory.buildFor(graph, operation, { Value v -> CodeBlock.of('x') }, memberPlan,
-                resolveCtx, switchStyle, sourceVersion)
+                resolveCtx, sourceVersion)
 
         then:
         1 * operation.ports >> [port]

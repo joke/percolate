@@ -103,7 +103,7 @@ class EnumConversionSpec extends Specification {
         ctx.membersOf(sourceElement) >> { [constant('NEW')].stream() }
         ctx.asTypeElement(targetType) >> Optional.of(targetElement)
         ctx.membersOf(targetElement) >> { [constant('CREATED')].stream() }
-        context.switchStyle() >> SwitchStyle.CLASSIC
+        ctx.option('percolate.switch.style') >> Optional.of('CLASSIC')
         context.sourceVersion() >> SourceVersion.RELEASE_11
         context.single() >> CodeBlock.of('v')
         def demand = Demands.withEnumOverrides(targetType, [enumOverride('NEW', 'CREATED')])
@@ -132,19 +132,43 @@ class EnumConversionSpec extends Specification {
 
     def 'resolveStyle AUTO resolves to ARROW on Java 14 and newer'() {
         expect:
-        enumConversion.resolveStyle(SwitchStyle.AUTO, SourceVersion.valueOf('RELEASE_14')) == SwitchStyle.ARROW
-        enumConversion.resolveStyle(SwitchStyle.AUTO, SourceVersion.valueOf('RELEASE_17')) == SwitchStyle.ARROW
+        enumConversion.resolveStyle(Optional.empty(), SourceVersion.valueOf('RELEASE_14')) == SwitchStyle.ARROW
+        enumConversion.resolveStyle(Optional.empty(), SourceVersion.valueOf('RELEASE_17')) == SwitchStyle.ARROW
     }
 
     def 'resolveStyle AUTO resolves to CLASSIC below Java 14'() {
         expect:
-        enumConversion.resolveStyle(SwitchStyle.AUTO, SourceVersion.RELEASE_11) == SwitchStyle.CLASSIC
+        enumConversion.resolveStyle(Optional.empty(), SourceVersion.RELEASE_11) == SwitchStyle.CLASSIC
     }
 
     def 'resolveStyle honours an explicit CLASSIC or ARROW regardless of the target version'() {
         expect:
-        enumConversion.resolveStyle(SwitchStyle.CLASSIC, SourceVersion.valueOf('RELEASE_17')) == SwitchStyle.CLASSIC
-        enumConversion.resolveStyle(SwitchStyle.ARROW, SourceVersion.RELEASE_11) == SwitchStyle.ARROW
+        enumConversion.resolveStyle(Optional.of('CLASSIC'), SourceVersion.valueOf('RELEASE_17')) == SwitchStyle.CLASSIC
+        enumConversion.resolveStyle(Optional.of('ARROW'), SourceVersion.RELEASE_11) == SwitchStyle.ARROW
+    }
+
+    // ---- parseStyle / toStyle: the strategy parses the raw option value itself -----------------------------------
+
+    def 'parseStyle degrades an absent value to AUTO'() {
+        expect:
+        enumConversion.parseStyle(Optional.empty()) == SwitchStyle.AUTO
+    }
+
+    def 'parseStyle reads a present value through toStyle'() {
+        expect:
+        enumConversion.parseStyle(Optional.of('arrow')) == SwitchStyle.ARROW
+    }
+
+    def 'toStyle reads a recognised value case-insensitively'() {
+        expect:
+        enumConversion.toStyle('classic') == SwitchStyle.CLASSIC
+        enumConversion.toStyle('ARROW') == SwitchStyle.ARROW
+        enumConversion.toStyle('Auto') == SwitchStyle.AUTO
+    }
+
+    def 'toStyle degrades an unrecognised value to AUTO'() {
+        expect:
+        enumConversion.toStyle('sideways') == SwitchStyle.AUTO
     }
 
     // ---- buildMapping (task 6.2: name-match, then @MapEnum precedence) --------------------------------------------
@@ -217,7 +241,7 @@ return switch (v) {
         ctx.membersOf(sourceElement) >> [constant('NEW'), constant('CANCELLED')].stream()
         ctx.asTypeElement(targetType) >> Optional.of(targetElement)
         ctx.membersOf(targetElement) >> [constant('NEW')].stream()
-        context.switchStyle() >> SwitchStyle.ARROW
+        ctx.option('percolate.switch.style') >> Optional.of('ARROW')
         context.sourceVersion() >> SourceVersion.RELEASE_17
         context.single() >> CodeBlock.of('v')
         targetType.accept({ it instanceof TypeVisitor }, null) >> ClassName.get('com.example', 'Status')
@@ -243,7 +267,7 @@ return switch (v) {
         ctx.membersOf(sourceElement) >> [constant('NEW')].stream()
         ctx.asTypeElement(targetType) >> Optional.of(targetElement)
         ctx.membersOf(targetElement) >> [constant('NEW')].stream()
-        context.switchStyle() >> SwitchStyle.AUTO
+        ctx.option('percolate.switch.style') >> Optional.empty()
         context.sourceVersion() >> SourceVersion.RELEASE_17
         context.single() >> CodeBlock.of('v')
         targetType.accept({ it instanceof TypeVisitor }, null) >> ClassName.get('com.example', 'Status')
@@ -269,7 +293,7 @@ return switch (v) {
         ctx.membersOf(sourceElement) >> [constant('NEW')].stream()
         ctx.asTypeElement(targetType) >> Optional.of(targetElement)
         ctx.membersOf(targetElement) >> [constant('NEW')].stream()
-        context.switchStyle() >> SwitchStyle.AUTO
+        ctx.option('percolate.switch.style') >> Optional.empty()
         context.sourceVersion() >> SourceVersion.RELEASE_11
         context.single() >> CodeBlock.of('v')
         targetType.accept({ it instanceof TypeVisitor }, null) >> ClassName.get('com.example', 'Status')
