@@ -67,4 +67,4 @@
 
 - [x] 9.1 Run `openspec validate add-builder-assembly` and confirm it passes
 - [x] 9.2 Run `./gradlew check --no-configuration-cache` and fix every violation — NEVER continue while any check fails
-- [ ] 9.3 Commit the completed change with `/commit-commands:commit`
+- [x] 9.3 Commit the completed change with `/commit-commands:commit`
