@@ -54,6 +54,12 @@ with a real before/after of its generated effect.
 | Chooses the switch form xref:enum-mapping.adoc[enum mapping] generates: a classic switch statement or a
   modern, `default`-free switch expression. `AUTO` picks the modern expression on a Java 14+ target, else the
   classic statement; `CLASSIC`/`ARROW` force one or the other regardless of target.
+
+| `percolate.construction.preference`
+| `constructor`
+| Chooses which form xref:builder-assembly.adoc[assembly] prefers when a target offers both a matching
+  constructor and a matching builder. A preference, never a restriction: where the preferred form does not fit,
+  the other one is still used.
 |===
 
 The `docTags`, `locals.final`, `locals.var`, `parameters.final`, `methods.final`, and `classes.final`
@@ -246,8 +252,19 @@ include::example$switches/switch-style-arrow/EnumSwitchMapperImpl.java[tag=toOrd
 Left unset (`AUTO`), the choice instead follows the compilation's own target `SourceVersion`: the modern
 expression on Java 14+, the classic statement on Java 11.
 
+== `percolate.construction.preference`
+
+A type frequently offers both assembly forms at once — Lombok's `@Builder` emits an all-args constructor
+alongside the builder — so both gates match and percolate has to choose. Left unset (`constructor`), it prefers
+the constructor; passed as `-Apercolate.construction.preference=builder`, it prefers the builder instead. See
+xref:builder-assembly.adoc[Builder assembly] for the generated output either way.
+
+The setting is a *preference*, not a restriction: where the preferred form does not fit a particular target, the
+other one is still used rather than the mapping failing.
+
 == Where to next
 
 * xref:defaults-and-nullness.adoc[Defaults & nullness] — the crossing `percolate.nullable.annotations` extends.
 * xref:temporal-mapping.adoc[Temporal mapping] — the zone bridge `percolate.time.zone` configures.
 * xref:enum-mapping.adoc[Enum mapping] — the switch form `percolate.switch.style` configures.
+* xref:builder-assembly.adoc[Builder assembly] — the form `percolate.construction.preference` chooses.

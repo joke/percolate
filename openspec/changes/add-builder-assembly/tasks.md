@@ -49,22 +49,22 @@
 
 ## 7. End-to-end coverage
 
-- [ ] 7.1 Add compile-based e2e fixtures and assertions for each of the four conventions, checking the generated chained expression
-- [ ] 7.2 Add an e2e proving the containment gate: a builder with surplus setters assembles, and a declared child with no setter fails to realise
-- [ ] 7.3 Add an e2e proving the empty declaration assembles nothing through either form
-- [ ] 7.4 Add an e2e over a Lombok-style target exposing both an all-args constructor and a builder, asserting the constructor by default and the builder under `-Apercolate.construction.preference=builder`
-- [ ] 7.5 Add an e2e proving the preference never excludes: with the preference set to `builder`, a builder-less target still assembles through its constructor
+- [x] 7.1 Add compile-based e2e fixtures and assertions for each of the four conventions, checking the generated chained expression
+- [x] 7.2 Add an e2e proving the containment gate: a builder with surplus setters assembles, and a declared child with no setter fails to realise
+- [x] 7.3 Add an e2e proving the empty declaration assembles nothing through either form
+- [x] 7.4 Add an e2e over a Lombok-style target exposing both an all-args constructor and a builder, asserting the constructor by default and the builder under `-Apercolate.construction.preference=builder`
+- [x] 7.5 Add an e2e proving the preference never excludes: with the preference set to `builder`, a builder-less target still assembles through its constructor
 
 ## 8. Documentation
 
-- [ ] 8.1 Write `strategies-builtin/src/docs/builder-assembly.adoc` with a worked example per convention, the subset rule, and the preference switch, including source and generated output by tag
-- [ ] 8.2 Add the compiling documentation fixtures and the doc-e2e that materialises their generated output
-- [ ] 8.3 Add the page to `docs/modules/ROOT/nav.adoc`
-- [ ] 8.4 Document `percolate.construction.preference` in `processor/src/docs/compile-time-switches.adoc` — table row, value section, and a cross-reference to the builder page
-- [ ] 8.5 Run `./gradlew antora` and confirm the site builds with no warnings and the new page renders
+- [x] 8.1 Write `strategies-builtin/src/docs/builder-assembly.adoc` with a worked example per convention, the subset rule, and the preference switch, including source and generated output by tag
+- [x] 8.2 Add the compiling documentation fixtures and the doc-e2e that materialises their generated output
+- [x] 8.3 Add the page to `docs/modules/ROOT/nav.adoc`
+- [x] 8.4 Document `percolate.construction.preference` in `processor/src/docs/compile-time-switches.adoc` — table row, value section, and a cross-reference to the builder page
+- [x] 8.5 Run `./gradlew antora` and confirm the site builds with no warnings and the new page renders
 
 ## 9. Verification
 
-- [ ] 9.1 Run `openspec validate add-builder-assembly` and confirm it passes
-- [ ] 9.2 Run `./gradlew check --no-configuration-cache` and fix every violation — NEVER continue while any check fails
+- [x] 9.1 Run `openspec validate add-builder-assembly` and confirm it passes
+- [x] 9.2 Run `./gradlew check --no-configuration-cache` and fix every violation — NEVER continue while any check fails
 - [ ] 9.3 Commit the completed change with `/commit-commands:commit`

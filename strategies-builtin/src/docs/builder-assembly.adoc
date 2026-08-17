@@ -1,0 +1,123 @@
+= Builder assembly
+:navtitle: Builder assembly
+
+Percolate assembles a target either by calling a **constructor** or by driving a **builder**. Builder support
+ships for four conventions, so a Lombok `@Builder` type, a protobuf message, a with-style immutable, or a
+side-located `<Target>Builder` can all be mapping targets with no configuration.
+
+Whichever form is used, the whole assembly is generated as a single expression, and the ordinary rules apply:
+percolate never auto-maps by name, so every produced member still needs a `@Map` directive.
+
+[source,java]
+----
+include::example$builders/BuilderMapper.java[tag=mapper]
+----
+
+== Fluent builders
+
+The baseline convention — a static no-argument `builder()` on the target, single-argument setters named exactly
+after the member, and a no-argument `build()`. This covers Lombok `@Builder`, AutoValue, and most hand-written
+builders:
+
+[source,java]
+----
+include::example$builders/BuilderMapper.java[tag=fluent]
+----
+
+[source,java]
+----
+include::example$builders/BuilderMapperImpl.java[tag=toPerson,indent=0]
+----
+
+== Protobuf builders
+
+Protobuf messages differ on both naming axes — the factory is `newBuilder()` and the setters are `setX` — so
+they are recognised by their own convention:
+
+[source,java]
+----
+include::example$builders/BuilderMapper.java[tag=protobuf]
+----
+
+[source,java]
+----
+include::example$builders/BuilderMapperImpl.java[tag=toMessage,indent=0]
+----
+
+== With-style builders
+
+Older fluent-immutable codebases often prefix their setters `withX` while keeping the conventional `builder()`
+factory:
+
+[source,java]
+----
+include::example$builders/BuilderMapper.java[tag=with]
+----
+
+[source,java]
+----
+include::example$builders/BuilderMapperImpl.java[tag=toAccount,indent=0]
+----
+
+== Side-located builders
+
+Some codebases put the builder beside the target rather than inside it, as a sibling type named
+`<Target>Builder` with a public no-argument constructor. The name is only where the search starts — the match is
+decided structurally, so a same-named type without an accessible constructor or a `build()` producing the target
+simply does not match:
+
+[source,java]
+----
+include::example$builders/BuilderMapper.java[tag=sidelocated]
+----
+
+[source,java]
+----
+include::example$builders/BuilderMapperImpl.java[tag=toWidget,indent=0]
+----
+
+== Only the declared members are set
+
+Builder setters are optional, so a builder needs only to *offer* the members you declare — it may offer many
+more. This is the one place builder assembly differs from constructor assembly, where every parameter is
+mandatory and the declared members must match the parameter list exactly.
+
+`Person`'s builder also offers `nickname()`, which the mapping below never declares. That setter is simply not
+called, and the builder's own default survives:
+
+[source,java]
+----
+include::example$builders/BuilderMapperImpl.java[tag=toNameOnlyPerson,indent=0]
+----
+
+== Choosing between a constructor and a builder
+
+A type frequently offers both forms — Lombok's `@Builder` emits an all-args constructor alongside the builder —
+so both gates match and percolate has to choose. By default it prefers the **constructor**:
+
+[source,java]
+----
+include::example$builders/preference-constructor/PreferenceMapperImpl.java[tag=toCoupon,indent=0]
+----
+
+Setting `percolate.construction.preference` to `builder` flips that, for every target in the compilation:
+
+[source,java]
+----
+include::example$builders/preference-builder/PreferenceMapperImpl.java[tag=toCoupon,indent=0]
+----
+
+[IMPORTANT]
+====
+The setting is a *preference*, not a restriction. Where the preferred form does not fit a particular target, the
+other one is still used rather than the mapping failing: a type with no builder at all still assembles through
+its constructor even when the preference names the builder.
+====
+
+See xref:compile-time-switches.adoc[Compile-time switches] for how to pass the option from Maven and Gradle.
+
+== Where to next
+
+* xref:mapper-structure.adoc[Mapper structure] — what percolate discovers on a `@Mapper` type.
+* xref:map-annotation.adoc[The `@Map` annotation] — the directives that declare each produced member.
+* xref:compile-time-switches.adoc[Compile-time switches] — `percolate.construction.preference` and its siblings.
