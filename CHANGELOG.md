@@ -1,5 +1,19 @@
 # Changelog
 
+## [1.3.0](https://github.com/joke/percolate/compare/v1.2.0...v1.3.0) (2026-08-18)
+
+
+### Features
+
+* **processor,strategies-builtin:** declare construction.preference and price constructor assembly ([c64d2cb](https://github.com/joke/percolate/commit/c64d2cb4d4925211b04adeb9d0c6b294cf152902))
+* **strategies-builtin:** add builder assembly across four conventions ([b942cca](https://github.com/joke/percolate/commit/b942ccafa7d2435e7796b8435aa6ddf9bc40fcd1))
+
+
+### Bug Fixes
+
+* **docs:** correct ambient-parameters include tags and run antora in CI ([37b38d3](https://github.com/joke/percolate/commit/37b38d34b34a0f77d30411df2d5d3a9c5ebc42ca))
+* **processor,spi,strategies-builtin,openspec,docs:** close the verification gaps in decouple-engine-from-strategy-semantics ([c0aef3c](https://github.com/joke/percolate/commit/c0aef3c86179e27a2373b64db0815559a1cf3819))
+
 ## [1.2.0](https://github.com/joke/percolate/compare/v1.1.0...v1.2.0) (2026-07-26)
 
 
