@@ -8,13 +8,15 @@ context: |
 
 rules:
   proposal:
-  - Identify affected teams
+  - Use Simplified Technical English (ASD-STE100)
   design:
+  - Use Simplified Technical English (ASD-STE100)
   - NEVER break the architecture! If a concept is a shift in the architecture warn explicitly
   - ALWAYS prefer clear architecture over direct solutions to a problem
   - Prefer mermaid diagrams in all markdown files
   - Include mermaid diagrams for complex flows
   tasks:
+  - Use Simplified Technical English (ASD-STE100)
   - Always add a final task to run `./gradlew check` to verify everything. NEVER continue if there are violations!
   - Commit the completed spec with /commit-commands:commit
 
