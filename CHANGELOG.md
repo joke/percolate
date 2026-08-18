@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.3.1](https://github.com/joke/percolate/compare/v1.3.0...v1.3.1) (2026-08-18)
+
+
+### Bug Fixes
+
+* **build:** declare a repository on the root project so nmcp can resolve ([ef0c7d5](https://github.com/joke/percolate/commit/ef0c7d56e9c1eb9ac24b5bf2b582e0d8b5bc7329))
+
 ## [1.3.0](https://github.com/joke/percolate/compare/v1.2.0...v1.3.0) (2026-08-18)
 
 
