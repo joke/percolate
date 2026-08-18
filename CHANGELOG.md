@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.3.2](https://github.com/joke/percolate/compare/v1.3.1...v1.3.2) (2026-08-18)
+
+
+### Bug Fixes
+
+* **strategies-builtin:** declare generated-doc-examples as an integrationTest output ([8351832](https://github.com/joke/percolate/commit/83518329c36d837812a062d97d2c886bbc35547b))
+
 ## [1.3.1](https://github.com/joke/percolate/compare/v1.3.0...v1.3.1) (2026-08-18)
 
 
