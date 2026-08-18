@@ -176,7 +176,7 @@ The `percolate-spi` module SHALL provide the abstract `Container` base for decla
 
 ### Requirement: Built-in strategies bind to ExpansionStrategy
 
-Every built-in strategy (`ConstructorCall`, `DirectAssign`, `MethodCallBridge`, the container strategies, and the `Getter` / `Method` / `Field` path resolvers) SHALL implement `ExpansionStrategy` (directly or via a base — `Container` / `Conversion` / `Accessor`) and SHALL register via `@AutoService(ExpansionStrategy.class)`. Their generated code (the codegen each emits) is unchanged; only the SPI binding and result type change.
+Every built-in strategy (`ConstructorCall`, `DirectAssign`, `MethodCallBridge`, the four builder strategies `FluentBuilder` / `ProtobufBuilder` / `WithBuilder` / `SideLocatedBuilder`, the container strategies, and the `Getter` / `Method` / `Field` path resolvers) SHALL implement `ExpansionStrategy` (directly or via a base — `Container` / `Conversion` / `Accessor`) and SHALL register via `@AutoService(ExpansionStrategy.class)`. Their generated code (the codegen each emits) is unchanged; only the SPI binding and result type change.
 
 `DirectAssign` SHALL be target-driven: for any demand it emits a single same-type identity `OperationSpec` (label `assign`, weight `Weights.NOOP`) whose lone port is **reuse-only** and nullness-transparent to the demand — the driver binds an in-scope source of the demanded type and nullness, or the operation does not apply (it is never minted). It reads no candidate. The zero-cost identity Operation flows the bound source value through; a round-trip that reuses a downstream Value closes a cycle the cost-extraction fold never chooses.
 
@@ -184,6 +184,10 @@ Every built-in strategy (`ConstructorCall`, `DirectAssign`, `MethodCallBridge`, 
 - **WHEN** the source of any built-in strategy in `strategies-builtin/` is inspected
 - **THEN** it carries `@AutoService(ExpansionStrategy.class)`
 - **AND** it implements `ExpansionStrategy` directly or through a base
+
+#### Scenario: The builder strategies bind like every other built-in
+- **WHEN** the sources of `FluentBuilder`, `ProtobufBuilder`, `WithBuilder`, and `SideLocatedBuilder` are inspected
+- **THEN** each implements `ExpansionStrategy` directly and carries `@AutoService(ExpansionStrategy.class)`
 
 #### Scenario: DirectAssign emits a zero-cost reuse-only identity for the demand
 - **WHEN** `DirectAssign.expand` processes a demand
@@ -193,16 +197,17 @@ Every built-in strategy (`ConstructorCall`, `DirectAssign`, `MethodCallBridge`, 
 ### Requirement: ResolveCtx is the narrow type-query seam
 
 The percolate-spi module SHALL define `io.github.joke.percolate.spi.ResolveCtx` as a single narrow,
-mockable **type-query seam**: beyond `callableMethods()`, it exposes the purpose-built type and
-member-reflection questions the engine and strategies actually ask — realised as ~35 methods, not the
-originally-measured ~13, once type-algebra (`isSameType`/`isAssignable`/`erasure`/`isPrimitive`/`isArray`/
-`isDeclared`/`typeArgument`/`typeArgumentCount`/`arrayComponent`/`declaredType`/`arrayType`/`boxed`/
+mockable **type-query seam**: beyond `callableMethods()` and the generic `option(String)` lookup, it exposes the
+purpose-built type and member-reflection questions the engine and strategies actually ask — realised as ~35
+methods, not the originally-measured ~13, once type-algebra (`isSameType`/`isAssignable`/`erasure`/`isPrimitive`/
+`isArray`/`isDeclared`/`typeArgument`/`typeArgumentCount`/`arrayComponent`/`declaredType`/`arrayType`/`boxed`/
 `unboxed`/`simpleName`/`qualifiedName`/…), higher-level container/type predicates (`isList`/`isSet`/
 `isOptional`/`isStream`/`isCollection`/`isIterable`/`isEnum`/`isReferenceType`/`isType`/`typeElementNamed`),
 and member reflection (`membersOf`/`isField`/`isMethod`/`isConstructor`/`isPrivate`/`isStatic`/
 `superclassOf`) are all counted. It SHALL NOT expose `typeSpace()`, `mapperType()`, or `currentMethod()`,
 nor any owned type-value model, nor any reference to `MapperGraph`, `Edge`, `Node`, `EdgeKind`,
-`MapperStep`, or any other type from `processor.graph` or `processor.stages.*`.
+`MapperStep`, or any other type from `processor.graph` or `processor.stages.*`. It SHALL NOT expose a
+feature-named processor-option accessor; `configuredTimeZone()` is removed in favour of `option(String)`.
 
 `ResolveCtx` SHALL still declare `types()`/`elements()` — this is a **deliberate delegation seam**, not an
 oversight: the production real-javac implementation (`CompileResolveCtx`) answers every seam question by
@@ -239,6 +244,10 @@ opaque token without importing `Types`/`Elements`).
 - **AND** no engine or strategy production class other than `CompileResolveCtx` calls `types()`/`elements()`
   directly to answer a type question
 - **AND** no test constructs a `ResolveCtx` over a `Types`/`Elements` pair (`ResolveCtxBuilder` does not exist)
+
+#### Scenario: The seam carries no feature-named option accessor
+- **WHEN** the `ResolveCtx` interface is inspected
+- **THEN** it declares `option(String)` and no `configuredTimeZone()` method
 
 #### Scenario: A type-returning question yields an opaque token
 - **WHEN** a strategy calls `ctx.typeArgument(t, 0)` on a declared `List<String>` token
@@ -352,7 +361,7 @@ The percolate-spi module SHALL expose a constant `CONTAINER` (a positive `int`) 
 
 The `percolate-strategies-builtin` module SHALL contain a Spock specification at `strategies-builtin/src/test/groovy/io/github/joke/percolate/spi/builtins/BuiltinServiceRegistrationSpec.groovy` that asserts the cross-module contract: when `percolate-strategies-builtin` is on the classpath, `ServiceLoader.load(ExpansionStrategy.class)` discovers exactly the expected built-in classes. There is a **single** strategy SPI interface (`ExpansionStrategy`); there is no separate `Bridge` / `GroupTarget` / `PathSegmentResolver` registration.
 
-The spec SHALL assert that `ServiceLoader.load(ExpansionStrategy.class)` discovers, at minimum, the shipped built-ins: `DirectAssign`, `MethodCallBridge`, `ConstructorCall`, `WidenPrimitive`, `PrimitiveWrapperConversion`, `ConstantValue`, `NullnessCrossing`, `OptionalContainer`, `ListContainer`, `SetContainer`, `ArrayContainer`, `GetterPathResolver`, `FieldPathResolver`, and `MethodPathResolver`.
+The spec SHALL assert that `ServiceLoader.load(ExpansionStrategy.class)` discovers, at minimum, the shipped built-ins: `DirectAssign`, `MethodCallBridge`, `ConstructorCall`, `FluentBuilder`, `ProtobufBuilder`, `WithBuilder`, `SideLocatedBuilder`, `WidenPrimitive`, `PrimitiveWrapperConversion`, `ConstantValue`, `NullnessCrossing`, `OptionalContainer`, `ListContainer`, `SetContainer`, `ArrayContainer`, `GetterPathResolver`, `FieldPathResolver`, and `MethodPathResolver`.
 
 The spec SHALL additionally assert that superseded classes (the per-operation container bridges such as `OptionalUnwrap`, `SetCollect`, `ListCollect`, `ListWrap`, `IterableUnwrap`; the former `GetterRead` and `RecordPathResolver`; and the separate `DefaultValue` strategy folded into `NullnessCrossing`) are NOT discovered.
 
@@ -360,7 +369,7 @@ The spec SHALL be tagged `@spock.lang.Tag('unit')` and SHALL NOT invoke `Expansi
 
 #### Scenario: ServiceLoader discovers all expected ExpansionStrategy builtins
 - **WHEN** `ServiceLoader.load(ExpansionStrategy.class)` is invoked from `BuiltinServiceRegistrationSpec`
-- **THEN** the returned classes contain, as a subset, `DirectAssign`, `MethodCallBridge`, `ConstructorCall`, `WidenPrimitive`, `PrimitiveWrapperConversion`, `ConstantValue`, `NullnessCrossing`, `OptionalContainer`, `ListContainer`, `SetContainer`, `ArrayContainer`, `GetterPathResolver`, `FieldPathResolver`, and `MethodPathResolver`
+- **THEN** the returned classes contain, as a subset, `DirectAssign`, `MethodCallBridge`, `ConstructorCall`, `FluentBuilder`, `ProtobufBuilder`, `WithBuilder`, `SideLocatedBuilder`, `WidenPrimitive`, `PrimitiveWrapperConversion`, `ConstantValue`, `NullnessCrossing`, `OptionalContainer`, `ListContainer`, `SetContainer`, `ArrayContainer`, `GetterPathResolver`, `FieldPathResolver`, and `MethodPathResolver`
 
 #### Scenario: Superseded builtins are absent
 - **WHEN** the discovered `ExpansionStrategy` set is inspected
@@ -621,16 +630,24 @@ choice of its own.
 
 A `BodyCodegen` SHALL render against a context that is a **superset of `IncomingValues`** — carrying the same
 port-keyed incoming expressions — and that additionally exposes, per port, the **grounded concrete `TypeMirror`**
-bound to that port, a `ResolveCtx`, the effective `switch.style` value, and the target `SourceVersion`. This lets a
+bound to that port, a `ResolveCtx`, and the target `SourceVersion`. This lets a
 conversion whose emitted text depends on the source's shape (e.g. enumerating a source enum's constants) read the
 grounded source type and choose its rendering, while remaining myopic: the context exposes only the resolved types
 of the operation's own ports, never a graph or candidate-Value snapshot. `OperationCodegen.render` SHALL continue to
 receive only `IncomingValues`.
 
+The context SHALL NOT expose a feature-named option accessor. `switchStyle()` is removed; a codegen that needs a
+processor option SHALL read it through `resolveCtx().option(key)` and interpret the raw value itself.
+
 #### Scenario: BodyCodegen context surfaces the grounded source type
 - **WHEN** a `BodyCodegen` renders for a production whose input port grounded to `MyStatus`
-- **THEN** its context returns the grounded `TypeMirror` `MyStatus` for that port, plus a `ResolveCtx`, the effective
-  `switch.style`, and the target `SourceVersion`
+- **THEN** its context returns the grounded `TypeMirror` `MyStatus` for that port, plus a `ResolveCtx` and the
+  target `SourceVersion`
+
+#### Scenario: The context carries no feature-named option accessor
+- **WHEN** the `BodyCodegen` render context is inspected
+- **THEN** it declares no `switchStyle()` method
+- **AND** a codegen needing the switch style reads `resolveCtx().option("percolate.switch.style")`
 
 #### Scenario: The context exposes no graph or candidate snapshot
 - **WHEN** the `BodyCodegen` render context is inspected
@@ -654,3 +671,28 @@ core stage.
 #### Scenario: A third-party key needs no registration
 - **WHEN** a third-party strategy reads an input keyed by a name only it knows
 - **THEN** no core registration, enum constant, or spec change is required for that key to travel with the demand
+
+### Requirement: ResolveCtx exposes processor options through one generic keyed lookup
+
+`ResolveCtx` SHALL expose exactly one processor-option accessor, `Optional<String> option(String key)`, returning the raw value declared for `key` in `processingEnv.getOptions()` or empty when the option is unset. It SHALL NOT declare any option accessor named after, or typed for, a particular feature.
+
+`ProcessorOptions` in the `processor` module remains the parsing and validation owner; the seam is only how a strategy reaches a value. A strategy SHALL interpret its own option's raw value — the engine continues to make no code-generation or selection choice from any option.
+
+A strategy or codegen that needs an option value SHALL read it through this lookup. Adding a feature that consumes a processor option SHALL NOT widen the seam.
+
+#### Scenario: A strategy reads its own option by key
+- **WHEN** a strategy calls `ctx.option("percolate.construction.preference")` and the option is set to `builder`
+- **THEN** the seam returns `Optional.of("builder")`
+
+#### Scenario: An unset option yields empty
+- **WHEN** a strategy calls `ctx.option(key)` for a key absent from the compiler options
+- **THEN** the seam returns `Optional.empty()`
+
+#### Scenario: The seam declares no feature-named option accessor
+- **WHEN** the `ResolveCtx` interface is inspected
+- **THEN** `option(String)` is its only processor-option method
+- **AND** it declares no `configuredTimeZone()`, no `constructionPreference()`, and no other per-feature option accessor
+
+#### Scenario: A new option-consuming feature does not widen the seam
+- **WHEN** a feature that reads a processor option is added
+- **THEN** it reads through `option(String)` and adds no method to `ResolveCtx`

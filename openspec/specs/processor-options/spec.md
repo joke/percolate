@@ -95,18 +95,6 @@ set, alongside the existing supported options.
 - **WHEN** `PercolateProcessor.getSupportedOptions()` is invoked
 - **THEN** the returned set contains the string `"percolate.docTags"`
 
-### Requirement: ProcessorOptions exposes timeZone
-
-`ProcessorOptions` SHALL grow an `Optional<String> timeZone` field carrying the project-wide default zone id for temporal conversions, parsed from the compiler option `-Apercolate.time.zone=Europe/Berlin`. The field SHALL be **absent** (an empty `Optional`) when the option is not set, so that an unpinned mapper defers to a generated `ZoneId.systemDefault()` at the consumer's runtime rather than to any build-machine zone. When present, the value SHALL be the raw zone id string, rendered by the temporal zone bridge as a frozen `ZoneId.of("…")`. The processor SHALL NOT substitute its own build-JVM zone when the option is absent.
-
-#### Scenario: Option absent yields an empty timeZone
-- **WHEN** `processingEnv.getOptions()` does not contain `"percolate.time.zone"`
-- **THEN** the produced `ProcessorOptions.timeZone` is an empty `Optional`
-
-#### Scenario: Option present carries the zone id
-- **WHEN** `processingEnv.getOptions()` contains `"percolate.time.zone" -> "Europe/Berlin"`
-- **THEN** the produced `ProcessorOptions.timeZone` is present with value `"Europe/Berlin"`
-
 ### Requirement: time.zone option is declared
 
 `PercolateProcessor.getSupportedOptions()` SHALL include the string `"percolate.time.zone"` in its returned set, alongside the existing supported options.
@@ -175,27 +163,6 @@ set, alongside the existing supported options.
 - **WHEN** `PercolateProcessor.getSupportedOptions()` is invoked
 - **THEN** the returned set contains the string `"percolate.classes.final"`
 
-### Requirement: ProcessorOptions exposes switchStyle
-
-`ProcessorOptions` SHALL grow a `switchStyle` field of an enum type with values `AUTO`, `CLASSIC`, and `ARROW`,
-parsed from the compiler option `-Apercolate.switch.style=…` (case-insensitive). The field SHALL default to `AUTO`
-when the option is absent or unrecognised. `AUTO` defers the classic-vs-modern decision to the consuming strategy,
-which resolves it against the target `SourceVersion`; `CLASSIC` forces a classic switch statement; `ARROW` forces a
-modern switch expression. The value SHALL be consumed by the `enum-conversion` capability's switch rendering; the
-processor's generate stage SHALL NOT read it.
-
-#### Scenario: Option absent yields AUTO
-- **WHEN** `processingEnv.getOptions()` does not contain `"percolate.switch.style"`
-- **THEN** the produced `ProcessorOptions.switchStyle` is `AUTO`
-
-#### Scenario: Option set forces a style
-- **WHEN** `processingEnv.getOptions()` contains `"percolate.switch.style" -> "classic"`
-- **THEN** the produced `ProcessorOptions.switchStyle` is `CLASSIC`
-
-#### Scenario: Unrecognised value falls back to AUTO
-- **WHEN** `processingEnv.getOptions()` contains `"percolate.switch.style" -> "nonsense"`
-- **THEN** the produced `ProcessorOptions.switchStyle` is `AUTO`
-
 ### Requirement: switch.style option is declared
 
 `PercolateProcessor.getSupportedOptions()` SHALL include the string `"percolate.switch.style"` in its returned set,
@@ -204,3 +171,43 @@ alongside the existing supported options.
 #### Scenario: switch.style option is declared
 - **WHEN** `PercolateProcessor.getSupportedOptions()` is invoked
 - **THEN** the returned set contains the string `"percolate.switch.style"`
+
+### Requirement: construction.preference option is declared
+
+`PercolateProcessor.getSupportedOptions()` SHALL include the string `"percolate.construction.preference"` in its returned set, alongside the existing supported options, and `ProcessorOptions` SHALL declare the key as a constant.
+
+The option's accepted values are `constructor` (the default) and `builder`. It carries **no** typed field on `ProcessorOptions`: like every other strategy-consumed option it is read raw through `ResolveCtx.option(String)` and parsed by the assembly strategies that own its meaning.
+
+#### Scenario: construction.preference option is declared
+- **WHEN** `PercolateProcessor.getSupportedOptions()` is invoked
+- **THEN** the returned set contains the string `"percolate.construction.preference"`
+
+#### Scenario: The option carries no typed field
+- **WHEN** `ProcessorOptions` is inspected
+- **THEN** it declares the `percolate.construction.preference` key constant
+- **AND** it declares no `constructionPreference` field
+
+### Requirement: Strategy-consumed options carry no typed field
+
+`ProcessorOptions` SHALL carry a typed field only for an option an **engine-internal** consumer reads. An option consumed by a strategy SHALL live only in the raw option map, be reached through `ResolveCtx.option(String)`, and be parsed by the strategy that owns its meaning — so exactly one parser exists per option, in the module that gives it meaning.
+
+`ProcessorOptions` SHALL carry the raw `-A` option map verbatim, so the per-mapper `ResolveCtx` can answer `option(key)` for any declared key without a per-feature field.
+
+#### Scenario: Engine-internal options keep their typed fields
+- **WHEN** an engine-internal consumer reads `debugGraphs`, `localsFinal`, `parametersFinal`, `methodsFinal`, `classesFinal`, `docTags`, or `customNullableAnnotations`
+- **THEN** it reads the typed `ProcessorOptions` field
+
+#### Scenario: Strategy-consumed options have no typed field
+- **WHEN** `ProcessorOptions` is inspected
+- **THEN** it declares no `timeZone`, `switchStyle`, or `constructionPreference` field
+- **AND** each of those options is reachable through the raw map by its declared key
+
+#### Scenario: Exactly one parser exists per strategy-consumed option
+- **WHEN** the parsing of `percolate.switch.style` is located
+- **THEN** it lives solely in the enum-conversion strategy that reads it
+- **AND** `ProcessorOptionsReader` parses it nowhere
+
+#### Scenario: A strategy-consumed option needs no bespoke seam field
+- **WHEN** the per-mapper `ResolveCtx` is constructed
+- **THEN** it can answer `option(key)` for any declared `percolate.*` key
+- **AND** it carries no field named for an individual feature's option
