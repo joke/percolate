@@ -6,6 +6,15 @@ plugins {
     id 'com.netflix.nebula.archrules.aggregate'
 }
 
+// Every other project gets its repositories from percolate.conventions, which the root does not
+// apply. It still needs one: nmcp adds com.gradleup.nmcp:nmcp-tasks to an 'nmcpTasks' configuration
+// on every project it touches - including this one, via the aggregation plugin below - without
+// providing a repository of its own. With none declared here, :nmcpCheckAggregationFiles cannot
+// resolve and publishAggregationToCentralPortal fails.
+repositories {
+    mavenCentral()
+}
+
 // com.gradleup.nmcp.settings (applied in settings.gradle) implicitly applies
 // com.gradleup.nmcp.aggregation to this root project - configure the extension it registers
 // here rather than re-applying the plugin.
