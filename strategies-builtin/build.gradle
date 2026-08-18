@@ -53,3 +53,10 @@ tasks.named('compileTestJava') {
     options.release = 17
     options.compilerArgs << '-Apercolate.docTags=true'
 }
+
+tasks.named('integrationTest') {
+    // ConstructionPreferenceDocExampleSpec and LiteralDirectiveReaderDocExampleSpec materialise the
+    // builder-assembly and Extending pages' generated output here — see the equivalent declaration in
+    // reactor/build.gradle for why an undeclared side-effect directory breaks a cache hit.
+    outputs.dir layout.buildDirectory.dir('generated-doc-examples')
+}
