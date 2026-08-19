@@ -1,9 +1,10 @@
 = Builder assembly
 :navtitle: Builder assembly
 
-Percolate assembles a target either by calling a **constructor** or by driving a **builder**. Builder support
-ships for four conventions, so a Lombok `@Builder` type, a protobuf message, a with-style immutable, or a
-side-located `<Target>Builder` can all be mapping targets with no configuration.
+Percolate assembles a target by calling a **constructor**, by driving a **builder**, or by
+xref:setter-assembly.adoc[calling setters]. Builder support ships for four conventions, so a Lombok `@Builder`
+type, a protobuf message, a with-style immutable, or a side-located `<Target>Builder` can all be mapping targets
+with no configuration.
 
 Whichever form is used, the whole assembly is generated as a single expression, and the ordinary rules apply:
 percolate never auto-maps by name, so every produced member still needs a `@Map` directive.
@@ -90,17 +91,19 @@ called, and the builder's own default survives:
 include::example$builders/BuilderMapperImpl.java[tag=toNameOnlyPerson,indent=0]
 ----
 
-== Choosing between a constructor and a builder
+== Choosing between the assembly forms
 
-A type frequently offers both forms — Lombok's `@Builder` emits an all-args constructor alongside the builder —
-so both gates match and percolate has to choose. By default it prefers the **constructor**:
+A type frequently offers more than one form — Lombok's `@Builder` emits an all-args constructor alongside the
+builder, and a bean adds xref:setter-assembly.adoc[setters] on top — so several gates match and percolate has to
+choose. `percolate.construction.preference` ranks the forms as a comma-separated list; any form you leave out is
+appended in the default order `constructor,builder,setter`. By default the **constructor** ranks first:
 
 [source,java]
 ----
 include::example$builders/preference-constructor/PreferenceMapperImpl.java[tag=toCoupon,indent=0]
 ----
 
-Setting `percolate.construction.preference` to `builder` flips that, for every target in the compilation:
+Naming `builder` puts the builder first, for every target in the compilation:
 
 [source,java]
 ----
@@ -109,9 +112,9 @@ include::example$builders/preference-builder/PreferenceMapperImpl.java[tag=toCou
 
 [IMPORTANT]
 ====
-The setting is a *preference*, not a restriction. Where the preferred form does not fit a particular target, the
-other one is still used rather than the mapping failing: a type with no builder at all still assembles through
-its constructor even when the preference names the builder.
+The setting is a *preference*, not a restriction. Where a higher-ranked form does not fit a particular target,
+the next one is still used rather than the mapping failing: a type with no builder at all still assembles
+through its constructor even when the preference names the builder.
 ====
 
 See xref:compile-time-switches.adoc[Compile-time switches] for how to pass the option from Maven and Gradle.
@@ -120,4 +123,5 @@ See xref:compile-time-switches.adoc[Compile-time switches] for how to pass the o
 
 * xref:mapper-structure.adoc[Mapper structure] — what percolate discovers on a `@Mapper` type.
 * xref:map-annotation.adoc[The `@Map` annotation] — the directives that declare each produced member.
+* xref:setter-assembly.adoc[Setter assembly] — the same containment rule, applied to a plain JavaBean.
 * xref:compile-time-switches.adoc[Compile-time switches] — `percolate.construction.preference` and its siblings.

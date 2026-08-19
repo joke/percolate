@@ -63,7 +63,7 @@ class BodyRenderContextImplSpec extends Specification {
 
     def 'buildFor resolves a member reference for a strategy-requested member, by dedup key'() {
         Operation operation = Mock()
-        def memberRequest = new MemberRequest(null, CodeBlock.of('null'), 'fmt-yyyy-MM-dd')
+        def memberRequest = MemberRequest.field(null, CodeBlock.of('null'), 'fmt-yyyy-MM-dd')
 
         when:
         def context = bodyRenderContextFactory.buildFor(graph, operation, { Value v -> CodeBlock.of('x') }, memberPlan,

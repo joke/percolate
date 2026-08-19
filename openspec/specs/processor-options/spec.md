@@ -163,6 +163,53 @@ set, alongside the existing supported options.
 - **WHEN** `PercolateProcessor.getSupportedOptions()` is invoked
 - **THEN** the returned set contains the string `"percolate.classes.final"`
 
+### Requirement: A HelperStyle value carries the generated-member modifiers
+
+The `processor` module SHALL define a `HelperStyle` value type carrying the modifiers of every strategy-requested class member, parsed once by `ProcessorOptionsReader` and provided to the generate stage on its own rather than as a `ProcessorOptions` field. The two options always travel together, and the stage that reads them needs nothing else from `ProcessorOptions`, so one value injected directly is both the smaller seam and the honest model.
+
+`HelperStyle` SHALL carry:
+
+- a `MemberVisibility` — parsed from `-Apercolate.helpers.visibility`, defaulting to `private` when the option is absent, empty, or unrecognised, case-insensitively. `MemberVisibility` is a new enum in the `processor` module with the constants `PRIVATE`, `PACKAGE`, `PROTECTED` and `PUBLIC`. It SHALL NOT reuse the SPI's `Visibility`, which names scope-input reachability and is unrelated.
+- a `boolean` static flag — `true` when `-Apercolate.helpers.static` is absent, and `true` when it is set to `true` in any letter case. Any other value yields `false`.
+
+Both are engine-internal options, so both are parsed into a typed value, in accordance with *Strategy-consumed options carry no typed field*. Exactly one parser SHALL exist for each, in `ProcessorOptionsReader`.
+
+#### Scenario: Absent options yield the defaults
+- **WHEN** `processingEnv.getOptions()` contains neither key
+- **THEN** the produced `HelperStyle` has visibility `private` and its static flag set
+
+#### Scenario: Visibility parses case-insensitively
+- **WHEN** `processingEnv.getOptions()` contains the entry `"percolate.helpers.visibility" -> "PROTECTED"`
+- **THEN** the produced `HelperStyle` has visibility `protected`
+
+#### Scenario: An unrecognised visibility degrades to private
+- **WHEN** `processingEnv.getOptions()` contains the entry `"percolate.helpers.visibility" -> "wombat"`
+- **THEN** the produced `HelperStyle` has visibility `private`
+
+#### Scenario: static defaults to true and is switched off explicitly
+- **WHEN** `processingEnv.getOptions()` contains the entry `"percolate.helpers.static" -> "false"`
+- **THEN** the produced `HelperStyle` has its static flag cleared
+
+#### Scenario: static parses case-insensitively
+- **WHEN** `processingEnv.getOptions()` contains the entry `"percolate.helpers.static" -> "TRUE"`
+- **THEN** the produced `HelperStyle` has its static flag set
+
+#### Scenario: The style is injected on its own
+- **WHEN** the generate stage's member-plan factory is inspected
+- **THEN** it declares a `HelperStyle` dependency and no `ProcessorOptions` dependency
+
+### Requirement: helpers.visibility and helpers.static options are declared
+
+`PercolateProcessor.getSupportedOptions()` SHALL include the strings `"percolate.helpers.visibility"` and `"percolate.helpers.static"` in its returned set, alongside the existing supported options, and `ProcessorOptions` SHALL declare both keys as constants.
+
+#### Scenario: Both options are declared
+- **WHEN** `PercolateProcessor.getSupportedOptions()` is invoked
+- **THEN** the returned set contains `"percolate.helpers.visibility"` and `"percolate.helpers.static"`
+
+#### Scenario: Both keys are declared as constants
+- **WHEN** `ProcessorOptions` is inspected
+- **THEN** it declares a key constant for each of the two options
+
 ### Requirement: switch.style option is declared
 
 `PercolateProcessor.getSupportedOptions()` SHALL include the string `"percolate.switch.style"` in its returned set,
@@ -176,7 +223,9 @@ alongside the existing supported options.
 
 `PercolateProcessor.getSupportedOptions()` SHALL include the string `"percolate.construction.preference"` in its returned set, alongside the existing supported options, and `ProcessorOptions` SHALL declare the key as a constant.
 
-The option's accepted values are `constructor` (the default) and `builder`. It carries **no** typed field on `ProcessorOptions`: like every other strategy-consumed option it is read raw through `ResolveCtx.option(String)` and parsed by the assembly strategies that own its meaning.
+The option's value is an **ordered, comma-separated list** of assembly form tokens drawn from `constructor`, `builder` and `setter`. Omitted tokens are appended in the fixed default order `constructor,builder,setter`, so an absent option ranks the constructor first. Both previously accepted values, `constructor` and `builder`, remain valid as one-element lists and keep their previous effect.
+
+It carries **no** typed field on `ProcessorOptions`: like every other strategy-consumed option it is read raw through `ResolveCtx.option(String)` and parsed by the assembly strategies that own its meaning.
 
 #### Scenario: construction.preference option is declared
 - **WHEN** `PercolateProcessor.getSupportedOptions()` is invoked
@@ -187,6 +236,10 @@ The option's accepted values are `constructor` (the default) and `builder`. It c
 - **THEN** it declares the `percolate.construction.preference` key constant
 - **AND** it declares no `constructionPreference` field
 
+#### Scenario: A previously accepted single value keeps its effect
+- **WHEN** a build sets `-Apercolate.construction.preference=builder`
+- **THEN** the builder form ranks first, exactly as before this change
+
 ### Requirement: Strategy-consumed options carry no typed field
 
 `ProcessorOptions` SHALL carry a typed field only for an option an **engine-internal** consumer reads. An option consumed by a strategy SHALL live only in the raw option map, be reached through `ResolveCtx.option(String)`, and be parsed by the strategy that owns its meaning — so exactly one parser exists per option, in the module that gives it meaning.
@@ -196,6 +249,7 @@ The option's accepted values are `constructor` (the default) and `builder`. It c
 #### Scenario: Engine-internal options keep their typed fields
 - **WHEN** an engine-internal consumer reads `debugGraphs`, `localsFinal`, `parametersFinal`, `methodsFinal`, `classesFinal`, `docTags`, or `customNullableAnnotations`
 - **THEN** it reads the typed `ProcessorOptions` field
+- **AND** the `helpers.*` options reach their consumer as a typed `HelperStyle`, parsed by the same reader
 
 #### Scenario: Strategy-consumed options have no typed field
 - **WHEN** `ProcessorOptions` is inspected

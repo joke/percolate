@@ -76,15 +76,20 @@ the generate stage decide where a statement list may appear. The helper needs ne
 **Alternative considered — per-setter operations.** Rejected for the totality reason in *Context*. This is the
 same rule `add-builder-assembly` established, and it is not open for re-decision.
 
-### D2 — `MemberRequest` becomes an interface with two kinds
+### D2 — `MemberRequest` becomes a pseudo-sealed base with two kinds
 
-`MemberRequest` is a Lombok `@Value` class describing a field. It becomes an interface carrying only
-`String dedupKey()`, with two `@Value` implementations and two static factories.
+`MemberRequest` is a Lombok `@Value` class describing a field. It becomes a base exposing only
+`String getDedupKey()`, with two `@Value` leaves and two static factories.
+
+It is an **abstract class with a package-private constructor**, not an interface (settled during apply). An
+interface cannot keep the hierarchy closed on Java 11, and the generate stage walks the shape structurally —
+`instanceof Field` / `instanceof Method` — rather than through a dispatch method, which is only sound while
+membership is pinned. `Offer` and `PortType` already carry that convention, so this adds no new idiom.
 
 | Factory | Carries | Emits |
 |---|---|---|
 | `MemberRequest.field(TypeName, CodeBlock, String)` | field type, initializer, dedup key | a field |
-| `MemberRequest.method(TypeName, List<Param>, CodeBlock, String)` | return type, ordered parameters, body, dedup key | a method |
+| `MemberRequest.method(String, TypeName, List<Param>, CodeBlock, String)` | name hint, return type, ordered parameters, body, dedup key | a method |
 
 `MemberPlan` dispatches on the kind in one place. The engine reads no member content, so it still makes no
 codegen choice — it dispatches on a shape the strategy declared, which is the same rule that lets
@@ -97,6 +102,12 @@ codegen choice — it dispatches on a shape the strategy declared, which is the 
 produces a value type whose fields are mutually exclusive, and every reader must ask which half is set.
 Rejected.
 
+**The method request carries a name hint** (added during apply). Without one the stage must invent a method
+name from the return type, the way it derives a field's name — which yields `person(String, int)` for a
+`Person` target and reads as a factory nobody named. The hint keeps naming vocabulary out of the engine: the
+stage still allocates, so a colliding hint is disambiguated (`assemblePerson`, `assemblePerson_`) rather than
+honoured verbatim.
+
 ### D3 — Member modifiers come from typed options read by the generate stage
 
 `MemberPlan` hard-codes `PRIVATE, STATIC, FINAL`. Two options replace that constant.
@@ -106,10 +117,17 @@ percolate.helpers.visibility = private (default) | package | protected | public
 percolate.helpers.static     = true (default) | false
 ```
 
-Both carry **typed** `ProcessorOptions` fields, because the generate stage reads them. This follows the rule the
-`processor-options` spec already states: a typed field exists only for an option an engine-internal consumer
-reads. `percolate.locals.final`, `percolate.methods.final` and `percolate.classes.final` are the precedent —
-each sets a modifier the generate stage emits.
+Both are parsed into a **typed** `HelperStyle` value, because the generate stage reads them. This follows the
+rule the `processor-options` spec already states: a typed value exists only for an option an engine-internal
+consumer reads. `percolate.locals.final`, `percolate.methods.final` and `percolate.classes.final` are the
+precedent — each sets a modifier the generate stage emits.
+
+`HelperStyle` is provided to the generate stage **on its own**, not as a `ProcessorOptions` field (settled
+during apply). Two reasons, one of each kind. The honest one: the two options always travel together and the
+member-plan factory needs nothing else from `ProcessorOptions`, so injecting exactly what it needs is the
+convention. The forcing one: `ProcessorOptions`' constructor already sat at nine parameters, and PMD's
+`ExcessiveParameterList` fires **at** its threshold of ten rather than above it, so any new field would have
+breached it. `ProcessorOptionsReader` still owns the parse, so exactly one parser exists per option.
 
 The options apply to **both** member kinds. A requested field keeps `final`, which is not configurable, because
 a mutable shared field would be a correctness change rather than a style change. The defaults reproduce today's
@@ -253,5 +271,6 @@ author's choice. Documented, not blocked.
 **A bean whose setter takes a primitive while the source is nullable.** → The port carries the setter's
 parameter type and the demand's nullness, so the existing nullness machinery reports it. No new handling.
 
-**Widening `MemberRequest` invites unrelated member kinds.** → The interface carries `dedupKey()` only, and
-both implementations stay in the SPI. A new kind needs a spec change, which is the intended friction.
+**Widening `MemberRequest` invites unrelated member kinds.** → The base carries `getDedupKey()` only, its
+constructor is package-private, and both leaves stay in the SPI. A new kind needs a spec change, which is the
+intended friction.

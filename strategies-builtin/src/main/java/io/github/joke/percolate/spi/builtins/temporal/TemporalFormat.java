@@ -20,6 +20,7 @@ import javax.lang.model.type.TypeMirror;
 import lombok.NoArgsConstructor;
 import org.jetbrains.annotations.VisibleForTesting;
 
+import static io.github.joke.percolate.spi.MemberRequest.field;
 import static io.github.joke.percolate.spi.Nullability.NON_NULL;
 import static io.github.joke.percolate.spi.Weights.STEP;
 import static io.github.joke.percolate.spi.builtins.Labels.conversion;
@@ -68,7 +69,7 @@ public final class TemporalFormat implements ExpansionStrategy {
 
     @VisibleForTesting
     MemberRequest formatterRequest(final String pattern) {
-        return new MemberRequest(
+        return field(
                 DATE_TIME_FORMATTER,
                 CodeBlock.of("$T.ofPattern($S)", DATE_TIME_FORMATTER, pattern),
                 DEDUP_PREFIX + pattern);

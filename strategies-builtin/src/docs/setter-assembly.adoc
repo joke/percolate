@@ -1,0 +1,154 @@
+= Setter assembly
+:navtitle: Setter assembly
+
+A plain JavaBean — a no-argument constructor plus `setX` methods — is a mapping target like any other.
+Percolate constructs it, calls one setter per declared member, and hands the result back.
+
+The setter calls are statements, and percolate composes mappings out of expressions. So the statements go into
+a **generated helper method** on the mapper, and the mapping itself is one call to it. That keeps the whole
+assembly a single operation, which is what makes an undeliverable member fail the compile rather than silently
+disappear.
+
+The ordinary rules apply: percolate never auto-maps by name, so every produced member still needs a `@Map`
+directive.
+
+[source,java]
+----
+include::example$setters/SetterMapper.java[tag=mapper]
+----
+
+== A plain bean
+
+The baseline: a no-argument constructor and one `setX` per member.
+
+[source,java]
+----
+include::example$setters/SetterMapper.java[tag=bean]
+----
+
+[source,java]
+----
+include::example$setters/SetterMapperImpl.java[tag=toPerson,indent=0]
+----
+
+Here is the whole generated mapper, helpers and all:
+
+[source,java]
+----
+include::example$setters/SetterMapperImpl.java[tags=**]
+----
+
+Each helper is named after the target it assembles and takes one parameter per declared member, in declared
+order. Two mappings that assemble the same target from the same members share one helper; two that differ in
+either get their own — which is why `Person` gets two above, and why the second carries a trailing `_` to keep
+the names distinct.
+
+== Only the declared members are set
+
+Setters are optional, so a bean needs only to *offer* the members you declare — it may offer many more. This
+matches builder assembly and differs from constructor assembly, where every parameter is mandatory and the
+declared members must match the parameter list exactly.
+
+`Person` also exposes `setNickname`, which the mapping below never declares. That setter is simply not called,
+and the field's own initial value survives:
+
+[source,java]
+----
+include::example$setters/SetterMapperImpl.java[tag=toNameOnlyPerson,indent=0]
+----
+
+== What counts as a setter
+
+Only the JavaBean `setX` naming is recognised. A mutator named after the member itself (`name(String)`) is not
+a setter — that shape belongs to a builder, and xref:builder-assembly.adoc[builder assembly] handles it.
+
+**Inherited setters count.** `Employee` declares `setSalary` and inherits `setName` from `Person`:
+
+[source,java]
+----
+include::example$setters/SetterMapper.java[tag=inherited]
+----
+
+[source,java]
+----
+include::example$setters/SetterMapperImpl.java[tag=toEmployee,indent=0]
+----
+
+**The return type does not matter.** A JavaBean setter returns `void`, but some return `this` for chaining.
+Both match, and the helper discards the result either way:
+
+[source,java]
+----
+include::example$setters/SetterMapper.java[tag=fluentsetter]
+----
+
+[source,java]
+----
+include::example$setters/SetterMapperImpl.java[tag=toAccount,indent=0]
+----
+
+A setter must also be non-private and take exactly one argument. The target itself must be a concrete class
+with a non-private no-argument constructor — an interface, an abstract class, or a bean whose only no-argument
+constructor is private cannot be assembled this way.
+
+== Choosing between the three assembly forms
+
+Percolate ships three ways to assemble a target: a **constructor**, a **builder**, and **setters**. A type
+often admits more than one, so `percolate.construction.preference` ranks them. Its value is a comma-separated
+list, and any form you leave out is appended in the default order `constructor,builder,setter`.
+
+`Ticket` below offers all three, so the default ranks its constructor first:
+
+[source,java]
+----
+include::example$setters/preference-constructor/SetterPreferenceMapperImpl.java[tag=toTicket,indent=0]
+----
+
+Naming `setter` puts the setter form first, for every target in the compilation:
+
+[source,java]
+----
+include::example$setters/preference-setter/SetterPreferenceMapperImpl.java[tag=toTicket,indent=0]
+----
+
+[IMPORTANT]
+====
+The setting is a *preference*, not a restriction. Where a higher-ranked form does not fit a particular target,
+the next one is used rather than the mapping failing. A bean with no builder and no all-arguments constructor
+still assembles through its setters even when the preference names another form.
+====
+
+Because the list always ranks all three forms, no two ever tie — percolate never resolves a choice by an
+accident you did not declare.
+
+== Controlling the generated helper
+
+Two switches set the modifiers on every member percolate generates on a mapper, the assembly helpers included:
+
+[cols="2,1,3"]
+|===
+|Option |Default |Effect
+
+|`percolate.helpers.visibility`
+|`private`
+|`private`, `package`, `protected`, or `public`. `package` emits no access modifier at all.
+
+|`percolate.helpers.static`
+|`true`
+|`false` emits the member as an instance member instead.
+|===
+
+See xref:compile-time-switches.adoc[Compile-time switches] for the full reference and for how to pass an option
+from Maven and Gradle.
+
+== Mutating an existing instance
+
+Percolate assembles a **new** instance. Writing into an object the caller already has — MapStruct's
+`void update(Dto dto, @MappingTarget Bean bean)` — is not supported.
+
+== Where to next
+
+* xref:builder-assembly.adoc[Builder assembly] — the same containment rule, driven through a builder.
+* xref:mapper-structure.adoc[Mapper structure] — what percolate discovers on a `@Mapper` type.
+* xref:map-annotation.adoc[The `@Map` annotation] — the directives that declare each produced member.
+* xref:compile-time-switches.adoc[Compile-time switches] — the helper switches and their siblings.

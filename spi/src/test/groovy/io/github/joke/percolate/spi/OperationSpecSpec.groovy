@@ -139,7 +139,7 @@ class OperationSpecSpec extends Specification {
     def 'withMemberRequests replaces the member-request list with a defensive copy, preserving every other field'() {
         def original = OperationSpec.of(
                 'label', codegen, 1, [new Port('value', portType, Nullability.NON_NULL)], outputType, Nullability.NON_NULL)
-        def request = new MemberRequest(TypeName.INT, CodeBlock.of('$L', 0), 'key')
+        def request = MemberRequest.field(TypeName.INT, CodeBlock.of('$L', 0), 'key')
         def requests = [request]
 
         when:

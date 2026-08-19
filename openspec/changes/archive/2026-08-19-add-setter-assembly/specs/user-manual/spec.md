@@ -71,6 +71,36 @@ The reference SHALL state that both options apply to every member percolate gene
 
 ## MODIFIED Requirements
 
+### Requirement: The manual documents builder assembly with a worked example per convention
+
+The manual SHALL contain a builder-assembly page documenting that a target may be assembled through a builder as well as a constructor, showing a worked example for each shipped convention — fluent/Lombok (`builder()` with `name(v)`), protobuf (`newBuilder()` with `setName(v)`), with-style (`withName(v)`), and side-located (`new MyClassBuilder()`) — and explaining that only the declared children are set, so a builder exposing further setters still applies.
+
+The page SHALL document the `percolate.construction.preference` switch as the **ranked list** it is, stating that the value is an ordered, comma-separated list of form tokens, that any omitted token is appended in the default order `constructor,builder,setter`, that the constructor therefore ranks first by default, that the setting is a preference rather than a restriction, and that a lower-ranked form is still used when a higher-ranked one does not fit. It SHALL cross-reference the setter-assembly page as the third form the switch ranks.
+
+The page SHALL be reachable from the navigation and SHALL be co-located in `percolate-strategies-builtin`, the module owning the strategies, reaching the Antora component through a collector scan.
+
+#### Scenario: Each shipped convention is shown by worked example
+- **WHEN** the builder-assembly page is read
+- **THEN** it shows a compiling mapper and its generated output for each of the four shipped conventions
+
+#### Scenario: The subset rule is documented
+- **WHEN** the builder-assembly page is read
+- **THEN** it states that only declared children are set and that surplus builder setters are left untouched
+
+#### Scenario: The preference switch is documented as a ranked preference
+- **WHEN** the builder-assembly page's preference discussion is read
+- **THEN** it states that the value is an ordered list, that omitted forms are appended in the default order, that the constructor ranks first by default, and that a lower-ranked form is still used when a higher-ranked one does not match
+
+#### Scenario: The preference discussion names the third form
+- **WHEN** the builder-assembly page's preference discussion is read
+- **THEN** it links to the setter-assembly page
+
+#### Scenario: The page is reachable and module-owned
+- **WHEN** the manual's navigation and the page's source location are inspected
+- **THEN** the navigation contains an entry for builder assembly
+- **AND** the page source resides under `strategies-builtin/src/docs/`, not under `docs/`
+
+
 ### Requirement: The compile-time switches reference documents construction.preference
 
 The compile-time switches reference page SHALL document `percolate.construction.preference` alongside the existing switches, listing its list grammar, its accepted tokens (`constructor`, `builder`, `setter`), its default order (`constructor,builder,setter`), and its effect, and cross-referencing the builder-assembly and setter-assembly pages.

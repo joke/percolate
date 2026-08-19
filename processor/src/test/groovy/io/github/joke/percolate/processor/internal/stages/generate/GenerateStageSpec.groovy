@@ -27,7 +27,7 @@ class GenerateStageSpec extends Specification {
 
     def 'a clean, fully-realised mapper is built and then assembled'() {
         given:
-        def methodBodies = new MethodBodies([], [])
+        def methodBodies = new MethodBodies([], [], [])
 
         when:
         stage.run(ctx)

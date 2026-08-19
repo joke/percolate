@@ -3,6 +3,8 @@ package io.github.joke.percolate.processor.internal.stages.generate
 import io.github.joke.percolate.lib.javapoet.ClassName
 import io.github.joke.percolate.lib.javapoet.CodeBlock
 import io.github.joke.percolate.processor.MapperContext
+import io.github.joke.percolate.processor.HelperStyle
+import io.github.joke.percolate.processor.MemberVisibility
 import io.github.joke.percolate.processor.ProcessorOptions
 import io.github.joke.percolate.processor.internal.graph.AccessPath
 import io.github.joke.percolate.processor.internal.graph.AddOperation
@@ -103,7 +105,7 @@ class BuildMethodBodiesSpec extends Specification {
     // ---- helpers ----------------------------------------------------------------------------------------------
 
     private BuildMethodBodies engine() {
-        new BuildMethodBodies(ProcessorOptions.builder()
+        def options = ProcessorOptions.builder()
                 .debugGraphs(false)
                 .customNullableAnnotations([] as Set)
                 .localsFinal(false)
@@ -113,8 +115,9 @@ class BuildMethodBodiesSpec extends Specification {
                 .classesFinal(false)
                 .docTags(false)
                 .raw([:])
-                .build(), SourceVersion.RELEASE_11, new HoistPlanFactory(),
-                new MemberPlanFactory(new HoistPlanFactory()), new BodyRenderContextFactory())
+                .build()
+        new BuildMethodBodies(options, SourceVersion.RELEASE_11, new HoistPlanFactory(),
+                new MemberPlanFactory(new HoistPlanFactory(), new HelperStyle(MemberVisibility.PRIVATE, true)), new BodyRenderContextFactory())
     }
 }
 
@@ -331,7 +334,7 @@ class WalkSpec extends Specification {
         def walk = spyWalk()
         Operation operation = Mock()
         OperationCodegen codegen = Mock()
-        def memberRequest = new io.github.joke.percolate.spi.MemberRequest(
+        def memberRequest = io.github.joke.percolate.spi.MemberRequest.field(
                 ClassName.get('java.time.format', 'DateTimeFormatter'), CodeBlock.of('null'), 'fmt-yyyy-MM-dd')
         def rendered = CodeBlock.of('FMT.format(x)')
 

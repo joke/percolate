@@ -6,15 +6,19 @@ import java.util.Set;
 import lombok.NoArgsConstructor;
 import org.jetbrains.annotations.VisibleForTesting;
 
+import static io.github.joke.percolate.processor.MemberVisibility.PRIVATE;
 import static io.github.joke.percolate.processor.ProcessorOptions.CLASSES_FINAL;
 import static io.github.joke.percolate.processor.ProcessorOptions.DEBUG_GRAPHS;
 import static io.github.joke.percolate.processor.ProcessorOptions.DOC_TAGS;
+import static io.github.joke.percolate.processor.ProcessorOptions.HELPERS_STATIC;
+import static io.github.joke.percolate.processor.ProcessorOptions.HELPERS_VISIBILITY;
 import static io.github.joke.percolate.processor.ProcessorOptions.LOCALS_FINAL;
 import static io.github.joke.percolate.processor.ProcessorOptions.LOCALS_VAR;
 import static io.github.joke.percolate.processor.ProcessorOptions.METHODS_FINAL;
 import static io.github.joke.percolate.processor.ProcessorOptions.NULLABLE_ANNOTATIONS;
 import static io.github.joke.percolate.processor.ProcessorOptions.PARAMETERS_FINAL;
 import static java.util.Arrays.stream;
+import static java.util.Locale.ROOT;
 import static java.util.stream.Collectors.toUnmodifiableSet;
 
 // Reads the raw -A option map into a ProcessorOptions. Split out of that value type by change tighten-
@@ -50,6 +54,32 @@ public class ProcessorOptionsReader {
             return Set.of();
         }
         return stream(raw.split(",")).filter(segment -> !segment.isEmpty()).collect(toUnmodifiableSet());
+    }
+
+    /**
+     * The modifier policy for every strategy-requested class member. It is provided to the generate stage on its
+     * own rather than as a {@link ProcessorOptions} field, because that stage needs the style and nothing else —
+     * the parse still lives here, so exactly one parser exists per option.
+     */
+    public HelperStyle helperStyle(final Map<String, String> options) {
+        return new HelperStyle(helpersVisibility(options), flagDefaultingOn(options, HELPERS_STATIC));
+    }
+
+    // The helper-member visibility, degrading to private when absent, empty or unrecognised — the same
+    // never-fail-the-round rule every other value-typed option follows.
+    @VisibleForTesting
+    MemberVisibility helpersVisibility(final Map<String, String> options) {
+        final var wanted = options.getOrDefault(HELPERS_VISIBILITY, "").toLowerCase(ROOT);
+        return stream(MemberVisibility.values())
+                .filter(candidate -> candidate.token().equals(wanted))
+                .findFirst()
+                .orElse(PRIVATE);
+    }
+
+    // A flag whose absence means on, unlike every flag() option, whose absence means off.
+    @VisibleForTesting
+    boolean flagDefaultingOn(final Map<String, String> options, final String key) {
+        return "true".equalsIgnoreCase(options.getOrDefault(key, "true"));
     }
 
     @VisibleForTesting

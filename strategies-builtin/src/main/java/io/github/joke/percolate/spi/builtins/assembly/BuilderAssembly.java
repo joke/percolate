@@ -22,9 +22,8 @@ import org.jetbrains.annotations.VisibleForTesting;
 
 import static io.github.joke.percolate.spi.Nullability.NON_NULL;
 import static io.github.joke.percolate.spi.Port.subTarget;
-import static io.github.joke.percolate.spi.Weights.EXPENSIVE;
-import static io.github.joke.percolate.spi.Weights.STEP;
 import static io.github.joke.percolate.spi.builtins.assembly.ConstructionPreference.BUILDER;
+import static io.github.joke.percolate.spi.builtins.assembly.ConstructionPreference.weightOf;
 import static java.lang.Character.toUpperCase;
 import static java.util.stream.Collectors.joining;
 import static java.util.stream.Collectors.toUnmodifiableList;
@@ -230,7 +229,7 @@ public abstract class BuilderAssembly implements ExpansionStrategy {
     // inspects another strategy — myopia holds.
     @VisibleForTesting
     protected int weight(final ResolveCtx ctx) {
-        return ConstructionPreference.from(ctx.option(ConstructionPreference.KEY)) == BUILDER ? STEP : EXPENSIVE;
+        return weightOf(BUILDER, ctx.option(ConstructionPreference.KEY));
     }
 
     @VisibleForTesting

@@ -23,9 +23,8 @@ import lombok.NoArgsConstructor;
 import org.jetbrains.annotations.VisibleForTesting;
 
 import static io.github.joke.percolate.spi.Nullability.NON_NULL;
-import static io.github.joke.percolate.spi.Weights.EXPENSIVE;
-import static io.github.joke.percolate.spi.Weights.STEP;
-import static io.github.joke.percolate.spi.builtins.assembly.ConstructionPreference.BUILDER;
+import static io.github.joke.percolate.spi.builtins.assembly.ConstructionPreference.CONSTRUCTOR;
+import static io.github.joke.percolate.spi.builtins.assembly.ConstructionPreference.weightOf;
 import static java.util.stream.Collectors.joining;
 import static java.util.stream.Collectors.toUnmodifiableList;
 import static java.util.stream.Collectors.toUnmodifiableSet;
@@ -62,11 +61,11 @@ public final class ConstructorCall implements ExpansionStrategy {
     }
 
     // Prices this strategy against the author's declared construction preference (design D4 of change
-    // add-builder-assembly). The plan fold is minimum-cost, so the preferred form takes the lower weight. This
-    // strategy reads only the option and never inspects another strategy — myopia holds.
+    // add-builder-assembly). The plan fold is minimum-cost, so a lower rank takes the lower weight. This strategy
+    // asks the shared parser for its own form's weight and names no other form's token — myopia holds.
     @VisibleForTesting
     int weight(final ResolveCtx ctx) {
-        return ConstructionPreference.from(ctx.option(ConstructionPreference.KEY)) == BUILDER ? EXPENSIVE : STEP;
+        return weightOf(CONSTRUCTOR, ctx.option(ConstructionPreference.KEY));
     }
 
     // member as the constructor this demand can call — non-private, its parameter names exactly the declared

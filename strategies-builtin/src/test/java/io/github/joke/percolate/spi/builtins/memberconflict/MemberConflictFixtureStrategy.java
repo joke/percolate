@@ -4,7 +4,6 @@ import io.github.joke.percolate.lib.javapoet.ClassName;
 import io.github.joke.percolate.lib.javapoet.CodeBlock;
 import io.github.joke.percolate.spi.DirectiveInput;
 import io.github.joke.percolate.spi.ExpansionStrategy;
-import io.github.joke.percolate.spi.MemberRequest;
 import io.github.joke.percolate.spi.Offer;
 import io.github.joke.percolate.spi.OperationCodegen;
 import io.github.joke.percolate.spi.OperationSpec;
@@ -15,6 +14,7 @@ import java.util.List;
 import java.util.Set;
 import java.util.stream.Stream;
 
+import static io.github.joke.percolate.spi.MemberRequest.field;
 import static io.github.joke.percolate.spi.Nullability.NON_NULL;
 import static io.github.joke.percolate.spi.Weights.STEP;
 
@@ -44,7 +44,7 @@ public final class MemberConflictFixtureStrategy implements ExpansionStrategy {
         }
         final var formatInput = demand.directive().flatMap(d -> d.input("format"));
         final var tag = formatInput.flatMap(DirectiveInput::getValue).orElse("default");
-        final var request = new MemberRequest(STRING_TYPE, CodeBlock.of("$S", tag), "widget-member");
+        final var request = field(STRING_TYPE, CodeBlock.of("$S", tag), "widget-member");
         final var port = new Port("value", stringElement.asType(), NON_NULL);
         final OperationCodegen codegen =
                 inputs -> CodeBlock.of("new $T($L, $L)", WIDGET_TYPE, inputs.single(), inputs.member("widget-member"));

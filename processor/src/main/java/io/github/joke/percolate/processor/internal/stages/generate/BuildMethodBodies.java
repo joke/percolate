@@ -57,14 +57,14 @@ public final class BuildMethodBodies {
         final var graph = ctx.getGraph();
         final var resolveCtx = ctx.getResolveCtx();
         if (shape == null || graph == null || resolveCtx == null) {
-            return new MethodBodies(List.of(), List.of());
+            return new MethodBodies(List.of(), List.of(), List.of());
         }
         final var plan = extract(graph);
         final var memberPlan = memberPlanFactory.forMapper(graph, plan, ctx);
         final var bodies = shape.getAbstractMethods().stream()
                 .map(method -> renderMethod(graph, plan, memberPlan, method, resolveCtx))
                 .collect(toUnmodifiableList());
-        return new MethodBodies(bodies, memberPlan.fields());
+        return new MethodBodies(bodies, memberPlan.fields(), memberPlan.methods());
     }
 
     @VisibleForTesting

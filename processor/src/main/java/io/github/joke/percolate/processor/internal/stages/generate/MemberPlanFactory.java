@@ -3,6 +3,7 @@ package io.github.joke.percolate.processor.internal.stages.generate;
 import io.github.joke.percolate.lib.javapoet.ClassName;
 import io.github.joke.percolate.lib.javapoet.NameAllocator;
 import io.github.joke.percolate.lib.javapoet.TypeName;
+import io.github.joke.percolate.processor.HelperStyle;
 import io.github.joke.percolate.processor.MapperContext;
 import io.github.joke.percolate.processor.internal.graph.ExtractedPlan;
 import io.github.joke.percolate.processor.internal.graph.MapperGraph;
@@ -40,6 +41,7 @@ final class MemberPlanFactory {
     private static final int ONE_DEFINITION = 1;
 
     private final HoistPlanFactory hoistPlanFactory;
+    private final HelperStyle helperStyle;
 
     // Builds the member plan for every MemberRequest reachable from any of graph's return roots. Requests sharing a
     // dedup key must agree on (fieldType, initializer) (design D11 of change decouple-engine-from-strategy-
@@ -63,7 +65,7 @@ final class MemberPlanFactory {
         final var requestByDedupKey = new LinkedHashMap<String, MemberRequest>();
         byDedupKey.forEach(
                 (key, attributions) -> allocateMember(key, attributions, names, namesByDedupKey, requestByDedupKey));
-        return new MemberPlan(namesByDedupKey, requestByDedupKey);
+        return new MemberPlan(namesByDedupKey, requestByDedupKey, helperStyle);
     }
 
     // The first attribution wins the key (conflicts were already reported), and allocates the field's name.
@@ -76,10 +78,11 @@ final class MemberPlanFactory {
             final Map<String, MemberRequest> requestByDedupKey) {
         final var winner = attributions.get(0).getRequest();
         requestByDedupKey.put(key, winner);
-        namesByDedupKey.put(key, names.newName(memberBase(winner.getFieldType())));
+        namesByDedupKey.put(key, names.newName(memberBase(winner)));
     }
 
-    // Reports a mapper-type-positioned error when attributions disagree on (fieldType, initializer).
+    // Reports a mapper-type-positioned error when attributions disagree on the member's content. Two requests of
+    // different kinds under one key disagree by construction, since no Field ever equals a Method.
     @VisibleForTesting
     void reportConflict(final MapperContext ctx, final String key, final List<Attribution> attributions) {
         final var distinctRequests =
@@ -87,9 +90,8 @@ final class MemberPlanFactory {
         if (distinctRequests.size() <= ONE_DEFINITION) {
             return;
         }
-        final var definitions = distinctRequests.stream()
-                .map(request -> request.getFieldType() + " = " + request.getInitializer())
-                .collect(joining("; "));
+        final var definitions =
+                distinctRequests.stream().map(this::definitionOf).collect(joining("; "));
         final var operationLabels = attributions.stream()
                 .map(Attribution::getOperationLabel)
                 .distinct()
@@ -101,9 +103,30 @@ final class MemberPlanFactory {
                 .asPermanent());
     }
 
+    // The human-readable definition of one request, for the conflict message.
+    @VisibleForTesting
+    String definitionOf(final MemberRequest request) {
+        if (request instanceof MemberRequest.Field) {
+            final var field = (MemberRequest.Field) request;
+            return field.getFieldType() + " = " + field.getInitializer();
+        }
+        final var method = (MemberRequest.Method) request;
+        return method.getReturnType() + " " + method.getNameHint() + "("
+                + method.getParameters().size() + " params)";
+    }
+
+    // The base name a request is allocated from: a method's own hint, or a field's lower-camel type name.
+    @VisibleForTesting
+    String memberBase(final MemberRequest request) {
+        if (request instanceof MemberRequest.Method) {
+            return ((MemberRequest.Method) request).getNameHint();
+        }
+        return fieldBase(((MemberRequest.Field) request).getFieldType());
+    }
+
     // A lower-camel base name derived from a class field type's simple name, or "member" when unknown.
     @VisibleForTesting
-    String memberBase(final TypeName fieldType) {
+    String fieldBase(final TypeName fieldType) {
         if (!(fieldType instanceof ClassName)) {
             return "member";
         }

@@ -2,33 +2,29 @@ package io.github.joke.percolate.processor.internal.stages.generate;
 
 import io.github.joke.percolate.lib.javapoet.CodeBlock;
 import io.github.joke.percolate.lib.javapoet.FieldSpec;
+import io.github.joke.percolate.lib.javapoet.MethodSpec;
+import io.github.joke.percolate.lib.javapoet.ParameterSpec;
+import io.github.joke.percolate.processor.HelperStyle;
 import io.github.joke.percolate.spi.MemberRequest;
 import java.util.List;
 import java.util.Map;
 import lombok.RequiredArgsConstructor;
 import org.jetbrains.annotations.VisibleForTesting;
 
+import static io.github.joke.percolate.lib.javapoet.MethodSpec.methodBuilder;
 import static java.util.Objects.requireNonNull;
 import static java.util.stream.Collectors.toUnmodifiableList;
-import static javax.lang.model.element.Modifier.FINAL;
-import static javax.lang.model.element.Modifier.PRIVATE;
-import static javax.lang.model.element.Modifier.STATIC;
 
-// The class-scoped sibling of HoistPlan (design D5 of change add-temporal-type-mapping): collects every
-// strategy-requested MemberRequest reachable from any method's winning plan across the whole generated mapper
-// type (not one method — a member may be shared across bodies), deduplicates them by
-// MemberRequest.getDedupKey(), and names each distinct member via a class-scoped NameAllocator. A requesting
-// operation's codegen reaches the allocated field's reference through
-// io.github.joke.percolate.spi.IncomingValues.member(String) — the same indirection a hoisted local reaches its
-// codegen through — so the composer stays field-syntax-free. It mutates neither the MapperGraph nor the
-// ExtractedPlan.
+// The class-scoped member emission plan: which strategy-requested member each dedup key resolves to, the name it
+// was allocated, and the modifiers the percolate.helpers.* switches put on it (change add-setter-assembly). Both
+// request kinds share one dedup namespace and one allocator, so a field and a method never collide.
 @RequiredArgsConstructor
 final class MemberPlan {
 
     private final Map<String, String> namesByDedupKey;
     private final Map<String, MemberRequest> requestByDedupKey;
+    private final HelperStyle style;
 
-    // The reference to the member registered under dedupKey.
     @VisibleForTesting
     CodeBlock reference(final String dedupKey) {
         final var name = namesByDedupKey.get(dedupKey);
@@ -38,18 +34,49 @@ final class MemberPlan {
         return CodeBlock.of("$N", name);
     }
 
-    // Every distinct requested member as a private static final field, in allocation order.
+    // Every field request, in allocation order.
     @VisibleForTesting
     List<FieldSpec> fields() {
-        return namesByDedupKey.entrySet().stream().map(this::fieldFor).collect(toUnmodifiableList());
+        return namesByDedupKey.entrySet().stream()
+                .filter(entry -> requestFor(entry) instanceof MemberRequest.Field)
+                .map(entry -> fieldFor(entry.getValue(), (MemberRequest.Field) requestFor(entry)))
+                .collect(toUnmodifiableList());
     }
 
-    // The private static final field for one allocated member name, initialised from its winning request.
+    // Every method request, in allocation order.
     @VisibleForTesting
-    FieldSpec fieldFor(final Map.Entry<String, String> entry) {
-        final var request = requireNonNull(requestByDedupKey.get(entry.getKey()));
-        return FieldSpec.builder(request.getFieldType(), entry.getValue(), PRIVATE, STATIC, FINAL)
+    List<MethodSpec> methods() {
+        return namesByDedupKey.entrySet().stream()
+                .filter(entry -> requestFor(entry) instanceof MemberRequest.Method)
+                .map(entry -> methodFor(entry.getValue(), (MemberRequest.Method) requestFor(entry)))
+                .collect(toUnmodifiableList());
+    }
+
+    @VisibleForTesting
+    MemberRequest requestFor(final Map.Entry<String, String> entry) {
+        return requireNonNull(requestByDedupKey.get(entry.getKey()));
+    }
+
+    @VisibleForTesting
+    FieldSpec fieldFor(final String name, final MemberRequest.Field request) {
+        return FieldSpec.builder(request.getFieldType(), name)
+                .addModifiers(style.fieldModifiers())
                 .initializer(request.getInitializer())
                 .build();
+    }
+
+    @VisibleForTesting
+    MethodSpec methodFor(final String name, final MemberRequest.Method request) {
+        final var builder = methodBuilder(name)
+                .addModifiers(style.memberModifiers())
+                .returns(request.getReturnType())
+                .addCode(request.getBody());
+        request.getParameters().forEach(parameter -> builder.addParameter(parameterSpec(parameter)));
+        return builder.build();
+    }
+
+    @VisibleForTesting
+    ParameterSpec parameterSpec(final MemberRequest.Parameter parameter) {
+        return ParameterSpec.builder(parameter.getType(), parameter.getName()).build();
     }
 }

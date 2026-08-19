@@ -1,33 +1,39 @@
 ## ADDED Requirements
 
-### Requirement: ProcessorOptions exposes helpersVisibility and helpersStatic
+### Requirement: A HelperStyle value carries the generated-member modifiers
 
-`ProcessorOptions` SHALL declare two typed fields describing the modifiers of every strategy-requested class member, both read by the generate stage:
+The `processor` module SHALL define a `HelperStyle` value type carrying the modifiers of every strategy-requested class member, parsed once by `ProcessorOptionsReader` and provided to the generate stage on its own rather than as a `ProcessorOptions` field. The two options always travel together, and the stage that reads them needs nothing else from `ProcessorOptions`, so one value injected directly is both the smaller seam and the honest model.
 
-- `MemberVisibility helpersVisibility` — parsed from `-Apercolate.helpers.visibility`, defaulting to `private` when the option is absent, empty, or unrecognised. Parsing SHALL be case-insensitive. `MemberVisibility` is a new enum in the `processor` module with the constants `PRIVATE`, `PACKAGE`, `PROTECTED` and `PUBLIC`. It SHALL NOT reuse the SPI's `Visibility`, which names scope-input reachability and is unrelated.
-- `boolean helpersStatic` — `true` when `-Apercolate.helpers.static` is absent, and `true` when it is set to `true` in any letter case. Any other value yields `false`.
+`HelperStyle` SHALL carry:
 
-Both are engine-internal options, so both carry typed fields, in accordance with *Strategy-consumed options carry no typed field*. Exactly one parser SHALL exist for each, in `ProcessorOptionsReader`.
+- a `MemberVisibility` — parsed from `-Apercolate.helpers.visibility`, defaulting to `private` when the option is absent, empty, or unrecognised, case-insensitively. `MemberVisibility` is a new enum in the `processor` module with the constants `PRIVATE`, `PACKAGE`, `PROTECTED` and `PUBLIC`. It SHALL NOT reuse the SPI's `Visibility`, which names scope-input reachability and is unrelated.
+- a `boolean` static flag — `true` when `-Apercolate.helpers.static` is absent, and `true` when it is set to `true` in any letter case. Any other value yields `false`.
+
+Both are engine-internal options, so both are parsed into a typed value, in accordance with *Strategy-consumed options carry no typed field*. Exactly one parser SHALL exist for each, in `ProcessorOptionsReader`.
 
 #### Scenario: Absent options yield the defaults
 - **WHEN** `processingEnv.getOptions()` contains neither key
-- **THEN** the produced `ProcessorOptions` has `helpersVisibility` equal to `private` and `helpersStatic == true`
+- **THEN** the produced `HelperStyle` has visibility `private` and its static flag set
 
 #### Scenario: Visibility parses case-insensitively
 - **WHEN** `processingEnv.getOptions()` contains the entry `"percolate.helpers.visibility" -> "PROTECTED"`
-- **THEN** the produced `ProcessorOptions` has `helpersVisibility` equal to `protected`
+- **THEN** the produced `HelperStyle` has visibility `protected`
 
 #### Scenario: An unrecognised visibility degrades to private
 - **WHEN** `processingEnv.getOptions()` contains the entry `"percolate.helpers.visibility" -> "wombat"`
-- **THEN** the produced `ProcessorOptions` has `helpersVisibility` equal to `private`
+- **THEN** the produced `HelperStyle` has visibility `private`
 
 #### Scenario: static defaults to true and is switched off explicitly
 - **WHEN** `processingEnv.getOptions()` contains the entry `"percolate.helpers.static" -> "false"`
-- **THEN** the produced `ProcessorOptions` has `helpersStatic == false`
+- **THEN** the produced `HelperStyle` has its static flag cleared
 
 #### Scenario: static parses case-insensitively
 - **WHEN** `processingEnv.getOptions()` contains the entry `"percolate.helpers.static" -> "TRUE"`
-- **THEN** the produced `ProcessorOptions` has `helpersStatic == true`
+- **THEN** the produced `HelperStyle` has its static flag set
+
+#### Scenario: The style is injected on its own
+- **WHEN** the generate stage's member-plan factory is inspected
+- **THEN** it declares a `HelperStyle` dependency and no `ProcessorOptions` dependency
 
 ### Requirement: helpers.visibility and helpers.static options are declared
 
@@ -71,8 +77,9 @@ It carries **no** typed field on `ProcessorOptions`: like every other strategy-c
 `ProcessorOptions` SHALL carry the raw `-A` option map verbatim, so the per-mapper `ResolveCtx` can answer `option(key)` for any declared key without a per-feature field.
 
 #### Scenario: Engine-internal options keep their typed fields
-- **WHEN** an engine-internal consumer reads `debugGraphs`, `localsFinal`, `parametersFinal`, `methodsFinal`, `classesFinal`, `docTags`, `helpersVisibility`, `helpersStatic`, or `customNullableAnnotations`
+- **WHEN** an engine-internal consumer reads `debugGraphs`, `localsFinal`, `parametersFinal`, `methodsFinal`, `classesFinal`, `docTags`, or `customNullableAnnotations`
 - **THEN** it reads the typed `ProcessorOptions` field
+- **AND** the `helpers.*` options reach their consumer as a typed `HelperStyle`, parsed by the same reader
 
 #### Scenario: Strategy-consumed options have no typed field
 - **WHEN** `ProcessorOptions` is inspected

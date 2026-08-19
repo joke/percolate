@@ -15,9 +15,9 @@ engine gains no setter vocabulary.
   JavaBean setters. It emits **one** n-ary `OperationSpec` with one sub-target port per declared child, exactly
   as `BuilderAssembly` does, and it requests a generated helper method that runs the setter sequence.
 - **BREAKING (third-party strategy authors)** `MemberRequest` grows a second kind. Today it is a `@Value` class
-  describing a field. It becomes an interface with two implementations, so it also describes a **method** — a
-  return type, an ordered parameter list, and a body `CodeBlock`. The processor still allocates the name, and
-  the requesting operation still references the member by its dedup key.
+  describing a field. It becomes a pseudo-sealed abstract base with two `@Value` leaves, so it also describes a
+  **method** — a name hint, a return type, an ordered parameter list, and a body `CodeBlock`. The processor still
+  allocates the name, and the requesting operation still references the member by its dedup key.
 - The generate stage stops hard-coding `private static final` on every requested member. Two new compile-time
   options set the visibility and the `static` modifier of every generated helper member.
 - **BREAKING (third-party strategy authors)** `percolate.construction.preference` accepts an **ordered list** of
@@ -47,15 +47,18 @@ demand for a `void` method. `design.md` records what this change fixes now so th
   distinct weights so two forms can never tie.
 - `expansion-strategy-spi`: `MemberRequest` describes either a field or a method, and the requirement that named
   a field type and an initializer now covers both kinds.
+- `graph-expansion`: the assembly-gating requirement names the JavaBean as a second containment-gated form, and
+  the empty-declaration bail and the coexistence scenarios cover all three forms rather than two.
 - `code-generation`: the member hoisting requirement emits methods as well as fields, and the modifiers of a
   generated member come from options rather than from a constant.
-- `processor-options`: `percolate.helpers.visibility` and `percolate.helpers.static` join the declared options
-  as typed `ProcessorOptions` fields, because the generate stage reads them. The
+- `processor-options`: `percolate.helpers.visibility` and `percolate.helpers.static` join the declared options,
+  parsed into a typed `HelperStyle` value provided to the generate stage that reads them. The
   `percolate.construction.preference` declaration records the list grammar.
 - `builtin-strategy-unit-tests`: `SetterAssembly` joins the enumerated per-strategy unit specifications, with
   scenarios for its gate, its helper request, and its rank pricing.
-- `user-manual`: a setter-assembly page backed by a compiled end-to-end fixture, and the compile-time switches
-  reference for the two new options.
+- `user-manual`: a setter-assembly page backed by a compiled end-to-end fixture, the compile-time switches
+  reference for the two new options, and the builder-assembly page's preference discussion restated as the
+  ranked list it now is, cross-referencing the third form.
 
 ## Impact
 
@@ -70,5 +73,5 @@ valid.
 
 **Third-party strategy authors.** Two source-breaking changes. `ConstructionPreference.from` is removed, and an
 author who prices against the construction preference reads a rank instead. `MemberRequest` becomes an
-interface, so `new MemberRequest(type, initializer, key)` becomes `MemberRequest.field(type, initializer,
-key)`.
+abstract base whose constructor is package-private, so `new MemberRequest(type, initializer, key)` becomes
+`MemberRequest.field(type, initializer, key)`.

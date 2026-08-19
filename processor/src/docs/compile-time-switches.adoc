@@ -56,10 +56,20 @@ with a real before/after of its generated effect.
   classic statement; `CLASSIC`/`ARROW` force one or the other regardless of target.
 
 | `percolate.construction.preference`
-| `constructor`
-| Chooses which form xref:builder-assembly.adoc[assembly] prefers when a target offers both a matching
-  constructor and a matching builder. A preference, never a restriction: where the preferred form does not fit,
-  the other one is still used.
+| `constructor,builder,setter`
+| Ranks the assembly forms a target may admit — a comma-separated list of `constructor`, `builder` and
+  `setter`. Any form you leave out is appended in the default order. A preference, never a restriction: where a
+  higher-ranked form does not fit, the next one is still used.
+
+| `percolate.helpers.visibility`
+| `private`
+| The access modifier on every member percolate generates on a mapper: `private`, `package`, `protected`, or
+  `public`. `package` emits no access modifier at all.
+
+| `percolate.helpers.static`
+| `true`
+| Whether every member percolate generates on a mapper is `static`. A generated field stays `final` under
+  every setting.
 |===
 
 The `docTags`, `locals.final`, `locals.var`, `parameters.final`, `methods.final`, and `classes.final`
@@ -254,17 +264,61 @@ expression on Java 14+, the classic statement on Java 11.
 
 == `percolate.construction.preference`
 
-A type frequently offers both assembly forms at once — Lombok's `@Builder` emits an all-args constructor
-alongside the builder — so both gates match and percolate has to choose. Left unset (`constructor`), it prefers
-the constructor; passed as `-Apercolate.construction.preference=builder`, it prefers the builder instead. See
-xref:builder-assembly.adoc[Builder assembly] for the generated output either way.
+A type frequently offers more than one assembly form at once — Lombok's `@Builder` emits an all-args constructor
+alongside the builder, and a `@Data` bean adds setters on top — so several gates match and percolate has to
+choose.
 
-The setting is a *preference*, not a restriction: where the preferred form does not fit a particular target, the
-other one is still used rather than the mapping failing.
+The value is an **ordered, comma-separated list** of `constructor`, `builder` and `setter`. Any form you leave
+out is appended in the default order `constructor,builder,setter`, so the list always ranks all three and no two
+forms ever tie:
+
+[source]
+----
+-Apercolate.construction.preference=setter
+-Apercolate.construction.preference=builder,setter
+----
+
+Left unset, the constructor ranks first. See xref:builder-assembly.adoc[Builder assembly] and
+xref:setter-assembly.adoc[Setter assembly] for the generated output under each ranking.
+
+The setting is a *preference*, not a restriction: where a higher-ranked form does not fit a particular target,
+the next one is still used rather than the mapping failing.
+
+== `percolate.helpers.visibility` and `percolate.helpers.static`
+
+Some mappings need percolate to put a member on the generated mapper — a shared `DateTimeFormatter` for
+xref:temporal-mapping.adoc[temporal mapping], or the assembly helper behind
+xref:setter-assembly.adoc[setter assembly]. These two switches set the modifiers on every such member.
+
+By default a helper is `private static`:
+
+[source,java]
+----
+include::example$setters/helpers-default/HelperStyleMapperImpl.java[]
+----
+
+`-Apercolate.helpers.visibility=protected` widens it, so a subclass of the generated mapper can reach it:
+
+[source,java]
+----
+include::example$setters/helpers-protected/HelperStyleMapperImpl.java[]
+----
+
+`-Apercolate.helpers.static=false` emits an instance member instead:
+
+[source,java]
+----
+include::example$setters/helpers-instance/HelperStyleMapperImpl.java[]
+----
+
+The two compose, and `package` emits no access modifier at all. An unrecognised visibility falls back to
+`private` rather than failing the compile. A generated **field** additionally stays `final` under every setting:
+making a shared field mutable would change behaviour rather than style.
 
 == Where to next
 
 * xref:defaults-and-nullness.adoc[Defaults & nullness] — the crossing `percolate.nullable.annotations` extends.
 * xref:temporal-mapping.adoc[Temporal mapping] — the zone bridge `percolate.time.zone` configures.
 * xref:enum-mapping.adoc[Enum mapping] — the switch form `percolate.switch.style` configures.
-* xref:builder-assembly.adoc[Builder assembly] — the form `percolate.construction.preference` chooses.
+* xref:builder-assembly.adoc[Builder assembly] — one of the forms `percolate.construction.preference` ranks.
+* xref:setter-assembly.adoc[Setter assembly] — the JavaBean form, and the helper the `percolate.helpers.*` switches shape.

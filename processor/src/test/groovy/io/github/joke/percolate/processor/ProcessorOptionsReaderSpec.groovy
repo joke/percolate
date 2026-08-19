@@ -135,7 +135,51 @@ class ProcessorOptionsReaderSpec extends Specification {
         options.localsVar
     }
 
-    def 'PercolateProcessor advertises exactly the eleven recognised options'() {
+    def 'absent helper options default to private and static'() {
+        def style = reader.helperStyle([:])
+
+        expect:
+        style.visibility == MemberVisibility.PRIVATE
+        style.membersStatic
+    }
+
+    def 'percolate.helpers.visibility parses case-insensitively'() {
+        expect:
+        reader.helperStyle(['percolate.helpers.visibility': raw]).visibility == parsed
+
+        where:
+        raw         | parsed
+        'private'   | MemberVisibility.PRIVATE
+        'package'   | MemberVisibility.PACKAGE
+        'protected' | MemberVisibility.PROTECTED
+        'public'    | MemberVisibility.PUBLIC
+        'PROTECTED' | MemberVisibility.PROTECTED
+        'Public'    | MemberVisibility.PUBLIC
+    }
+
+    def 'an unrecognised percolate.helpers.visibility degrades to private rather than failing the round'() {
+        expect:
+        reader.helperStyle(['percolate.helpers.visibility': raw]).visibility == MemberVisibility.PRIVATE
+
+        where:
+        raw << ['wombat', '', 'PRIVATE_ACCESS']
+    }
+
+    def 'percolate.helpers.static is on unless explicitly set to something other than true'() {
+        expect:
+        reader.helperStyle(['percolate.helpers.static': raw]).membersStatic == expected
+
+        where:
+        raw     | expected
+        'true'  | true
+        'TRUE'  | true
+        'True'  | true
+        'false' | false
+        'no'    | false
+        ''      | false
+    }
+
+    def 'PercolateProcessor advertises exactly the thirteen recognised options'() {
         expect:
         new PercolateProcessor().supportedOptions == [
                 'percolate.debug.graphs',
@@ -148,7 +192,9 @@ class ProcessorOptionsReaderSpec extends Specification {
                 'percolate.docTags',
                 'percolate.time.zone',
                 'percolate.switch.style',
-                'percolate.construction.preference'
+                'percolate.construction.preference',
+                'percolate.helpers.visibility',
+                'percolate.helpers.static'
         ] as Set
     }
 

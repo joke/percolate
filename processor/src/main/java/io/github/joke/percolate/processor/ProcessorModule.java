@@ -85,6 +85,15 @@ public final class ProcessorModule {
         return reader.from(processingEnvironment.getOptions());
     }
 
+    // The modifier policy the generate stage puts on every strategy-requested class member. Provided on its own
+    // rather than as a ProcessorOptions field so that stage injects exactly what it needs (change
+    // add-setter-assembly); ProcessorOptionsReader remains the one parser for both helpers.* options.
+    @VisibleForTesting
+    @Provides
+    HelperStyle helperStyle(final ProcessorOptionsReader reader) {
+        return reader.helperStyle(processingEnvironment.getOptions());
+    }
+
     // The target SourceVersion, read once from the environment — the enum-conversion strategy's codegen resolves
     // switch.style's AUTO against it; the engine itself reads no version.
     @VisibleForTesting

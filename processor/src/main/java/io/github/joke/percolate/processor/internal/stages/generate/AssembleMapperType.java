@@ -51,6 +51,7 @@ public final class AssembleMapperType {
                 .addModifiers(decisions.publicModifiers(options.isClassesFinal()))
                 .addAnnotation(generatedAnnotation())
                 .addFields(methodBodies.getMembers())
+                .addMethods(methodBodies.getMemberMethods())
                 .addMethod(emptyPublicConstructor());
 
         if (decisions.isInterface(mapperType.getKind())) {

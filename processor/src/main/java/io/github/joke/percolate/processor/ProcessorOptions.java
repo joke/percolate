@@ -22,6 +22,8 @@ public class ProcessorOptions {
     public static final String TIME_ZONE = "percolate.time.zone";
     public static final String SWITCH_STYLE = "percolate.switch.style";
     public static final String CONSTRUCTION_PREFERENCE = "percolate.construction.preference";
+    public static final String HELPERS_VISIBILITY = "percolate.helpers.visibility";
+    public static final String HELPERS_STATIC = "percolate.helpers.static";
 
     boolean debugGraphs;
     Set<String> customNullableAnnotations;

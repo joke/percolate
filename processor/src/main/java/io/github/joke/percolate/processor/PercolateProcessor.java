@@ -16,6 +16,8 @@ import static io.github.joke.percolate.processor.ProcessorOptions.CLASSES_FINAL;
 import static io.github.joke.percolate.processor.ProcessorOptions.CONSTRUCTION_PREFERENCE;
 import static io.github.joke.percolate.processor.ProcessorOptions.DEBUG_GRAPHS;
 import static io.github.joke.percolate.processor.ProcessorOptions.DOC_TAGS;
+import static io.github.joke.percolate.processor.ProcessorOptions.HELPERS_STATIC;
+import static io.github.joke.percolate.processor.ProcessorOptions.HELPERS_VISIBILITY;
 import static io.github.joke.percolate.processor.ProcessorOptions.LOCALS_FINAL;
 import static io.github.joke.percolate.processor.ProcessorOptions.LOCALS_VAR;
 import static io.github.joke.percolate.processor.ProcessorOptions.METHODS_FINAL;
@@ -50,7 +52,9 @@ public final class PercolateProcessor extends BasicAnnotationProcessor {
                 DOC_TAGS,
                 TIME_ZONE,
                 SWITCH_STYLE,
-                CONSTRUCTION_PREFERENCE);
+                CONSTRUCTION_PREFERENCE,
+                HELPERS_VISIBILITY,
+                HELPERS_STATIC);
     }
 
     @Override
