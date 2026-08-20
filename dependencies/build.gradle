@@ -9,7 +9,7 @@ javaPlatform {
 
 dependencies {
 
-    api platform('org.apache.groovy:groovy-bom:5.0.8')
+    api platform('org.apache.groovy:groovy-bom:5.1.0')
     api platform('org.spockframework:spock-bom:2.4-groovy-5.0')
     api platform('org.slf4j:slf4j-bom:2.0.18')
     
