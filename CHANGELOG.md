@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.4.0](https://github.com/joke/percolate/compare/v1.3.2...v1.4.0) (2026-10-09)
+
+
+### Features
+
+* **spi,processor,strategies-builtin:** assemble JavaBean targets through their setters ([a502938](https://github.com/joke/percolate/commit/a50293819713ccd487986fdf18612d81730d9cfc))
+
 ## [1.3.2](https://github.com/joke/percolate/compare/v1.3.1...v1.3.2) (2026-08-18)
 
 
