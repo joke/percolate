@@ -3,50 +3,45 @@ name: release
 on:
   push:
     branches: [main]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Release tag to publish, e.g. v1.0.0. Set only to re-publish a failed release.
+        required: true
 
 permissions:
   contents: write
   pull-requests: write
 
 jobs:
-  release-please:
-    runs-on: ubuntu-latest
-    permissions:
-      contents: write
-      pull-requests: write
-    outputs:
-      release_created: ${{ steps.release.outputs.release_created }}
-      tag_name: ${{ steps.release.outputs.tag_name }}
-    steps:
-    - uses: GoogleCloudPlatform/release-please-action@v5.0
-      id: release
+  release:
+    uses: joke/workflows/.github/workflows/gradle-release.yml@main
+    with:
+      tag: ${{ inputs.tag || '' }}
+    secrets: inherit
 
-  # Builds and deploys the Antora user manual only when release-please actually cut a release, at the
-  # release tag - never on an ordinary push to main. Runs before `publish` so a bad (reversible) docs
-  # deploy blocks the (irreversible) Maven Central publish rather than racing it.
-  # ONE-TIME SETUP (cannot be automated): Settings → Pages → "Build and deployment" → Source = "GitHub Actions".
   docs:
-    needs: release-please
-    if: ${{ needs.release-please.outputs.release_created }}
+    needs: release
+    if: ${{ needs.release.outputs.releases_created == 'true' }}
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v7
       with:
-        ref: ${{ needs.release-please.outputs.tag_name }}
+        ref: ${{ github.sha }}
         # Antora derives versions from git refs; full history + tags are required.
         fetch-depth: 0
     - uses: jdx/mise-action@v4
     - uses: gradle/actions/setup-gradle@v6
-      # The org.antora plugin builds the site on a managed Node; the `antora` task dependsOn the
-      # doc-example specs that materialise the generated output the manual include::s.
+    # The org.antora plugin builds the site on a managed Node; the `antora` task dependsOn the
+    # doc-example specs that materialise the generated output the manual include::s.
     - run: ./gradlew antora
     - uses: actions/upload-pages-artifact@v5
       with:
         path: build/site
 
   deploy:
-    needs: [release-please, docs]
-    if: ${{ needs.release-please.outputs.release_created }}
+    needs: [release, docs]
+    if: ${{ needs.release.outputs.releases_created == 'true' }}
     runs-on: ubuntu-latest
     permissions:
       pages: write
@@ -61,28 +56,3 @@ jobs:
     steps:
     - id: deployment
       uses: actions/deploy-pages@v5
-
-  # Publishes to Maven Central only when release-please actually cut a release (release_created) - an
-  # ordinary push to main that merely updates the pending release PR never reaches this job, and no
-  # -SNAPSHOT version is ever published. Also requires the docs deploy to succeed first: a bad docs
-  # deploy is trivially recoverable, a completed Maven Central publish is not.
-  publish:
-    needs: [release-please, deploy]
-    if: ${{ needs.release-please.outputs.release_created }}
-    runs-on: ubuntu-latest
-    steps:
-    - uses: actions/checkout@v7
-      with:
-        ref: ${{ needs.release-please.outputs.tag_name }}
-        fetch-depth: 0
-    - uses: jdx/mise-action@v4
-    - uses: crazy-max/ghaction-import-gpg@v7
-      with:
-        gpg_private_key: ${{ secrets.GPG_PRIVATE_KEY }}
-        passphrase: ${{ secrets.GPG_PASSPHRASE }}
-        fingerprint: ${{ secrets.GPG_FINGERPRINT }}
-    - uses: gradle/actions/setup-gradle@v6
-    - run: ./gradlew publishAggregationToCentralPortal
-      env:
-        ORG_GRADLE_PROJECT_mavenCentralUsername: ${{ secrets.mavenCentralUsername }}
-        ORG_GRADLE_PROJECT_mavenCentralPassword: ${{ secrets.mavenCentralPassword }}
