@@ -9,9 +9,9 @@ javaPlatform {
 
 dependencies {
 
-    api platform('org.apache.groovy:groovy-bom:5.1.0')
+    api platform('org.apache.groovy:groovy-bom:5.1.3')
     api platform('org.spockframework:spock-bom:2.4-groovy-5.0')
-    api platform('org.slf4j:slf4j-bom:2.0.18')
+    api platform('org.slf4j:slf4j-bom:2.0.20')
     
     constraints {
         api 'com.google.auto.service:auto-service-annotations:1.1.1'
@@ -19,23 +19,23 @@ dependencies {
         api 'com.google.auto:auto-common:1.2.2'
         api 'com.google.dagger:dagger-compiler:2.60.1'
         api 'com.google.dagger:dagger:2.60.1'
-        api 'com.google.testing.compile:compile-testing:0.23.0'
-        api 'com.palantir.javapoet:javapoet:0.18.0'
+        api 'com.google.testing.compile:compile-testing:0.24.0'
+        api 'com.palantir.javapoet:javapoet:0.22.0'
         // Aligned with the ArchUnit that com.netflix.nebula.archrules 1.3.1 brings via
         // nebula-archrules-core, so the archRules source set compiles against the same version the
         // runner evaluates rules with.
-        api 'com.tngtech.archunit:archunit:1.5.0'
+        api 'com.tngtech.archunit:archunit:1.5.1'
         api 'io.github.joke.jspecify:processor:1.0.0'
-        api 'io.projectreactor:reactor-core:3.8.6'
-        api 'net.bytebuddy:byte-buddy:1.18.12'
+        api 'io.projectreactor:reactor-core:3.8.7'
+        api 'net.bytebuddy:byte-buddy:1.18.15-jdk5'
         api 'org.assertj:assertj-core:3.27.7'
-        api 'org.codenarc:CodeNarc:3.7.0-groovy-4.0'
+        api 'org.codenarc:CodeNarc:3.7.0'
         api 'org.jetbrains:annotations:26.1.0'
         api 'org.jgrapht:jgrapht-core:1.5.3'
         api 'org.jgrapht:jgrapht-io:1.5.3'
-        api 'org.jspecify:jspecify:1.0.0'
-        api 'org.mockito:mockito-junit-jupiter:5.23.0'
-        api 'org.projectlombok:lombok:1.18.46'
+        api 'org.jspecify:jspecify:1.0.1'
+        api 'org.mockito:mockito-junit-jupiter:5.24.0'
+        api 'org.projectlombok:lombok:1.18.48'
     }
 
 }
