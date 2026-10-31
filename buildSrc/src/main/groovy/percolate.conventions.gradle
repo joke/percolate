@@ -69,7 +69,7 @@ pluginManager.withPlugin('java') {
 
 pluginManager.withPlugin('io.freefair.lombok') {
     lombok {
-        version = '1.18.46'
+        version = '1.18.48'
     }
 }
 
@@ -82,7 +82,7 @@ pluginManager.withPlugin('groovy') {
         maxPriority3Violations = 0
     }
     dependencies {
-        codenarc 'org.codenarc:CodeNarc:3.7.0-groovy-4.0'
+        codenarc 'org.codenarc:CodeNarc:3.7.0'
     }
     tasks.withType(CodeNarc).configureEach {
         reports {
@@ -160,7 +160,7 @@ pluginManager.withPlugin('pmd') {
         ruleSets = ['rulesets/java/joke-strict.xml']
     }
     dependencies {
-        pmd 'net.sourceforge.pmd:pmd-dist:7.26.0'
+        pmd 'net.sourceforge.pmd:pmd-dist:7.29.0'
         pmd 'io.github.joke.pmd:rules:0.1.0'
     }
 }
@@ -168,7 +168,7 @@ pluginManager.withPlugin('pmd') {
 pluginManager.withPlugin('net.ltgt.errorprone') {
     pluginManager.apply 'net.ltgt.nullaway'
     dependencies {
-        errorprone('com.google.errorprone:error_prone_core:2.49.0')
+        errorprone('com.google.errorprone:error_prone_core:2.51.0')
     }
     tasks.withType(JavaCompile).configureEach {
         options.errorprone {
@@ -179,7 +179,7 @@ pluginManager.withPlugin('net.ltgt.errorprone') {
 
 pluginManager.withPlugin('net.ltgt.nullaway') {
     dependencies {
-        errorprone('com.uber.nullaway:nullaway:0.13.4')
+        errorprone('com.uber.nullaway:nullaway:0.14.3')
     }
     tasks.withType(JavaCompile).configureEach {
         options.errorprone {
